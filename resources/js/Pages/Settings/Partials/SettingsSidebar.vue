@@ -111,9 +111,9 @@ function logout() {
 
         <!-- Search -->
         <div class="px-3 pb-2 shrink-0">
-            <div class="relative bg-[var(--wa-panel-header)] rounded-lg">
+            <div class="settings-search relative rounded-full">
                 <svg
-                    class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--wa-icon)]"
+                    class="settings-search-icon absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors"
                     fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
                 >
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -122,17 +122,17 @@ function logout() {
                     v-model="searchQuery"
                     type="text"
                     placeholder="Поиск"
-                    class="w-full pl-12 pr-3 py-[7px] bg-transparent rounded-lg text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
+                    class="w-full pl-12 pr-4 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none relative z-[1]"
                 />
             </div>
         </div>
 
         <!-- Items list -->
         <div class="flex-1 overflow-y-auto wa-scrollbar">
-            <!-- Admin avatar header (shown only when there are admin items and no search) -->
+            <!-- Large avatar header (hidden while searching) -->
             <div
-                v-if="isAdmin && !searchQuery && filteredAdminItems.length > 0"
-                class="flex justify-center py-4"
+                v-if="!searchQuery"
+                class="flex justify-center py-6"
             >
                 <div
                     class="w-[150px] h-[150px] rounded-full bg-[#6b7c85] flex items-center justify-center text-white text-5xl font-medium shadow"
@@ -234,6 +234,21 @@ function logout() {
 </template>
 
 <style scoped>
+.settings-search {
+    background-color: var(--wa-panel-header);
+    border: 2px solid transparent;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.settings-search:focus-within {
+    border-color: var(--wa-accent);
+    background-color: var(--wa-panel);
+}
+.settings-search-icon {
+    color: var(--wa-icon);
+}
+.settings-search:focus-within .settings-search-icon {
+    color: var(--wa-accent);
+}
 .settings-item {
     transition: background-color 0.15s ease;
 }
