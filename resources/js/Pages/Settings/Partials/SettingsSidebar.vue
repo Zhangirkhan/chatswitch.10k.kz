@@ -88,7 +88,10 @@ function isAdminActive(item: AdminItem): boolean {
 
 function isProfileActive(item: ProfileItem): boolean {
     if (!route().current('profile.edit')) return false;
-    return (props.activeSection || 'profile') === item.id;
+    // Only highlight when the user has explicitly opened a section; on the
+    // bare settings list (no ?section=) nothing should be selected, matching
+    // WhatsApp Web.
+    return props.activeSection === item.id;
 }
 
 function initial(name?: string): string {
