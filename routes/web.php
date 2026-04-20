@@ -12,11 +12,16 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WhatsappSessionController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', fn () => redirect()->route('login'));
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', fn () => redirect()->route('chats.index'));
+
+    // Visual stubs (WhatsApp Web parity)
+    Route::get('/status', fn () => Inertia::render('Status/Index'))->name('status.index');
+    Route::get('/channels', fn () => Inertia::render('Channels/Index'))->name('channels.index');
 
     // Chats
     Route::middleware('role:administrator,manager,employee')->group(function () {

@@ -11,8 +11,7 @@ function initial(name?: string): string {
 }
 
 function notifySoon() {
-    // Status / Channels / Communities are not implemented yet.
-    // Keep them as visual stubs to match WhatsApp Web; do nothing on click.
+    // Communities is not implemented yet; keep as visual stub.
 }
 </script>
 
@@ -44,24 +43,24 @@ function notifySoon() {
                 </Link>
 
                 <!-- Status -->
-                <button
-                    type="button"
+                <Link
+                    :href="route('status.index')"
                     class="wa-rail-btn"
+                    :class="{ active: route().current('status.index') }"
                     title="Статус"
-                    @click="notifySoon"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="9" stroke-dasharray="3 2" />
                         <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
                     </svg>
-                </button>
+                </Link>
 
                 <!-- Channels -->
-                <button
-                    type="button"
+                <Link
+                    :href="route('channels.index')"
                     class="wa-rail-btn"
+                    :class="{ active: route().current('channels.index') }"
                     title="Каналы"
-                    @click="notifySoon"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 10-14.93 4L4 20l4.07-1.07A8 8 0 0020 12z" />
@@ -69,7 +68,7 @@ function notifySoon() {
                         <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
                         <circle cx="15.5" cy="12" r="1" fill="currentColor" stroke="none" />
                     </svg>
-                </button>
+                </Link>
 
                 <!-- Communities -->
                 <button
