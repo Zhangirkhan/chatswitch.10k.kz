@@ -36,6 +36,7 @@ final class HandleInertiaRequests extends Middleware
                 ) : null,
             ],
             'archivedCount' => fn () => $user ? $this->archivedChatsCount($user) : 0,
+            'unreadChatsCount' => fn () => $user ? $this->unreadChatsCount($user) : 0,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
@@ -45,21 +46,39 @@ final class HandleInertiaRequests extends Middleware
 
     private function archivedChatsCount(User $user): int
     {
-        $query = Chat::query()->where('is_archived', true);
+        return $this->applyAccessScope(
+            Chat::query()->where('is_archived', true),
+            $user,
+        )->count();
+    }
 
+    private function unreadChatsCount(User $user): int
+    {
+        return $this->applyAccessScope(
+            Chat::query()->where('is_archived', false)->where('unread_count', '>', 0),
+            $user,
+        )->count();
+    }
+
+    /**
+     * @param  Builder<Chat>  $query
+     * @return Builder<Chat>
+     */
+    private function applyAccessScope(Builder $query, User $user): Builder
+    {
         if ($user->hasRole('administrator')) {
-            return $query->count();
+            return $query;
         }
 
         if ($user->hasRole('manager')) {
             $departmentUserIds = User::where('department_id', $user->department_id)->pluck('id');
             $query->whereHas('assignments', fn (Builder $q) => $q->whereIn('user_id', $departmentUserIds));
 
-            return $query->count();
+            return $query;
         }
 
         $query->whereHas('assignments', fn (Builder $q) => $q->where('user_id', $user->id));
 
-        return $query->count();
+        return $query;
     }
 }
