@@ -1,0 +1,120 @@
+export interface User {
+    id: number;
+    name: string;
+    email: string;
+    email_verified_at?: string | null;
+    phone: string | null;
+    department_id: number | null;
+    is_active: boolean;
+    roles: string[];
+    department: Department | null;
+}
+
+export interface Department {
+    id: number;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    users_count?: number;
+}
+
+export interface WhatsappSession {
+    id: number;
+    session_name: string;
+    phone_number: string | null;
+    display_name: string | null;
+    status: 'disconnected' | 'connecting' | 'qr_pending' | 'connected';
+    is_active: boolean;
+    connected_at: string | null;
+    disconnected_at: string | null;
+}
+
+export interface Contact {
+    id: number;
+    whatsapp_id: string;
+    phone_number: string;
+    name: string | null;
+    push_name: string | null;
+    profile_picture_url: string | null;
+    is_business: boolean;
+}
+
+export interface Chat {
+    id: number;
+    whatsapp_chat_id: string;
+    whatsapp_session_id: number;
+    contact_id: number | null;
+    chat_name: string | null;
+    is_group: boolean;
+    last_message_text: string | null;
+    last_message_at: string | null;
+    unread_count: number;
+    is_archived: boolean;
+    is_pinned: boolean;
+    contact: Contact | null;
+    whatsapp_session: WhatsappSession | null;
+    assignments: ChatAssignment[];
+}
+
+export interface Message {
+    id: number;
+    chat_id: number;
+    whatsapp_session_id: number;
+    whatsapp_message_id: string | null;
+    direction: 'inbound' | 'outbound';
+    type: string;
+    body: string | null;
+    sender_phone: string | null;
+    sender_name: string | null;
+    sent_by_user_id: number | null;
+    is_forwarded: boolean;
+    quoted_message_id?: string | null;
+    ack: 'pending' | 'sent' | 'delivered' | 'read';
+    message_timestamp: string | null;
+    created_at: string | null;
+    media: MessageMedia[];
+    sent_by_user: { id: number; name: string } | null;
+    whatsapp_session: { id: number; phone_number: string | null; display_name: string | null } | null;
+    reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+    id: number;
+    message_id: number;
+    user_id: number;
+    emoji: string;
+    user?: { id: number; name: string };
+}
+
+export interface MessageMedia {
+    id: number;
+    mime_type: string;
+    filename: string | null;
+}
+
+export interface ChatAssignment {
+    id: number;
+    chat_id: number;
+    user_id: number;
+    user: User;
+}
+
+export interface Paginated<T> {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+}
+
+export type PageProps<
+    T extends Record<string, unknown> = Record<string, unknown>,
+> = T & {
+    auth: {
+        user: User;
+    };
+    flash: {
+        success: string | null;
+        error: string | null;
+    };
+};

@@ -1,0 +1,25 @@
+2026-04-13 11:33:19: [ChatSwitch WA Service] running on port 3050
+2026-04-13 11:33:40: 127.0.0.1 - GET /health HTTP/1.1 200 63 - 1.543 ms
+2026-04-16 08:37:44: [ChatSwitch WA Service] running on port 3050
+2026-04-16 14:01:58: [ChatSwitch WA Service] running on port 3050
+2026-04-17 12:27:49: [ChatSwitch WA Service] running on port 3050
+2026-04-17 13:02:24: [e2e-qr-test-1776430944] initializing...
+2026-04-17 13:02:24: 127.0.0.1 - POST /api/sessions/e2e-qr-test-1776430944/initialize HTTP/1.1 200 41 - 43.196 ms
+2026-04-17 13:02:29: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 1.096 ms
+2026-04-17 13:02:34: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.771 ms
+2026-04-17 13:02:39: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.303 ms
+2026-04-17 13:02:44: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.285 ms
+2026-04-17 13:02:49: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.271 ms
+2026-04-17 13:02:54: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.664 ms
+2026-04-17 13:02:59: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.219 ms
+2026-04-17 13:03:04: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.263 ms
+2026-04-17 13:03:09: 127.0.0.1 - GET /api/sessions/e2e-qr-test-1776430944/status HTTP/1.1 200 108 - 0.297 ms
+2026-04-17 13:03:09: 127.0.0.1 - POST /api/sessions/e2e-qr-test-1776430944/destroy HTTP/1.1 200 38 - 1.019 ms
+2026-04-20 05:28:11: 127.0.0.1 - POST /api/send-seen HTTP/1.1 400 44 - 0.955 ms
+2026-04-20 05:38:27: 127.0.0.1 - POST /api/send-media HTTP/1.1 400 44 - 0.375 ms
+2026-04-20 05:38:33: 127.0.0.1 - POST /api/set-typing HTTP/1.1 400 44 - 0.373 ms
+2026-04-20 05:38:34: 127.0.0.1 - POST /api/set-typing HTTP/1.1 400 44 - 0.307 ms
+2026-04-20 05:38:36: 127.0.0.1 - POST /api/set-typing HTTP/1.1 400 44 - 0.205 ms
+2026-04-20 05:38:38: 127.0.0.1 - POST /api/set-typing HTTP/1.1 400 44 - 0.236 ms
+2026-04-20 05:38:40: 127.0.0.1 - POST /api/set-typing HTTP/1.1 400 44 - 0.189 ms
+2026-04-20 05:38:40: 127.0.0.1 - POST /api/send-message HTTP/1.1 400 44 - 0.325 ms

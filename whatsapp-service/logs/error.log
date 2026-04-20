@@ -1,0 +1,8 @@
+2026-04-17 13:02:24: [e2e-qr-test-1776430944] init error: Could not find Chrome (ver. 146.0.7680.153). This can occur if either
+2026-04-17 13:02:24:  1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+2026-04-17 13:02:24:  2. your cache path is incorrectly configured (which is: /var/www/chatswitch.10k.kz/whatsapp-service/.cache/puppeteer).
+2026-04-17 13:02:24: For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.
+2026-04-17 13:02:24: [e2e-qr-test-1776430944] init error: Could not find Chrome (ver. 146.0.7680.153). This can occur if either
+2026-04-17 13:02:24:  1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or
+2026-04-17 13:02:24:  2. your cache path is incorrectly configured (which is: /var/www/chatswitch.10k.kz/whatsapp-service/.cache/puppeteer).
+2026-04-17 13:02:24: For (2), check out our guide on configuring puppeteer at https://pptr.dev/guides/configuration.

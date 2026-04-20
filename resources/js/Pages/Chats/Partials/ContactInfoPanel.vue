@@ -1,0 +1,356 @@
+<script setup lang="ts">
+import { ref, computed, onBeforeUnmount } from 'vue';
+import { router } from '@inertiajs/vue3';
+import axios from 'axios';
+import type { Chat, Message } from '@/types';
+
+const props = defineProps<{
+    chat: Chat;
+    messages?: Message[];
+}>();
+
+const emit = defineEmits<{
+    (e: 'close'): void;
+    (e: 'open-search'): void;
+}>();
+
+const working = ref(false);
+
+const displayName = computed(() =>
+    props.chat.chat_name
+        || props.chat.contact?.name
+        || props.chat.contact?.push_name
+        || props.chat.contact?.phone_number
+        || 'Без имени',
+);
+
+const phoneLabel = computed(() => props.chat.contact?.phone_number || '');
+
+const firstInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
+
+const mediaCount = computed(() => {
+    const list = props.messages || [];
+    return list.filter((m: any) => m?.media || (m as any)?.media_id || m.type === 'image' || m.type === 'video' || m.type === 'document').length;
+});
+
+function onEscape(e: KeyboardEvent) {
+    if (e.key === 'Escape') emit('close');
+}
+window.addEventListener('keydown', onEscape);
+onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
+
+async function togglePin() {
+    if (working.value) return;
+    working.value = true;
+    try {
+        await axios.post(route('chats.toggle-pin', props.chat.id));
+        router.reload({ only: ['chat', 'chats'] });
+    } finally {
+        working.value = false;
+    }
+}
+
+async function clearChat() {
+    if (!confirm('Очистить всю историю этого чата? Это действие необратимо.')) return;
+    working.value = true;
+    try {
+        await axios.post(route('chats.clear', props.chat.id));
+        router.reload({ only: ['messages', 'chat'] });
+    } finally {
+        working.value = false;
+    }
+}
+
+async function deleteChat() {
+    if (!confirm(`Удалить чат с «${displayName.value}»? Все сообщения будут удалены.`)) return;
+    router.delete(route('chats.destroy', props.chat.id));
+}
+
+function notImplemented(name: string) {
+    alert(`«${name}» — скоро будет доступно.`);
+}
+</script>
+
+<template>
+    <aside
+        class="w-[400px] shrink-0 h-full flex flex-col border-l overflow-hidden"
+        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+    >
+        <!-- Header -->
+        <div
+            class="h-[60px] px-4 flex items-center gap-5 shrink-0"
+            :style="{ background: 'var(--wa-panel-header)' }"
+        >
+            <button
+                @click="emit('close')"
+                class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                title="Закрыть"
+                type="button"
+            >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h2 class="text-base flex-1" :style="{ color: 'var(--wa-text)' }">
+                Данные контакта
+            </h2>
+            <button
+                @click="notImplemented('Редактирование контакта')"
+                class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                title="Редактировать"
+                type="button"
+            >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Scrollable content -->
+        <div class="flex-1 overflow-y-auto wa-scrollbar">
+            <!-- Avatar header -->
+            <div class="py-8 flex flex-col items-center px-6">
+                <div
+                    v-if="chat.contact?.profile_picture_url"
+                    class="w-[200px] h-[200px] rounded-full overflow-hidden mb-5 bg-[#6b7c85]"
+                >
+                    <img
+                        :src="chat.contact.profile_picture_url"
+                        class="w-full h-full object-cover"
+                        alt=""
+                    />
+                </div>
+                <div
+                    v-else
+                    class="w-[200px] h-[200px] rounded-full flex items-center justify-center text-white text-[80px] font-medium mb-5"
+                    :class="chat.is_group ? 'bg-[var(--wa-accent)]' : 'bg-[#6b7c85]'"
+                >
+                    {{ firstInitial }}
+                </div>
+                <div class="text-[26px] text-center" :style="{ color: 'var(--wa-text)' }">
+                    {{ displayName }}
+                </div>
+                <div
+                    v-if="phoneLabel"
+                    class="text-sm mt-1"
+                    :style="{ color: 'var(--wa-text-secondary)' }"
+                >
+                    {{ phoneLabel }}
+                </div>
+            </div>
+
+            <!-- 3 action tiles -->
+            <div class="px-4 pb-4 grid grid-cols-3 gap-2">
+                <button class="action-tile" @click="emit('open-search')" type="button">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span>Поиск</span>
+                </button>
+                <button class="action-tile" @click="notImplemented('Видеозвонок')" type="button">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span>Видео</span>
+                </button>
+                <button class="action-tile" @click="notImplemented('Аудиозвонок')" type="button">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.05 17.34l-2.39-2.39a1.49 1.49 0 00-2.11 0l-.75.75a9.02 9.02 0 01-4.5-4.5l.75-.75a1.49 1.49 0 000-2.11L7.66 5.95a1.49 1.49 0 00-2.11 0l-1.3 1.3a2 2 0 00-.46 2.12A18 18 0 0015.63 21a2 2 0 002.12-.46l1.3-1.3a1.49 1.49 0 000-1.9z"/>
+                    </svg>
+                    <span>Аудио</span>
+                </button>
+            </div>
+
+            <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
+
+            <!-- Info rows -->
+            <div class="py-2">
+                <button class="info-row w-full" @click="notImplemented('Медиа, ссылки и документы')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="info-label">Медиа, ссылки и документы</span>
+                    <span class="info-meta">
+                        {{ mediaCount }}
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </span>
+                </button>
+
+                <button class="info-row w-full" @click="notImplemented('Избранные сообщения')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.539 1.118L12 16.98l-3.976 2.888c-.784.57-1.838-.196-1.539-1.118l1.518-4.674a1 1 0 00-.363-1.118L3.664 10.1c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.673z" />
+                    </svg>
+                    <span class="info-label">Избранные</span>
+                </button>
+
+                <button class="info-row w-full" @click="notImplemented('Настройки уведомлений')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span class="info-label">Настройки уведомлений</span>
+                </button>
+
+                <button class="info-row w-full" @click="notImplemented('Исчезающие сообщения')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="flex-1 min-w-0 text-left">
+                        <div class="info-label-inline">Исчезающие сообщения</div>
+                        <div class="info-sublabel">Выкл.</div>
+                    </div>
+                </button>
+
+                <button class="info-row w-full" @click="notImplemented('Расширенная защита конфиденциальности в чате')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <div class="flex-1 min-w-0 text-left">
+                        <div class="info-label-inline">Расширенная защита конфиденциальности в чате</div>
+                        <div class="info-sublabel">Выкл.</div>
+                    </div>
+                </button>
+
+                <div class="info-row">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <div class="flex-1 min-w-0 text-left">
+                        <div class="info-label-inline">Шифрование</div>
+                        <div class="info-sublabel">
+                            Сообщения защищены сквозным шифрованием. Нажмите, чтобы подтвердить.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
+
+            <!-- Pin & list -->
+            <div class="py-2">
+                <button class="info-row w-full" @click="togglePin" type="button" :disabled="working">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    <span class="info-label">
+                        {{ chat.is_pinned ? 'Убрать из избранного' : 'Добавить в избранное' }}
+                    </span>
+                </button>
+
+                <button class="info-row w-full" @click="notImplemented('Добавить в список')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h10M19 15v6m-3-3h6" />
+                    </svg>
+                    <span class="info-label">Добавить в список</span>
+                </button>
+            </div>
+
+            <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
+
+            <!-- Danger actions -->
+            <div class="py-2 pb-6">
+                <button class="info-row info-row-danger w-full" @click="clearChat" type="button" :disabled="working">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <line x1="7" y1="12" x2="17" y2="12" stroke-linecap="round" />
+                    </svg>
+                    <span class="info-label">Очистить чат</span>
+                </button>
+
+                <button class="info-row info-row-danger w-full" @click="notImplemented('Блокировка контакта')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="9" />
+                        <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke-linecap="round" />
+                    </svg>
+                    <span class="info-label truncate">Заблокировать {{ displayName }}</span>
+                </button>
+
+                <button class="info-row info-row-danger w-full" @click="notImplemented('Жалоба')" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="info-label truncate">Пожаловаться на {{ displayName }}</span>
+                </button>
+
+                <button class="info-row info-row-danger w-full" @click="deleteChat" type="button">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
+                    </svg>
+                    <span class="info-label">Удалить чат</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+</template>
+
+<style scoped>
+.action-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.75rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--wa-accent);
+    background-color: var(--wa-panel-header);
+    border: 1px solid var(--wa-border);
+    transition: background-color 0.15s ease;
+}
+.action-tile:hover {
+    background-color: var(--wa-panel-hover);
+}
+.info-row {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.875rem 1.25rem;
+    text-align: left;
+    color: var(--wa-text);
+    transition: background-color 0.12s ease;
+}
+.info-row:not(:disabled):hover {
+    background-color: var(--wa-panel-hover);
+}
+.info-row:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+.info-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--wa-text-secondary);
+    flex-shrink: 0;
+}
+.info-label {
+    flex: 1;
+    font-size: 0.9375rem;
+    min-width: 0;
+    text-align: left;
+}
+.info-label-inline {
+    font-size: 0.9375rem;
+}
+.info-sublabel {
+    font-size: 0.8125rem;
+    color: var(--wa-text-secondary);
+    margin-top: 0.125rem;
+}
+.info-meta {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--wa-text-secondary);
+}
+.info-row-danger {
+    color: #ef4444;
+}
+.info-row-danger .info-icon {
+    color: #ef4444;
+}
+.info-row-danger:hover {
+    background-color: rgba(239, 68, 68, 0.08);
+}
+</style>

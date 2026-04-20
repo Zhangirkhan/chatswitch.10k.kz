@@ -1,0 +1,240 @@
+<script setup lang="ts">
+import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import axios from 'axios';
+import type { User, Department } from '@/types';
+
+const props = defineProps<{
+    users: User[];
+    departments: Department[];
+    availableRoles: string[];
+}>();
+
+const local = ref([...props.users]);
+const showForm = ref(false);
+const editingId = ref<number | null>(null);
+const form = ref({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: 'employee',
+    department_id: null as number | null,
+    is_active: true,
+});
+
+const roleLabels: Record<string, string> = {
+    administrator: 'Администратор',
+    manager: 'Руководитель',
+    employee: 'Сотрудник',
+};
+
+function openAdd() {
+    editingId.value = null;
+    form.value = { name: '', email: '', phone: '', password: '', role: 'employee', department_id: null, is_active: true };
+    showForm.value = true;
+}
+
+function openEdit(user: User) {
+    editingId.value = user.id;
+    form.value = {
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        password: '',
+        role: user.roles?.[0] || 'employee',
+        department_id: user.department_id,
+        is_active: user.is_active,
+    };
+    showForm.value = true;
+}
+
+async function save() {
+    if (!form.value.name.trim() || !form.value.email.trim()) return;
+    try {
+        if (editingId.value) {
+            const payload: any = { ...form.value };
+            if (!payload.password) delete payload.password;
+            const { data } = await axios.put(route('settings.users.update', editingId.value), payload);
+            const idx = local.value.findIndex((u) => u.id === editingId.value);
+            if (idx !== -1) local.value[idx] = data.user;
+        } else {
+            const { data } = await axios.post(route('settings.users.store'), form.value);
+            local.value.push(data.user);
+        }
+        showForm.value = false;
+    } catch (err: any) {
+        alert(err.response?.data?.message || 'Ошибка');
+    }
+}
+
+async function remove(user: User) {
+    if (!confirm(`Удалить пользователя "${user.name}"?`)) return;
+    await axios.delete(route('settings.users.destroy', user.id));
+    local.value = local.value.filter((u) => u.id !== user.id);
+}
+</script>
+
+<template>
+    <Head title="Пользователи" />
+    <SettingsLayout title="Пользователи" subtitle="Операторы, руководители и администраторы">
+        <template #actions>
+            <button
+                @click="openAdd"
+                class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+            >
+                + Добавить пользователя
+            </button>
+        </template>
+
+        <div class="w-full px-6 py-6 space-y-4">
+            <!-- Form -->
+            <div
+                v-if="showForm"
+                class="rounded-lg border p-5"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+            >
+                <h3 class="text-sm font-medium mb-4 text-[var(--wa-text)]">
+                    {{ editingId ? 'Редактировать пользователя' : 'Новый пользователь' }}
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Имя</label>
+                        <input v-model="form.name" type="text" class="settings-input" />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Email</label>
+                        <input v-model="form.email" type="email" class="settings-input" />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Телефон</label>
+                        <input v-model="form.phone" type="text" class="settings-input" />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
+                            Пароль {{ editingId ? '(оставьте пустым, если не меняете)' : '' }}
+                        </label>
+                        <input v-model="form.password" type="password" class="settings-input" />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
+                        <select v-model="form.role" class="settings-input">
+                            <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отдел</label>
+                        <select v-model="form.department_id" class="settings-input">
+                            <option :value="null">— Без отдела —</option>
+                            <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
+                        </select>
+                    </div>
+                    <div v-if="editingId" class="flex items-center gap-2 col-span-full">
+                        <input v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
+                        <label class="text-sm text-[var(--wa-text-secondary)]">Активен</label>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button
+                        @click="save"
+                        class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    >Сохранить</button>
+                    <button
+                        @click="showForm = false"
+                        class="px-4 py-2 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                    >Отмена</button>
+                </div>
+            </div>
+
+            <!-- Users table -->
+            <div
+                class="rounded-lg border overflow-hidden"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+            >
+                <table class="w-full text-sm">
+                    <thead :style="{ background: 'var(--wa-panel-header)' }">
+                        <tr>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Имя</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Email</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Роль</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Отдел</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Статус</th>
+                            <th class="text-right px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="local.length === 0">
+                            <td colspan="6" class="px-5 py-10 text-center text-[var(--wa-text-secondary)]">
+                                Нет пользователей
+                            </td>
+                        </tr>
+                        <tr
+                            v-for="user in local"
+                            :key="user.id"
+                            class="border-t"
+                            :style="{ borderColor: 'var(--wa-border)' }"
+                        >
+                            <td class="px-5 py-3 font-medium text-[var(--wa-text)]">{{ user.name }}</td>
+                            <td class="px-5 py-3 text-[var(--wa-text-secondary)]">{{ user.email }}</td>
+                            <td class="px-5 py-3">
+                                <span
+                                    class="text-xs px-2 py-0.5 rounded-full font-medium"
+                                    :class="{
+                                        'bg-red-100 text-red-700': user.roles?.[0] === 'administrator',
+                                        'bg-blue-100 text-blue-700': user.roles?.[0] === 'manager',
+                                        'bg-gray-100 text-gray-700': user.roles?.[0] === 'employee',
+                                    }"
+                                >
+                                    {{ roleLabels[user.roles?.[0]] || user.roles?.[0] || '—' }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-3 text-[var(--wa-text-secondary)]">{{ user.department?.name || '—' }}</td>
+                            <td class="px-5 py-3">
+                                <span class="inline-flex items-center gap-2">
+                                    <span
+                                        class="w-2 h-2 rounded-full"
+                                        :class="user.is_active ? 'bg-[#25d366]' : 'bg-red-400'"
+                                    ></span>
+                                    <span class="text-xs text-[var(--wa-text-secondary)]">
+                                        {{ user.is_active ? 'Активен' : 'Отключён' }}
+                                    </span>
+                                </span>
+                            </td>
+                            <td class="px-5 py-3 text-right whitespace-nowrap">
+                                <button
+                                    @click="openEdit(user)"
+                                    class="text-xs hover:underline mr-3"
+                                    :style="{ color: 'var(--wa-accent)' }"
+                                >Изменить</button>
+                                <button
+                                    @click="remove(user)"
+                                    class="text-xs text-red-500 hover:underline"
+                                >Удалить</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </SettingsLayout>
+</template>
+
+<style scoped>
+.settings-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: var(--wa-bg);
+    color: var(--wa-text);
+    border: 1px solid var(--wa-border-strong);
+    transition: border-color 0.15s ease;
+}
+.settings-input:focus {
+    outline: none;
+    border-color: var(--wa-accent);
+}
+</style>
