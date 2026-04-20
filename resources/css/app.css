@@ -3,85 +3,124 @@
 @tailwind utilities;
 
 /*
- * WhatsApp Web palette.
- * Light + dark themes via CSS variables, switched by [data-theme] on <html>.
+ * WhatsApp Web color system.
+ *
+ * All palette tokens live here — never hard-code colors in components,
+ * always reference one of these variables (or their Tailwind `wa-*` aliases).
+ * Themes are switched by [data-theme] on <html>.
  */
 
 /* Dark (default) — neutral graphite, matches modern WhatsApp Web */
 :root,
 [data-theme='dark'] {
-    --wa-bg: #0b0d0e;
-    --wa-panel: #1a1c1d;
-    --wa-panel-header: #262829;
-    --wa-panel-input: #2a2c2d;
-    --wa-panel-hover: #242627;
-    --wa-selected: #2c2e2f;
-    --wa-border: #242627;
-    --wa-border-strong: #3a3c3d;
-    --wa-text: #e9edef;
-    --wa-text-secondary: #9aa0a4;
-    --wa-text-muted: #74787b;
-    --wa-accent: #00a884;
-    --wa-accent-hover: #06cf9c;
-    --wa-accent-soft: #103629;
-    --wa-accent-on: #0b0d0e;
-    --wa-bubble-out: #005c4b;
-    --wa-bubble-in: #262829;
-    --wa-bubble-text: #e9edef;
-    --wa-unread: #00a884;
-    --wa-unread-text: #0b0d0e;
-    --wa-ack-read: #53bdeb;
-    --wa-icon: #aebac1;
-    --wa-rail-bg: #1a1c1d;
+    /* Backgrounds */
+    --wa-bg: #0B0D0E;              /* main page / chat background */
+    --wa-panel: #1A1C1D;           /* chat list / content panel */
+    --wa-panel-header: #262829;    /* top bars, search container */
+    --wa-panel-input: #2A2C2D;     /* input fields */
+    --wa-panel-hover: #242627;     /* row / button hover */
+    --wa-selected: #2C2E2F;        /* selected row / pressed state */
+    --wa-rail-bg: #1A1C1D;         /* narrow left icon rail (= panel) */
     --wa-rail-btn-hover: #262829;
     --wa-empty-bg: #262829;
+
+    /* Borders & dividers */
+    --wa-border: #242627;
+    --wa-border-strong: #3A3C3D;
+    --wa-divider: #242627;
+
+    /* Text */
+    --wa-text: #E9EDEF;
+    --wa-text-secondary: #9AA0A4;
+    --wa-text-muted: #74787B;
+
+    /* Brand / accent */
+    --wa-accent: #00A884;          /* primary accent (links, icons, buttons) */
+    --wa-accent-hover: #06CF9C;
+    --wa-accent-soft: #103629;     /* subtle accent bg (badges, pills) */
+    --wa-accent-on: #0B0D0E;       /* foreground on accent bg */
+
+    /* Message bubbles */
+    --wa-bubble-in: #262829;       /* incoming messages */
+    --wa-bubble-out: #005C4B;      /* outgoing messages */
+    --wa-bubble-text: #E9EDEF;
+    --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.2);
+
+    /* Indicators */
+    --wa-unread: #00A884;
+    --wa-unread-text: #0B0D0E;
+    --wa-ack-read: #53BDEB;        /* double-tick "read" */
+
+    /* Iconography */
+    --wa-icon: #AEBAC1;
+
+    /* Scrollbar */
     --wa-scrollbar: rgba(154, 160, 164, 0.3);
     --wa-scrollbar-hover: rgba(154, 160, 164, 0.5);
-    --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.2);
-    --wa-doodle-color: '%231d1f20';
-    --wa-divider: #242627;
-    --wa-date-bubble: #1d1f20;
-    --wa-date-bubble-text: #e9edef;
-    --wa-avatar-bg: #2c2e2f;
-    --wa-avatar-icon: #aebac1;
+
+    /* Misc */
+    --wa-doodle-color: '%231D1F20';
+    --wa-date-bubble: #1D1F20;
+    --wa-date-bubble-text: #E9EDEF;
+    --wa-avatar-bg: #2C2E2F;
+    --wa-avatar-icon: #AEBAC1;
+    --wa-danger: #F15C6D;
 }
 
 /* Light */
 [data-theme='light'] {
-    --wa-bg: #efeae2;
-    --wa-panel: #ffffff;
-    --wa-panel-header: #f0f2f5;
-    --wa-panel-input: #ffffff;
-    --wa-panel-hover: #f5f6f6;
-    --wa-selected: #f0f2f5;
-    --wa-border: #e9edef;
-    --wa-border-strong: #d1d7db;
-    --wa-text: #111b21;
+    /* Backgrounds */
+    --wa-bg: #E5DDD5;              /* classic parchment chat background */
+    --wa-panel: #FFFFFF;
+    --wa-panel-header: #F0F2F5;
+    --wa-panel-input: #FFFFFF;
+    --wa-panel-hover: #F5F6F6;
+    --wa-selected: #F0F2F5;
+    --wa-rail-bg: #F0F2F5;
+    --wa-rail-btn-hover: #E9EDEF;
+    --wa-empty-bg: #F0F2F5;
+
+    /* Borders & dividers */
+    --wa-border: #D1D7DB;
+    --wa-border-strong: #D1D7DB;
+    --wa-divider: #E9EDEF;
+
+    /* Text */
+    --wa-text: #111B21;
     --wa-text-secondary: #667781;
-    --wa-text-muted: #8696a0;
-    --wa-accent: #008069;
-    --wa-accent-hover: #00a884;
-    --wa-accent-soft: #d8fdd2;
-    --wa-accent-on: #ffffff;
-    --wa-bubble-out: #d9fdd3;
-    --wa-bubble-in: #ffffff;
-    --wa-bubble-text: #111b21;
-    --wa-unread: #25d366;
-    --wa-unread-text: #ffffff;
-    --wa-ack-read: #53bdeb;
-    --wa-icon: #54656f;
-    --wa-rail-bg: #f0f2f5;
-    --wa-rail-btn-hover: #e9edef;
-    --wa-empty-bg: #f0f2f5;
+    --wa-text-muted: #8696A0;
+
+    /* Brand / accent */
+    --wa-accent: #008069;          /* darker WA green — readable on white */
+    --wa-accent-hover: #00A884;
+    --wa-accent-soft: #D8FDD2;
+    --wa-accent-on: #FFFFFF;
+
+    /* Message bubbles */
+    --wa-bubble-in: #FFFFFF;
+    --wa-bubble-out: #DCF8C6;
+    --wa-bubble-text: #111B21;
+    --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
+
+    /* Indicators */
+    --wa-unread: #25D366;          /* brand green badge */
+    --wa-unread-text: #FFFFFF;
+    --wa-ack-read: #53BDEB;
+
+    /* Iconography */
+    --wa-icon: #54656F;
+
+    /* Scrollbar */
     --wa-scrollbar: rgba(17, 27, 33, 0.16);
     --wa-scrollbar-hover: rgba(17, 27, 33, 0.3);
-    --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
-    --wa-doodle-color: '%23d1d7db';
-    --wa-divider: #f0f2f5;
-    --wa-date-bubble: #ffffff;
-    --wa-date-bubble-text: #54656f;
-    --wa-avatar-bg: #dfe5e7;
-    --wa-avatar-icon: #ffffff;
+
+    /* Misc */
+    --wa-doodle-color: '%23D1D7DB';
+    --wa-date-bubble: #FFFFFF;
+    --wa-date-bubble-text: #54656F;
+    --wa-avatar-bg: #DFE5E7;
+    --wa-avatar-icon: #FFFFFF;
+    --wa-danger: #E53935;
 }
 
 html,
@@ -94,6 +133,7 @@ body {
     background: var(--wa-bg);
     color: var(--wa-text);
     font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, 'Lucida Grande', Arial, Ubuntu, Cantarell, 'Fira Sans', sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Scrollbar (WhatsApp Web style) */
