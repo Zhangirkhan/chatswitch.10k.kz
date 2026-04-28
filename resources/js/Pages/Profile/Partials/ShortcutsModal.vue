@@ -12,24 +12,21 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(na
 const modKey = isMac ? 'Cmd' : 'Ctrl';
 
 const shortcuts: Shortcut[] = [
-    { label: 'Пометить как непрочитанное', keys: [modKey, 'Shift', 'U'] },
+    { label: 'Поиск чатов', keys: [modKey, '/'] },
+    { label: 'Поиск чатов (альтернатива)', keys: [modKey, 'K'] },
+    { label: 'Следующий чат', keys: ['Alt', '↓'] },
+    { label: 'Предыдущий чат', keys: ['Alt', '↑'] },
+    { label: 'Закрыть чат', keys: ['Escape'] },
+    { label: 'Новый чат', keys: [modKey, 'Shift', 'C'] },
+    { label: 'Новая группа', keys: [modKey, 'Shift', 'G'] },
+    { label: 'Поиск в чате', keys: [modKey, 'Shift', 'F'] },
+    { label: 'Информация о контакте', keys: [modKey, 'I'] },
+    { label: 'Панель смайликов', keys: [modKey, 'E'] },
+    { label: 'Закрепить чат', keys: [modKey, 'Shift', 'P'] },
     { label: 'Без звука', keys: [modKey, 'Shift', 'M'] },
     { label: 'Архивировать чат', keys: [modKey, 'Shift', 'E'] },
-    { label: 'Закрепить чат', keys: [modKey, 'Shift', 'P'] },
-    { label: 'Поиск', keys: [modKey, '/'] },
-    { label: 'Поиск в чате', keys: [modKey, 'Shift', 'F'] },
-    { label: 'Новый чат', keys: [modKey, 'N'] },
-    { label: 'Следующий чат', keys: [modKey, 'Tab'] },
-    { label: 'Предыдущий чат', keys: [modKey, 'Shift', 'Tab'] },
-    { label: 'Добавить ярлык к чату', keys: [modKey, 'Shift', 'L'] },
-    { label: 'Закрыть чат', keys: ['Escape'] },
-    { label: 'Новая группа', keys: [modKey, 'Shift', 'N'] },
-    { label: 'Профиль и информация', keys: [modKey, 'P'] },
-    { label: 'Увеличить скорость голосового сообщения', keys: ['Shift', '.'] },
-    { label: 'Уменьшить скорость голосового сообщения', keys: ['Shift', ','] },
+    { label: 'Пометить как непрочитанное', keys: [modKey, 'Shift', 'U'] },
     { label: 'Настройки', keys: [modKey, ','] },
-    { label: 'Панель смайликов', keys: [modKey, 'E'] },
-    { label: 'Панель GIF', keys: [modKey, 'G'] },
 ];
 
 function onKeydown(e: KeyboardEvent) {

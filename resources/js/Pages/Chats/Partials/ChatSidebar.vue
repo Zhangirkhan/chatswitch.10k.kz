@@ -1,30 +1,97 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ref, watch, computed, onBeforeUnmount } from 'vue';
+import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
 import type { Chat, Paginated } from '@/types';
+import { onShortcut } from '@/composables/useKeyboardShortcuts';
 
-type FilterKey = 'all' | 'unread' | 'favorites' | 'groups';
+type ScopeKey = 'active' | 'archived';
+type OwnershipKey = 'all' | 'mine';
+type SegmentKey = 'favorites' | 'clients' | 'staff';
 
-const props = defineProps<{
-    chats: Paginated<Chat>;
-    selectedChatId?: number;
-    search?: string;
-}>();
+const props = withDefaults(
+    defineProps<{
+        chats: Paginated<Chat>;
+        selectedChatId?: number;
+        search?: string;
+        scope?: ScopeKey;
+    }>(),
+    {
+        scope: 'active',
+    },
+);
 
 const page = usePage<any>();
 const archivedCount = computed<number>(() => Number(page.props.archivedCount || 0));
 const user = computed(() => page.props.auth?.user);
+const currentUserId = computed<number | null>(() => user.value?.id ?? null);
 const roles = computed<string[]>(() => user.value?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
+const isManager = computed(() => roles.value.includes('manager'));
+const canFilterByOwnership = computed(() => isAdmin.value || isManager.value);
 
+const OWNERSHIP_KEY = 'chatswitch.chats.ownership';
+const SEGMENT_KEY = 'chatswitch.chats.segment';
 const searchQuery = ref(props.search || '');
 const searchFocused = ref(false);
-const activeFilter = ref<FilterKey>('all');
-const filterMenuOpen = ref(false);
+const activeSegment = ref<SegmentKey>('clients');
+const activeOwnership = ref<OwnershipKey>('all');
 const headerMenuOpen = ref(false);
 const showNewChat = ref(false);
+
+// Dismissible info banners (remembered per-browser so they don't come back on reload)
+const NOTIF_BANNER_KEY = 'chatswitch.banner.notifications';
+const PROMO_BANNER_KEY = 'chatswitch.banner.promo';
+/** Пока скрыт баннер «Уведомления о сообщениях отключены» */
+const SHOW_NOTIFICATIONS_MUTED_BANNER = false;
+/** Пока скрыт промо-баннер (Facebook / Instagram) */
+const SHOW_PROMO_BANNER = false;
+const notifBannerOpen = ref(true);
+const promoBannerOpen = ref(true);
+onMounted(() => {
+    if (typeof window === 'undefined') return;
+    if (SHOW_NOTIFICATIONS_MUTED_BANNER) {
+        notifBannerOpen.value = localStorage.getItem(NOTIF_BANNER_KEY) !== 'dismissed';
+    } else {
+        notifBannerOpen.value = false;
+    }
+    if (SHOW_PROMO_BANNER) {
+        promoBannerOpen.value = localStorage.getItem(PROMO_BANNER_KEY) !== 'dismissed';
+    } else {
+        promoBannerOpen.value = false;
+    }
+
+    const storedOwnership = localStorage.getItem(OWNERSHIP_KEY);
+    if (storedOwnership === 'all' || storedOwnership === 'mine') {
+        activeOwnership.value = storedOwnership;
+    }
+    const storedSegment = localStorage.getItem(SEGMENT_KEY);
+    if (storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
+        activeSegment.value = storedSegment;
+    }
+});
+
+watch(activeOwnership, (val) => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(OWNERSHIP_KEY, val);
+    }
+});
+
+watch(activeSegment, (val) => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem(SEGMENT_KEY, val);
+    }
+});
+function dismissNotifBanner() {
+    notifBannerOpen.value = false;
+    localStorage.setItem(NOTIF_BANNER_KEY, 'dismissed');
+}
+function dismissPromoBanner() {
+    promoBannerOpen.value = false;
+    localStorage.setItem(PROMO_BANNER_KEY, 'dismissed');
+}
+
 let searchTimeout: ReturnType<typeof setTimeout>;
 
 watch(searchQuery, (val) => {
@@ -38,31 +105,54 @@ watch(searchQuery, (val) => {
     }, 300);
 });
 
+function isAssignedToMe(chat: Chat): boolean {
+    if (currentUserId.value === null) return false;
+    return (chat.assignments || []).some((a) => a.user_id === currentUserId.value);
+}
+
+const ownershipFilteredChats = computed(() => {
+    if (props.scope !== 'active' || !canFilterByOwnership.value) {
+        return props.chats.data;
+    }
+    if (activeOwnership.value === 'mine') {
+        return props.chats.data.filter(isAssignedToMe);
+    }
+    return props.chats.data;
+});
+
 const filteredChats = computed(() => {
-    let list = props.chats.data;
-    if (activeFilter.value === 'unread') {
-        list = list.filter((c) => c.unread_count > 0);
-    } else if (activeFilter.value === 'groups') {
-        list = list.filter((c) => c.is_group);
-    } else if (activeFilter.value === 'favorites') {
-        list = list.filter((c) => c.is_pinned);
+    let list = ownershipFilteredChats.value;
+    if (activeSegment.value === 'favorites') {
+        list = list.filter((c) => c.is_pinned || c.is_favorite);
+    } else if (activeSegment.value === 'clients') {
+        // Клиенты: последнее сообщение от собеседника (входящее), личные чаты
+        list = list.filter((c) => !c.is_group && c.last_message_direction === 'inbound');
+    } else {
+        // Сотрудники: последнее сообщение отправлено из системы (оператор)
+        list = list.filter((c) => c.last_message_direction === 'outbound');
     }
     return list;
 });
 
-const unreadTotal = computed(() =>
-    props.chats.data.reduce((sum, c) => sum + (c.unread_count > 0 ? 1 : 0), 0)
-);
-const groupsTotal = computed(() =>
-    props.chats.data.filter((c) => c.is_group).length
-);
 const favoritesTotal = computed(() =>
-    props.chats.data.filter((c) => c.is_pinned).length
+    ownershipFilteredChats.value.filter((c) => c.is_pinned || c.is_favorite).length
 );
+const clientsTotal = computed(() =>
+    ownershipFilteredChats.value.filter(
+        (c) => !c.is_group && c.last_message_direction === 'inbound',
+    ).length
+);
+const staffTotal = computed(() =>
+    ownershipFilteredChats.value.filter((c) => c.last_message_direction === 'outbound').length
+);
+const mineTotal = computed(() => props.chats.data.filter(isAssignedToMe).length);
 
-function setFilter(key: FilterKey) {
-    activeFilter.value = key;
-    filterMenuOpen.value = false;
+function setSegment(key: SegmentKey) {
+    activeSegment.value = key;
+}
+
+function setOwnership(key: OwnershipKey) {
+    activeOwnership.value = key;
 }
 
 function clearSearch() {
@@ -71,23 +161,62 @@ function clearSearch() {
 
 function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-        filterMenuOpen.value = false;
         headerMenuOpen.value = false;
         if (searchFocused.value) clearSearch();
     }
 }
 window.addEventListener('keydown', onEscape);
 onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
+
+function navigateChat(direction: 1 | -1) {
+    const list = filteredChats.value;
+    if (list.length === 0) return;
+    const currentIdx = props.selectedChatId
+        ? list.findIndex((c) => c.id === props.selectedChatId)
+        : -1;
+    let nextIdx: number;
+    if (currentIdx === -1) {
+        nextIdx = direction === 1 ? 0 : list.length - 1;
+    } else {
+        nextIdx = (currentIdx + direction + list.length) % list.length;
+    }
+    router.visit(route('chats.show', list[nextIdx].id));
+}
+
+const offNextChat = onShortcut('next-chat', () => navigateChat(1));
+const offPrevChat = onShortcut('prev-chat', () => navigateChat(-1));
+const offNewChat = onShortcut('new-chat', () => {
+    showNewChat.value = true;
+});
+const offNewGroup = onShortcut('new-group', () => {
+    showNewChat.value = true;
+    window.dispatchEvent(new CustomEvent('chatswitch:new-chat-mode', { detail: 'group' }));
+});
+onBeforeUnmount(() => {
+    offNextChat();
+    offPrevChat();
+    offNewChat();
+    offNewGroup();
+});
 </script>
 
 <template>
-    <!-- New-chat panel replaces the sidebar when active -->
-    <NewChatPanel v-if="showNewChat" @close="showNewChat = false" />
+    <div class="w-[400px] h-full relative shrink-0 overflow-hidden">
+        <!-- New-chat panel slides in from the left -->
+        <Transition name="slide-left">
+            <NewChatPanel
+                v-if="showNewChat"
+                class="absolute inset-0 z-20"
+                @close="showNewChat = false"
+            />
+        </Transition>
 
-    <div v-else class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)]">
+    <div class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)]">
         <!-- Panel header -->
         <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
-            <h1 class="text-[var(--wa-text)] text-xl font-normal">Чаты</h1>
+            <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
+                ChatSwitch
+            </h1>
             <div class="flex items-center gap-1">
                 <button
                     @click="showNewChat = true"
@@ -95,8 +224,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                     title="Новый чат"
                     type="button"
                 >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg
+                        class="w-[22px] h-[22px]"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M7.5 19.25 4.25 21.5v-3.25a2.75 2.75 0 0 1-1.5-2.45V6.25A2.75 2.75 0 0 1 5.5 3.5h13A2.75 2.75 0 0 1 21.25 6.25v9.55A2.75 2.75 0 0 1 18.5 18.55H9.1z" />
+                        <path d="M12 8v6" />
+                        <path d="M9 11h6" />
                     </svg>
                 </button>
                 <div class="relative">
@@ -169,16 +309,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                             <div class="my-1 h-px" :style="{ background: 'var(--wa-border)' }"></div>
                         </template>
                         <Link
-                            :href="route('chats.archived')"
-                            @click="headerMenuOpen = false"
-                            class="menu-item"
-                        >
-                            <svg class="menu-item-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
-                            </svg>
-                            <span>Архив</span>
-                        </Link>
-                        <Link
                             :href="route('profile.edit')"
                             @click="headerMenuOpen = false"
                             class="menu-item"
@@ -226,6 +356,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                     @blur="searchFocused = false"
                     type="text"
                     placeholder="Поиск или новый чат"
+                    data-shortcut-target="chat-search"
                     class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                 />
                 <button
@@ -242,118 +373,155 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
             </div>
         </div>
 
-        <!-- Filter chips -->
+        <!-- Scope: Активные / Архив (стиль как «Все / Мои») -->
         <div class="px-3 pb-2 flex items-center gap-2 shrink-0">
+            <Link
+                :href="route('chats.index')"
+                class="subtab"
+                :class="{ 'subtab-active': scope === 'active' }"
+            >
+                Активные
+            </Link>
+            <Link
+                :href="route('chats.archived')"
+                class="subtab"
+                :class="{ 'subtab-active': scope === 'archived' }"
+            >
+                Архив<span v-if="archivedCount" class="ml-1.5">{{ archivedCount }}</span>
+            </Link>
+        </div>
+
+        <!-- Ownership sub-tabs: Все / Мои (only in Активные, admin/manager) -->
+        <div
+            v-if="scope === 'active' && canFilterByOwnership"
+            class="px-3 pb-2 flex items-center gap-2 shrink-0"
+        >
             <button
-                @click="setFilter('all')"
-                class="chip"
-                :class="{ 'chip-active': activeFilter === 'all' }"
+                @click="setOwnership('all')"
+                class="subtab"
+                :class="{ 'subtab-active': activeOwnership === 'all' }"
+                type="button"
             >
                 Все
             </button>
             <button
-                @click="setFilter('unread')"
-                class="chip"
-                :class="{ 'chip-active': activeFilter === 'unread' }"
+                @click="setOwnership('mine')"
+                class="subtab"
+                :class="{ 'subtab-active': activeOwnership === 'mine' }"
+                type="button"
             >
-                Непрочитанные<span v-if="unreadTotal" class="ml-1.5">{{ unreadTotal }}</span>
+                Мои<span v-if="mineTotal" class="ml-1.5">{{ mineTotal }}</span>
             </button>
+        </div>
+
+        <!-- Сегменты: Избранные / Клиенты / Сотрудники (стиль как «Все / Мои») -->
+        <div
+            v-if="scope === 'active'"
+            class="px-3 pb-2 flex items-center gap-2 shrink-0 flex-wrap"
+        >
             <button
-                v-if="activeFilter === 'favorites'"
-                @click="setFilter('favorites')"
-                class="chip chip-active"
+                type="button"
+                class="subtab"
+                :class="{ 'subtab-active': activeSegment === 'favorites' }"
+                @click="setSegment('favorites')"
             >
                 Избранные<span v-if="favoritesTotal" class="ml-1.5">{{ favoritesTotal }}</span>
             </button>
             <button
-                v-if="activeFilter === 'groups'"
-                @click="setFilter('groups')"
-                class="chip chip-active"
+                type="button"
+                class="subtab"
+                :class="{ 'subtab-active': activeSegment === 'clients' }"
+                @click="setSegment('clients')"
             >
-                Группы<span v-if="groupsTotal" class="ml-1.5">{{ groupsTotal }}</span>
+                Клиенты<span v-if="clientsTotal" class="ml-1.5">{{ clientsTotal }}</span>
             </button>
+            <button
+                type="button"
+                class="subtab"
+                :class="{ 'subtab-active': activeSegment === 'staff' }"
+                @click="setSegment('staff')"
+            >
+                Сотрудники<span v-if="staffTotal" class="ml-1.5">{{ staffTotal }}</span>
+            </button>
+        </div>
 
-            <!-- Dropdown trigger -->
-            <div class="relative">
+        <!-- Notifications muted banner -->
+        <div
+            v-if="SHOW_NOTIFICATIONS_MUTED_BANNER && notifBannerOpen"
+            class="mx-3 mb-2 flex items-center gap-3 px-3 py-2.5 rounded-lg shrink-0 banner"
+        >
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" :style="{ background: 'var(--wa-selected)' }">
+                <svg class="w-5 h-5 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15L4 17h5a3 3 0 006 0h5l-1.405-1.405M3 3l18 18M9 5.341V5a2 2 0 114 0v.341" />
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-[13px] text-[var(--wa-text)] truncate">Уведомления о сообщениях отключены.</div>
                 <button
-                    @click="filterMenuOpen = !filterMenuOpen"
-                    class="chip chip-chevron"
-                    :class="{ 'chip-chevron-open': filterMenuOpen }"
-                    title="Ещё фильтры"
                     type="button"
+                    class="text-[13px] font-medium mt-0.5"
+                    :style="{ color: 'var(--wa-accent)' }"
                 >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    Включить
                 </button>
+            </div>
+            <button
+                @click="dismissNotifBanner"
+                class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 hover:bg-[var(--wa-panel-hover)] text-[var(--wa-icon)]"
+                title="Закрыть"
+                type="button"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
 
-                <div
-                    v-if="filterMenuOpen"
-                    @click="filterMenuOpen = false"
-                    class="fixed inset-0 z-40"
-                ></div>
-
-                <div
-                    v-if="filterMenuOpen"
-                    class="absolute left-0 top-full mt-2 min-w-[220px] rounded-lg shadow-xl py-2 z-50 border filter-menu"
-                    :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
-                >
+        <!-- Promo banner -->
+        <div
+            v-if="SHOW_PROMO_BANNER && promoBannerOpen"
+            class="mx-3 mb-2 flex items-start gap-3 px-3 py-2.5 rounded-lg shrink-0 banner"
+        >
+            <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" :style="{ background: 'var(--wa-accent-soft)' }">
+                <svg class="w-5 h-5" :style="{ color: 'var(--wa-accent)' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
+                    <circle cx="12" cy="12" r="4" />
+                    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+                </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-[13px] text-[var(--wa-text)]">Обращайтесь к новым клиентам</div>
+                <div class="text-[12px] text-[var(--wa-text-secondary)] mt-0.5 leading-snug">
+                    Рекламируйте свою компанию на Facebook и в Instagram.
                     <button
-                        @click="setFilter('favorites')"
-                        class="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--wa-panel-hover)]"
-                        :style="{ color: 'var(--wa-text)' }"
+                        type="button"
+                        class="font-medium"
+                        :style="{ color: 'var(--wa-accent)' }"
                     >
-                        <span>Избранные</span>
-                        <span v-if="favoritesTotal" class="text-[var(--wa-text-secondary)] text-xs">{{ favoritesTotal }}</span>
-                    </button>
-                    <button
-                        @click="setFilter('groups')"
-                        class="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--wa-panel-hover)]"
-                        :style="{ color: 'var(--wa-text)' }"
-                    >
-                        <span>Группы</span>
-                        <span v-if="groupsTotal" class="text-[var(--wa-text-secondary)] text-xs">{{ groupsTotal }}</span>
-                    </button>
-                    <div class="my-1 h-px" :style="{ background: 'var(--wa-border)' }"></div>
-                    <button
-                        class="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--wa-panel-hover)] opacity-60 cursor-not-allowed"
-                        :style="{ color: 'var(--wa-text)' }"
-                        disabled
-                        title="Скоро"
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Новый список
+                        Начать
                     </button>
                 </div>
             </div>
+            <button
+                @click="dismissPromoBanner"
+                class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 hover:bg-[var(--wa-panel-hover)] text-[var(--wa-icon)]"
+                title="Закрыть"
+                type="button"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
         </div>
 
         <!-- Chat list -->
         <div class="flex-1 overflow-y-auto wa-scrollbar">
-            <!-- Archived entry (like WhatsApp Web) -->
-            <Link
-                v-if="archivedCount > 0 && activeFilter === 'all'"
-                :href="route('chats.archived')"
-                class="flex items-center px-4 py-3 gap-5 cursor-pointer transition archived-link"
-            >
-                <div class="w-5 flex justify-center">
-                    <svg class="w-5 h-5 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
-                    </svg>
-                </div>
-                <span class="text-[var(--wa-text)] text-[15px] flex-1">В архиве</span>
-                <span class="text-xs font-medium" :style="{ color: 'var(--wa-accent)' }">
-                    {{ archivedCount }}
-                </span>
-            </Link>
-
             <div
                 v-if="filteredChats.length === 0"
                 class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
             >
-                Нет чатов в этом разделе
+                <template v-if="scope === 'archived'">В архиве пока нет чатов</template>
+                <template v-else>Нет чатов в этом разделе</template>
             </div>
             <ChatListItem
                 v-for="chat in filteredChats"
@@ -362,6 +530,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                 :is-selected="chat.id === selectedChatId"
             />
         </div>
+
+    </div>
     </div>
 </template>
 
@@ -379,44 +549,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 .wa-icon-btn:hover {
     background-color: var(--wa-panel-hover);
 }
-.chip {
+.subtab {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    padding: 0.3125rem 0.875rem;
-    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--wa-text);
+    color: var(--wa-text-secondary);
     background-color: transparent;
-    border: 1px solid var(--wa-border-strong);
-    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
     line-height: 1.25rem;
+    border-radius: 0;
+    text-decoration: none;
+    cursor: pointer;
 }
-.chip:hover {
-    background-color: var(--wa-panel-hover);
+.subtab:hover {
+    color: var(--wa-text);
 }
-.chip-active {
-    background-color: var(--wa-accent-soft);
+.subtab-active {
     color: var(--wa-accent);
-    border-color: var(--wa-accent-soft);
+    border-bottom-color: var(--wa-accent);
     font-weight: 600;
 }
-.chip-active:hover {
-    background-color: var(--wa-accent-soft);
-}
-.chip-chevron {
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    justify-content: center;
-    color: var(--wa-text-secondary);
-}
-.chip-chevron-open {
-    background-color: var(--wa-panel-hover);
-}
-.filter-menu {
-    animation: filter-menu-pop 0.12s ease-out;
+.subtab-active:hover {
+    color: var(--wa-accent);
 }
 @keyframes filter-menu-pop {
     from { opacity: 0; transform: translateY(-4px) scale(0.98); }
@@ -430,6 +589,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 }
 .header-menu {
     animation: filter-menu-pop 0.12s ease-out;
+}
+.banner {
+    background-color: var(--wa-panel-header);
 }
 .menu-item {
     display: flex;
@@ -450,5 +612,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
     height: 1.125rem;
     color: var(--wa-icon);
     flex-shrink: 0;
+}
+.slide-left-enter-active,
+.slide-left-leave-active {
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.slide-left-enter-from {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+.slide-left-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
 }
 </style>

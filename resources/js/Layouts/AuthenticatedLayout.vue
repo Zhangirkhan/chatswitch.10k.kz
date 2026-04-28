@@ -1,29 +1,101 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import Avatar from '@/Components/Avatar.vue';
+import ToastContainer from '@/Components/ToastContainer.vue';
+import type { WhatsappSession } from '@/types';
+import { formatPhone } from '@/utils/phone';
 
 const page = usePage<any>();
 const user = computed(() => page.props.auth.user);
 const unreadChatsCount = computed<number>(() => Number(page.props.unreadChatsCount || 0));
+const whatsappSessions = ref<WhatsappSession[]>([]);
+let whatsappStatusChannel: any = null;
 
-function initial(name?: string): string {
-    return (name || '?').charAt(0).toUpperCase();
+const canSubscribeToWhatsappStatus = computed(() => {
+    const roles = user.value?.roles;
+    return Array.isArray(roles) && (roles.includes('administrator') || roles.includes('manager'));
+});
+
+watch(
+    () => page.props.whatsappSessions as WhatsappSession[] | undefined,
+    (sessions) => {
+        whatsappSessions.value = [...(sessions || [])];
+    },
+    { immediate: true },
+);
+
+function sessionInitial(s: WhatsappSession): string {
+    const src = s.display_name || s.wa_name || s.session_name || '?';
+    return src.trim().charAt(0).toUpperCase();
 }
 
-function notifySoon() {
-    // Communities is not implemented yet; keep as visual stub.
+function sessionTooltip(s: WhatsappSession): string {
+    const parts = [s.display_name || s.wa_name || s.session_name];
+    if (s.phone_number) parts.push(formatPhone(s.phone_number) || s.phone_number);
+    const statusLabel = s.status === 'connected'
+        ? 'Подключён'
+        : s.status === 'qr_pending'
+            ? 'Ожидание QR'
+            : s.status === 'connecting'
+                ? 'Подключение…'
+                : 'Отключён';
+    parts.push(statusLabel);
+    return parts.filter(Boolean).join(' · ');
 }
+
+function onWhatsappStatusChanged(raw: unknown): void {
+    if (!raw || typeof raw !== 'object') return;
+
+    const payload = raw as Record<string, unknown>;
+    const sessionName = typeof payload.session === 'string' ? payload.session : null;
+    const status = typeof payload.status === 'string' ? payload.status : null;
+    if (!sessionName || !status) return;
+
+    const allowed: WhatsappSession['status'][] = ['disconnected', 'connecting', 'qr_pending', 'connected'];
+    if (!allowed.includes(status as WhatsappSession['status'])) return;
+
+    const session = whatsappSessions.value.find((s) => s.session_name === sessionName);
+    if (!session) return;
+
+    session.status = status as WhatsappSession['status'];
+    if (typeof payload.phone_number === 'string') {
+        session.phone_number = payload.phone_number;
+    }
+    if (typeof payload.wa_name === 'string') {
+        session.wa_name = payload.wa_name;
+    }
+}
+
+onMounted(() => {
+    const Echo = (window as any).Echo;
+    if (!Echo || !canSubscribeToWhatsappStatus.value) return;
+
+    try {
+        whatsappStatusChannel = Echo.private('whatsapp-status');
+        whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
+    } catch {
+        whatsappStatusChannel = null;
+    }
+});
+
+onUnmounted(() => {
+    try {
+        whatsappStatusChannel?.stopListening('.status.changed', onWhatsappStatusChanged);
+    } catch {
+        /* ignore socket cleanup errors */
+    }
+    whatsappStatusChannel = null;
+});
 </script>
 
 <template>
     <div class="h-screen w-screen flex bg-[var(--wa-bg)] text-[var(--wa-text)] overflow-hidden">
-        <!-- LEFT ICON RAIL (matches WhatsApp Web 1:1) -->
         <aside
             class="w-[60px] shrink-0 flex flex-col items-center py-3"
             :style="{ background: 'var(--wa-rail-bg)' }"
         >
             <nav class="flex flex-col items-center gap-1 flex-1">
-                <!-- Chats -->
                 <Link
                     :href="route('chats.index')"
                     class="wa-rail-btn relative"
@@ -42,58 +114,39 @@ function notifySoon() {
                     </span>
                 </Link>
 
-                <!-- Status -->
-                <Link
-                    :href="route('status.index')"
-                    class="wa-rail-btn"
-                    :class="{ active: route().current('status.index') }"
-                    title="Статус"
-                >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="9" stroke-dasharray="3 2" />
-                        <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
-                    </svg>
-                </Link>
-
-                <!-- Channels -->
-                <Link
-                    :href="route('channels.index')"
-                    class="wa-rail-btn"
-                    :class="{ active: route().current('channels.index') }"
-                    title="Каналы"
-                >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 10-14.93 4L4 20l4.07-1.07A8 8 0 0020 12z" />
-                        <circle cx="8.5" cy="12" r="1" fill="currentColor" stroke="none" />
-                        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-                        <circle cx="15.5" cy="12" r="1" fill="currentColor" stroke="none" />
-                    </svg>
-                </Link>
-
-                <!-- Communities -->
-                <button
-                    type="button"
-                    class="wa-rail-btn"
-                    title="Сообщества"
-                    @click="notifySoon"
-                >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                </button>
+                <template v-if="whatsappSessions.length">
+                    <div
+                        class="w-7 h-px my-1 shrink-0"
+                        :style="{ background: 'var(--wa-border)' }"
+                    ></div>
+                    <Link
+                        v-for="s in whatsappSessions"
+                        :key="s.id"
+                        :href="route('settings.connections')"
+                        class="wa-session-chip"
+                        :title="sessionTooltip(s)"
+                    >
+                        <span class="wa-session-chip-label">{{ sessionInitial(s) }}</span>
+                        <span
+                            class="wa-session-chip-dot"
+                            :class="s.status === 'connected' ? 'is-online' : s.status === 'qr_pending' || s.status === 'connecting' ? 'is-pending' : 'is-offline'"
+                        ></span>
+                    </Link>
+                </template>
             </nav>
 
             <div class="flex flex-col items-center gap-1 pb-1">
-                <!-- Profile avatar opens settings, just like WhatsApp Web -->
                 <Link
                     :href="route('profile.edit')"
                     :title="user?.name"
                     class="block rounded-full transition"
                     :class="{ 'ring-2 ring-[var(--wa-accent)]': route().current('profile.edit') || route().current('settings.*') }"
                 >
-                    <div class="w-10 h-10 rounded-full bg-[#6b7c85] flex items-center justify-center text-white text-sm font-medium">
-                        {{ initial(user?.name) }}
-                    </div>
+                    <Avatar
+                        :avatar-url="user?.profile_photo_url"
+                        :name="user?.name"
+                        :size="40"
+                    />
                 </Link>
             </div>
         </aside>
@@ -101,6 +154,8 @@ function notifySoon() {
         <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
             <slot />
         </div>
+
+        <ToastContainer />
     </div>
 </template>
 
@@ -123,5 +178,49 @@ function notifySoon() {
 .wa-rail-btn.active {
     background-color: var(--wa-selected);
     color: var(--wa-text);
+}
+.wa-session-chip {
+    position: relative;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #fff;
+    background: var(--wa-rail-btn-hover);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    cursor: pointer;
+    user-select: none;
+}
+.wa-session-chip:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--wa-accent) 45%, transparent);
+}
+.wa-session-chip-label {
+    pointer-events: none;
+    line-height: 1;
+}
+.wa-session-chip-dot {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 9999px;
+    border: 2px solid var(--wa-rail-bg);
+    background: #94a3b8;
+}
+.wa-session-chip-dot.is-online {
+    background: #25d366;
+}
+.wa-session-chip-dot.is-pending {
+    background: #facc15;
+}
+.wa-session-chip-dot.is-offline {
+    background: #ef4444;
 }
 </style>

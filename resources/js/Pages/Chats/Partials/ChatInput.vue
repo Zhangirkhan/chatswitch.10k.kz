@@ -3,9 +3,11 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import type { Message } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
+import { formatPhone } from '@/utils/phone';
 
 const props = defineProps<{
     chatId: number;
+    sessionId?: number | null;
     replyTo?: Message | null;
 }>();
 
@@ -41,7 +43,7 @@ function replyPreviewText(msg: Message): string {
 
 function replyAuthor(msg: Message): string {
     if (msg.direction === 'outbound') return msg.sent_by_user?.name || 'Вы';
-    return msg.sender_name || msg.sender_phone || 'Контакт';
+    return msg.sender_name || formatPhone(msg.sender_phone) || 'Контакт';
 }
 
 async function sendMessage() {
@@ -156,15 +158,18 @@ async function uploadFile(file: File, type?: string) {
     }
 }
 
-async function onMediaSelected(e: Event) {
+function detectMediaKind(file: File): 'image' | 'video' | 'gif' {
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type === 'image/gif') return 'gif';
+    return 'image';
+}
+
+function onMediaSelected(e: Event) {
     const t = e.target as HTMLInputElement;
-    const file = t.files?.[0];
-    if (!file) return;
-    const type = file.type.startsWith('video/') ? 'video'
-        : file.type === 'image/gif' ? 'gif'
-        : 'image';
-    await uploadFile(file, type);
+    const files = Array.from(t.files ?? []);
     t.value = '';
+    if (!files.length) return;
+    addPendingAttachments(files);
 }
 
 async function onDocSelected(e: Event) {
@@ -259,13 +264,352 @@ function cancelRecording() {
     }
 }
 
+function onEmojiShortcut() {
+    toggleEmoji();
+}
+window.addEventListener('chatswitch:toggle-emoji', onEmojiShortcut);
+
 onBeforeUnmount(() => {
     if (recording.value) cancelRecording();
+    clearPendingAttachments();
+    unlockBodyScroll();
+    window.removeEventListener('chatswitch:toggle-emoji', onEmojiShortcut);
+});
+
+// ===== Attachment preview composer =====
+type PendingAttachment = {
+    id: string;
+    file: File;
+    previewUrl: string;
+    kind: 'image' | 'video' | 'gif';
+    caption: string;
+};
+
+const pendingAttachments = ref<PendingAttachment[]>([]);
+const activeAttachmentIndex = ref(0);
+const attachmentCaptionRef = ref<HTMLTextAreaElement | null>(null);
+const isUploadingAttachments = ref(false);
+
+const activeAttachment = computed<PendingAttachment | null>(() =>
+    pendingAttachments.value[activeAttachmentIndex.value] ?? null,
+);
+const activeAttachmentCaption = computed({
+    get: () => activeAttachment.value?.caption ?? '',
+    set: (value: string) => {
+        const attachment = activeAttachment.value;
+        if (attachment) {
+            attachment.caption = value;
+        }
+    },
+});
+const showAttachmentPreview = computed(() => pendingAttachments.value.length > 0);
+
+function addPendingAttachments(files: File[]) {
+    const next = files.map<PendingAttachment>((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        kind: detectMediaKind(file),
+        caption: '',
+    }));
+    const firstNewIndex = pendingAttachments.value.length;
+    pendingAttachments.value = [...pendingAttachments.value, ...next];
+    activeAttachmentIndex.value = firstNewIndex;
+    nextTick(() => attachmentCaptionRef.value?.focus());
+}
+
+function removePendingAttachment(index: number) {
+    const item = pendingAttachments.value[index];
+    if (!item) return;
+    URL.revokeObjectURL(item.previewUrl);
+    pendingAttachments.value.splice(index, 1);
+    if (!pendingAttachments.value.length) {
+        closeAttachmentPreview();
+        return;
+    }
+    if (activeAttachmentIndex.value >= pendingAttachments.value.length) {
+        activeAttachmentIndex.value = pendingAttachments.value.length - 1;
+    }
+}
+
+function selectAttachment(index: number) {
+    if (index < 0 || index >= pendingAttachments.value.length) return;
+    activeAttachmentIndex.value = index;
+}
+
+function clearPendingAttachments() {
+    pendingAttachments.value.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+    pendingAttachments.value = [];
+    activeAttachmentIndex.value = 0;
+}
+
+function closeAttachmentPreview() {
+    if (isUploadingAttachments.value) return;
+    clearPendingAttachments();
+}
+
+function addMoreAttachments() {
+    mediaInput.value?.click();
+}
+
+async function confirmSendAttachments() {
+    if (!pendingAttachments.value.length || isUploadingAttachments.value) return;
+
+    isUploadingAttachments.value = true;
+    const items = [...pendingAttachments.value];
+
+    try {
+        for (let i = 0; i < items.length; i++) {
+            const att = items[i];
+            const formData = new FormData();
+            formData.append('file', att.file);
+            formData.append('type', att.kind);
+            const caption = att.caption.trim();
+            if (caption) formData.append('caption', caption);
+
+            const { data } = await axios.post(
+                route('chats.upload-file', props.chatId),
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } },
+            );
+            if (data.message) emit('messageSent', data.message);
+        }
+        clearPendingAttachments();
+    } catch (err) {
+        console.error('Upload failed:', err);
+        alert('Не удалось загрузить файл');
+    } finally {
+        isUploadingAttachments.value = false;
+    }
+}
+
+function onPreviewKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAttachmentPreview();
+    }
+}
+
+function onCaptionKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        confirmSendAttachments();
+    }
+}
+
+let previousBodyOverflow = '';
+function lockBodyScroll() {
+    if (typeof document === 'undefined') return;
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+}
+function unlockBodyScroll() {
+    if (typeof document === 'undefined') return;
+    document.body.style.overflow = previousBodyOverflow;
+}
+
+// ===== Share contact =====
+type ContactListItem = {
+    id: number;
+    whatsapp_id: string | null;
+    phone_number: string | null;
+    name: string | null;
+    push_name: string | null;
+    profile_picture_url: string | null;
+};
+
+const showContactPicker = ref(false);
+const contactPickerLoading = ref(false);
+const contactPickerSearch = ref('');
+const contactPickerList = ref<ContactListItem[]>([]);
+const pendingContact = ref<ContactListItem | null>(null);
+const isSendingContact = ref(false);
+let contactSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+const contactPickerOpen = computed(
+    () => showContactPicker.value || pendingContact.value !== null,
+);
+
+function contactDisplayName(c: ContactListItem): string {
+    return (c.name || c.push_name || formatPhone(c.phone_number) || formatPhone(c.whatsapp_id) || 'Контакт').toString();
+}
+
+function contactDisplayPhone(c: ContactListItem): string {
+    return formatPhone(c.phone_number || c.whatsapp_id || '');
+}
+
+async function loadContactList(q = '') {
+    contactPickerLoading.value = true;
+    try {
+        const { data } = await axios.get(route('chats.contacts'), {
+            params: { search: q || undefined },
+        });
+        contactPickerList.value = (data.contacts || []) as ContactListItem[];
+    } catch (err) {
+        console.error('Load contacts failed:', err);
+        contactPickerList.value = [];
+    } finally {
+        contactPickerLoading.value = false;
+    }
+}
+
+function openContactPicker() {
+    showAttach.value = false;
+    showContactPicker.value = true;
+    contactPickerSearch.value = '';
+    loadContactList('');
+}
+
+function closeContactPicker() {
+    if (isSendingContact.value) return;
+    showContactPicker.value = false;
+    pendingContact.value = null;
+    if (contactSearchTimer) {
+        clearTimeout(contactSearchTimer);
+        contactSearchTimer = null;
+    }
+}
+
+function pickContact(contact: ContactListItem) {
+    if (!contact.phone_number && !contact.whatsapp_id) {
+        alert('У этого контакта нет номера телефона и его нельзя отправить.');
+        return;
+    }
+    pendingContact.value = contact;
+    showContactPicker.value = false;
+}
+
+function backToContactList() {
+    pendingContact.value = null;
+    showContactPicker.value = true;
+}
+
+watch(contactPickerSearch, (val) => {
+    if (!showContactPicker.value) return;
+    if (contactSearchTimer) clearTimeout(contactSearchTimer);
+    contactSearchTimer = setTimeout(() => loadContactList(val), 250);
+});
+
+async function confirmSendContact() {
+    const contact = pendingContact.value;
+    if (!contact || isSendingContact.value) return;
+
+    const phone = (contact.phone_number || contact.whatsapp_id || '').toString();
+    if (!phone.replace(/\D/g, '')) {
+        alert('У контакта не указан номер — отправка невозможна.');
+        return;
+    }
+
+    isSendingContact.value = true;
+    try {
+        const payload = {
+            contact_id: contact.id,
+            name: contactDisplayName(contact),
+            phone,
+            avatar_url: contact.profile_picture_url,
+        };
+        const { data } = await axios.post(
+            route('chats.send-contact', props.chatId),
+            payload,
+        );
+        if (data.message) emit('messageSent', data.message);
+        pendingContact.value = null;
+        showContactPicker.value = false;
+    } catch (err) {
+        console.error('Send contact failed:', err);
+        alert('Не удалось отправить контакт.');
+    } finally {
+        isSendingContact.value = false;
+    }
+}
+
+// ===== Poll composer =====
+const showPollModal = ref(false);
+const isSendingPoll = ref(false);
+const pollQuestion = ref('');
+const pollOptions = ref<string[]>(['', '']);
+const pollAllowMultiple = ref(false);
+
+const pollCanSubmit = computed(() => {
+    if (!pollQuestion.value.trim()) return false;
+    const filled = pollOptions.value.map((o) => o.trim()).filter((o) => o.length > 0);
+    return filled.length >= 2;
+});
+
+function openPollModal() {
+    showAttach.value = false;
+    pollQuestion.value = '';
+    pollOptions.value = ['', ''];
+    pollAllowMultiple.value = false;
+    showPollModal.value = true;
+}
+
+function closePollModal() {
+    if (isSendingPoll.value) return;
+    showPollModal.value = false;
+}
+
+function addPollOption() {
+    if (pollOptions.value.length >= 12) return;
+    pollOptions.value.push('');
+}
+
+function removePollOption(index: number) {
+    if (pollOptions.value.length <= 2) return;
+    pollOptions.value.splice(index, 1);
+}
+
+async function submitPoll() {
+    if (!pollCanSubmit.value || isSendingPoll.value) return;
+
+    const question = pollQuestion.value.trim();
+    const options = pollOptions.value
+        .map((o) => o.trim())
+        .filter((o) => o.length > 0);
+
+    if (options.length < 2) return;
+
+    isSendingPoll.value = true;
+    try {
+        const { data } = await axios.post(route('chats.send-poll', props.chatId), {
+            question,
+            options,
+            allow_multiple_answers: pollAllowMultiple.value,
+        });
+        if (data.message) emit('messageSent', data.message);
+        showPollModal.value = false;
+    } catch (err) {
+        console.error('Send poll failed:', err);
+        alert('Не удалось создать опрос.');
+    } finally {
+        isSendingPoll.value = false;
+    }
+}
+
+const anyOverlayOpen = computed(
+    () => showAttachmentPreview.value || contactPickerOpen.value || showPollModal.value,
+);
+watch(anyOverlayOpen, (open) => {
+    if (open) lockBodyScroll();
+    else unlockBodyScroll();
 });
 </script>
 
 <template>
-    <div class="shrink-0 relative">
+    <!-- No WhatsApp session: number was deleted -->
+    <div
+        v-if="props.sessionId === null || props.sessionId === undefined"
+        class="shrink-0 flex items-center justify-center gap-2 px-4 py-3 border-t text-sm"
+        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+    >
+        <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"/>
+        </svg>
+        <span>Номер WhatsApp отключён. Подключите новый номер в</span>
+        <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">настройках</a>.
+    </div>
+
+    <div v-else class="shrink-0 relative chat-bg">
         <!-- Reply preview -->
         <div
             v-if="replyTo"
@@ -298,7 +642,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Main input bar -->
-        <div class="bg-[var(--wa-panel-header)] px-4 py-3 flex items-end gap-2">
+        <div class="wa-input-bar">
             <!-- Recording state -->
             <template v-if="recording">
                 <button @click="cancelRecording" class="wa-input-btn text-red-500" title="Отменить">
@@ -306,7 +650,7 @@ onBeforeUnmount(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                     </svg>
                 </button>
-                <div class="flex-1 flex items-center gap-3 px-3 py-2 rounded-lg wa-shadow" :style="{ background: 'var(--wa-panel-input)' }">
+                <div class="wa-input-pill flex-1 flex items-center gap-3 px-3">
                     <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
                     <span class="text-sm" :style="{ color: 'var(--wa-text)' }">Запись… {{ formatRecordTime(recordingTime) }}</span>
                     <div class="flex-1"></div>
@@ -321,22 +665,8 @@ onBeforeUnmount(() => {
 
             <!-- Normal input -->
             <template v-else>
-                <!-- Emoji button -->
-                <button
-                    data-emoji-trigger
-                    @click="toggleEmoji"
-                    class="wa-input-btn"
-                    :class="{ 'wa-input-btn-active': showEmoji }"
-                    title="Эмодзи"
-                    type="button"
-                >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </button>
-
-                <!-- Attach button -->
-                <div class="relative">
+                <!-- Plus / attach button -->
+                <div class="wa-input-attach">
                     <button
                         @click="toggleAttach"
                         class="wa-input-btn"
@@ -344,7 +674,7 @@ onBeforeUnmount(() => {
                         title="Прикрепить"
                         type="button"
                     >
-                        <svg class="w-6 h-6 transition-transform" :class="{ 'rotate-45': showAttach }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
@@ -364,14 +694,6 @@ onBeforeUnmount(() => {
                                 </span>
                                 Фото или видео
                             </button>
-                            <button class="attach-item" @click="stubAction('Камера')" type="button">
-                                <span class="attach-icon" style="background: #ff2e74;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                </span>
-                                Камера
-                            </button>
                             <button class="attach-item" @click="pickDocument" type="button">
                                 <span class="attach-icon" style="background: #5f66cd;">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -388,7 +710,7 @@ onBeforeUnmount(() => {
                                 </span>
                                 Стикер
                             </button>
-                            <button class="attach-item" @click="stubAction('Контакт')" type="button">
+                            <button class="attach-item" @click="openContactPicker" type="button">
                                 <span class="attach-icon" style="background: #0099ff;">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -396,7 +718,7 @@ onBeforeUnmount(() => {
                                 </span>
                                 Контакт
                             </button>
-                            <button class="attach-item" @click="stubAction('Опрос')" type="button">
+                            <button class="attach-item" @click="openPollModal" type="button">
                                 <span class="attach-icon" style="background: #ffa115;">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-4" />
@@ -408,11 +730,25 @@ onBeforeUnmount(() => {
                     </transition>
                 </div>
 
-                <input ref="mediaInput" type="file" accept="image/*,video/*" class="hidden" @change="onMediaSelected" />
+                <input ref="mediaInput" type="file" accept="image/*,video/*" class="hidden" multiple @change="onMediaSelected" />
                 <input ref="docInput" type="file" class="hidden" @change="onDocSelected" />
                 <input ref="stickerInput" type="file" accept="image/webp,image/png,image/gif" class="hidden" @change="onStickerSelected" />
 
-                <div class="flex-1 relative">
+                <!-- Emoji button (outside input pill) -->
+                <button
+                    data-emoji-trigger
+                    @click="toggleEmoji"
+                    class="wa-input-btn"
+                    :class="{ 'wa-input-btn-active': showEmoji }"
+                    title="Эмодзи"
+                    type="button"
+                >
+                    <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+
+                <div class="wa-input-pill flex-1">
                     <textarea
                         ref="textareaRef"
                         v-model="messageText"
@@ -420,17 +756,16 @@ onBeforeUnmount(() => {
                         @input="onInput"
                         rows="1"
                         placeholder="Введите сообщение"
-                        class="w-full px-4 py-[9px] bg-[var(--wa-panel-input)] rounded-lg text-[15px] text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none resize-none max-h-[120px] overflow-y-auto wa-scrollbar leading-5 wa-shadow"
-                        style="min-height: 42px;"
+                        class="wa-input-textarea wa-scrollbar"
                     ></textarea>
-
-                    <!-- Emoji picker -->
-                    <EmojiPicker
-                        v-if="showEmoji"
-                        @select="insertEmoji"
-                        @close="showEmoji = false"
-                    />
                 </div>
+
+                <EmojiPicker
+                    v-if="showEmoji"
+                    class="z-50"
+                    @select="insertEmoji"
+                    @close="showEmoji = false"
+                />
 
                 <button
                     v-if="hasText"
@@ -457,19 +792,472 @@ onBeforeUnmount(() => {
                 </button>
             </template>
         </div>
+
+        <!-- Fullscreen attachment preview composer -->
+        <Teleport to="body">
+            <transition name="att-fade">
+                <div
+                    v-if="showAttachmentPreview"
+                    class="att-preview"
+                    tabindex="-1"
+                    @keydown="onPreviewKeydown"
+                >
+                    <!-- Top toolbar -->
+                    <div class="att-preview-top">
+                        <button
+                            class="att-tool-btn"
+                            type="button"
+                            :disabled="isUploadingAttachments"
+                            title="Закрыть"
+                            @click="closeAttachmentPreview"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
+                        <div class="att-preview-counter" v-if="pendingAttachments.length > 1">
+                            {{ activeAttachmentIndex + 1 }} / {{ pendingAttachments.length }}
+                        </div>
+
+                        <div class="att-preview-top-actions">
+                            <button
+                                class="att-tool-btn"
+                                type="button"
+                                title="Удалить файл"
+                                :disabled="isUploadingAttachments"
+                                @click="removePendingAttachment(activeAttachmentIndex)"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Big preview area -->
+                    <div class="att-preview-stage">
+                        <template v-if="activeAttachment">
+                            <img
+                                v-if="activeAttachment.kind === 'image' || activeAttachment.kind === 'gif'"
+                                :src="activeAttachment.previewUrl"
+                                :alt="activeAttachment.file.name"
+                                class="att-preview-media"
+                            />
+                            <video
+                                v-else
+                                :src="activeAttachment.previewUrl"
+                                class="att-preview-media"
+                                controls
+                                playsinline
+                            />
+                        </template>
+                    </div>
+
+                    <!-- Bottom composer -->
+                    <div class="att-preview-bottom">
+                        <div class="att-preview-caption-row">
+                            <div class="att-preview-caption-pill">
+                                <textarea
+                                    ref="attachmentCaptionRef"
+                                    v-model="activeAttachmentCaption"
+                                    rows="1"
+                                    :placeholder="pendingAttachments.length > 1 ? `Подпись к файлу ${activeAttachmentIndex + 1}…` : 'Добавьте подпись…'"
+                                    class="att-preview-caption-input wa-scrollbar"
+                                    :disabled="isUploadingAttachments"
+                                    @keydown="onCaptionKeydown"
+                                ></textarea>
+                            </div>
+
+                            <button
+                                class="att-send-btn"
+                                type="button"
+                                :disabled="isUploadingAttachments"
+                                title="Отправить"
+                                @click="confirmSendAttachments"
+                            >
+                                <svg v-if="!isUploadingAttachments" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                                </svg>
+                                <span v-else class="att-spinner" aria-hidden="true"></span>
+                            </button>
+                        </div>
+
+                        <!-- Thumbnails strip -->
+                        <div class="att-preview-thumbs">
+                            <button
+                                v-for="(att, index) in pendingAttachments"
+                                :key="att.id"
+                                type="button"
+                                class="att-preview-thumb"
+                                :class="{ 'att-preview-thumb-active': index === activeAttachmentIndex }"
+                                :disabled="isUploadingAttachments"
+                                @click="selectAttachment(index)"
+                            >
+                                <img
+                                    v-if="att.kind === 'image' || att.kind === 'gif'"
+                                    :src="att.previewUrl"
+                                    alt=""
+                                />
+                                <video v-else :src="att.previewUrl" muted playsinline />
+                            </button>
+
+                            <button
+                                type="button"
+                                class="att-preview-thumb att-preview-thumb-add"
+                                :disabled="isUploadingAttachments"
+                                title="Добавить ещё"
+                                @click="addMoreAttachments"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- Contact picker / confirm -->
+        <Teleport to="body">
+            <transition name="att-fade">
+                <div
+                    v-if="contactPickerOpen"
+                    class="contact-picker-overlay"
+                    @click.self="closeContactPicker"
+                >
+                    <div class="contact-picker-sheet" role="dialog" aria-modal="true">
+                        <!-- List step -->
+                        <template v-if="showContactPicker && !pendingContact">
+                            <div class="contact-picker-header">
+                                <button
+                                    class="att-tool-btn"
+                                    type="button"
+                                    title="Закрыть"
+                                    @click="closeContactPicker"
+                                >
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                                <h3 class="contact-picker-title">Отправить контакт</h3>
+                            </div>
+
+                            <div class="contact-picker-search">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input
+                                    v-model="contactPickerSearch"
+                                    type="text"
+                                    placeholder="Поиск контактов"
+                                    class="contact-picker-search-input"
+                                    autocomplete="off"
+                                />
+                            </div>
+
+                            <div class="contact-picker-list wa-scrollbar">
+                                <div v-if="contactPickerLoading" class="contact-picker-empty">
+                                    Загрузка…
+                                </div>
+                                <div
+                                    v-else-if="contactPickerList.length === 0"
+                                    class="contact-picker-empty"
+                                >
+                                    Контакты не найдены.
+                                </div>
+                                <button
+                                    v-for="c in contactPickerList"
+                                    :key="c.id"
+                                    type="button"
+                                    class="contact-picker-row"
+                                    @click="pickContact(c)"
+                                >
+                                    <span class="contact-avatar">
+                                        <img
+                                            v-if="c.profile_picture_url"
+                                            :src="c.profile_picture_url"
+                                            :alt="contactDisplayName(c)"
+                                        />
+                                        <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                        </svg>
+                                    </span>
+                                    <span class="contact-meta">
+                                        <span class="contact-meta-name">{{ contactDisplayName(c) }}</span>
+                                        <span class="contact-meta-phone">{{ contactDisplayPhone(c) }}</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- Confirm step -->
+                        <template v-else-if="pendingContact">
+                            <div class="contact-picker-header">
+                                <button
+                                    class="att-tool-btn"
+                                    type="button"
+                                    title="Назад"
+                                    :disabled="isSendingContact"
+                                    @click="backToContactList"
+                                >
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                <h3 class="contact-picker-title">Отправить контакт?</h3>
+                                <button
+                                    class="att-tool-btn contact-picker-header-close"
+                                    type="button"
+                                    title="Закрыть"
+                                    :disabled="isSendingContact"
+                                    @click="closeContactPicker"
+                                >
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="contact-confirm-body">
+                                <div class="contact-confirm-card">
+                                    <span class="contact-confirm-avatar">
+                                        <img
+                                            v-if="pendingContact.profile_picture_url"
+                                            :src="pendingContact.profile_picture_url"
+                                            :alt="contactDisplayName(pendingContact)"
+                                        />
+                                        <svg v-else class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                        </svg>
+                                    </span>
+                                    <div class="contact-confirm-info">
+                                        <div class="contact-confirm-name">{{ contactDisplayName(pendingContact) }}</div>
+                                        <div class="contact-confirm-phone">{{ contactDisplayPhone(pendingContact) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="contact-confirm-actions">
+                                <button
+                                    type="button"
+                                    class="contact-btn-cancel"
+                                    :disabled="isSendingContact"
+                                    @click="closeContactPicker"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    type="button"
+                                    class="contact-btn-send"
+                                    :disabled="isSendingContact"
+                                    @click="confirmSendContact"
+                                >
+                                    <span v-if="isSendingContact" class="att-spinner" aria-hidden="true"></span>
+                                    <span v-else>Отправить</span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- Poll composer -->
+        <Teleport to="body">
+            <transition name="att-fade">
+                <div
+                    v-if="showPollModal"
+                    class="contact-picker-overlay"
+                    @click.self="closePollModal"
+                >
+                    <div class="contact-picker-sheet poll-sheet" role="dialog" aria-modal="true">
+                        <div class="contact-picker-header">
+                            <button
+                                class="att-tool-btn"
+                                type="button"
+                                title="Закрыть"
+                                :disabled="isSendingPoll"
+                                @click="closePollModal"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <h3 class="contact-picker-title">Создать опрос</h3>
+                        </div>
+
+                        <div class="poll-body wa-scrollbar">
+                            <label class="poll-label">Вопрос</label>
+                            <input
+                                v-model="pollQuestion"
+                                type="text"
+                                class="poll-input"
+                                placeholder="О чём хотите спросить?"
+                                maxlength="255"
+                                :disabled="isSendingPoll"
+                            />
+
+                            <label class="poll-label poll-label-spaced">Варианты ответа</label>
+                            <div class="poll-options">
+                                <div
+                                    v-for="(_, idx) in pollOptions"
+                                    :key="idx"
+                                    class="poll-option-row"
+                                >
+                                    <input
+                                        v-model="pollOptions[idx]"
+                                        type="text"
+                                        class="poll-input"
+                                        :placeholder="`Вариант ${idx + 1}`"
+                                        maxlength="100"
+                                        :disabled="isSendingPoll"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="poll-option-remove"
+                                        :disabled="isSendingPoll || pollOptions.length <= 2"
+                                        title="Удалить вариант"
+                                        @click="removePollOption(idx)"
+                                    >
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <button
+                                    v-if="pollOptions.length < 12"
+                                    type="button"
+                                    class="poll-add-option"
+                                    :disabled="isSendingPoll"
+                                    @click="addPollOption"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Добавить вариант
+                                </button>
+                            </div>
+
+                            <label class="poll-check">
+                                <input
+                                    v-model="pollAllowMultiple"
+                                    type="checkbox"
+                                    :disabled="isSendingPoll"
+                                />
+                                <span>Разрешить несколько ответов</span>
+                            </label>
+                        </div>
+
+                        <div class="contact-confirm-actions">
+                            <button
+                                type="button"
+                                class="contact-btn-cancel"
+                                :disabled="isSendingPoll"
+                                @click="closePollModal"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                class="contact-btn-send"
+                                :disabled="isSendingPoll || !pollCanSubmit"
+                                @click="submitPoll"
+                            >
+                                <span v-if="isSendingPoll" class="att-spinner" aria-hidden="true"></span>
+                                <span v-else>Создать</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
     </div>
 </template>
 
+
 <style scoped>
-.wa-input-btn {
-    padding: 0.5rem;
-    color: var(--wa-icon);
-    transition: color 0.15s ease;
+.wa-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    min-height: 56px;
+
+    /* Modern floating pill */
+    border: none;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #1e1e1e 0%, #2a2a2a 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    /* Make it feel “floating” */
+    margin: 10px 12px;
+
+    /* Allow the bar to grow with textarea */
+    align-items: flex-end;
+}
+
+.wa-input-attach {
+    position: relative;
+    display: flex;
+    align-items: center;
     flex-shrink: 0;
 }
-.wa-input-btn:hover { color: var(--wa-text); }
+
+.wa-input-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #b0b0b0;
+    background: transparent;
+    transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+.wa-input-btn:hover { background: rgba(255, 255, 255, 0.05); color: #ffffff; }
+.wa-input-btn:active { transform: scale(0.96); }
 .wa-input-btn:disabled { opacity: 0.5; }
 .wa-input-btn-active { color: var(--wa-accent); }
+.wa-input-btn svg { display: block; }
+
+.wa-input-pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+    padding: 0 8px;
+    border-radius: 9999px;
+    background: transparent;
+    box-shadow: none;
+}
+
+.wa-input-textarea {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    margin: 0;
+    padding: 10px 4px;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font-size: 15px;
+    line-height: 22px;
+    resize: none;
+    max-height: 120px;
+    overflow-y: auto;
+    caret-color: #ffffff;
+}
+.wa-input-textarea:focus { outline: none; box-shadow: none; }
+.wa-input-textarea::placeholder { color: #9aa0a6; }
 
 .attach-menu {
     animation: picker-pop 0.14s ease-out;
@@ -505,5 +1293,580 @@ onBeforeUnmount(() => {
     justify-content: center;
     color: white;
     flex-shrink: 0;
+}
+</style>
+
+<style>
+/* Unscoped: the preview is teleported to <body>, so scoped styles would not reach it. */
+.att-preview {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.7);
+    color: #e9edef;
+    outline: none;
+}
+
+.att-fade-enter-active,
+.att-fade-leave-active {
+    transition: opacity 0.18s ease;
+}
+.att-fade-enter-from,
+.att-fade-leave-to {
+    opacity: 0;
+}
+
+.att-preview-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    min-height: 56px;
+}
+
+.att-preview-top-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.att-preview-counter {
+    font-size: 14px;
+    color: var(--wa-icon);
+}
+
+.att-tool-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #e9edef;
+    background: transparent;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease;
+}
+.att-tool-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+}
+.att-tool-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.att-preview-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 24px 24px;
+}
+
+.att-preview-media {
+    max-width: min(100%, 1100px);
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #000;
+}
+
+.att-preview-bottom {
+    padding: 12px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.35), transparent);
+}
+
+.att-preview-caption-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.att-preview-caption-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 6px 16px;
+    border-radius: 9999px;
+    background: var(--wa-panel-input);
+}
+
+.att-preview-caption-input {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 6px 0;
+    border: 0;
+    background: transparent;
+    color: var(--wa-text);
+    font-size: 15px;
+    line-height: 20px;
+    resize: none;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.att-preview-caption-input::placeholder {
+    color: var(--wa-text-secondary);
+}
+.att-preview-caption-input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.att-send-btn {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    color: #fff;
+    background: var(--wa-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    transition: background-color 0.15s ease, transform 0.08s ease;
+}
+.att-send-btn:hover:not(:disabled) {
+    background: var(--wa-accent-hover);
+}
+.att-send-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+.att-send-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.att-spinner {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    animation: att-spin 0.8s linear infinite;
+}
+@keyframes att-spin {
+    to { transform: rotate(360deg); }
+}
+
+.att-preview-thumbs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.att-preview-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    background: var(--wa-panel);
+    padding: 0;
+    flex-shrink: 0;
+    transition: border-color 0.15s ease, transform 0.08s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.att-preview-thumb img,
+.att-preview-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.att-preview-thumb:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+.att-preview-thumb-active {
+    border-color: #00a884;
+}
+.att-preview-thumb-add {
+    color: #e9edef;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px dashed rgba(255, 255, 255, 0.18);
+}
+.att-preview-thumb-add:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+}
+.att-preview-thumb:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ===== Contact picker ===== */
+.contact-picker-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.contact-picker-sheet {
+    width: 100%;
+    max-width: 440px;
+    max-height: min(640px, 100%);
+    display: flex;
+    flex-direction: column;
+    background: var(--wa-panel-header, #262829);
+    color: var(--wa-text, #e9edef);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.contact-picker-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    min-height: 56px;
+    border-bottom: 1px solid var(--wa-border, rgba(134, 150, 160, 0.2));
+}
+
+.contact-picker-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0;
+}
+
+.contact-picker-header-close {
+    margin-left: auto;
+}
+
+.contact-picker-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 12px;
+    padding: 0 12px;
+    height: 40px;
+    background: var(--wa-panel-input, #2a2c2d);
+    color: var(--wa-text-secondary, #9aa0a4);
+    border-radius: 9999px;
+}
+
+.contact-picker-search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    color: var(--wa-text, #e9edef);
+    font-size: 14px;
+    line-height: 20px;
+    padding: 8px 0;
+}
+.contact-picker-search-input:focus {
+    outline: none;
+}
+.contact-picker-search-input::placeholder {
+    color: var(--wa-text-secondary, #9aa0a4);
+}
+
+.contact-picker-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 0 8px;
+}
+
+.contact-picker-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--wa-text-secondary, #9aa0a4);
+    font-size: 14px;
+}
+
+.contact-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    background: transparent;
+    color: var(--wa-text, #e9edef);
+    text-align: left;
+    transition: background-color 0.12s ease;
+}
+.contact-picker-row:hover {
+    background: var(--wa-panel-hover, rgba(255, 255, 255, 0.04));
+}
+
+.contact-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-panel-input, #2a2c2d);
+    color: var(--wa-text-secondary, #9aa0a4);
+}
+.contact-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.contact-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.contact-meta-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--wa-text, #e9edef);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.contact-meta-phone {
+    font-size: 13px;
+    color: var(--wa-text-secondary, #9aa0a4);
+}
+
+.contact-confirm-body {
+    padding: 24px 16px 8px;
+    display: flex;
+    justify-content: center;
+}
+
+.contact-confirm-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--wa-bubble-out, #005c4b);
+    color: #fff;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 360px;
+}
+
+.contact-confirm-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.18);
+}
+.contact-confirm-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.contact-confirm-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.contact-confirm-name {
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.contact-confirm-phone {
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.contact-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px;
+    border-top: 1px solid var(--wa-border, rgba(134, 150, 160, 0.2));
+}
+
+.contact-btn-cancel,
+.contact-btn-send {
+    min-width: 96px;
+    height: 40px;
+    padding: 0 18px;
+    border-radius: 9999px;
+    font-size: 14px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+.contact-btn-cancel {
+    background: transparent;
+    color: var(--wa-text, #e9edef);
+}
+.contact-btn-cancel:hover:not(:disabled) {
+    background: var(--wa-panel-hover, rgba(255, 255, 255, 0.04));
+}
+.contact-btn-send {
+    background: #00a884;
+    color: #fff;
+}
+.contact-btn-send:hover:not(:disabled) {
+    background: #06cf9c;
+}
+.contact-btn-send:disabled,
+.contact-btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ===== Poll composer ===== */
+.poll-sheet {
+    max-width: 480px;
+}
+
+.poll-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 18px 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.poll-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--wa-text-secondary, #9aa0a4);
+    margin-bottom: 8px;
+}
+.poll-label-spaced {
+    margin-top: 16px;
+}
+
+.poll-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--wa-panel-input, #2a2c2d);
+    color: var(--wa-text, #e9edef);
+    font-size: 14px;
+    line-height: 20px;
+}
+.poll-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px #00a884 inset;
+}
+.poll-input::placeholder {
+    color: var(--wa-text-secondary, #9aa0a4);
+}
+.poll-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.poll-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.poll-option-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.poll-option-remove {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--wa-text-secondary, #9aa0a4);
+    background: transparent;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.poll-option-remove:hover:not(:disabled) {
+    background: var(--wa-panel-hover, rgba(255, 255, 255, 0.06));
+    color: var(--wa-text, #e9edef);
+}
+.poll-option-remove:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.poll-add-option {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    color: #00a884;
+    background: rgba(0, 168, 132, 0.1);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background-color 0.15s ease;
+}
+.poll-add-option:hover:not(:disabled) {
+    background: rgba(0, 168, 132, 0.18);
+}
+.poll-add-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.poll-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    font-size: 14px;
+    color: var(--wa-text, #e9edef);
+    cursor: pointer;
+    user-select: none;
+}
+.poll-check input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00a884;
+    cursor: pointer;
+}
+.poll-check:has(input:disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 </style>

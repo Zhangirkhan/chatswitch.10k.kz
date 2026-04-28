@@ -20,7 +20,7 @@
     --wa-panel-input: #2A2C2D;     /* input fields */
     --wa-panel-hover: #242627;     /* row / button hover */
     --wa-selected: #2C2E2F;        /* selected row / pressed state */
-    --wa-rail-bg: #1A1C1D;         /* narrow left icon rail (= panel) */
+    --wa-rail-bg: #242627;         /* narrow left icon rail (intentionally lighter than panel) */
     --wa-rail-btn-hover: #262829;
     --wa-empty-bg: #262829;
 
@@ -172,7 +172,9 @@ body {
     transition: background-color 0.3s ease, background-image 0.3s ease;
 }
 
-[data-chat-bg='custom'] .chat-bg {
+[data-chat-bg='custom'] .chat-bg,
+[data-chat-bg='pattern'] .chat-bg {
+    background-color: var(--wa-chat-bg-color, var(--wa-bg));
     background-image: linear-gradient(
             var(--wa-chat-bg-overlay, transparent),
             var(--wa-chat-bg-overlay, transparent)
@@ -184,11 +186,20 @@ body {
     background-attachment: local, local;
 }
 
-[data-theme='dark']:not([data-chat-bg='custom']) .chat-bg {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='366' height='366' viewBox='0 0 366 366'%3E%3Cg fill='none' fill-rule='evenodd' stroke='%231d1f20' stroke-width='1'%3E%3Ccircle cx='20' cy='20' r='8'/%3E%3Ccircle cx='80' cy='60' r='5'/%3E%3Cpath d='M140 30l14 14-14 14-14-14z'/%3E%3Cpath d='M200 80c8 0 14 6 14 14s-6 14-14 14-14-6-14-14 6-14 14-14z'/%3E%3Cpath d='M260 40l-8 16h16z'/%3E%3Cpath d='M320 20l8 8-8 8-8-8z'/%3E%3Ccircle cx='40' cy='120' r='6'/%3E%3Cpath d='M100 150l10-18 10 18-10 8z'/%3E%3Ccircle cx='180' cy='160' r='10'/%3E%3Cpath d='M250 140h20v20h-20z'/%3E%3Cpath d='M310 150c-6 0-10 4-10 10s4 10 10 10 10-4 10-10-4-10-10-10z'/%3E%3Cpath d='M30 220l12 12-12 12-12-12z'/%3E%3Ccircle cx='90' cy='240' r='8'/%3E%3Cpath d='M150 220h24v24h-24z'/%3E%3Cpath d='M220 240l-10 16 20 0z'/%3E%3Ccircle cx='290' cy='230' r='12'/%3E%3Cpath d='M340 220l6 12-6 12-6-12z'/%3E%3Cpath d='M20 310c6 0 10 4 10 10s-4 10-10 10-10-4-10-10 4-10 10-10z'/%3E%3Cpath d='M80 310l12-14 12 14-12 12z'/%3E%3Ccircle cx='160' cy='320' r='6'/%3E%3Cpath d='M220 310h20v20h-20z'/%3E%3Cpath d='M290 330l-8-16h16z'/%3E%3Cpath d='M340 310l6 6-6 6-6-6z'/%3E%3C/g%3E%3C/svg%3E");
+[data-chat-bg='solid'] .chat-bg {
+    background-image: none;
+    background-color: var(--wa-chat-bg-color, var(--wa-bg));
 }
-[data-theme='light']:not([data-chat-bg='custom']) .chat-bg {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='366' height='366' viewBox='0 0 366 366'%3E%3Cg fill='none' fill-rule='evenodd' stroke='%23d1d7db' stroke-width='1'%3E%3Ccircle cx='20' cy='20' r='8'/%3E%3Ccircle cx='80' cy='60' r='5'/%3E%3Cpath d='M140 30l14 14-14 14-14-14z'/%3E%3Cpath d='M200 80c8 0 14 6 14 14s-6 14-14 14-14-6-14-14 6-14 14-14z'/%3E%3Cpath d='M260 40l-8 16h16z'/%3E%3Cpath d='M320 20l8 8-8 8-8-8z'/%3E%3Ccircle cx='40' cy='120' r='6'/%3E%3Cpath d='M100 150l10-18 10 18-10 8z'/%3E%3Ccircle cx='180' cy='160' r='10'/%3E%3Cpath d='M250 140h20v20h-20z'/%3E%3Cpath d='M310 150c-6 0-10 4-10 10s4 10 10 10 10-4 10-10-4-10-10-10z'/%3E%3Cpath d='M30 220l12 12-12 12-12-12z'/%3E%3Ccircle cx='90' cy='240' r='8'/%3E%3Cpath d='M150 220h24v24h-24z'/%3E%3Cpath d='M220 240l-10 16 20 0z'/%3E%3Ccircle cx='290' cy='230' r='12'/%3E%3Cpath d='M340 220l6 12-6 12-6-12z'/%3E%3Cpath d='M20 310c6 0 10 4 10 10s-4 10-10 10-10-4-10-10 4-10 10-10z'/%3E%3Cpath d='M80 310l12-14 12 14-12 12z'/%3E%3Ccircle cx='160' cy='320' r='6'/%3E%3Cpath d='M220 310h20v20h-20z'/%3E%3Cpath d='M290 330l-8-16h16z'/%3E%3Cpath d='M340 310l6 6-6 6-6-6z'/%3E%3C/g%3E%3C/svg%3E");
+
+[data-theme='dark']:not([data-chat-bg]) .chat-bg,
+[data-theme='dark'][data-chat-bg='default'] .chat-bg {
+    background-image: url("/images/chat-backgrounds/whatsapp.png");
+    background-size: 420px;
+}
+[data-theme='light']:not([data-chat-bg]) .chat-bg,
+[data-theme='light'][data-chat-bg='default'] .chat-bg {
+    background-image: url("/images/chat-backgrounds/whatsapp.png");
+    background-size: 420px;
 }
 
 .wa-shadow {

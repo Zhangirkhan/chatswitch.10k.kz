@@ -6,21 +6,54 @@ namespace App\Http\Controllers;
 
 use App\Events\NewMessageReceived;
 use App\Events\UserTyping;
+use App\Http\Requests\Chat\CreateGroupRequest;
+use App\Http\Requests\Chat\SendContactRequest;
+use App\Http\Requests\Chat\SendMessageRequest;
+use App\Http\Requests\Chat\SendPollRequest;
+use App\Http\Requests\Chat\StartChatRequest;
+use App\Http\Requests\Chat\SyncDepartmentsRequest;
+use App\Http\Requests\Chat\ToggleMuteRequest;
+use App\Http\Requests\Chat\UploadFileRequest;
+use App\Jobs\SendOutboundMessageJob;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
+use App\Models\Department;
 use App\Models\Message;
+use App\Models\MessageMedia;
+use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
 use App\Services\WhatsappService;
+use App\Support\MediaType;
+use App\Support\OperatorSignature;
+use App\Support\VCard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class ChatController extends Controller
 {
+    /**
+     * Набор relations для сообщений, отдаваемых фронту — в Inertia-рендере,
+     * JSON-ответах на отправку и в Echo-broadcast'ах. Один источник правды,
+     * чтобы везде форма объекта `message` была идентичной (включая цитату).
+     *
+     * @var list<string>
+     */
+    private const MESSAGE_WITH = [
+        'media',
+        'sentByUser',
+        'whatsappSession',
+        'reactions.user:id,name',
+        'quotedMessage:id,whatsapp_message_id,direction,type,body,sender_name,sender_phone,sent_by_user_id',
+        'quotedMessage.sentByUser:id,name',
+        'quotedMessage.media:id,message_id,mime_type,filename',
+    ];
+
     public function __construct(
         private readonly ChatService $chatService,
         private readonly WhatsappService $whatsappService,
@@ -28,103 +61,118 @@ final class ChatController extends Controller
 
     public function index(Request $request): Response
     {
-        $user = $request->user();
-        $search = $request->input('search');
-
-        $chats = $this->chatService->getChatsForUser($user, $search)
+        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
             ->where('is_archived', false)
             ->paginate(50);
 
         return Inertia::render('Chats/Index', [
             'chats' => $chats,
-            'search' => $search,
+            'search' => $request->input('search'),
         ]);
     }
 
     public function archivedIndex(Request $request): Response
     {
-        $user = $request->user();
-        $search = $request->input('search');
-
-        $chats = $this->chatService->getChatsForUser($user, $search)
+        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
             ->where('is_archived', true)
             ->paginate(50);
 
         return Inertia::render('Chats/Archived', [
             'chats' => $chats,
-            'search' => $search,
+            'search' => $request->input('search'),
         ]);
     }
 
     public function show(Request $request, Chat $chat): Response
     {
-        $user = $request->user();
+        $this->authorize('view', $chat);
 
-        if (! $this->canAccessChat($user, $chat)) {
-            abort(403);
-        }
-
-        $chat->load(['contact', 'whatsappSession', 'assignments.user']);
+        $chat->load(['contact', 'whatsappSession', 'assignments.user', 'departments']);
 
         $messages = $chat->messages()
-            ->with(['media', 'sentByUser', 'whatsappSession', 'reactions.user:id,name'])
+            ->with(self::MESSAGE_WITH)
             ->orderByDesc('message_timestamp')
             ->paginate(50);
 
-        $allChats = $this->chatService->getChatsForUser($user)
+        $allChats = $this->chatService->getChatsForUser($request->user())
             ->where('is_archived', false)
             ->paginate(50);
+
+        // «Единая клиентская база»: все чаты того же клиента (contact), включая разные WA-номера.
+        // Нужен, чтобы в панели контакта показывать: с этим человеком общались с WA #1 и WA #2.
+        $contactChats = $chat->contact_id !== null
+            ? Chat::with('whatsappSession:id,session_name,display_name,phone_number,status')
+                ->where('contact_id', $chat->contact_id)
+                ->orderByDesc('last_message_at')
+                ->get([
+                    'id', 'whatsapp_session_id', 'contact_id', 'chat_name',
+                    'last_message_text', 'last_message_at', 'last_message_direction',
+                    'unread_count', 'is_archived',
+                ])
+            : collect();
 
         return Inertia::render('Chats/Show', [
             'chat' => $chat,
             'messages' => $messages,
             'chats' => $allChats,
+            'contactChats' => $contactChats,
+            'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'assignableUsers' => $this->assignableUsersFor($request->user()),
         ]);
     }
 
-    public function sendMessage(Request $request, Chat $chat): JsonResponse
+    public function syncDepartments(SyncDepartmentsRequest $request, Chat $chat): JsonResponse
     {
-        $request->validate([
-            'message' => 'required|string|max:4096',
-            'quoted_message_id' => 'nullable|string|max:255',
+        $oldIds = $chat->departments()->pluck('departments.id')->all();
+        $newIds = array_values(array_unique(array_map('intval', $request->input('department_ids', []))));
+
+        $chat->departments()->sync($newIds);
+        $chat->load('departments');
+
+        $this->chatService->logDepartmentChange($chat, $request->user(), $oldIds, $newIds);
+
+        return response()->json([
+            'success' => true,
+            'departments' => $chat->departments()->get(['departments.id', 'departments.name']),
         ]);
+    }
 
-        $user = $request->user();
-        if (! $this->canAccessChat($user, $chat)) {
-            abort(403);
-        }
-
+    public function sendMessage(SendMessageRequest $request, Chat $chat): JsonResponse
+    {
         $chat->load('whatsappSession');
         $session = $chat->whatsappSession;
-
         $quotedMessageId = $request->input('quoted_message_id');
+        $text = (string) $request->input('message');
 
-        $result = $this->whatsappService->sendMessage(
-            $session->session_name,
-            $chat->whatsapp_chat_id,
-            $request->input('message'),
-            $quotedMessageId,
-        );
-
-        $waMessageId = $result['messageId'] ?? null;
+        // Подпись оператора («*Имя (Должность)*») уходит и в WhatsApp, и в БД —
+        // так клиент и оператор видят сообщение в одинаковом виде.
+        $signedText = OperatorSignature::prepend($request->user(), $text);
 
         $message = $this->chatService->storeOutboundMessage(
             $chat,
             $session,
-            $user,
-            $request->input('message'),
-            $waMessageId,
+            $request->user(),
+            $signedText,
+            null,
             $quotedMessageId,
         );
 
-        $message->load(['media', 'sentByUser', 'whatsappSession', 'reactions.user:id,name']);
+        $message->load(self::MESSAGE_WITH);
         broadcast(new NewMessageReceived($message, $chat->id));
+
+        SendOutboundMessageJob::dispatch(
+            $message->id,
+            'text',
+            ['body' => $signedText, 'quoted_message_id' => $quotedMessageId],
+        );
 
         return response()->json(['success' => true, 'message' => $message]);
     }
 
     public function typing(Request $request, Chat $chat): JsonResponse
     {
+        $this->authorize('view', $chat);
+
         $user = $request->user();
         broadcast(new UserTyping($chat->id, $user->id, $user->name));
 
@@ -140,8 +188,9 @@ final class ChatController extends Controller
 
     public function markRead(Request $request, Chat $chat): JsonResponse
     {
-        $chat->update(['unread_count' => 0]);
+        $this->authorize('view', $chat);
 
+        $chat->update(['unread_count' => 0]);
         $chat->load('whatsappSession');
         $this->whatsappService->sendSeen(
             $chat->whatsappSession->session_name,
@@ -153,6 +202,8 @@ final class ChatController extends Controller
 
     public function togglePin(Chat $chat): JsonResponse
     {
+        $this->authorize('manage', $chat);
+
         $chat->update(['is_pinned' => ! $chat->is_pinned]);
 
         return response()->json(['success' => true, 'is_pinned' => $chat->is_pinned]);
@@ -160,30 +211,69 @@ final class ChatController extends Controller
 
     public function archive(Chat $chat): JsonResponse
     {
+        $this->authorize('manage', $chat);
+
         $chat->update(['is_archived' => ! $chat->is_archived]);
 
         return response()->json(['success' => true, 'is_archived' => $chat->is_archived]);
     }
 
+    public function toggleMute(ToggleMuteRequest $request, Chat $chat): JsonResponse
+    {
+        $shouldUnmute = $request->boolean('unmute') || $chat->is_muted;
+
+        if ($shouldUnmute && ! $request->filled('duration')) {
+            $chat->update(['is_muted' => false, 'muted_until' => null]);
+
+            return response()->json(['success' => true, 'is_muted' => false, 'muted_until' => null]);
+        }
+
+        $mutedUntil = match ($request->input('duration', 'always')) {
+            '8h' => now()->addHours(8),
+            '1w' => now()->addWeek(),
+            default => null,
+        };
+
+        $chat->update(['is_muted' => true, 'muted_until' => $mutedUntil]);
+
+        return response()->json([
+            'success' => true,
+            'is_muted' => true,
+            'muted_until' => $mutedUntil?->toISOString(),
+        ]);
+    }
+
+    public function toggleFavorite(Chat $chat): JsonResponse
+    {
+        $this->authorize('manage', $chat);
+
+        $chat->update(['is_favorite' => ! $chat->is_favorite]);
+
+        return response()->json(['success' => true, 'is_favorite' => $chat->is_favorite]);
+    }
+
+    public function toggleUnread(Chat $chat): JsonResponse
+    {
+        $this->authorize('manage', $chat);
+
+        $chat->update(['unread_count' => $chat->unread_count > 0 ? 0 : 1]);
+
+        return response()->json(['success' => true, 'unread_count' => $chat->unread_count]);
+    }
+
     public function clear(Chat $chat): JsonResponse
     {
+        $this->authorize('manage', $chat);
+
         $chat->messages()->delete();
         $chat->update([
             'last_message_text' => null,
             'last_message_at' => null,
+            'last_message_direction' => null,
             'unread_count' => 0,
         ]);
 
         return response()->json(['success' => true]);
-    }
-
-    public function destroy(Chat $chat): RedirectResponse
-    {
-        $chat->messages()->delete();
-        $chat->assignments()->delete();
-        $chat->delete();
-
-        return redirect()->route('chats.index');
     }
 
     public function contacts(Request $request): JsonResponse
@@ -198,43 +288,35 @@ final class ChatController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('push_name', 'like', "%{$search}%")
                     ->orWhere('phone_number', 'like', "%{$search}%");
-                if ($digits !== '' && $digits !== null) {
+                if (is_string($digits) && $digits !== '') {
                     $q->orWhere('whatsapp_id', 'like', "%{$digits}%");
                 }
             });
         }
 
-        $contacts = $query->limit(300)->get();
-
-        $sessions = WhatsappSession::where('is_active', true)
+        $sessions = $this->sessionsForUser($request->user())
             ->orderBy('display_name')
-            ->get(['id', 'session_name', 'display_name', 'phone_number', 'status']);
+            ->get(['whatsapp_sessions.id', 'session_name', 'display_name', 'phone_number', 'status']);
 
         return response()->json([
-            'contacts' => $contacts,
+            'contacts' => $query->limit(300)->get(),
             'sessions' => $sessions,
         ]);
     }
 
-    public function start(Request $request): RedirectResponse
+    public function start(StartChatRequest $request): RedirectResponse
     {
-        $data = $request->validate([
-            'contact_id' => 'nullable|integer|exists:contacts,id',
-            'phone' => 'nullable|string|max:32',
-            'name' => 'nullable|string|max:120',
-            'whatsapp_session_id' => 'required|integer|exists:whatsapp_sessions,id',
-        ]);
-
-        if (empty($data['contact_id']) && empty($data['phone'])) {
-            return back()->withErrors(['phone' => 'Укажите контакт или номер телефона.']);
-        }
-
         $user = $request->user();
-        $session = WhatsappSession::findOrFail($data['whatsapp_session_id']);
+        $session = $request->resolvedSession();
 
-        $contact = ! empty($data['contact_id'])
-            ? Contact::findOrFail($data['contact_id'])
-            : $this->chatService->findOrCreateContactByPhone($data['phone'], $data['name'] ?? null);
+        abort_unless($user->can('use', $session), 403, 'Этот номер WhatsApp вам не назначен.');
+
+        $contact = $request->filled('contact_id')
+            ? Contact::findOrFail((int) $request->input('contact_id'))
+            : $this->chatService->findOrCreateContactByPhone(
+                (string) $request->input('phone'),
+                $request->input('name'),
+            );
 
         $chat = $this->chatService->findOrCreateChatForContact($contact, $session);
 
@@ -252,14 +334,79 @@ final class ChatController extends Controller
         return redirect()->route('chats.show', $chat->id);
     }
 
+    public function createGroup(CreateGroupRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $session = WhatsappSession::findOrFail((int) $request->input('whatsapp_session_id'));
+
+        abort_unless($user->can('use', $session), 403, 'Этот номер WhatsApp вам не назначен.');
+
+        $participants = Contact::whereIn('id', $request->input('contact_ids'))
+            ->get()
+            ->map(function (Contact $c): ?string {
+                $raw = (string) ($c->whatsapp_id ?: $c->phone_number ?: '');
+                if ($raw === '') {
+                    return null;
+                }
+
+                return str_contains($raw, '@')
+                    ? $raw
+                    : preg_replace('/\D/', '', $raw).'@c.us';
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($participants)) {
+            return response()->json(['success' => false, 'error' => 'Нет корректных участников.'], 422);
+        }
+
+        $result = $this->whatsappService->createGroup(
+            $session->session_name,
+            (string) $request->input('subject'),
+            $participants,
+        );
+
+        if (empty($result['success']) || empty($result['chatId'])) {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'] ?? 'Не удалось создать группу.',
+            ], 502);
+        }
+
+        $chat = Chat::firstOrCreate(
+            ['whatsapp_chat_id' => $result['chatId'], 'whatsapp_session_id' => $session->id],
+            [
+                'chat_name' => $request->input('subject'),
+                'is_group' => true,
+                'community_id' => $request->input('community_id'),
+                'last_message_at' => now(),
+            ],
+        );
+
+        $communityId = $request->input('community_id');
+        if ($communityId && $chat->community_id !== (int) $communityId) {
+            $chat->update(['community_id' => (int) $communityId]);
+        }
+
+        if (! $user->hasRole('administrator')) {
+            ChatAssignment::firstOrCreate(
+                ['chat_id' => $chat->id, 'user_id' => $user->id],
+                ['assigned_by' => $user->id],
+            );
+        }
+
+        return response()->json(['success' => true, 'chat_id' => $chat->id]);
+    }
+
     public function timeline(Request $request, Chat $chat): JsonResponse
     {
+        $this->authorize('view', $chat);
+
         $messages = $chat->messages()
-            ->with(['media', 'sentByUser', 'whatsappSession', 'reactions.user:id,name'])
+            ->with(self::MESSAGE_WITH)
             ->orderByDesc('message_timestamp')
-            ->when($request->input('before_timestamp'), function ($q, $ts) {
-                $q->where('message_timestamp', '<', $ts);
-            })
+            ->when($request->input('before_timestamp'), fn ($q, $ts) => $q->where('message_timestamp', '<', $ts))
             ->limit((int) $request->input('limit', 50))
             ->get()
             ->reverse()
@@ -268,110 +415,204 @@ final class ChatController extends Controller
         return response()->json(['messages' => $messages]);
     }
 
-    public function uploadFile(Request $request, Chat $chat): JsonResponse
+    public function uploadFile(UploadFileRequest $request, Chat $chat): JsonResponse
     {
-        $request->validate([
-            'file' => 'required|file|max:65536',
-            'caption' => 'nullable|string|max:1024',
-            'type' => 'nullable|string|in:image,video,audio,voice,sticker,gif,document',
-        ]);
-
-        $user = $request->user();
-        if (! $this->canAccessChat($user, $chat)) {
-            abort(403);
-        }
-
         $file = $request->file('file');
         $chat->load('whatsappSession');
         $session = $chat->whatsappSession;
 
         $mime = $file->getMimeType() ?? 'application/octet-stream';
-        $originalName = $file->getClientOriginalName();
-        $caption = $request->input('caption');
-        $binary = file_get_contents($file->getRealPath());
-        $base64 = base64_encode($binary);
+        $originalName = (string) $file->getClientOriginalName();
+        $caption = (string) $request->input('caption', '');
+        $type = MediaType::detect($mime, $request->input('type'));
 
-        $type = $request->input('type') ?: $this->detectMediaType($mime, $originalName);
-        $bodyText = $caption ?: '';
+        $storedPath = $file->store('whatsapp-media/'.date('Y/m'), 'local');
 
-        $result = $this->whatsappService->sendMedia(
-            $session->session_name,
-            $chat->whatsapp_chat_id,
-            $base64,
-            $mime,
-            $originalName,
-            $caption,
-        );
+        // Подпись оператора идёт как caption к медиа. Для медиа без подписи
+        // подпись всё равно отправляется, чтобы клиент понимал, от кого файл.
+        $signedCaption = OperatorSignature::prepend($request->user(), $caption);
 
         $message = $this->chatService->storeOutboundMessage(
             $chat,
             $session,
-            $user,
-            $bodyText,
-            $result['messageId'] ?? null,
+            $request->user(),
+            $signedCaption,
         );
 
-        $message->update(['type' => $type]);
+        $message->forceFill(['type' => $type])->save();
 
-        $this->chatService->storeOutboundMedia($message, $binary, $mime, $originalName);
-
-        $chat->update([
-            'last_message_text' => $caption ?: $this->mediaPreviewText($type),
+        MessageMedia::create([
+            'message_id' => $message->id,
+            'mime_type' => $mime,
+            'filename' => $originalName,
+            'disk_path' => $storedPath,
+            'file_size' => $file->getSize() ?: 0,
         ]);
 
-        $message->load(['media', 'sentByUser', 'whatsappSession', 'reactions.user:id,name']);
+        $chat->update(['last_message_text' => MediaType::previewText($type, $signedCaption)]);
+
+        $message->load(self::MESSAGE_WITH);
         broadcast(new NewMessageReceived($message, $chat->id));
+
+        SendOutboundMessageJob::dispatch(
+            $message->id,
+            'media',
+            [
+                'disk' => 'local',
+                'path' => $storedPath,
+                'mimetype' => $mime,
+                'filename' => $originalName,
+                'caption' => $signedCaption !== '' ? $signedCaption : null,
+            ],
+        );
 
         return response()->json(['success' => true, 'message' => $message]);
     }
 
-    private function detectMediaType(string $mime, ?string $filename): string
+    public function sendPoll(SendPollRequest $request, Chat $chat): JsonResponse
     {
-        if ($mime === 'image/webp') {
-            return 'sticker';
-        }
-        if ($mime === 'image/gif') {
-            return 'gif';
-        }
-        if (str_starts_with($mime, 'image/')) {
-            return 'image';
-        }
-        if (str_starts_with($mime, 'video/')) {
-            return 'video';
-        }
-        if (str_starts_with($mime, 'audio/')) {
-            return 'audio';
+        $question = trim((string) $request->input('question'));
+        $options = array_values(array_filter(
+            array_map(fn ($o) => trim((string) $o), (array) $request->input('options', [])),
+            fn ($o) => $o !== '',
+        ));
+
+        if (count($options) < 2) {
+            return response()->json(['success' => false, 'error' => 'Добавьте хотя бы два варианта ответа.'], 422);
         }
 
-        return 'document';
+        $allowMultiple = $request->boolean('allow_multiple_answers');
+        $chat->load('whatsappSession');
+        $session = $chat->whatsappSession;
+
+        $message = $this->chatService->storeOutboundMessage(
+            $chat,
+            $session,
+            $request->user(),
+            $question,
+        );
+
+        $message->forceFill([
+            'type' => 'poll',
+            'metadata' => [
+                'poll' => [
+                    'question' => $question,
+                    'options' => $options,
+                    'allow_multiple_answers' => $allowMultiple,
+                ],
+            ],
+        ])->save();
+
+        $chat->update(['last_message_text' => '📊 '.$question]);
+
+        $message->load(self::MESSAGE_WITH);
+        broadcast(new NewMessageReceived($message, $chat->id));
+
+        SendOutboundMessageJob::dispatch(
+            $message->id,
+            'poll',
+            [
+                'question' => $question,
+                'options' => $options,
+                'allow_multiple' => $allowMultiple,
+            ],
+        );
+
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
-    private function mediaPreviewText(string $type): string
+    public function sendContact(SendContactRequest $request, Chat $chat): JsonResponse
     {
-        return match ($type) {
-            'image' => '📷 Фото',
-            'video' => '🎥 Видео',
-            'audio' => '🎵 Аудио',
-            'voice' => '🎤 Голосовое сообщение',
-            'sticker' => 'Стикер',
-            'gif' => 'GIF',
-            'document' => '📄 Документ',
-            default => '📎 Файл',
-        };
+        $phone = (string) $request->input('phone');
+        $phoneDigits = preg_replace('/\D/', '', $phone) ?: $phone;
+        $displayName = trim((string) $request->input('name')) ?: $phoneDigits;
+
+        $chat->load('whatsappSession');
+        $session = $chat->whatsappSession;
+
+        $vcard = VCard::build($displayName, $phoneDigits, $request->input('email'), $request->input('company'));
+
+        $message = $this->chatService->storeOutboundMessage(
+            $chat,
+            $session,
+            $request->user(),
+            $displayName,
+        );
+
+        $message->forceFill([
+            'type' => 'contact',
+            'metadata' => [
+                'contact' => [
+                    'id' => $request->input('contact_id'),
+                    'name' => $displayName,
+                    'phone' => $phoneDigits,
+                    'email' => $request->input('email'),
+                    'company' => $request->input('company'),
+                    'avatar_url' => $request->input('avatar_url'),
+                    'vcard' => $vcard,
+                ],
+            ],
+        ])->save();
+
+        $chat->update(['last_message_text' => '👤 '.$displayName]);
+
+        $message->load(self::MESSAGE_WITH);
+        broadcast(new NewMessageReceived($message, $chat->id));
+
+        SendOutboundMessageJob::dispatch(
+            $message->id,
+            'contact',
+            ['vcard' => $vcard, 'display_name' => $displayName],
+        );
+
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
-    private function canAccessChat(\App\Models\User $user, Chat $chat): bool
+    private function assignableUsersFor(?User $user): Collection
     {
+        if (! $user) {
+            return collect();
+        }
+
+        $query = User::query()
+            ->where('is_active', true)
+            ->with('roles:id,name')
+            ->orderBy('name');
+
         if ($user->hasRole('administrator')) {
-            return true;
+            // all active
+        } elseif ($user->hasRole('manager')) {
+            $query->where('department_id', $user->department_id);
+        } else {
+            return collect();
         }
 
-        if ($user->hasRole('manager')) {
-            $departmentUserIds = \App\Models\User::where('department_id', $user->department_id)->pluck('id');
+        return $query->get(['id', 'name', 'email', 'department_id'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'department_id' => $u->department_id,
+                'roles' => $u->roles->pluck('name')->all(),
+            ])
+            ->values();
+    }
 
-            return $chat->assignments()->whereIn('user_id', $departmentUserIds)->exists();
+    private function sessionsForUser(?User $user)
+    {
+        $query = WhatsappSession::where('is_active', true);
+
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
         }
 
-        return $chat->assignments()->where('user_id', $user->id)->exists();
+        if ($user->hasRole('administrator')) {
+            return $query;
+        }
+
+        return $query->whereIn(
+            'whatsapp_sessions.id',
+            $user->whatsappSessions()->pluck('whatsapp_sessions.id'),
+        );
     }
 }

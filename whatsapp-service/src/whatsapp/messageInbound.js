@@ -42,6 +42,15 @@ async function handleIncomingMessage(service, message) {
     }
   }
 
+  // whatsapp-web.js exposes message.duration (seconds) для аудио/голосовых.
+  // Прокидываем на бэкенд, чтобы показать в превью чата «Голосовое сообщение (0:12)».
+  if (message.duration !== undefined && message.duration !== null && message.duration !== '') {
+    const durationSeconds = Number(message.duration);
+    if (Number.isFinite(durationSeconds) && durationSeconds >= 0) {
+      messageData.mediaDuration = Math.round(durationSeconds);
+    }
+  }
+
   await notifyLaravel('message_received', messageData);
 }
 

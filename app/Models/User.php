@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,6 +20,7 @@ final class User extends Authenticatable
     protected $fillable = [
         'name',
         'phone',
+        'phones',
         'email',
         'password',
         'department_id',
@@ -35,7 +38,13 @@ final class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'phones' => 'array',
         ];
+    }
+
+    public function setPhoneAttribute(?string $value): void
+    {
+        $this->attributes['phone'] = PhoneFormatter::normalize($value);
     }
 
     public function department(): BelongsTo
@@ -51,5 +60,11 @@ final class User extends Authenticatable
     public function assignedChats(): HasMany
     {
         return $this->hasMany(ChatAssignment::class);
+    }
+
+    public function whatsappSessions(): BelongsToMany
+    {
+        return $this->belongsToMany(WhatsappSession::class, 'user_whatsapp_session')
+            ->withTimestamps();
     }
 }

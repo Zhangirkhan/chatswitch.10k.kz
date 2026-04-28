@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -28,8 +29,14 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['chat_id', 'created_at']);
-            $table->fullText('body');
         });
+
+        // FULLTEXT работает только в MySQL/MariaDB. На SQLite (тесты) пропускаем.
+        if (DB::getDriverName() === 'mysql') {
+            Schema::table('messages', function (Blueprint $table): void {
+                $table->fullText('body');
+            });
+        }
     }
 
     public function down(): void

@@ -6,6 +6,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -23,7 +24,7 @@ final class UserTyping implements ShouldBroadcast
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
-        return [new Channel("chat.{$this->chatId}")];
+        return [new PrivateChannel("chat.{$this->chatId}")];
     }
 
     public function broadcastAs(): string

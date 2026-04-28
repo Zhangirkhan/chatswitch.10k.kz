@@ -17,53 +17,20 @@ final class DemoChatsSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function (): void {
-            $sessions = $this->createSessions();
+            /** Реальные сессии только из подключений (/settings/connections), без «фейковых» записей в БД. */
+            $sessions = WhatsappSession::query()->orderBy('id')->get()->all();
             $contacts = $this->createContacts();
+
+            if ($sessions === []) {
+                if ($this->command !== null) {
+                    $this->command->info('DemoChatsSeeder: нет WhatsappSession — демо-чаты пропущены. Сначала подключите номера в интерфейсе.');
+                }
+
+                return;
+            }
+
             $this->createChatsWithMessages($sessions, $contacts);
         });
-    }
-
-    /**
-     * @return array<int, WhatsappSession>
-     */
-    private function createSessions(): array
-    {
-        $defs = [
-            [
-                'session_name' => 'demo-main',
-                'display_name' => 'Основной номер',
-                'phone_number' => '+77001112233',
-                'status' => 'connected',
-            ],
-            [
-                'session_name' => 'demo-sales',
-                'display_name' => 'Отдел продаж',
-                'phone_number' => '+77004445566',
-                'status' => 'connected',
-            ],
-            [
-                'session_name' => 'demo-support',
-                'display_name' => 'Поддержка',
-                'phone_number' => '+77007778899',
-                'status' => 'qr_pending',
-            ],
-        ];
-
-        $sessions = [];
-        foreach ($defs as $def) {
-            $sessions[] = WhatsappSession::updateOrCreate(
-                ['session_name' => $def['session_name']],
-                [
-                    'display_name' => $def['display_name'],
-                    'phone_number' => $def['phone_number'],
-                    'status' => $def['status'],
-                    'is_active' => true,
-                    'connected_at' => $def['status'] === 'connected' ? now() : null,
-                ],
-            );
-        }
-
-        return $sessions;
     }
 
     /**
@@ -102,7 +69,7 @@ final class DemoChatsSeeder extends Seeder
     }
 
     /**
-     * @param  array<int, WhatsappSession>  $sessions
+     * @param  array<int, WhatsappSession>  $sessions  Реальные сессии из БД (минимум одна).
      * @param  array<int, Contact>  $contacts
      */
     private function createChatsWithMessages(array $sessions, array $contacts): void
@@ -196,10 +163,11 @@ final class DemoChatsSeeder extends Seeder
         ];
 
         $baseTime = Carbon::now()->subDays(2);
+        $sessionCount = count($sessions);
 
         foreach ($scenarios as $sIndex => $scenario) {
             $contact = $contacts[$scenario['contact_idx']];
-            $session = $sessions[$scenario['session_idx']];
+            $session = $sessions[$scenario['session_idx'] % $sessionCount];
 
             $chat = Chat::updateOrCreate(
                 [

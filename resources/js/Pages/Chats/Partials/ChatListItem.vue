@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { ref, onBeforeUnmount } from 'vue';
+import { ref, onBeforeUnmount, computed, nextTick } from 'vue';
 import axios from 'axios';
+import Avatar from '@/Components/Avatar.vue';
+import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
+import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
+import { useToastStore } from '@/stores/toast';
 import type { Chat } from '@/types';
+import { formatPhone } from '@/utils/phone';
+import { stripWaMarkup } from '@/utils/waMarkup';
+
+const { show: showToast } = useToastStore();
 
 const props = defineProps<{
     chat: Chat;
@@ -12,35 +20,187 @@ const props = defineProps<{
 const menuOpen = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
+const working = ref(false);
+const muteDialogOpen = ref(false);
 
-function openMenu(e: MouseEvent) {
+const MENU_WIDTH = 240;
+const MENU_HEIGHT_ESTIMATE = 420;
+
+async function openMenu(e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    menuX.value = e.clientX;
-    menuY.value = e.clientY;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x + MENU_WIDTH + 8 > vw) x = vw - MENU_WIDTH - 8;
+    if (y + MENU_HEIGHT_ESTIMATE + 8 > vh) y = Math.max(8, vh - MENU_HEIGHT_ESTIMATE - 8);
+
+    menuX.value = x;
+    menuY.value = y;
     menuOpen.value = true;
+    await nextTick();
+}
+
+async function openMenuFromChevron(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const target = e.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let x = rect ? rect.right - MENU_WIDTH : e.clientX;
+    let y = rect ? rect.bottom + 4 : e.clientY;
+    if (x + MENU_WIDTH + 8 > vw) x = vw - MENU_WIDTH - 8;
+    if (x < 8) x = 8;
+    if (y + MENU_HEIGHT_ESTIMATE + 8 > vh) y = Math.max(8, vh - MENU_HEIGHT_ESTIMATE - 8);
+
+    menuX.value = x;
+    menuY.value = y;
+    menuOpen.value = true;
+    await nextTick();
 }
 
 function closeMenu() {
     menuOpen.value = false;
 }
 
-async function togglePin() {
-    closeMenu();
+async function run(action: () => Promise<unknown>, reloadKeys: string[] = ['chats', 'archivedCount']) {
+    if (working.value) return;
+    working.value = true;
     try {
-        await axios.post(route('chats.toggle-pin', props.chat.id));
+        await action();
     } finally {
-        router.reload({ only: ['chats'] });
+        working.value = false;
+        closeMenu();
+        router.reload({ only: reloadKeys });
     }
 }
 
-async function toggleArchive() {
-    closeMenu();
-    try {
-        await axios.post(route('chats.archive', props.chat.id));
-    } finally {
-        router.reload({ only: ['chats', 'archivedCount'] });
+function togglePin() {
+    const wasPinned = props.chat.is_pinned;
+    run(() => axios.post(route('chats.toggle-pin', props.chat.id))).then(() => {
+        showToast({
+            message: wasPinned ? 'Чат откреплён' : 'Чат закреплён',
+            action: {
+                label: 'Отменить',
+                handler: async () => {
+                    await axios.post(route('chats.toggle-pin', props.chat.id));
+                    router.reload({ only: ['chats', 'archivedCount'] });
+                },
+            },
+        });
+    });
+}
+
+function toggleArchive() {
+    const wasArchived = props.chat.is_archived;
+    run(() => axios.post(route('chats.archive', props.chat.id))).then(() => {
+        showToast({
+            message: wasArchived ? 'Чат разархивирован' : 'Чат архивирован',
+            action: {
+                label: 'Отменить',
+                handler: async () => {
+                    await axios.post(route('chats.archive', props.chat.id));
+                    router.reload({ only: ['chats', 'archivedCount'] });
+                },
+            },
+        });
+    });
+}
+
+const isGroupChat = computed<boolean>(() => props.chat.is_group);
+
+async function muteApi(payload: { duration?: '8h' | '1w' | 'always'; unmute?: boolean }): Promise<void> {
+    await axios.post(route('chats.toggle-mute', props.chat.id), payload);
+    router.reload({ only: ['chats', 'chat'] });
+}
+
+function toggleMute() {
+    if (props.chat.is_muted) {
+        closeMenu();
+        muteApi({ unmute: true }).then(() => {
+            showToast({
+                message: isGroupChat.value
+                    ? 'Уведомления в группе включены'
+                    : 'Уведомления включены',
+            });
+        });
+        return;
     }
+    closeMenu();
+    muteDialogOpen.value = true;
+}
+
+function onMuteConfirm(duration: '8h' | '1w' | 'always') {
+    muteDialogOpen.value = false;
+    muteApi({ duration }).then(() => {
+        showToast({
+            message: isGroupChat.value
+                ? 'Уведомления в группе отключены'
+                : 'Уведомления отключены',
+            action: {
+                label: 'Отменить',
+                handler: async () => {
+                    await muteApi({ unmute: true });
+                    showToast({
+                        message: isGroupChat.value
+                            ? 'Уведомления в группе включены'
+                            : 'Уведомления включены',
+                    });
+                },
+            },
+        });
+    });
+}
+
+function toggleFavorite() {
+    const wasFavorite = props.chat.is_favorite;
+    run(() => axios.post(route('chats.toggle-favorite', props.chat.id))).then(() => {
+        showToast({
+            message: wasFavorite ? 'Удалено из избранного' : 'Добавлено в избранное',
+            action: {
+                label: 'Отменить',
+                handler: async () => {
+                    await axios.post(route('chats.toggle-favorite', props.chat.id));
+                    router.reload({ only: ['chats', 'archivedCount'] });
+                },
+            },
+        });
+    });
+}
+
+function toggleUnread() {
+    const wasUnread = props.chat.unread_count > 0;
+    run(() => axios.post(route('chats.toggle-unread', props.chat.id))).then(() => {
+        showToast({
+            message: wasUnread ? 'Чат помечен как прочитанный' : 'Чат помечен как непрочитанный',
+            action: {
+                label: 'Отменить',
+                handler: async () => {
+                    await axios.post(route('chats.toggle-unread', props.chat.id));
+                    router.reload({ only: ['chats', 'archivedCount'] });
+                },
+            },
+        });
+    });
+}
+
+async function clearChat() {
+    closeMenu();
+    if (!confirm('Очистить всю историю этого чата? Это действие необратимо.')) return;
+    await run(() => axios.post(route('chats.clear', props.chat.id)), ['chats', 'messages', 'chat']);
+    showToast({ message: 'Чат очищен' });
+}
+
+function notImplemented(name: string) {
+    closeMenu();
+    showToast({
+        message: `«${name}» — функция скоро будет доступна`,
+    });
 }
 
 function onEscape(e: KeyboardEvent) {
@@ -63,14 +223,44 @@ function formatTime(dateStr: string | null): string {
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-function getInitial(chat: Chat): string {
-    const name = chat.chat_name || chat.contact?.push_name || chat.contact?.name || '?';
-    return name.charAt(0).toUpperCase();
-}
+const displayName = computed(
+    () =>
+        props.chat.chat_name ||
+        props.chat.contact?.push_name ||
+        props.chat.contact?.name ||
+        formatPhone(props.chat.contact?.phone_number) ||
+        '',
+);
+
+const muteSubtitle = computed<string>(() => {
+    if (!props.chat.is_muted) return '';
+    if (!props.chat.muted_until) return 'Всегда';
+
+    const until = new Date(props.chat.muted_until);
+    const now = new Date();
+
+    const time = until.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+    const isToday = until.toDateString() === now.toDateString();
+    if (isToday) return `Уведомления выключены до ${time} сегодня`;
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (until.toDateString() === tomorrow.toDateString()) {
+        return `Уведомления выключены до ${time} завтра`;
+    }
+
+    const date = until.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+    });
+    return `Уведомления выключены до ${time} ${date}`;
+});
 
 function getSessionLabel(chat: Chat): string {
     if (!chat.whatsapp_session) return '';
-    return chat.whatsapp_session.phone_number || chat.whatsapp_session.display_name || '';
+    return formatPhone(chat.whatsapp_session.phone_number) || chat.whatsapp_session.display_name || '';
 }
 </script>
 
@@ -82,13 +272,11 @@ function getSessionLabel(chat: Chat): string {
         preserve-state
         @contextmenu="openMenu"
     >
-        <!-- Avatar -->
-        <div
-            class="w-[49px] h-[49px] rounded-full flex items-center justify-center shrink-0 text-white text-lg font-medium"
-            :class="chat.is_group ? 'bg-[var(--wa-accent)]' : 'bg-[#6b7c85]'"
-        >
-            {{ getInitial(chat) }}
-        </div>
+        <Avatar
+            :avatar-url="chat.contact?.profile_picture_url"
+            :name="displayName"
+            :size="49"
+        />
 
         <div class="flex-1 min-w-0 border-b border-[var(--wa-divider)] group-hover:border-transparent pb-3 -mb-3 pt-0.5">
             <div class="flex items-center justify-between">
@@ -97,7 +285,7 @@ function getSessionLabel(chat: Chat): string {
                         <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
                     </svg>
                     <span class="text-[var(--wa-text)] text-base truncate">
-                        {{ chat.chat_name || chat.contact?.push_name || chat.contact?.phone_number || 'Без имени' }}
+                        {{ chat.chat_name || chat.contact?.push_name || formatPhone(chat.contact?.phone_number) || 'Без имени' }}
                     </span>
                 </div>
                 <span
@@ -117,16 +305,34 @@ function getSessionLabel(chat: Chat): string {
                         {{ getSessionLabel(chat) }}
                     </span>
                     <span class="text-sm text-[var(--wa-text-secondary)] truncate">
-                        {{ chat.last_message_text || 'Нет сообщений' }}
+                        {{ stripWaMarkup(chat.last_message_text) || 'Нет сообщений' }}
                     </span>
                 </div>
-                <span
-                    v-if="chat.unread_count > 0"
-                    class="ml-1 shrink-0 min-w-[20px] h-[20px] rounded-full text-[11px] font-semibold flex items-center justify-center px-1.5"
-                    :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
-                >
-                    {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
-                </span>
+                <div class="ml-1 shrink-0 flex items-center gap-1 bottom-meta">
+                    <BellOffIcon
+                        v-if="chat.is_muted"
+                        :size="18"
+                        class="text-[var(--wa-text-secondary)] shrink-0"
+                    />
+                    <span
+                        v-if="chat.unread_count > 0"
+                        class="unread-badge min-w-[20px] h-[20px] rounded-full text-[11px] font-semibold flex items-center justify-center px-1.5 shrink-0"
+                        :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
+                    >
+                        {{ chat.unread_count > 99 ? '99+' : chat.unread_count }}
+                    </span>
+                    <button
+                        type="button"
+                        class="chevron-btn"
+                        :class="{ 'is-open': menuOpen }"
+                        title="Меню"
+                        @click.prevent.stop="openMenuFromChevron"
+                    >
+                        <svg class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 15.5a1 1 0 01-.71-.29l-5-5a1 1 0 011.42-1.42L12 13.09l4.29-4.3a1 1 0 011.42 1.42l-5 5a1 1 0 01-.71.29z" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </Link>
@@ -136,7 +342,7 @@ function getSessionLabel(chat: Chat): string {
         <div v-if="menuOpen">
             <div class="fixed inset-0 z-40" @click="closeMenu" @contextmenu.prevent="closeMenu"></div>
             <div
-                class="fixed z-50 min-w-[200px] rounded-lg shadow-xl py-2 border"
+                class="fixed z-50 min-w-[240px] rounded-lg shadow-xl py-2 border context-menu"
                 :style="{
                     left: menuX + 'px',
                     top: menuY + 'px',
@@ -144,33 +350,185 @@ function getSessionLabel(chat: Chat): string {
                     borderColor: 'var(--wa-border-strong)',
                 }"
             >
-                <button
-                    @click="togglePin"
-                    class="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--wa-panel-hover)]"
-                    :style="{ color: 'var(--wa-text)' }"
-                >
-                    {{ chat.is_pinned ? 'Открепить' : 'Закрепить' }}
+                <button class="menu-item" @click.prevent="toggleArchive" type="button">
+                    <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
+                    </svg>
+                    <span>{{ chat.is_archived ? 'Разархивировать чат' : 'Архивировать чат' }}</span>
                 </button>
-                <button
-                    @click="toggleArchive"
-                    class="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--wa-panel-hover)]"
-                    :style="{ color: 'var(--wa-text)' }"
-                >
-                    {{ chat.is_archived ? 'Разархивировать' : 'Архивировать' }}
+
+                <button class="menu-item" @click.prevent="toggleMute" type="button">
+                    <svg
+                        v-if="!chat.is_muted"
+                        class="menu-icon"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        viewBox="0 0 24 24"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M8.7 3A6 6 0 0 1 18 8c0 2.2.2 3.8.5 5" />
+                        <path d="M17 17H3s3-2 3-9a5 5 0 0 1 .3-1.7" />
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    <BellOffIcon
+                        v-else
+                        :size="18"
+                        class="menu-icon"
+                    />
+                    <div class="flex flex-col items-start text-left">
+                        <span>{{ chat.is_muted ? 'Включить звук' : 'Без звука' }}</span>
+                        <span v-if="chat.is_muted && muteSubtitle" class="menu-item-subtitle">
+                            {{ muteSubtitle }}
+                        </span>
+                    </div>
+                </button>
+
+                <button class="menu-item" @click.prevent="togglePin" type="button">
+                    <svg class="menu-icon" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+                    </svg>
+                    <span>{{ chat.is_pinned ? 'Открепить чат' : 'Закрепить чат' }}</span>
+                </button>
+
+                <button class="menu-item" @click.prevent="toggleUnread" type="button">
+                    <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8M3 8l9-5 9 5" />
+                    </svg>
+                    <span>
+                        {{ chat.unread_count > 0 ? 'Пометить как прочитанное' : 'Пометить как непрочитанное' }}
+                    </span>
+                </button>
+
+                <button class="menu-item" @click.prevent="toggleFavorite" type="button">
+                    <svg class="menu-icon" :fill="chat.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+                    </svg>
+                    <span>{{ chat.is_favorite ? 'Убрать из избранного' : 'Добавить в избранное' }}</span>
+                </button>
+
+                <button class="menu-item" @click.prevent="notImplemented('Добавить в список')" type="button">
+                    <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h10M19 15v6m-3-3h6" />
+                    </svg>
+                    <span>Добавить в список</span>
+                </button>
+
+                <div class="menu-divider"></div>
+
+                <button class="menu-item" @click.prevent="clearChat" type="button">
+                    <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                    </svg>
+                    <span>Очистить чат</span>
                 </button>
             </div>
         </div>
     </teleport>
+
+    <MuteChatDialog
+        :show="muteDialogOpen"
+        @close="muteDialogOpen = false"
+        @confirm="onMuteConfirm"
+    />
 </template>
 
 <style scoped>
 .chat-list-item {
+    --icon-cutout: var(--wa-panel);
     transition: background-color 0.15s ease;
 }
 .chat-list-item:hover {
+    --icon-cutout: var(--wa-panel-hover);
     background-color: var(--wa-panel-hover);
 }
 .chat-list-item.is-selected {
+    --icon-cutout: var(--wa-selected);
     background-color: var(--wa-selected);
+}
+
+.bottom-meta {
+    min-height: 20px;
+    justify-content: flex-end;
+}
+.chevron-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--wa-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 0.12s ease, width 0.12s ease, color 0.12s ease;
+}
+.chevron-btn:hover {
+    color: var(--wa-text);
+}
+.chat-list-item:hover .chevron-btn,
+.chevron-btn.is-open {
+    opacity: 1;
+    width: 22px;
+    pointer-events: auto;
+}
+
+.context-menu {
+    animation: context-menu-pop 0.12s ease-out;
+}
+@keyframes context-menu-pop {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.menu-item {
+    --icon-cutout: var(--wa-panel-header);
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    color: var(--wa-text);
+    text-align: left;
+    transition: background-color 0.12s ease;
+}
+.menu-item:hover {
+    --icon-cutout: var(--wa-panel-hover);
+    background-color: var(--wa-panel-hover);
+}
+.menu-icon {
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--wa-text-secondary);
+    flex-shrink: 0;
+}
+.menu-item-subtitle {
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+    line-height: 1.2;
+    margin-top: 2px;
+    white-space: normal;
+    max-width: 180px;
+}
+.menu-divider {
+    height: 1px;
+    margin: 0.25rem 0;
+    background: var(--wa-border);
+}
+.menu-item-danger {
+    color: var(--wa-danger);
+}
+.menu-item-danger .menu-icon {
+    color: var(--wa-danger);
+}
+.menu-item-danger:hover {
+    background-color: color-mix(in srgb, var(--wa-danger) 10%, transparent);
 }
 </style>

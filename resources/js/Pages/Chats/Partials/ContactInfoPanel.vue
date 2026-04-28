@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import type { Chat, Message } from '@/types';
+import { formatPhone } from '@/utils/phone';
+import { stripWaMarkup } from '@/utils/waMarkup';
 
 const props = defineProps<{
     chat: Chat;
     messages?: Message[];
+    /**
+     * Другие чаты этого же контакта на ЛЮБЫХ других WA-номерах.
+     * Используется для UI «общались на WA #1 и WA #2» —
+     * единая клиентская база при раздельных чатах.
+     */
+    contactChats?: Chat[];
 }>();
 
 const emit = defineEmits<{
@@ -20,13 +28,28 @@ const displayName = computed(() =>
     props.chat.chat_name
         || props.chat.contact?.name
         || props.chat.contact?.push_name
-        || props.chat.contact?.phone_number
+        || formatPhone(props.chat.contact?.phone_number)
         || 'Без имени',
 );
 
-const phoneLabel = computed(() => props.chat.contact?.phone_number || '');
+const phoneLabel = computed(() => formatPhone(props.chat.contact?.phone_number));
 
 const firstInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
+
+/** Диалоги того же контакта на других WA-сессиях (исключая текущий чат). */
+const otherSessionChats = computed<Chat[]>(() =>
+    (props.contactChats || []).filter((c) => c.id !== props.chat.id && !c.is_group),
+);
+
+function formatChatTime(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
 
 const mediaCount = computed(() => {
     const list = props.messages || [];
@@ -59,11 +82,6 @@ async function clearChat() {
     } finally {
         working.value = false;
     }
-}
-
-async function deleteChat() {
-    if (!confirm(`Удалить чат с «${displayName.value}»? Все сообщения будут удалены.`)) return;
-    router.delete(route('chats.destroy', props.chat.id));
 }
 
 function notImplemented(name: string) {
@@ -136,6 +154,61 @@ function notImplemented(name: string) {
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
                     {{ phoneLabel }}
+                </div>
+            </div>
+
+            <!-- Куда клиент писал: список WA-номеров, через которые велась переписка.
+                 Показывается только если клиент общался более чем на одной сессии. -->
+            <div v-if="otherSessionChats.length" class="px-4 pb-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg class="w-4 h-4" :style="{ color: 'var(--wa-text-secondary)' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h2l3.6 7.59-1.35 2.44c-.15.27-.24.58-.24.92 0 1.05.94 1.96 2 1.96h12V16H8.42c-.13 0-.24-.11-.24-.24l.03-.12.9-1.64h7.45c.75 0 1.4-.41 1.75-1.03l3.58-6.5A1 1 0 0020.01 5H5.21L4.27 3H1v2h2zM7 20a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z" />
+                    </svg>
+                    <span class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Этот клиент общался с вами на других номерах
+                    </span>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <Link
+                        v-for="c in otherSessionChats"
+                        :key="c.id"
+                        :href="route('chats.show', c.id)"
+                        class="sibling-row"
+                    >
+                        <span
+                            class="w-2 h-2 rounded-full shrink-0"
+                            :class="c.whatsapp_session?.status === 'connected' ? 'bg-[#25d366]' : 'bg-gray-400'"
+                        ></span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-1.5">
+                                <span class="sibling-name truncate">
+                                    {{ c.whatsapp_session?.display_name || c.whatsapp_session?.session_name }}
+                                </span>
+                                <span
+                                    v-if="c.whatsapp_session?.phone_number"
+                                    class="text-[11px] tabular-nums"
+                                    :style="{ color: 'var(--wa-text-secondary)' }"
+                                >
+                                    {{ formatPhone(c.whatsapp_session.phone_number) }}
+                                </span>
+                            </div>
+                            <div v-if="c.last_message_text" class="sibling-preview truncate">
+                                {{ stripWaMarkup(c.last_message_text) }}
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end shrink-0 gap-1">
+                            <span class="text-[11px]" :style="{ color: 'var(--wa-text-secondary)' }">
+                                {{ formatChatTime(c.last_message_at) }}
+                            </span>
+                            <span
+                                v-if="c.unread_count && c.unread_count > 0"
+                                class="min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center px-1"
+                                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            >
+                                {{ c.unread_count > 99 ? '99+' : c.unread_count }}
+                            </span>
+                        </div>
+                    </Link>
                 </div>
             </div>
 
@@ -273,12 +346,6 @@ function notImplemented(name: string) {
                     <span class="info-label truncate">Пожаловаться на {{ displayName }}</span>
                 </button>
 
-                <button class="info-row info-row-danger w-full" @click="deleteChat" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
-                    </svg>
-                    <span class="info-label">Удалить чат</span>
-                </button>
             </div>
         </div>
     </aside>
@@ -352,5 +419,32 @@ function notImplemented(name: string) {
 }
 .info-row-danger:hover {
     background-color: rgba(239, 68, 68, 0.08);
+}
+.sibling-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.5rem;
+    background-color: var(--wa-panel-header);
+    border: 1px solid var(--wa-border);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.sibling-row:hover {
+    background-color: var(--wa-panel-hover);
+    border-color: var(--wa-border-strong);
+}
+.sibling-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--wa-text);
+}
+.sibling-preview {
+    margin-top: 2px;
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+    max-width: 260px;
 }
 </style>

@@ -9,12 +9,59 @@ use Illuminate\Support\Facades\Http;
 final class WhatsappService
 {
     private readonly string $baseUrl;
+
     private readonly string $token;
 
     public function __construct()
     {
         $this->baseUrl = rtrim((string) config('services.whatsapp.url', 'http://127.0.0.1:3050'), '/');
         $this->token = (string) config('services.whatsapp.token', '');
+    }
+
+    /** Проверка, что Node whatsapp-service отвечает (маршрут без токена). */
+    public function healthReachable(): bool
+    {
+        return $this->healthPing()['ok'];
+    }
+
+    /**
+     * @return array{ok: bool, latency_ms: int|null, body: array<string, mixed>|null}
+     */
+    public function healthPing(): array
+    {
+        $started = hrtime(true);
+        try {
+            $response = Http::timeout(3)->get($this->baseUrl.'/health');
+            $ms = (int) round((hrtime(true) - $started) / 1e6);
+            $body = $response->json();
+            $ok = $response->successful() && (($body['status'] ?? '')) === 'ok';
+
+            return ['ok' => $ok, 'latency_ms' => $ms, 'body' => is_array($body) ? $body : null];
+        } catch (\Throwable) {
+            $ms = (int) round((hrtime(true) - $started) / 1e6);
+
+            return ['ok' => false, 'latency_ms' => $ms, 'body' => null];
+        }
+    }
+
+    /**
+     * @return array{result: array<string, mixed>, latency_ms: int}
+     */
+    public function getSessionStatusTimed(string $sessionName): array
+    {
+        $started = hrtime(true);
+        $result = $this->getSessionStatus($sessionName);
+        $ms = (int) round((hrtime(true) - $started) / 1e6);
+
+        return ['result' => $result, 'latency_ms' => $ms];
+    }
+
+    /**
+     * @param  array<string, mixed>  $initializeResponse
+     */
+    public function initializeAccepted(array $initializeResponse): bool
+    {
+        return ($initializeResponse['success'] ?? false) === true;
     }
 
     /** @return array<string, mixed> */
@@ -33,6 +80,17 @@ final class WhatsappService
     public function getSessionStatus(string $sessionName): array
     {
         return $this->get("/api/sessions/{$sessionName}/status");
+    }
+
+    /**
+     * Активная проверка «живо ли подключение»: ходит в puppeteer-клиент
+     * whatsapp-web.js, спрашивает его реальное состояние и статус браузера.
+     *
+     * @return array<string, mixed>
+     */
+    public function verifySession(string $sessionName): array
+    {
+        return $this->get("/api/sessions/{$sessionName}/verify", timeoutSeconds: 8);
     }
 
     /** @return array<string, mixed> */
@@ -65,6 +123,15 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
+    public function reactToMessage(string $sessionName, string $messageId, string $reaction): array
+    {
+        return $this->post('/api/react-message', [
+            'messageId' => $messageId,
+            'reaction' => $reaction,
+        ], $sessionName);
+    }
+
+    /** @return array<string, mixed> */
     public function sendMedia(string $sessionName, string $to, string $mediaData, string $mimetype, ?string $filename = null, ?string $caption = null): array
     {
         return $this->post('/api/send-media', [
@@ -73,6 +140,87 @@ final class WhatsappService
             'mimetype' => $mimetype,
             'filename' => $filename,
             'caption' => $caption,
+        ], $sessionName);
+    }
+
+    /**
+     * Стриминговая отправка медиа (без base64 в памяти Laravel).
+     *
+     * @return array<string, mixed>
+     */
+    public function sendMediaFile(
+        string $sessionName,
+        string $to,
+        string $absolutePath,
+        string $mimetype,
+        ?string $filename = null,
+        ?string $caption = null,
+        bool $sendAsVoice = false,
+    ): array {
+        try {
+            $stream = fopen($absolutePath, 'rb');
+            if ($stream === false) {
+                return ['success' => false, 'error' => 'Cannot open media file for reading.'];
+            }
+
+            $request = Http::withToken($this->token)
+                ->withHeaders(['X-WhatsApp-Session' => $sessionName])
+                ->timeout(120)
+                ->attach('file', $stream, $filename ?: basename($absolutePath), ['Content-Type' => $mimetype]);
+
+            $payload = array_filter([
+                'to' => $to,
+                'mimetype' => $mimetype,
+                'filename' => $filename,
+                'caption' => $caption,
+                'sendAsVoice' => $sendAsVoice ? '1' : null,
+            ], fn ($v) => $v !== null && $v !== '');
+
+            $response = $request->post($this->baseUrl.'/api/send-media-upload', $payload);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            return $response->json() ?: [];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $options
+     * @return array<string, mixed>
+     */
+    public function sendPoll(string $sessionName, string $to, string $question, array $options, bool $allowMultipleAnswers = false): array
+    {
+        return $this->post('/api/send-poll', [
+            'to' => $to,
+            'question' => $question,
+            'options' => array_values($options),
+            'allowMultipleAnswers' => $allowMultipleAnswers,
+        ], $sessionName);
+    }
+
+    /**
+     * @param  array<int, string>  $participants  WhatsApp IDs (e.g. 77011234567@c.us)
+     * @return array<string, mixed>
+     */
+    public function createGroup(string $sessionName, string $subject, array $participants): array
+    {
+        return $this->post('/api/create-group', [
+            'subject' => $subject,
+            'participants' => array_values($participants),
+        ], $sessionName);
+    }
+
+    /** @return array<string, mixed> */
+    public function sendContact(string $sessionName, string $to, string $vcard, ?string $displayName = null): array
+    {
+        return $this->post('/api/send-contact', [
+            'to' => $to,
+            'vcard' => $vcard,
+            'displayName' => $displayName,
         ], $sessionName);
     }
 
@@ -89,12 +237,12 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
-    private function get(string $path): array
+    private function get(string $path, int $timeoutSeconds = 30): array
     {
         try {
             $response = Http::withToken($this->token)
-                ->timeout(30)
-                ->get($this->baseUrl . $path);
+                ->timeout($timeoutSeconds)
+                ->get($this->baseUrl.$path);
 
             return $response->json() ?: [];
         } catch (\Throwable $e) {
@@ -112,7 +260,7 @@ final class WhatsappService
                 $request = $request->withHeaders(['X-WhatsApp-Session' => $sessionHeader]);
             }
 
-            $response = $request->post($this->baseUrl . $path, $data);
+            $response = $request->post($this->baseUrl.$path, $data);
 
             return $response->json() ?: [];
         } catch (\Throwable $e) {

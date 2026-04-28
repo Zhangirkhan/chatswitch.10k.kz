@@ -38,6 +38,9 @@ return [
     'whatsapp' => [
         'url' => env('WHATSAPP_SERVICE_URL', 'http://127.0.0.1:3050'),
         'token' => env('WHATSAPP_SERVICE_TOKEN', ''),
+        // Общий bearer-токен, которым Node-сервис авторизуется у Laravel (совпадает с LARAVEL_API_TOKEN в whatsapp-service/.env)
+        'service_token' => env('WHATSAPP_SERVICE_TOKEN', ''),
+        'webhook_secret' => env('WHATSAPP_WEBHOOK_SECRET', ''),
     ],
 
 ];

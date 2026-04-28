@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import ArchivedSidebar from './Partials/ArchivedSidebar.vue';
+import ChatSidebar from './Partials/ChatSidebar.vue';
 import { Head } from '@inertiajs/vue3';
 import type { Chat, Paginated } from '@/types';
 
@@ -14,10 +14,9 @@ defineProps<{
     <Head title="Архив" />
     <AuthenticatedLayout>
         <div class="flex h-full w-full bg-[var(--wa-bg)]">
-            <ArchivedSidebar :chats="chats" class="shrink-0" />
+            <ChatSidebar :chats="chats" :search="search" scope="archived" class="shrink-0" />
 
             <div class="flex-1 flex flex-col min-w-0 border-l border-[var(--wa-border)]">
-                <!-- Empty state (same style as main chats page) -->
                 <div
                     class="flex-1 flex flex-col items-center justify-center relative border-b-[6px]"
                     :style="{ background: 'var(--wa-empty-bg)', borderBottomColor: 'var(--wa-accent)' }"

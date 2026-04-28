@@ -12,6 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['prefix' => 'broadcasting', 'middleware' => ['web']],
+    )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
@@ -21,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'whatsapp.webhook' => \App\Http\Middleware\VerifyWhatsappWebhook::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

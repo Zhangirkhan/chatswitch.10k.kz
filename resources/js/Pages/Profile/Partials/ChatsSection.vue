@@ -1,29 +1,33 @@
 <script setup lang="ts">
 import SectionHeader from './SectionHeader.vue';
 import SettingRow from './SettingRow.vue';
-import SettingToggle from './SettingToggle.vue';
-import { useLocalSetting } from '@/composables/useLocalSetting';
 import { useTheme, type Theme } from '@/composables/useTheme';
+import { useChatBackground } from '@/composables/useChatBackground';
+import { wallpaperPreview } from '@/config/wallpapers';
 import { computed, ref } from 'vue';
 
 const { theme, set: setTheme } = useTheme();
+const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
 
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Тёмный режим' : 'Дневной режим'));
+const wallpaperLabel = computed(() => getCurrent().label);
 
 const themePickerOpen = ref(false);
-
-const mediaQuality = useLocalSetting<'best' | 'data-saver'>('chats.mediaQuality', 'best');
-const autoDownload = useLocalSetting<'always' | 'wifi' | 'never'>('chats.autoDownload', 'wifi');
-const spellCheck = useLocalSetting('chats.spellCheck', true);
-const replaceEmoji = useLocalSetting('chats.replaceEmoji', true);
-const enterToSend = useLocalSetting('chats.enterToSend', true);
-
-const mediaQualityLabel = computed(() => (mediaQuality.value === 'best' ? 'Наилучшее' : 'Экономия трафика'));
-const autoDownloadLabel = computed(() => ({ always: 'Всегда', wifi: 'Только Wi-Fi', never: 'Никогда' }[autoDownload.value]));
+const wallpaperPickerOpen = ref(false);
 
 function pickTheme(t: Theme) {
     setTheme(t);
     themePickerOpen.value = false;
+}
+
+function pickWallpaper(id: string) {
+    setWallpaper(id);
+}
+
+function previewStyle(id: string): string {
+    const wp = wallpapers.find((w) => w.id === id);
+    if (!wp) return '';
+    return `background: ${wallpaperPreview(wp, theme.value)}; background-size: ${wp.tileSize || (wp.kind === 'default' ? '80px' : 'cover')};`;
 }
 </script>
 
@@ -32,7 +36,6 @@ function pickTheme(t: Theme) {
         <SectionHeader title="Чаты" />
 
         <div class="flex-1 overflow-y-auto wa-scrollbar">
-            <!-- Display -->
             <div class="group-title">Отображение</div>
 
             <SettingRow
@@ -42,39 +45,8 @@ function pickTheme(t: Theme) {
             />
             <SettingRow
                 title="Обои"
-                subtitle="По умолчанию"
-            />
-
-            <div class="section-divider" />
-
-            <!-- Chat settings -->
-            <div class="group-title">Настройки чата</div>
-
-            <SettingRow
-                title="Качество загрузки медиафайлов"
-                :subtitle="mediaQualityLabel"
-                @click="mediaQuality = mediaQuality === 'best' ? 'data-saver' : 'best'"
-            />
-            <SettingRow
-                title="Автозагрузка медиа"
-                :subtitle="autoDownloadLabel"
-                @click="autoDownload = autoDownload === 'always' ? 'wifi' : autoDownload === 'wifi' ? 'never' : 'always'"
-            />
-
-            <SettingToggle
-                v-model="spellCheck"
-                title="Проверка орфографии"
-                description="Проверка правописания при вводе"
-            />
-            <SettingToggle
-                v-model="replaceEmoji"
-                title="Замена текста на смайлики"
-                description="При вводе определённого текста он будет заменён на соответствующий смайлик."
-            />
-            <SettingToggle
-                v-model="enterToSend"
-                title="Отправка клавишей &quot;Ввод&quot;"
-                description="Клавиша ВВОД отправляет сообщение"
+                :subtitle="wallpaperLabel"
+                @click="wallpaperPickerOpen = true"
             />
         </div>
 
@@ -120,6 +92,89 @@ function pickTheme(t: Theme) {
                 </div>
             </div>
         </div>
+
+        <!-- Wallpaper picker modal -->
+        <div
+            v-if="wallpaperPickerOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            @click.self="wallpaperPickerOpen = false"
+        >
+            <div
+                class="w-[560px] max-w-full rounded-xl shadow-2xl overflow-hidden flex flex-col"
+                :style="{ background: 'var(--wa-panel)', maxHeight: '85vh' }"
+            >
+                <div
+                    class="px-6 py-4 flex items-center justify-between border-b"
+                    :style="{ borderColor: 'var(--wa-border)' }"
+                >
+                    <div>
+                        <h3 class="text-[17px] font-medium text-[var(--wa-text)]">Выберите обои</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mt-0.5">
+                            Применяется только для вашего устройства
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        @click="wallpaperPickerOpen = false"
+                        class="p-1.5 rounded text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="p-6 grid grid-cols-3 sm:grid-cols-4 gap-4 overflow-y-auto wa-scrollbar">
+                    <button
+                        v-for="wp in wallpapers"
+                        :key="wp.id"
+                        type="button"
+                        @click="pickWallpaper(wp.id)"
+                        class="group flex flex-col items-center gap-2 focus:outline-none"
+                    >
+                        <div
+                            class="w-full aspect-square rounded-lg border-2 relative overflow-hidden transition"
+                            :class="
+                                currentWallpaperId === wp.id
+                                    ? 'border-[var(--wa-accent)] shadow-lg'
+                                    : 'border-transparent group-hover:border-[var(--wa-border-strong)]'
+                            "
+                            :style="previewStyle(wp.id)"
+                        >
+                            <div
+                                v-if="currentWallpaperId === wp.id"
+                                class="absolute inset-0 flex items-center justify-center"
+                                style="background: rgba(0,0,0,0.25)"
+                            >
+                                <div
+                                    class="w-9 h-9 rounded-full flex items-center justify-center"
+                                    :style="{ background: 'var(--wa-accent)' }"
+                                >
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="text-xs text-[var(--wa-text)] truncate max-w-full">{{ wp.label }}</span>
+                    </button>
+                </div>
+
+                <div
+                    class="px-6 py-4 flex justify-end border-t"
+                    :style="{ borderColor: 'var(--wa-border)' }"
+                >
+                    <button
+                        type="button"
+                        @click="wallpaperPickerOpen = false"
+                        class="px-6 py-2 rounded-full text-white text-sm font-medium"
+                        :style="{ background: 'var(--wa-accent)' }"
+                    >
+                        Готово
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -128,9 +183,5 @@ function pickTheme(t: Theme) {
     padding: 1rem 1.5rem 0.5rem;
     font-size: 0.875rem;
     color: var(--wa-text-secondary);
-}
-.section-divider {
-    height: 10px;
-    background-color: var(--wa-bg);
 }
 </style>

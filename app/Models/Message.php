@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ final class Message extends Model
         'direction',
         'type',
         'body',
+        'metadata',
         'sender_phone',
         'sender_name',
         'sent_by_user_id',
@@ -34,7 +36,13 @@ final class Message extends Model
         return [
             'is_forwarded' => 'boolean',
             'message_timestamp' => 'datetime',
+            'metadata' => 'array',
         ];
+    }
+
+    public function setSenderPhoneAttribute(?string $value): void
+    {
+        $this->attributes['sender_phone'] = PhoneFormatter::normalize($value);
     }
 
     public function chat(): BelongsTo
@@ -60,5 +68,15 @@ final class Message extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(MessageReaction::class);
+    }
+
+    /**
+     * Цитируемое сообщение. На отправке мы сохраняем WA-идентификатор
+     * оригинала в `quoted_message_id`, поэтому резолвим self-FK именно по нему.
+     * Может вернуть null, если оригинал удалили или находится в соседнем чате.
+     */
+    public function quotedMessage(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_message_id', 'whatsapp_message_id');
     }
 }

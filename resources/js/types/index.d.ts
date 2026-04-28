@@ -3,11 +3,14 @@ export interface User {
     name: string;
     email: string;
     email_verified_at?: string | null;
-    phone: string | null;
+    phone?: string | null;
+    phones?: string[];
     department_id: number | null;
     is_active: boolean;
     roles: string[];
     department: Department | null;
+    whatsapp_sessions?: WhatsappSession[];
+    whatsapp_session_ids?: number[];
 }
 
 export interface Department {
@@ -21,8 +24,10 @@ export interface Department {
 export interface WhatsappSession {
     id: number;
     session_name: string;
-    phone_number: string | null;
+    phone_number?: string | null;
     display_name: string | null;
+    wa_name: string | null;
+    wa_platform?: string | null;
     status: 'disconnected' | 'connecting' | 'qr_pending' | 'connected';
     is_active: boolean;
     connected_at: string | null;
@@ -39,37 +44,79 @@ export interface Contact {
     is_business: boolean;
 }
 
+export interface ChatLastMessagePreview {
+    id: number;
+    type: string;
+    body: string | null;
+    direction: 'inbound' | 'outbound' | 'system';
+    metadata?: MessageMetadata | null;
+    message_timestamp: string | null;
+    media?: MessageMedia[];
+}
+
 export interface Chat {
     id: number;
     whatsapp_chat_id: string;
-    whatsapp_session_id: number;
+    whatsapp_session_id: number | null;
     contact_id: number | null;
     chat_name: string | null;
     is_group: boolean;
     last_message_text: string | null;
     last_message_at: string | null;
+    last_message_direction?: 'inbound' | 'outbound' | null;
+    latest_message?: ChatLastMessagePreview | null;
     unread_count: number;
     is_archived: boolean;
     is_pinned: boolean;
+    is_muted: boolean;
+    muted_until: string | null;
+    is_favorite: boolean;
     contact: Contact | null;
     whatsapp_session: WhatsappSession | null;
     assignments: ChatAssignment[];
+    departments?: Department[];
+    community_id?: number | null;
+}
+
+export interface ContactPayload {
+    id?: number | null;
+    name: string;
+    phone: string;
+    email?: string | null;
+    company?: string | null;
+    avatar_url?: string | null;
+    vcard?: string | null;
+}
+
+export interface PollPayload {
+    question: string;
+    options: string[];
+    allow_multiple_answers?: boolean;
+}
+
+export interface MessageMetadata {
+    contact?: ContactPayload;
+    poll?: PollPayload;
+    videoPosterUrl?: string | null;
+    [key: string]: unknown;
 }
 
 export interface Message {
     id: number;
     chat_id: number;
-    whatsapp_session_id: number;
+    whatsapp_session_id: number | null;
     whatsapp_message_id: string | null;
-    direction: 'inbound' | 'outbound';
+    direction: 'inbound' | 'outbound' | 'system';
     type: string;
     body: string | null;
+    metadata?: MessageMetadata | null;
     sender_phone: string | null;
     sender_name: string | null;
     sent_by_user_id: number | null;
     is_forwarded: boolean;
     quoted_message_id?: string | null;
-    ack: 'pending' | 'sent' | 'delivered' | 'read';
+    quoted_message?: QuotedMessagePreview | null;
+    ack: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
     message_timestamp: string | null;
     created_at: string | null;
     media: MessageMedia[];
@@ -78,12 +125,25 @@ export interface Message {
     reactions?: MessageReaction[];
 }
 
+export interface QuotedMessagePreview {
+    id: number;
+    direction: 'inbound' | 'outbound' | 'system';
+    type: string;
+    body: string | null;
+    sender_name: string | null;
+    sender_phone: string | null;
+    sent_by_user?: { id: number; name: string } | null;
+    media?: MessageMedia[];
+}
+
 export interface MessageReaction {
     id: number;
     message_id: number;
-    user_id: number;
+    user_id: number | null;
+    external_id?: string | null;
+    external_name?: string | null;
     emoji: string;
-    user?: { id: number; name: string };
+    user?: { id: number; name: string } | null;
 }
 
 export interface MessageMedia {
@@ -97,6 +157,14 @@ export interface ChatAssignment {
     chat_id: number;
     user_id: number;
     user: User;
+}
+
+export interface AssignableUser {
+    id: number;
+    name: string;
+    email?: string | null;
+    department_id?: number | null;
+    roles: string[];
 }
 
 export interface Paginated<T> {

@@ -4,19 +4,30 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class WhatsappSession extends Model
 {
     use HasFactory;
 
+    /** Пользователь хочет, чтобы подключение жило; watchdog будет поднимать его автоматически. */
+    public const DESIRED_ACTIVE = 'active';
+
+    /** Пользователь сам нажал «Выйти»; трогать нельзя до явного повторного «Подключить». */
+    public const DESIRED_LOGGED_OUT = 'logged_out';
+
     protected $fillable = [
         'session_name',
         'phone_number',
         'display_name',
+        'wa_name',
+        'wa_platform',
         'status',
+        'desired_state',
         'is_active',
         'connected_at',
         'disconnected_at',
@@ -31,6 +42,11 @@ final class WhatsappSession extends Model
         ];
     }
 
+    public function setPhoneNumberAttribute(?string $value): void
+    {
+        $this->attributes['phone_number'] = PhoneFormatter::normalize($value);
+    }
+
     public function chats(): HasMany
     {
         return $this->hasMany(Chat::class, 'whatsapp_session_id');
@@ -39,5 +55,11 @@ final class WhatsappSession extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class, 'whatsapp_session_id');
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_whatsapp_session')
+            ->withTimestamps();
     }
 }

@@ -6,6 +6,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -18,12 +19,13 @@ final class WhatsappStatusChanged implements ShouldBroadcast
         public readonly string $sessionName,
         public readonly string $status,
         public readonly ?string $phoneNumber = null,
+        public readonly ?string $waName = null,
     ) {}
 
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
-        return [new Channel('whatsapp-status')];
+        return [new PrivateChannel('whatsapp-status')];
     }
 
     public function broadcastAs(): string
@@ -38,6 +40,7 @@ final class WhatsappStatusChanged implements ShouldBroadcast
             'session' => $this->sessionName,
             'status' => $this->status,
             'phone_number' => $this->phoneNumber,
+            'wa_name' => $this->waName,
         ];
     }
 }

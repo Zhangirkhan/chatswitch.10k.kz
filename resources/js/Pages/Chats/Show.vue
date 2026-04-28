@@ -243,6 +243,7 @@ function cleanupEcho() {
 
                 <ChatInput
                     :chat-id="chat.id"
+                    :session-id="chat.whatsapp_session_id"
                     :reply-to="replyTo"
                     @message-sent="onMessageSent"
                     @cancel-reply="clearReply"

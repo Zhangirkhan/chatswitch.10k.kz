@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +27,26 @@ final class Contact extends Model
         return [
             'is_business' => 'boolean',
         ];
+    }
+
+    public function setPhoneNumberAttribute(?string $value): void
+    {
+        $this->attributes['phone_number'] = PhoneFormatter::normalize($value);
+    }
+
+    public function setWhatsappIdAttribute(?string $value): void
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['whatsapp_id'] = null;
+
+            return;
+        }
+
+        // Храним WhatsApp-идентификаторы в исходной форме (поддержка @c.us / @g.us),
+        // но если передали просто цифры — сохраняем нормализованные.
+        $this->attributes['whatsapp_id'] = str_contains($value, '@')
+            ? $value
+            : (PhoneFormatter::normalize($value) ?? $value);
     }
 
     public function chats(): HasMany

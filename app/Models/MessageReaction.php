@@ -12,6 +12,8 @@ final class MessageReaction extends Model
     protected $fillable = [
         'message_id',
         'user_id',
+        'external_id',
+        'external_name',
         'emoji',
     ];
 
