@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Chat;
+use App\Models\Message;
 use App\Models\WhatsappSession;
+use App\Services\ChatService;
 use App\Services\WhatsappService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +20,7 @@ final class WhatsappSessionController extends Controller
 {
     public function __construct(
         private readonly WhatsappService $whatsappService,
+        private readonly ChatService $chatService,
     ) {}
 
     public function index(): Response
@@ -59,6 +63,7 @@ final class WhatsappSessionController extends Controller
                 // номер работал. Это же закрывает кейс «Node только что рестартанули».
                 $this->whatsappService->initializeSession($session->session_name);
                 $session->forceFill(['status' => 'connecting'])->save();
+
                 continue;
             }
 
@@ -327,28 +332,56 @@ final class WhatsappSessionController extends Controller
 
     public function destroy(WhatsappSession $session): JsonResponse
     {
+        $this->authorize('manage', $session);
+
         $this->whatsappService->destroySession($session->session_name);
 
-        // Insert a system notice into every chat that belongs to this session
-        // so operators can see why messages can no longer be sent.
-        $label = $session->display_name ?? $session->wa_name ?? $session->phone_number ?? $session->session_name;
-        $notice = "📵 Номер «{$label}» был отключён. Пожалуйста, подключите новый WhatsApp-номер в настройках.";
+        $oldLabel = $session->display_name ?? $session->wa_name ?? $session->phone_number ?? $session->session_name;
 
-        $chats = \App\Models\Chat::where('whatsapp_session_id', $session->id)->get();
+        $replacement = $this->chatService->findReplacementWhatsappSession($session);
+        $reattachedIds = $this->chatService->migrateGroupChatsToReplacementSession($session, $replacement);
 
-        foreach ($chats as $chat) {
-            \App\Models\Message::create([
-                'chat_id'             => $chat->id,
-                'whatsapp_session_id' => null,
-                'direction'           => 'system',
-                'type'                => 'chat',
-                'body'                => $notice,
-                'message_timestamp'   => now(),
-            ]);
+        $replacementLabel = '';
+        if ($replacement !== null) {
+            $replacementLabel = $replacement->display_name
+                ?? $replacement->wa_name
+                ?? $replacement->phone_number
+                ?? $replacement->session_name;
         }
 
-        // The FK is now SET NULL, so deleting the session nulls out
-        // whatsapp_session_id on chats and messages automatically.
+        foreach ($reattachedIds as $chatId) {
+            $chat = Chat::query()->find($chatId);
+            if ($chat === null || $replacement === null) {
+                continue;
+            }
+            $body = 'ℹ️ Группа переведена на «'.$replacementLabel.'». Удалённое подключение: «'.$oldLabel.'».';
+            Message::create([
+                'chat_id' => $chat->id,
+                'whatsapp_session_id' => $replacement->id,
+                'direction' => 'system',
+                'type' => 'chat',
+                'body' => $body,
+                'message_timestamp' => now(),
+            ]);
+            $this->chatService->refreshChatLastMessageSnapshot($chat);
+        }
+
+        $disconnectNotice = '📵 Номер «'.$oldLabel.'» был отключён. Пожалуйста, подключите новый WhatsApp-номер в настройках.';
+
+        $chats = Chat::query()->where('whatsapp_session_id', $session->id)->get();
+
+        foreach ($chats as $chat) {
+            Message::create([
+                'chat_id' => $chat->id,
+                'whatsapp_session_id' => null,
+                'direction' => 'system',
+                'type' => 'chat',
+                'body' => $disconnectNotice,
+                'message_timestamp' => now(),
+            ]);
+            $this->chatService->refreshChatLastMessageSnapshot($chat);
+        }
+
         $session->delete();
 
         return response()->json(['success' => true]);

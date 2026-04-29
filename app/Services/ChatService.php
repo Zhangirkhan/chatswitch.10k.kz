@@ -626,6 +626,75 @@ final class ChatService
         ]);
     }
 
+    /**
+     * Подбирает другую подключённую сессию при удалении одной из них.
+     * Сначала — сессия, с которой пересекаются те же пользователи (pivot), иначе любая connected.
+     */
+    public function findReplacementWhatsappSession(?WhatsappSession $removing): ?WhatsappSession
+    {
+        if ($removing !== null) {
+            $userIds = $removing->users()->pluck('users.id')->all();
+            if ($userIds !== []) {
+                $preferred = WhatsappSession::query()
+                    ->where('status', 'connected')
+                    ->whereKeyNot($removing->id)
+                    ->whereHas('users', fn (Builder $uq) => $uq->whereIn('users.id', $userIds))
+                    ->orderBy('id')
+                    ->first();
+                if ($preferred !== null) {
+                    return $preferred;
+                }
+            }
+
+            return WhatsappSession::query()
+                ->where('status', 'connected')
+                ->whereKeyNot($removing->id)
+                ->orderBy('id')
+                ->first();
+        }
+
+        return WhatsappSession::query()
+            ->where('status', 'connected')
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * Перед удалением WA-сессии: группы остаются рабочими, если есть куда их перенести.
+     *
+     * @return list<int>
+     */
+    public function migrateGroupChatsToReplacementSession(WhatsappSession $removing, ?WhatsappSession $replacement): array
+    {
+        if ($replacement === null) {
+            return [];
+        }
+
+        $reattachedIds = [];
+
+        $chats = Chat::query()
+            ->where('whatsapp_session_id', $removing->id)
+            ->where('is_group', true)
+            ->get();
+
+        foreach ($chats as $chat) {
+            $conflict = Chat::query()
+                ->where('whatsapp_chat_id', $chat->whatsapp_chat_id)
+                ->where('whatsapp_session_id', $replacement->id)
+                ->whereKeyNot($chat->id)
+                ->exists();
+
+            if ($conflict) {
+                continue;
+            }
+
+            $chat->update(['whatsapp_session_id' => $replacement->id]);
+            $reattachedIds[] = (int) $chat->id;
+        }
+
+        return $reattachedIds;
+    }
+
     public function storeOutboundMedia(Message $message, string $binary, string $mimetype, ?string $filename): MessageMedia
     {
         $ext = $this->mimeToExtension($mimetype);
