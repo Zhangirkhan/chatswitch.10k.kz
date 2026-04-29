@@ -15,6 +15,9 @@ final class MessageReaction extends Model
         'external_id',
         'external_name',
         'emoji',
+        'pending_whatsapp_sync',
+        'whatsapp_synced_at',
+        'whatsapp_sync_error',
     ];
 
     public function message(): BelongsTo

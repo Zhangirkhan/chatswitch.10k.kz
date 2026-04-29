@@ -49416,3 +49416,84 @@
 2026-04-28 05:21:55: [webhook] message_received → 429 {"message":"Too Many Attempts."}
 2026-04-28 05:21:55: [webhook] message_received → 429 {"message":"Too Many Attempts."}
 2026-04-28 05:21:56: [webhook] message_reaction → 429 {"message":"Too Many Attempts."}
+2026-04-28 12:07:42: [STARTUP] legal-sessions fetch failed (timeout of 5000ms exceeded); will restore every dir
+2026-04-28 10:17:07: [react-message] failed: WA Store is not available (not injected yet)
+2026-04-28 10:18:36: [react-message] failed: WA Store is not available (not injected yet)
+2026-04-29 05:52:05: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 05:52:05:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 05:52:05:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 05:52:05:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 05:52:05:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 05:52:05:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 05:52:05:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 05:52:05:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 05:52:05:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 05:52:05:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 05:52:05:     at Multipart.emit (node:events:518:28)
+2026-04-29 05:52:05:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 05:52:05:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+2026-04-29 05:58:09: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 05:58:09:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 05:58:09:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 05:58:09:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 05:58:09:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 05:58:09:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 05:58:09:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 05:58:09:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 05:58:09:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 05:58:09:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 05:58:09:     at Multipart.emit (node:events:518:28)
+2026-04-29 05:58:09:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 05:58:09:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+2026-04-29 05:58:15: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 05:58:15:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 05:58:15:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 05:58:15:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 05:58:15:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 05:58:15:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 05:58:15:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 05:58:15:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 05:58:15:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 05:58:15:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 05:58:15:     at Multipart.emit (node:events:518:28)
+2026-04-29 05:58:15:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 05:58:15:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+2026-04-29 05:58:30: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 05:58:30:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 05:58:30:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 05:58:30:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 05:58:30:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 05:58:30:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 05:58:30:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 05:58:30:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 05:58:30:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 05:58:30:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 05:58:30:     at Multipart.emit (node:events:518:28)
+2026-04-29 05:58:30:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 05:58:30:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+2026-04-29 05:59:00: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 05:59:00:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 05:59:00:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 05:59:00:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 05:59:00:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 05:59:00:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 05:59:00:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 05:59:00:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 05:59:00:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 05:59:00:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 05:59:00:     at Multipart.emit (node:events:518:28)
+2026-04-29 05:59:00:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 05:59:00:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)
+2026-04-29 06:00:00: [send-media-upload] Error: Attempted to use detached Frame 'AA2A00FE6C4BCEFE25A4078877948E30'.
+2026-04-29 06:00:00:     at CdpFrame.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/util/decorators.js:107:23)
+2026-04-29 06:00:00:     at CdpPage.evaluate (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:43)
+2026-04-29 06:00:00:     at Client.sendMessage (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/whatsapp-web.js/src/Client.js:1533:44)
+2026-04-29 06:00:00:     at /var/www/chatswitch.10k.kz/whatsapp-service/src/api/routes.js:294:35
+2026-04-29 06:00:00:     at Layer.handle [as handle_request] (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/layer.js:95:5)
+2026-04-29 06:00:00:     at next (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/express/lib/router/route.js:149:13)
+2026-04-29 06:00:00:     at done (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:69:7)
+2026-04-29 06:00:00:     at indicateDone (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:73:68)
+2026-04-29 06:00:00:     at Multipart.<anonymous> (/var/www/chatswitch.10k.kz/whatsapp-service/node_modules/multer/lib/make-middleware.js:243:7)
+2026-04-29 06:00:00:     at Multipart.emit (node:events:518:28)
+2026-04-29 06:00:00:     at emitCloseNT (node:internal/streams/destroy:147:10)
+2026-04-29 06:00:00:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21)

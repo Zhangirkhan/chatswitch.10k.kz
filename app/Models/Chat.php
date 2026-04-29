@@ -28,6 +28,7 @@ final class Chat extends Model
         'unread_count',
         'is_archived',
         'is_pinned',
+        'pinned_message_id',
         'is_muted',
         'muted_until',
         'is_favorite',
@@ -75,6 +76,11 @@ final class Chat extends Model
     public function latestMessage(): HasOne
     {
         return $this->hasOne(Message::class)->latestOfMany(['message_timestamp', 'id']);
+    }
+
+    public function pinnedMessage(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'pinned_message_id');
     }
 
     public function assignments(): HasMany

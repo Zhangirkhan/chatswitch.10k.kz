@@ -40,26 +40,30 @@ type MediaKind =
 function detectKind(type: string, mime: string | null): MediaKind {
     const t = (type || '').toLowerCase();
     const m = (mime || '').toLowerCase();
+
+    // Сперва спец-случаи WhatsApp, где type говорит сам за себя.
     if (t === 'ptt' || t === 'voice') return 'voice';
-    if (t === 'image' || m.startsWith('image/gif')
-        ? false
-        : m.startsWith('image/') && !m.startsWith('image/webp')) {
-        // fallthrough handled below
-    }
-    if (t === 'image') return m.startsWith('image/gif') ? 'gif' : m.startsWith('image/webp') ? 'sticker' : 'image';
-    if (t === 'video') return 'video';
-    if (t === 'audio') {
-        // audio/ogg у WhatsApp — это голосовое, даже если пришло с type=audio.
-        return m === 'audio/ogg' ? 'voice' : 'audio';
-    }
     if (t === 'sticker') return 'sticker';
     if (t === 'gif') return 'gif';
-    if (t === 'document') return 'document';
     if (t === 'contact' || t === 'vcard' || t === 'multi_vcard') return 'contact';
     if (t === 'poll' || t === 'poll_creation') return 'poll';
+    if (t === 'document') return 'document';
 
-    if (m.startsWith('image/gif')) return 'gif';
-    if (m.startsWith('image/webp')) return 'sticker';
+    // Для видео/аудио/картинок тип не всегда совпадает с mime (image/webp = стикер,
+    // image/gif = GIF, audio/ogg = голосовое), поэтому уточняем по mime.
+    if (t === 'image') {
+        if (m === 'image/webp') return 'sticker';
+        if (m === 'image/gif') return 'gif';
+        return 'image';
+    }
+    if (t === 'video') return 'video';
+    if (t === 'audio') {
+        return m === 'audio/ogg' ? 'voice' : 'audio';
+    }
+
+    // Фолбэк по одному только mime (если type = 'chat', но media висит).
+    if (m === 'image/gif') return 'gif';
+    if (m === 'image/webp') return 'sticker';
     if (m.startsWith('image/')) return 'image';
     if (m.startsWith('video/')) return 'video';
     if (m === 'audio/ogg') return 'voice';

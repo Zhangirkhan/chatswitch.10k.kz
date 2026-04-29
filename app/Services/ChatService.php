@@ -19,6 +19,82 @@ use Illuminate\Support\Str;
 
 final class ChatService
 {
+    private function normalizePhoneDigits(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $digits = preg_replace('/\D/', '', $value);
+
+        return is_string($digits) && $digits !== '' ? $digits : null;
+    }
+
+    private function findExistingContactByPhoneOrWaId(?string $raw): ?Contact
+    {
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+        $raw = trim($raw);
+        $digits = $this->normalizePhoneDigits($raw);
+        $waVariants = array_values(array_unique(array_filter([
+            $raw,
+            $digits,
+            $digits ? "{$digits}@c.us" : null,
+        ])));
+
+        return Contact::query()
+            ->where(function (Builder $q) use ($digits, $waVariants): void {
+                if ($digits) {
+                    $q->where('phone_number', $digits);
+                }
+                $q->orWhereIn('whatsapp_id', $waVariants);
+            })
+            ->first();
+    }
+
+    /**
+     * Backfill sender names in group message history.
+     *
+     * For inbound messages in group chats we prefer the name as saved in our contacts.
+     * This method updates existing messages so UI shows your saved contact names.
+     *
+     * @return array{scanned:int, updated:int}
+     */
+    public function resyncGroupSenderNames(Chat $chat, bool $dryRun = false): array
+    {
+        if (! $chat->is_group) {
+            return ['scanned' => 0, 'updated' => 0];
+        }
+
+        $scanned = 0;
+        $updated = 0;
+
+        Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'inbound')
+            ->whereNotNull('sender_phone')
+            ->orderBy('id')
+            ->cursor()
+            ->each(function (Message $m) use (&$scanned, &$updated, $dryRun): void {
+                $scanned++;
+                $contact = $this->findExistingContactByPhoneOrWaId($m->sender_phone);
+                $name = $contact?->name ? trim((string) $contact->name) : null;
+                if (! $name) {
+                    return;
+                }
+                if ((string) $m->sender_name === $name) {
+                    return;
+                }
+                $updated++;
+                if (! $dryRun) {
+                    $m->sender_name = $name;
+                    $m->saveQuietly();
+                }
+            });
+
+        return ['scanned' => $scanned, 'updated' => $updated];
+    }
+
     public function getChatsForUser(User $user, ?string $search = null): Builder
     {
         // Закреплённые — сверху; затем по времени последней активности.
@@ -26,12 +102,13 @@ final class ChatService
         // сортировались по created_at и попадали в самый верх списка.
         $query = Chat::with([
             'contact',
-            'whatsappSession',
+            'whatsappSession:id,session_name,display_name,display_color,phone_number,status',
             'assignments.user',
             // Нужно фронту для превью последнего сообщения (иконка + «Фото»/«Видео»/
             // «Голосовое (0:12)»). Media подтягиваем, чтобы показать имя файла для
-            // документов. Поля ограничены — нам важен только тип/подпись/медиа.
-            'latestMessage:id,chat_id,type,body,direction,metadata,message_timestamp',
+            // документов. latestMessage без урезанного select: иначе latestOfMany + paginate()
+            // даёт MySQL 1052 Column 'chat_id' in SELECT is ambiguous.
+            'latestMessage',
             'latestMessage.media:id,message_id,mime_type,filename',
         ])
             ->orderByDesc('is_pinned')
@@ -64,6 +141,13 @@ final class ChatService
                     });
                 }
             });
+        }
+
+        // Hide empty chats in the left sidebar by default.
+        // If user is searching, include empty chats so they can be found and opened.
+        $search = is_string($search) ? trim($search) : null;
+        if ($search === null || $search === '') {
+            $query->whereHas('messages');
         }
 
         if ($search) {
@@ -148,6 +232,24 @@ final class ChatService
         return $chat;
     }
 
+    /**
+     * Чат для пересылки: если с контактом уже есть диалог на этой WA-сессии — используем его
+     * (правильный whatsapp_chat_id, в т.ч. @lid). Иначе — {@see findOrCreateChatForContact()}.
+     */
+    public function findForwardTargetChatForContact(Contact $contact, WhatsappSession $session): Chat
+    {
+        $existing = Chat::query()
+            ->where('contact_id', $contact->id)
+            ->where('whatsapp_session_id', $session->id)
+            ->where('is_group', false)
+            ->whereNotNull('whatsapp_chat_id')
+            ->where('whatsapp_chat_id', '!=', '')
+            ->orderByDesc('id')
+            ->first();
+
+        return $existing ?? $this->findOrCreateChatForContact($contact, $session);
+    }
+
     public function findOrCreateContactByPhone(string $phone, ?string $name = null): Contact
     {
         $digits = preg_replace('/\D/', '', $phone);
@@ -180,6 +282,22 @@ final class ChatService
     {
         $type = (string) ($data['type'] ?? 'chat');
         $metadata = null;
+        $isGroup = (bool) ($chat->is_group ?? ($data['isGroup'] ?? false));
+
+        $senderPhoneRaw = isset($data['senderPhone']) ? (string) $data['senderPhone'] : null;
+        $senderNameRaw = isset($data['senderName']) ? (string) $data['senderName'] : null;
+
+        // For group messages we prefer the name as saved in our contacts.
+        // If not saved, we keep WhatsApp push name. UI will render "~ {name} · {phone}".
+        $senderContact = $isGroup ? $this->findExistingContactByPhoneOrWaId($senderPhoneRaw) : null;
+        $resolvedSenderName = null;
+        if ($senderContact && $senderContact->name) {
+            $resolvedSenderName = $senderContact->name;
+        } elseif (is_string($senderNameRaw) && trim($senderNameRaw) !== '') {
+            $resolvedSenderName = trim($senderNameRaw);
+        }
+
+        $normalizedSenderPhone = $this->normalizePhoneDigits($senderPhoneRaw) ?? $senderPhoneRaw;
 
         // Голосовые/аудио — whatsapp-service прокидывает длительность в секундах,
         // чтобы в превью чата показать «Голосовое сообщение (0:12)».
@@ -198,8 +316,8 @@ final class ChatService
             'type' => $type,
             'body' => $data['body'] ?? '',
             'metadata' => $metadata,
-            'sender_phone' => $data['senderPhone'] ?? null,
-            'sender_name' => $data['senderName'] ?? null,
+            'sender_phone' => $normalizedSenderPhone,
+            'sender_name' => $resolvedSenderName,
             'is_forwarded' => $data['isForwarded'] ?? false,
             'quoted_message_id' => $data['quotedMessageId'] ?? null,
             'ack' => 'delivered',

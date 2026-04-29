@@ -29,6 +29,13 @@ function currentSession(req) {
   return String(resolveSessionName(req) || '').trim();
 }
 
+function chatIdFromSerializedMessageId(messageId) {
+  const parts = String(messageId || '').split('_');
+  if (parts.length < 3) return null;
+  const chatId = parts[1] || null;
+  return chatId ? String(chatId) : null;
+}
+
 function getReadyClient(req, res) {
   const sessionName = currentSession(req);
   const service = getOrCreateClient(sessionName);
@@ -129,9 +136,16 @@ router.post('/send-message', async (req, res) => {
   const service = getReadyClient(req, res);
   if (!service) return;
 
-  const { to, message, quotedMessageId } = req.body;
-  if (!to || !message) {
-    return res.status(422).json({ success: false, error: 'to and message are required' });
+  const { to, quotedMessageId } = req.body;
+  const raw = req.body.message;
+  const message =
+    typeof raw === 'string' ? raw : raw === undefined || raw === null ? '' : String(raw);
+
+  if (!to || typeof to !== 'string' || !String(to).trim()) {
+    return res.status(422).json({ success: false, error: 'to is required' });
+  }
+  if (!message.trim()) {
+    return res.status(422).json({ success: false, error: 'message must be non-empty' });
   }
 
   try {
@@ -159,15 +173,62 @@ router.post('/react-message', async (req, res) => {
   }
 
   try {
-    const message = await service.client.getMessageById(messageId);
+    // eslint-disable-next-line no-console
+    console.log(`[react-message] session=${service.sessionName} messageId=${messageId} reaction=${JSON.stringify(reaction)}`);
+
+    let message = await service.client.getMessageById(messageId);
     if (!message) {
-      return res.status(404).json({ success: false, error: 'Message not found' });
+      const chatId = chatIdFromSerializedMessageId(messageId);
+      if (chatId) {
+        const chat = await service.client.getChatById(chatId);
+        if (chat) {
+          // For older messages WhatsApp Web may not have the target in cache.
+          // Try warming up the chat cache with progressively larger fetches.
+          const limits = [50, 120, 200];
+          for (const limit of limits) {
+            try {
+              await chat.fetchMessages({ limit });
+            } catch (_) {
+              // ignore and continue with next attempt
+            }
+            message = await service.client.getMessageById(messageId);
+            if (message) break;
+          }
+        }
+      }
     }
 
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found in WhatsApp cache' });
+    }
+
+    // Use whatsapp-web.js public API. This avoids relying on window.Store being injected
+    // (which can change between WhatsApp Web versions).
     await message.react(reaction);
 
-    return res.json({ success: true });
+    // Best-effort verification: reload and read reactions list.
+    let verify = null;
+    try {
+      await new Promise((r) => setTimeout(r, 800));
+      const refreshed = await service.client.getMessageById(message.id?._serialized || messageId);
+      if (refreshed && typeof refreshed.getReactions === 'function') {
+        const list = await refreshed.getReactions();
+        verify = {
+          hasReaction: Boolean(refreshed.hasReaction),
+          listSize: Array.isArray(list) ? list.length : null,
+          list: Array.isArray(list) ? list : null,
+        };
+      } else {
+        verify = { skipped: true, reason: 'No refreshed message' };
+      }
+    } catch (e) {
+      verify = { error: String(e && e.message ? e.message : e) };
+    }
+
+    return res.json({ success: true, verify });
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[react-message] exception:', err && err.message ? err.message : err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -201,8 +262,22 @@ router.post('/send-media-upload', upload.single('file'), async (req, res) => {
   }
 
   try {
+    const nameLower = String(filename || req.file.originalname || '').toLowerCase();
+    const mimeBase = String(mimetype || req.file.mimetype || '')
+      .split(';')[0]
+      .trim()
+      .toLowerCase();
+    const isWebm =
+      mimeBase === 'audio/webm' ||
+      mimeBase === 'video/webm' ||
+      nameLower.endsWith('.webm');
+    let mediaMime = mimetype || req.file.mimetype || 'application/octet-stream';
+    if (isWebm && !String(mediaMime).toLowerCase().includes('webm')) {
+      mediaMime = 'audio/webm';
+    }
+
     const media = new MessageMedia(
-      mimetype || req.file.mimetype,
+      mediaMime,
       req.file.buffer.toString('base64'),
       filename || req.file.originalname
     );
@@ -211,18 +286,39 @@ router.post('/send-media-upload', upload.single('file'), async (req, res) => {
       sendAsVoice === 1 ||
       sendAsVoice === true ||
       String(sendAsVoice).toLowerCase() === 'true';
+
     const options = {};
     if (caption) {
       options.caption = caption;
     }
-    if (sendVoice) {
+    // WebM из браузера с sendAudioAsVoice даёт 500 внутри WA Web; отправляем как обычное аудио.
+    if (sendVoice && !isWebm) {
       options.sendAudioAsVoice = true;
     }
-    const sent = await service.client.sendMessage(to, media, options);
+
+    let sent;
+    try {
+      sent = await service.client.sendMessage(to, media, options);
+    } catch (firstErr) {
+      if (isWebm) {
+        sent = await service.client.sendMessage(to, media, {
+          ...options,
+          sendMediaAsDocument: true,
+        });
+      } else {
+        throw firstErr;
+      }
+    }
 
     return res.json({ success: true, messageId: sent.id?._serialized, timestamp: sent.timestamp });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    // eslint-disable-next-line no-console
+    console.error('[send-media-upload]', err);
+    const msg =
+      err && typeof err === 'object' && 'message' in err && err.message
+        ? String(err.message)
+        : String(err);
+    return res.status(500).json({ success: false, error: msg || 'send-media-upload failed' });
   }
 });
 
@@ -259,6 +355,146 @@ router.post('/create-group', async (req, res) => {
     const group = await service.client.createGroup(subject, participants);
 
     return res.json({ success: true, group });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/chats', async (req, res) => {
+  const service = getReadyClient(req, res);
+  if (!service) return;
+
+  try {
+    const chats = await service.client.getChats();
+    return res.json({
+      success: true,
+      chats: (chats || []).map((chat) => ({
+        id: chat.id?._serialized,
+        name: chat.name || null,
+        isGroup: Boolean(chat.isGroup),
+        unreadCount: typeof chat.unreadCount === 'number' ? chat.unreadCount : null,
+        timestamp: typeof chat.timestamp === 'number' ? chat.timestamp : null,
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/chats/:chatId/participants', async (req, res) => {
+  const service = getReadyClient(req, res);
+  if (!service) return;
+
+  try {
+    const chat = await service.client.getChatById(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ success: false, error: 'Chat not found' });
+    }
+    if (!chat.isGroup) {
+      return res.status(422).json({ success: false, error: 'Not a group chat' });
+    }
+
+    const participants = Array.isArray(chat.participants) ? chat.participants : [];
+    const uniqueIds = Array.from(
+      new Set(
+        participants
+          .map((p) => p?.id?._serialized || p?.id || null)
+          .filter(Boolean)
+          .map(String)
+      )
+    );
+
+    const contacts = await Promise.all(
+      uniqueIds.map(async (id) => {
+        try {
+          const c = await service.client.getContactById(id);
+          const p = participants.find((x) => (x?.id?._serialized || x?.id) === id);
+          return {
+            id,
+            number: c?.number || null,
+            name: c?.name || null,
+            pushname: c?.pushname || null,
+            isBusiness: Boolean(c?.isBusiness),
+            isAdmin: Boolean(p?.isAdmin),
+            isSuperAdmin: Boolean(p?.isSuperAdmin),
+          };
+        } catch (_) {
+          const p = participants.find((x) => (x?.id?._serialized || x?.id) === id);
+          return {
+            id,
+            number: null,
+            name: null,
+            pushname: null,
+            isBusiness: false,
+            isAdmin: Boolean(p?.isAdmin),
+            isSuperAdmin: Boolean(p?.isSuperAdmin),
+          };
+        }
+      })
+    );
+
+    // Sort: admins first, then by display name/number
+    contacts.sort((a, b) => {
+      const aRank = a.isSuperAdmin ? 0 : a.isAdmin ? 1 : 2;
+      const bRank = b.isSuperAdmin ? 0 : b.isAdmin ? 1 : 2;
+      if (aRank !== bRank) return aRank - bRank;
+      const an = String(a.name || a.pushname || a.number || a.id);
+      const bn = String(b.name || b.pushname || b.number || b.id);
+      return an.localeCompare(bn);
+    });
+
+    return res.json({ success: true, participants: contacts });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/chats/:chatId/messages', async (req, res) => {
+  const service = getReadyClient(req, res);
+  if (!service) return;
+
+  const limitRaw = req.query.limit;
+  // whatsapp-web.js fetchMessages can crash on large limits in some WA builds.
+  // Keep this endpoint safe; callers can iterate with small limits if needed.
+  const limit = Math.max(1, Math.min(5, parseInt(String(limitRaw || '5'), 10) || 5));
+
+  try {
+    const chat = await service.client.getChatById(req.params.chatId);
+    if (!chat) {
+      return res.status(404).json({ success: false, error: 'Chat not found' });
+    }
+
+    const messages = await chat.fetchMessages({ limit });
+    const mapped = await Promise.all(
+      (messages || []).map(async (m) => {
+        const id = m?.id?._serialized || null;
+        const authorId = m?.author || null; // group messages
+        const fromId = m?.from || null;
+        const senderId = authorId || fromId || null;
+        let contact = null;
+        try {
+          if (senderId) {
+            contact = await service.client.getContactById(String(senderId));
+          }
+        } catch (_) {
+          contact = null;
+        }
+
+        return {
+          id,
+          timestamp: typeof m?.timestamp === 'number' ? m.timestamp : null,
+          fromMe: Boolean(m?.fromMe),
+          authorId: authorId ? String(authorId) : null,
+          fromId: fromId ? String(fromId) : null,
+          senderId: senderId ? String(senderId) : null,
+          senderNumber: contact?.number || null,
+          senderName: contact?.name || null,
+          senderPushname: contact?.pushname || null,
+        };
+      })
+    );
+
+    return res.json({ success: true, messages: mapped, limit });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

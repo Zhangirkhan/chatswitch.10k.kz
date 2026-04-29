@@ -2,6 +2,7 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "prebuild": "node -e \"require('fs').rmSync('public/hot',{force:true})\"",
         "build": "vue-tsc && vite build",
         "dev": "vite",
         "test:unit": "vitest run",

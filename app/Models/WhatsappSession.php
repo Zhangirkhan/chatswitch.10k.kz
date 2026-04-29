@@ -24,6 +24,7 @@ final class WhatsappSession extends Model
         'session_name',
         'phone_number',
         'display_name',
+        'display_color',
         'wa_name',
         'wa_platform',
         'status',

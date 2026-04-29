@@ -5,6 +5,7 @@ import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
+import axios from 'axios';
 
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
@@ -72,6 +73,16 @@ onMounted(() => {
     }
 });
 
+// On first mount, pull group chats for connected numbers so they appear in the list.
+onMounted(async () => {
+    try {
+        await axios.post(route('chats.sync-groups'));
+        router.reload({ only: ['chats'] });
+    } catch {
+        // ignore (offline / service not ready)
+    }
+});
+
 watch(activeOwnership, (val) => {
     if (typeof window !== 'undefined') {
         localStorage.setItem(OWNERSHIP_KEY, val);
@@ -125,22 +136,30 @@ const filteredChats = computed(() => {
     if (activeSegment.value === 'favorites') {
         list = list.filter((c) => c.is_pinned || c.is_favorite);
     } else if (activeSegment.value === 'clients') {
-        // Клиенты: последнее сообщение от собеседника (входящее), личные чаты
-        list = list.filter((c) => !c.is_group && c.last_message_direction === 'inbound');
+        // Клиенты: показываем все чаты (включая группы).
+        // Разделение по last_message_direction скрывает большинство диалогов после ответа оператора.
+        list = list;
     } else {
         // Сотрудники: последнее сообщение отправлено из системы (оператор)
         list = list.filter((c) => c.last_message_direction === 'outbound');
     }
-    return list;
+    // Always keep pinned chats on top (WhatsApp-like), even if backend order
+    // is affected by cached props / partial reloads.
+    return [...list].sort((a, b) => {
+        const ap = a.is_pinned ? 1 : 0;
+        const bp = b.is_pinned ? 1 : 0;
+        if (bp !== ap) return bp - ap;
+        const ad = new Date((a.last_message_at || (a as any).created_at || '') as any).getTime() || 0;
+        const bd = new Date((b.last_message_at || (b as any).created_at || '') as any).getTime() || 0;
+        return bd - ad;
+    });
 });
 
 const favoritesTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.is_pinned || c.is_favorite).length
 );
 const clientsTotal = computed(() =>
-    ownershipFilteredChats.value.filter(
-        (c) => !c.is_group && c.last_message_direction === 'inbound',
-    ).length
+    ownershipFilteredChats.value.length
 );
 const staffTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.last_message_direction === 'outbound').length

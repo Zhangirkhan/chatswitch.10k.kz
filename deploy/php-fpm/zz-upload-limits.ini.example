@@ -1,0 +1,6 @@
+; Скопировать в /etc/php/8.3/fpm/conf.d/zz-upload-limits.ini
+; Только если нужны большие загрузки для ВСЕХ пулов FPM на сервере.
+; Для одного только chatswitch достаточно fastcgi_param PHP_VALUE в nginx (см. deploy/nginx).
+
+upload_max_filesize = 100M
+post_max_filesize = 100M

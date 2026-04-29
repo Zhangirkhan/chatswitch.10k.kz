@@ -11,11 +11,11 @@ use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-final class NewMessageReceived implements ShouldBroadcast
+final class NewMessageReceived implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -100,6 +100,7 @@ final class NewMessageReceived implements ShouldBroadcast
                 'direction' => $this->message->direction,
                 'type' => $this->message->type,
                 'body' => $this->message->body,
+                'metadata' => $this->message->metadata,
                 'sender_phone' => $this->message->sender_phone,
                 'sender_name' => $this->message->sender_name,
                 'sent_by_user_id' => $this->message->sent_by_user_id,

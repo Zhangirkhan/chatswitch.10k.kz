@@ -5,10 +5,10 @@ import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
 import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
 import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
+import LastMessagePreview from '@/Components/LastMessagePreview.vue';
 import { useToastStore } from '@/stores/toast';
 import type { Chat } from '@/types';
 import { formatPhone } from '@/utils/phone';
-import { stripWaMarkup } from '@/utils/waMarkup';
 
 const { show: showToast } = useToastStore();
 
@@ -226,8 +226,8 @@ function formatTime(dateStr: string | null): string {
 const displayName = computed(
     () =>
         props.chat.chat_name ||
-        props.chat.contact?.push_name ||
         props.chat.contact?.name ||
+        (props.chat.contact?.push_name ? `~ ${props.chat.contact.push_name}` : '') ||
         formatPhone(props.chat.contact?.phone_number) ||
         '',
 );
@@ -260,7 +260,35 @@ const muteSubtitle = computed<string>(() => {
 
 function getSessionLabel(chat: Chat): string {
     if (!chat.whatsapp_session) return '';
-    return formatPhone(chat.whatsapp_session.phone_number) || chat.whatsapp_session.display_name || '';
+    return chat.whatsapp_session.display_name?.trim()
+        || formatPhone(chat.whatsapp_session.phone_number)
+        || '';
+}
+
+function sessionTooltip(chat: Chat): string {
+    const s = chat.whatsapp_session;
+    if (!s) return '';
+    const num = formatPhone(s.phone_number) || (s.phone_number || '');
+    const label = s.display_name?.trim() || '';
+    return [label, num].filter(Boolean).join(' · ');
+}
+
+function sessionBadgeStyle(chat: Chat): Record<string, string> {
+    const c = chat.whatsapp_session?.display_color || '';
+    const color = c.trim();
+    if (!color) {
+        return { background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' };
+    }
+    // Use rgba background for widest browser support (avoid 8-digit hex).
+    const m = /^#?([0-9a-f]{6})$/i.exec(color);
+    if (m) {
+        const hex = m[1]!;
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return { background: `rgba(${r}, ${g}, ${b}, 0.13)`, color: `#${hex}` };
+    }
+    return { background: 'rgba(37, 211, 102, 0.16)', color };
 }
 </script>
 
@@ -275,17 +303,21 @@ function getSessionLabel(chat: Chat): string {
         <Avatar
             :avatar-url="chat.contact?.profile_picture_url"
             :name="displayName"
+            :is-group="chat.is_group"
             :size="49"
         />
 
         <div class="flex-1 min-w-0 border-b border-[var(--wa-divider)] group-hover:border-transparent pb-3 -mb-3 pt-0.5">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5 min-w-0">
-                    <svg v-if="chat.is_pinned" class="w-3 h-3 text-[var(--wa-text-secondary)] shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
-                    </svg>
                     <span class="text-[var(--wa-text)] text-base truncate">
-                        {{ chat.chat_name || chat.contact?.push_name || formatPhone(chat.contact?.phone_number) || 'Без имени' }}
+                        {{
+                            chat.chat_name
+                            || chat.contact?.name
+                            || (chat.contact?.push_name ? `~ ${chat.contact.push_name}` : null)
+                            || formatPhone(chat.contact?.phone_number)
+                            || 'Без имени'
+                        }}
                     </span>
                 </div>
                 <span
@@ -300,13 +332,15 @@ function getSessionLabel(chat: Chat): string {
                     <span
                         v-if="getSessionLabel(chat)"
                         class="shrink-0 text-[10px] px-1.5 py-0 rounded font-medium"
-                        :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                        :style="sessionBadgeStyle(chat)"
+                        :title="sessionTooltip(chat)"
                     >
                         {{ getSessionLabel(chat) }}
                     </span>
-                    <span class="text-sm text-[var(--wa-text-secondary)] truncate">
-                        {{ stripWaMarkup(chat.last_message_text) || 'Нет сообщений' }}
-                    </span>
+                    <LastMessagePreview
+                        :chat="chat"
+                        class="text-sm text-[var(--wa-text-secondary)] truncate"
+                    />
                 </div>
                 <div class="ml-1 shrink-0 flex items-center gap-1 bottom-meta">
                     <BellOffIcon
@@ -314,6 +348,16 @@ function getSessionLabel(chat: Chat): string {
                         :size="18"
                         class="text-[var(--wa-text-secondary)] shrink-0"
                     />
+                    <svg
+                        v-if="chat.is_pinned"
+                        class="w-4 h-4 text-[var(--wa-text-secondary)] shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        title="Чат закреплён"
+                        aria-hidden="true"
+                    >
+                        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
+                    </svg>
                     <span
                         v-if="chat.unread_count > 0"
                         class="unread-badge min-w-[20px] h-[20px] rounded-full text-[11px] font-semibold flex items-center justify-center px-1.5 shrink-0"

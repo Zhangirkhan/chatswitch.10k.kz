@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue';
 import axios from 'axios';
 import type { Message } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
@@ -16,9 +16,15 @@ const emit = defineEmits<{
     (e: 'cancelReply'): void;
 }>();
 
+// Plain text that will be sent to backend/WhatsApp.
 const messageText = ref('');
 const isSending = ref(false);
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const editorRef = ref<HTMLDivElement | null>(null);
+
+// Formatting toolbar (like WhatsApp Web)
+const formatBarOpen = ref(false);
+const formatBarX = ref(0);
+const formatBarY = ref(0);
 
 const mediaInput = ref<HTMLInputElement | null>(null);
 const docInput = ref<HTMLInputElement | null>(null);
@@ -32,7 +38,7 @@ let typingTimeout: ReturnType<typeof setTimeout>;
 const hasText = computed(() => messageText.value.trim().length > 0);
 
 watch(() => props.replyTo, (val) => {
-    if (val) nextTick(() => textareaRef.value?.focus());
+    if (val) nextTick(() => editorRef.value?.focus());
 });
 
 function replyPreviewText(msg: Message): string {
@@ -53,7 +59,7 @@ async function sendMessage() {
     isSending.value = true;
     const prevText = text;
     messageText.value = '';
-    autoResize();
+    clearEditor();
 
     try {
         const payload: Record<string, unknown> = { message: text };
@@ -68,6 +74,8 @@ async function sendMessage() {
     } catch (err) {
         console.error('Send failed:', err);
         messageText.value = prevText;
+        // restore editor text for user convenience
+        setEditorPlainText(prevText);
     } finally {
         isSending.value = false;
     }
@@ -81,36 +89,135 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 function onInput() {
-    autoResize();
+    syncPlainTextFromEditor();
+    autoResizeEditor();
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
         axios.post(route('chats.typing', props.chatId)).catch(() => {});
     }, 500);
 }
 
-function autoResize() {
-    const el = textareaRef.value;
+function autoResizeEditor() {
+    const el = editorRef.value;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
 function insertEmoji(emoji: string) {
-    const el = textareaRef.value;
-    if (!el) {
-        messageText.value += emoji;
+    const el = editorRef.value;
+    if (!el) return;
+    el.focus();
+    // Insert emoji at caret position.
+    document.execCommand('insertText', false, emoji);
+    syncPlainTextFromEditor();
+    nextTick(autoResizeEditor);
+}
+
+function clearEditor() {
+    const el = editorRef.value;
+    if (!el) return;
+    el.innerHTML = '';
+    el.style.height = '';
+    formatBarOpen.value = false;
+}
+
+function setEditorPlainText(text: string) {
+    const el = editorRef.value;
+    if (!el) return;
+    el.textContent = text;
+    syncPlainTextFromEditor();
+    nextTick(autoResizeEditor);
+}
+
+function syncPlainTextFromEditor() {
+    const el = editorRef.value;
+    if (!el) return;
+    // innerText preserves line breaks similar to textarea behavior.
+    messageText.value = (el.innerText || '').replace(/\u00A0/g, ' ');
+}
+
+function selectionInsideEditor(): boolean {
+    const root = editorRef.value;
+    const sel = window.getSelection();
+    if (!root || !sel || sel.rangeCount === 0) return false;
+    const range = sel.getRangeAt(0);
+    const node = range.commonAncestorContainer;
+    return root.contains(node);
+}
+
+function updateFormatBarFromSelection() {
+    const root = editorRef.value;
+    const sel = window.getSelection();
+    if (!root || !sel || sel.rangeCount === 0) {
+        formatBarOpen.value = false;
         return;
     }
-    const start = el.selectionStart ?? messageText.value.length;
-    const end = el.selectionEnd ?? messageText.value.length;
-    messageText.value = messageText.value.slice(0, start) + emoji + messageText.value.slice(end);
-    nextTick(() => {
-        el.focus();
-        const pos = start + emoji.length;
-        el.setSelectionRange(pos, pos);
-        autoResize();
-    });
+    if (!selectionInsideEditor()) {
+        formatBarOpen.value = false;
+        return;
+    }
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    // If selection is collapsed, keep toolbar hidden (WhatsApp-like).
+    if (sel.isCollapsed || rect.width === 0) {
+        formatBarOpen.value = false;
+        return;
+    }
+    const vw = window.innerWidth;
+    const TOOLBAR_W = 360;
+    const x = Math.max(8, Math.min(vw - TOOLBAR_W - 8, rect.left + rect.width / 2 - TOOLBAR_W / 2));
+    const y = Math.max(8, rect.top - 48);
+    formatBarX.value = x;
+    formatBarY.value = y;
+    formatBarOpen.value = true;
 }
+
+function applyFormat(cmd: string, value?: string) {
+    const el = editorRef.value;
+    if (!el) return;
+    el.focus();
+    try {
+        // eslint-disable-next-line deprecation/deprecation
+        document.execCommand(cmd, false, value);
+    } finally {
+        syncPlainTextFromEditor();
+        nextTick(autoResizeEditor);
+        updateFormatBarFromSelection();
+    }
+}
+
+function onCopy(e: ClipboardEvent) {
+    if (!selectionInsideEditor()) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const container = document.createElement('div');
+    container.appendChild(range.cloneContents());
+    const html = container.innerHTML;
+    const text = sel.toString();
+    if (!e.clipboardData) return;
+    e.clipboardData.setData('text/html', html);
+    e.clipboardData.setData('text/plain', text);
+    e.preventDefault();
+}
+
+function onPaste(e: ClipboardEvent) {
+    // Paste as plain text to avoid bringing external styling into the editor.
+    if (!selectionInsideEditor()) return;
+    const text = e.clipboardData?.getData('text/plain');
+    if (typeof text !== 'string') return;
+    e.preventDefault();
+    applyFormat('insertText', text);
+}
+
+onMounted(() => {
+    document.addEventListener('selectionchange', updateFormatBarFromSelection);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('selectionchange', updateFormatBarFromSelection);
+});
 
 function toggleAttach() {
     showAttach.value = !showAttach.value;
@@ -609,7 +716,7 @@ watch(anyOverlayOpen, (open) => {
         <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">настройках</a>.
     </div>
 
-    <div v-else class="shrink-0 relative chat-bg">
+    <div v-else class="relative shrink-0">
         <!-- Reply preview -->
         <div
             v-if="replyTo"
@@ -749,15 +856,18 @@ watch(anyOverlayOpen, (open) => {
                 </button>
 
                 <div class="wa-input-pill flex-1">
-                    <textarea
-                        ref="textareaRef"
-                        v-model="messageText"
+                    <div
+                        ref="editorRef"
+                        class="wa-rich-editor wa-scrollbar"
+                        contenteditable="true"
+                        role="textbox"
+                        aria-multiline="true"
+                        data-placeholder="Введите сообщение"
                         @keydown="handleKeydown"
                         @input="onInput"
-                        rows="1"
-                        placeholder="Введите сообщение"
-                        class="wa-input-textarea wa-scrollbar"
-                    ></textarea>
+                        @copy="onCopy"
+                        @paste="onPaste"
+                    ></div>
                 </div>
 
                 <EmojiPicker
@@ -792,6 +902,49 @@ watch(anyOverlayOpen, (open) => {
                 </button>
             </template>
         </div>
+
+        <!-- Text formatting toolbar (selection) -->
+        <teleport to="body">
+            <div
+                v-if="formatBarOpen"
+                class="wa-formatbar"
+                :style="{ left: formatBarX + 'px', top: formatBarY + 'px' }"
+            >
+                <button type="button" class="wa-fbtn" title="Жирный" @mousedown.prevent @click="applyFormat('bold')">
+                    <span class="wa-fbtn-txt wa-fbtn-txt--bold">B</span>
+                </button>
+                <button type="button" class="wa-fbtn" title="Курсив" @mousedown.prevent @click="applyFormat('italic')">
+                    <span class="wa-fbtn-txt wa-fbtn-txt--italic">I</span>
+                </button>
+                <button type="button" class="wa-fbtn" title="Зачёркнутый" @mousedown.prevent @click="applyFormat('strikeThrough')">
+                    <span class="wa-fbtn-txt wa-fbtn-txt--strike">S</span>
+                </button>
+                <div class="wa-fsep"></div>
+                <button type="button" class="wa-fbtn" title="Код" @mousedown.prevent @click="applyFormat('formatBlock', 'pre')">
+                    <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M8.7 16.7 4 12l4.7-4.7 1.4 1.4L6.8 12l3.3 3.3-1.4 1.4zm6.6 0-1.4-1.4L17.2 12l-3.3-3.3 1.4-1.4L20 12l-4.7 4.7z"/>
+                    </svg>
+                </button>
+                <button type="button" class="wa-fbtn" title="Цитата" @mousedown.prevent @click="applyFormat('formatBlock', 'blockquote')">
+                    <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M7 17h4V7H5v6h2v4zm10 0h4V7h-6v6h2v4z"/>
+                    </svg>
+                </button>
+                <div class="wa-fsep"></div>
+                <button type="button" class="wa-fbtn" title="Маркированный список" @mousedown.prevent @click="applyFormat('insertUnorderedList')">
+                    <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M4 10.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM4 17.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM4 3.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM9 4h12v2H9V4zm0 7h12v2H9v-2zm0 7h12v2H9v-2z"/>
+                    </svg>
+                </button>
+                <button type="button" class="wa-fbtn" title="Нумерованный список" @mousedown.prevent @click="applyFormat('insertOrderedList')">
+                    <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M6 5H4V4h3v4H4V7h2V5zm0 8H4v-1h1v-1H4v-1h2a1 1 0 011 1v1a1 1 0 01-1 1zm0 6H4v-1h2v-1H4v-1h2a1 1 0 011 1v1a1 1 0 01-1 1zM9 4h12v2H9V4zm0 7h12v2H9v-2zm0 7h12v2H9v-2z"/>
+                    </svg>
+                </button>
+                <div class="wa-fsep"></div>
+                <span class="wa-fcount" title="Длина текста">{{ messageText.length }}</span>
+            </div>
+        </teleport>
 
         <!-- Fullscreen attachment preview composer -->
         <Teleport to="body">
@@ -1186,18 +1339,16 @@ watch(anyOverlayOpen, (open) => {
     padding: 12px 16px;
     min-height: 56px;
 
-    /* Modern floating pill */
-    border: none;
+    /* Float on top of chat wallpaper (same pattern as messages). */
+    border: 1px solid color-mix(in srgb, var(--wa-border-strong) 38%, transparent);
     border-radius: 24px;
-    background: linear-gradient(180deg, #1e1e1e 0%, #2a2a2a 100%);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: color-mix(in srgb, var(--wa-panel-header) 78%, transparent);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
 
-    /* Make it feel “floating” */
     margin: 10px 12px;
 
-    /* Allow the bar to grow with textarea */
     align-items: flex-end;
 }
 
@@ -1240,7 +1391,7 @@ watch(anyOverlayOpen, (open) => {
     box-shadow: none;
 }
 
-.wa-input-textarea {
+.wa-rich-editor {
     flex: 1;
     min-width: 0;
     display: block;
@@ -1251,13 +1402,67 @@ watch(anyOverlayOpen, (open) => {
     color: #ffffff;
     font-size: 15px;
     line-height: 22px;
-    resize: none;
     max-height: 120px;
     overflow-y: auto;
     caret-color: #ffffff;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
-.wa-input-textarea:focus { outline: none; box-shadow: none; }
-.wa-input-textarea::placeholder { color: #9aa0a6; }
+.wa-rich-editor:focus { outline: none; box-shadow: none; }
+.wa-rich-editor:empty:before {
+    content: attr(data-placeholder);
+    color: #9aa0a6;
+}
+
+.wa-rich-editor blockquote {
+    border-left: 3px solid var(--wa-accent);
+    padding-left: 10px;
+    margin: 6px 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+.wa-rich-editor pre {
+    background: rgba(0, 0, 0, 0.28);
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 13px;
+    line-height: 18px;
+    margin: 6px 0;
+    overflow-x: auto;
+}
+
+.wa-formatbar {
+    position: fixed;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 9999px;
+    background: rgba(23, 23, 23, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+}
+.wa-fbtn {
+    width: 30px;
+    height: 30px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.88);
+    transition: background-color 0.12s ease, transform 0.12s ease;
+}
+.wa-fbtn:hover { background: rgba(255, 255, 255, 0.08); }
+.wa-fbtn:active { transform: scale(0.96); }
+.wa-ficon { width: 18px; height: 18px; display: block; }
+.wa-fbtn-txt { font-size: 15px; line-height: 1; }
+.wa-fbtn-txt--bold { font-weight: 800; }
+.wa-fbtn-txt--italic { font-style: italic; }
+.wa-fbtn-txt--strike { text-decoration: line-through; }
+.wa-fsep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.12); margin: 0 2px; }
+.wa-fcount { margin-left: 6px; font-size: 12px; color: rgba(255, 255, 255, 0.6); min-width: 22px; text-align: right; }
 
 .attach-menu {
     animation: picker-pop 0.14s ease-out;

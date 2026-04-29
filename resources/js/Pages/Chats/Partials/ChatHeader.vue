@@ -309,8 +309,8 @@ function notImplemented(name: string) {
 const displayName = computed(
     () =>
         props.chat.chat_name ||
-        props.chat.contact?.push_name ||
         props.chat.contact?.name ||
+        (props.chat.contact?.push_name ? `~ ${props.chat.contact.push_name}` : '') ||
         formatPhone(props.chat.contact?.phone_number) ||
         '',
 );
@@ -335,6 +335,7 @@ function getTypingText(): string {
             <Avatar
                 :avatar-url="chat.contact?.profile_picture_url"
                 :name="displayName"
+                :is-group="chat.is_group"
                 :size="40"
             />
         </div>
@@ -659,12 +660,6 @@ function getTypingText(): string {
                             <path v-else stroke-linecap="round" stroke-linejoin="round" d="M5.586 15L4 17h5a3 3 0 006 0h5l-1.405-1.405M3 3l18 18M9 5.341V5a2 2 0 114 0v.341" />
                         </svg>
                         {{ muted ? 'Включить звук' : 'Без звука' }}
-                    </button>
-                    <button class="menu-item" @click="notImplemented('Исчезающие сообщения')" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Исчезающие сообщения
                     </button>
                     <button class="menu-item" @click="togglePin" type="button">
                         <svg class="menu-icon" fill="currentColor" viewBox="0 0 24 24">

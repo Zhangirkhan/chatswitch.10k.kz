@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import type { Chat, Message } from '@/types';
@@ -23,6 +23,10 @@ const emit = defineEmits<{
 }>();
 
 const working = ref(false);
+const editOpen = ref(false);
+const editName = ref('');
+const savingContact = ref(false);
+const saveError = ref<string | null>(null);
 
 const displayName = computed(() =>
     props.chat.chat_name
@@ -32,7 +36,8 @@ const displayName = computed(() =>
         || 'Без имени',
 );
 
-const phoneLabel = computed(() => formatPhone(props.chat.contact?.phone_number));
+// For group chats there is no "phone number" to display; showing a numeric WA group id is confusing.
+const phoneLabel = computed(() => (isGroup.value ? '' : formatPhone(props.chat.contact?.phone_number)));
 
 const firstInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
 
@@ -55,6 +60,108 @@ const mediaCount = computed(() => {
     const list = props.messages || [];
     return list.filter((m: any) => m?.media || (m as any)?.media_id || m.type === 'image' || m.type === 'video' || m.type === 'document').length;
 });
+
+type GroupParticipant = {
+    id: string;
+    number: string | null;
+    name: string | null;
+    pushname: string | null;
+    saved_name?: string | null;
+    isBusiness: boolean;
+    isAdmin: boolean;
+    isSuperAdmin: boolean;
+};
+
+const isGroup = computed(() => !!props.chat.is_group);
+const participantsLoading = ref(false);
+const participantsError = ref<string | null>(null);
+const participants = ref<GroupParticipant[]>([]);
+const participantMenuOpen = ref(false);
+const participantMenu = ref<{ x: number; y: number; p: GroupParticipant } | null>(null);
+const participantSaving = ref(false);
+const participantSaveError = ref<string | null>(null);
+const participantName = ref('');
+
+function participantLabel(p: GroupParticipant): string {
+    if (p.saved_name) return p.saved_name.toString();
+    if (p.pushname && p.pushname.trim()) return `~ ${p.pushname}`.toString();
+    return (p.name || p.number || p.id).toString();
+}
+
+async function loadParticipants() {
+    if (!isGroup.value) return;
+    participantsLoading.value = true;
+    participantsError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.group-participants', props.chat.id));
+        participants.value = (data.participants || []) as GroupParticipant[];
+    } catch (e: any) {
+        participants.value = [];
+        participantsError.value = e?.response?.data?.error || 'Не удалось загрузить участников';
+    } finally {
+        participantsLoading.value = false;
+    }
+}
+
+function openParticipantMenu(p: GroupParticipant, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    participantSaveError.value = null;
+    participantName.value = (p.saved_name || p.name || p.pushname || '').toString();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const MENU_WIDTH = 280;
+    const MENU_HEIGHT_EST = 240;
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x + MENU_WIDTH + 8 > vw) x = vw - MENU_WIDTH - 8;
+    if (y + MENU_HEIGHT_EST + 8 > vh) y = Math.max(8, vh - MENU_HEIGHT_EST - 8);
+    participantMenu.value = { x, y, p };
+    participantMenuOpen.value = true;
+    nextTick(() => {});
+}
+
+function closeParticipantMenu() {
+    participantMenuOpen.value = false;
+    participantMenu.value = null;
+    participantSaveError.value = null;
+}
+
+async function addParticipantToContacts() {
+    const p = participantMenu.value?.p;
+    if (!p?.number) return;
+    const name = participantName.value.trim();
+    participantSaving.value = true;
+    participantSaveError.value = null;
+    try {
+        await axios.post(route('contacts.upsert'), { phone: p.number, name: name || null });
+        await loadParticipants();
+        closeParticipantMenu();
+    } catch (e: any) {
+        participantSaveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось добавить контакт';
+    } finally {
+        participantSaving.value = false;
+    }
+}
+
+function writePrivately() {
+    const p = participantMenu.value?.p;
+    if (!p?.number) return;
+    closeParticipantMenu();
+    router.post(route('chats.start'), { phone: p.number, whatsapp_session_id: props.chat.whatsapp_session_id }, {
+        onFinish: () => emit('close'),
+    });
+}
+
+watch(
+    () => props.chat.id,
+    () => {
+        participants.value = [];
+        participantsError.value = null;
+        if (isGroup.value) loadParticipants();
+    },
+    { immediate: true },
+);
 
 function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') emit('close');
@@ -87,6 +194,38 @@ async function clearChat() {
 function notImplemented(name: string) {
     alert(`«${name}» — скоро будет доступно.`);
 }
+
+function openEdit() {
+    saveError.value = null;
+    editName.value = (props.chat.contact?.name || '').toString();
+    editOpen.value = true;
+}
+
+function closeEdit() {
+    editOpen.value = false;
+    editName.value = '';
+    saveError.value = null;
+}
+
+async function saveContactName() {
+    if (savingContact.value) return;
+    saveError.value = null;
+    const name = editName.value.trim();
+    if (!name) {
+        saveError.value = 'Введите имя контакта';
+        return;
+    }
+    savingContact.value = true;
+    try {
+        await axios.post(route('chats.save-contact', props.chat.id), { name });
+        closeEdit();
+        router.reload({ only: ['chat', 'chats', 'messages'] });
+    } catch (e: any) {
+        saveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось сохранить контакт';
+    } finally {
+        savingContact.value = false;
+    }
+}
 </script>
 
 <template>
@@ -113,9 +252,9 @@ function notImplemented(name: string) {
                 Данные контакта
             </h2>
             <button
-                @click="notImplemented('Редактирование контакта')"
+                @click="openEdit"
                 class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                title="Редактировать"
+                :title="chat.contact?.name ? 'Редактировать контакт' : 'Добавить в контакты'"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -123,6 +262,64 @@ function notImplemented(name: string) {
                 </svg>
             </button>
         </div>
+
+        <!-- Edit contact modal -->
+        <teleport to="body">
+            <div
+                v-if="editOpen"
+                class="fixed inset-0 z-[200] flex items-center justify-center px-4"
+                :style="{ background: 'rgba(0,0,0,.45)' }"
+                @click.self="closeEdit"
+            >
+                <div class="w-full max-w-[420px] rounded-2xl border overflow-hidden"
+                     :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                >
+                    <div class="px-5 py-4 flex items-center justify-between"
+                         :style="{ background: 'var(--wa-panel-header)' }"
+                    >
+                        <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                            {{ chat.contact?.name ? 'Редактировать контакт' : 'Добавить контакт' }}
+                        </div>
+                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="closeEdit">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="p-5">
+                        <label class="block text-xs mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Имя контакта</label>
+                        <input
+                            v-model="editName"
+                            type="text"
+                            class="w-full px-4 py-2.5 rounded-xl border-0 focus:ring-0 focus:outline-none"
+                            :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                            placeholder="Например: Айбек"
+                            @keydown.enter.prevent="saveContactName"
+                        />
+                        <div v-if="saveError" class="text-xs mt-2" style="color: #ff6b6b;">
+                            {{ saveError }}
+                        </div>
+                        <div class="mt-4 flex gap-2 justify-end">
+                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--wa-panel-hover)]"
+                                    :style="{ color: 'var(--wa-text)' }"
+                                    @click="closeEdit"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                class="px-4 py-2 rounded-xl"
+                                :disabled="savingContact"
+                                :style="{ background: 'var(--wa-accent)', color: 'white', opacity: savingContact ? 0.7 : 1 }"
+                                @click="saveContactName"
+                            >
+                                Сохранить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </teleport>
 
         <!-- Scrollable content -->
         <div class="flex-1 overflow-y-auto wa-scrollbar">
@@ -236,6 +433,47 @@ function notImplemented(name: string) {
 
             <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
 
+            <!-- Group participants -->
+            <div v-if="isGroup" class="py-2">
+                <div class="px-4 pt-3 pb-2 text-xs uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Участники
+                </div>
+
+                <div v-if="participantsLoading" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Загрузка…
+                </div>
+                <div v-else-if="participantsError" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-danger)' }">
+                    {{ participantsError }}
+                </div>
+                <div v-else class="pb-2">
+                    <button
+                        v-for="p in participants"
+                        :key="p.id"
+                        class="info-row w-full"
+                        type="button"
+                        @click="openParticipantMenu(p, $event)"
+                    >
+                        <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m6-4a4 4 0 10-8 0 4 4 0 008 0zm6 1a3 3 0 10-6 0 3 3 0 006 0z" />
+                        </svg>
+                        <div class="flex-1 min-w-0 text-left">
+                            <div class="info-label-inline">
+                                {{ participantLabel(p) }}
+                                <span v-if="p.isSuperAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">владелец</span>
+                                <span v-else-if="p.isAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">админ</span>
+                            </div>
+                            <div v-if="p.number" class="info-sublabel">{{ p.number }}</div>
+                        </div>
+                    </button>
+
+                    <div v-if="participants.length === 0" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Участники не найдены
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
+
             <!-- Info rows -->
             <div class="py-2">
                 <button class="info-row w-full" @click="notImplemented('Медиа, ссылки и документы')" type="button">
@@ -264,38 +502,6 @@ function notImplemented(name: string) {
                     </svg>
                     <span class="info-label">Настройки уведомлений</span>
                 </button>
-
-                <button class="info-row w-full" @click="notImplemented('Исчезающие сообщения')" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div class="flex-1 min-w-0 text-left">
-                        <div class="info-label-inline">Исчезающие сообщения</div>
-                        <div class="info-sublabel">Выкл.</div>
-                    </div>
-                </button>
-
-                <button class="info-row w-full" @click="notImplemented('Расширенная защита конфиденциальности в чате')" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                    <div class="flex-1 min-w-0 text-left">
-                        <div class="info-label-inline">Расширенная защита конфиденциальности в чате</div>
-                        <div class="info-sublabel">Выкл.</div>
-                    </div>
-                </button>
-
-                <div class="info-row">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <div class="flex-1 min-w-0 text-left">
-                        <div class="info-label-inline">Шифрование</div>
-                        <div class="info-sublabel">
-                            Сообщения защищены сквозным шифрованием. Нажмите, чтобы подтвердить.
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
@@ -349,6 +555,66 @@ function notImplemented(name: string) {
             </div>
         </div>
     </aside>
+
+    <!-- Participant actions menu -->
+    <teleport to="body">
+        <div v-if="participantMenuOpen && participantMenu">
+            <div class="fixed inset-0 z-40" @click="closeParticipantMenu" @contextmenu.prevent="closeParticipantMenu"></div>
+            <div
+                class="fixed z-50 min-w-[280px] rounded-xl shadow-2xl border py-2"
+                :style="{
+                    left: participantMenu.x + 'px',
+                    top: participantMenu.y + 'px',
+                    background: 'var(--wa-panel-header)',
+                    borderColor: 'var(--wa-border-strong)',
+                }"
+            >
+                <div class="px-4 pt-2 pb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                    {{ participantLabel(participantMenu.p) }}
+                </div>
+
+                <div class="px-4 pb-2">
+                    <label class="block text-[11px] mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Имя для сохранения
+                    </label>
+                    <input
+                        v-model="participantName"
+                        type="text"
+                        class="w-full px-3 py-2 rounded-xl border-0 focus:ring-0 focus:outline-none"
+                        :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
+                        placeholder="Введите имя…"
+                    />
+                    <div v-if="participantSaveError" class="text-[11px] mt-2" style="color:#ff6b6b;">
+                        {{ participantSaveError }}
+                    </div>
+                </div>
+
+                <button
+                    class="msg-menu-item"
+                    type="button"
+                    :disabled="participantSaving || !participantMenu.p.number"
+                    @click="addParticipantToContacts"
+                >
+                    <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Добавить в контакты
+                </button>
+
+                <button
+                    class="msg-menu-item"
+                    type="button"
+                    :disabled="!participantMenu.p.number"
+                    @click="writePrivately"
+                >
+                    <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5m7 7l-3.5-3.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Написать лично
+                </button>
+            </div>
+        </div>
+    </teleport>
 </template>
 
 <style scoped>

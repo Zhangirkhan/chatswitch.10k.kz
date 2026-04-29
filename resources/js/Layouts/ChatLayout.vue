@@ -12,7 +12,7 @@ defineProps<{
 
 <template>
     <AuthenticatedLayout>
-        <div class="flex h-full w-full bg-[var(--wa-bg)]">
+        <div class="flex h-full min-h-0 w-full bg-[var(--wa-bg)]">
             <ChatSidebar
                 :chats="chats"
                 :selected-chat-id="selectedChatId"
@@ -21,7 +21,7 @@ defineProps<{
                 :class="{ 'hidden md:flex': selectedChatId }"
             />
             <div
-                class="flex-1 flex flex-col min-w-0 border-l border-[var(--wa-border)]"
+                class="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--wa-border)]"
                 :class="{ 'hidden md:flex': !selectedChatId }"
             >
                 <slot />

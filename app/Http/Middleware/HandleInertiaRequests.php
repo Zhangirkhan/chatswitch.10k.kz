@@ -15,9 +15,28 @@ final class HandleInertiaRequests extends Middleware
 {
     protected $rootView = 'app';
 
+    /**
+     * Inertia default checks config('app.asset_url') first; then the version never
+     * changes on deploy and the SPA keeps old JS. Prefer Vite / Mix manifest hash.
+     */
     public function version(Request $request): ?string
     {
-        return parent::version($request);
+        $viteManifest = public_path('build/manifest.json');
+        if (is_file($viteManifest)) {
+            return hash_file('xxh128', $viteManifest);
+        }
+
+        $mixManifest = public_path('mix-manifest.json');
+        if (is_file($mixManifest)) {
+            return hash_file('xxh128', $mixManifest);
+        }
+
+        $assetUrl = config('app.asset_url');
+        if (is_string($assetUrl) && $assetUrl !== '') {
+            return hash('xxh128', $assetUrl);
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */
@@ -58,7 +77,7 @@ final class HandleInertiaRequests extends Middleware
 
         return $query
             ->orderBy('display_name')
-            ->get(['id', 'session_name', 'display_name', 'wa_name', 'phone_number', 'status'])
+            ->get(['id', 'session_name', 'display_name', 'display_color', 'wa_name', 'phone_number', 'status'])
             ->toArray();
     }
 

@@ -155,10 +155,12 @@ final class WhatsappSessionController extends Controller
     {
         $request->validate([
             'display_name' => 'required|string|max:100',
+            'display_color' => 'nullable|string|max:20',
         ]);
 
         $session->update([
             'display_name' => $request->input('display_name'),
+            'display_color' => $request->input('display_color'),
         ]);
 
         return response()->json(['success' => true, 'session' => $session->fresh()]);

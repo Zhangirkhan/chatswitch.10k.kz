@@ -8,8 +8,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/whatsapp/webhook', [WhatsappWebhookController::class, 'handle'])
-    ->middleware(['whatsapp.webhook', 'throttle:240,1'])
+    ->middleware(['whatsapp.webhook'])
     ->name('api.whatsapp.webhook');
+
+// Бинарное медиа входящих сообщений (multipart) — не подписывается HMAC вебхука,
+// авторизация по тому же bearer-токену, что и у Node (WHATSAPP_SERVICE_TOKEN / LARAVEL_API_TOKEN).
+Route::post('/whatsapp/inbound-media', [WhatsappWebhookController::class, 'attachInboundMedia'])
+    ->name('api.whatsapp.inbound-media');
 
 // Node-сервис при старте сверяется с этим списком, чтобы не поднимать «фантомные»
 // сессии, которых уже нет в БД (и не расходовать Chromium впустую).

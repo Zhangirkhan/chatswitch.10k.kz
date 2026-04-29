@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\MediaController;
@@ -28,18 +29,26 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/archived', [ChatController::class, 'archivedIndex'])->name('chats.archived');
         Route::get('/chats/contacts', [ChatController::class, 'contacts'])->name('chats.contacts');
+        Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
+        Route::patch('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
+        Route::post('/contacts/upsert', [ContactController::class, 'upsert'])->name('contacts.upsert');
         Route::post('/chats/start', [ChatController::class, 'start'])->name('chats.start');
         Route::post('/chats/create-group', [ChatController::class, 'createGroup'])->name('chats.create-group');
+        Route::post('/chats/sync-groups', [ChatController::class, 'syncGroups'])->name('chats.sync-groups');
+        Route::get('/chats/{chat}/participants', [ChatController::class, 'groupParticipants'])->name('chats.group-participants');
         Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chats.show');
         Route::post('/chats/{chat}/send-message', [ChatController::class, 'sendMessage'])->name('chats.send-message');
         Route::post('/chats/{chat}/typing', [ChatController::class, 'typing'])->name('chats.typing');
         Route::post('/chats/{chat}/mark-read', [ChatController::class, 'markRead'])->name('chats.mark-read');
         Route::post('/chats/{chat}/toggle-pin', [ChatController::class, 'togglePin'])->name('chats.toggle-pin');
+        Route::post('/chats/{chat}/pin-message', [ChatController::class, 'pinMessage'])->name('chats.pin-message');
+        Route::delete('/chats/{chat}/pin-message', [ChatController::class, 'unpinMessage'])->name('chats.unpin-message');
         Route::post('/chats/{chat}/archive', [ChatController::class, 'archive'])->name('chats.archive');
         Route::post('/chats/{chat}/toggle-mute', [ChatController::class, 'toggleMute'])->name('chats.toggle-mute');
         Route::post('/chats/{chat}/toggle-favorite', [ChatController::class, 'toggleFavorite'])->name('chats.toggle-favorite');
         Route::post('/chats/{chat}/toggle-unread', [ChatController::class, 'toggleUnread'])->name('chats.toggle-unread');
         Route::post('/chats/{chat}/clear', [ChatController::class, 'clear'])->name('chats.clear');
+        Route::post('/chats/{chat}/save-contact', [ChatController::class, 'saveContact'])->name('chats.save-contact');
         Route::post('/chats/{chat}/departments', [ChatController::class, 'syncDepartments'])->name('chats.departments.sync');
         Route::post('/chats/{chat}/upload-file', [ChatController::class, 'uploadFile'])->name('chats.upload-file');
         Route::post('/chats/{chat}/send-contact', [ChatController::class, 'sendContact'])->name('chats.send-contact');
@@ -47,6 +56,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
         Route::post('/messages/{message}/react', [MessageController::class, 'react'])->name('messages.react');
         Route::post('/messages/{message}/retry', [MessageController::class, 'retry'])->name('messages.retry');
+        Route::post('/messages/{message}/forward', [MessageController::class, 'forward'])->name('messages.forward');
+        Route::post('/messages/forward-bulk', [MessageController::class, 'forwardBulk'])->name('messages.forward-bulk');
         Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
 
         Route::post('/chats/{chat}/assign', [ChatAssignmentController::class, 'store'])->name('chats.assign');

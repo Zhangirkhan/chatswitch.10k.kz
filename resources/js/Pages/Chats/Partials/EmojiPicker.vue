@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
 const emit = defineEmits<{
     (e: 'select', emoji: string): void;
@@ -168,9 +168,26 @@ function pick(emoji: string) {
     emit('select', emoji);
 }
 
+/** #text у кнопки «☺» не имеет .closest — иначе TypeError и пикер ломается. */
+function eventTargetElement(e: MouseEvent): Element | null {
+    const n = e.target;
+    if (n instanceof Element) {
+        return n;
+    }
+    if (n instanceof Text) {
+        return n.parentElement;
+    }
+    for (const x of e.composedPath()) {
+        if (x instanceof Element) {
+            return x;
+        }
+    }
+    return null;
+}
+
 function onDocClick(e: MouseEvent) {
-    const target = e.target as HTMLElement;
-    if (!target.closest('.emoji-picker') && !target.closest('[data-emoji-trigger]')) {
+    const el = eventTargetElement(e);
+    if (!el || (!el.closest('.emoji-picker') && !el.closest('[data-emoji-trigger]'))) {
         emit('close');
     }
 }
@@ -179,11 +196,28 @@ function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') emit('close');
 }
 
+let attachRafId = 0;
+let attachCancelled = false;
+
 onMounted(() => {
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onEscape);
+    attachCancelled = false;
+    nextTick(() => {
+        attachRafId = requestAnimationFrame(() => {
+            attachRafId = 0;
+            if (attachCancelled) {
+                return;
+            }
+            document.addEventListener('mousedown', onDocClick);
+            document.addEventListener('keydown', onEscape);
+        });
+    });
 });
 onBeforeUnmount(() => {
+    attachCancelled = true;
+    if (attachRafId) {
+        cancelAnimationFrame(attachRafId);
+        attachRafId = 0;
+    }
     document.removeEventListener('mousedown', onDocClick);
     document.removeEventListener('keydown', onEscape);
 });
@@ -191,7 +225,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div
-        class="emoji-picker absolute bottom-full mb-2 w-[360px] h-[360px] rounded-lg shadow-2xl border flex flex-col overflow-hidden"
+        class="emoji-picker w-[360px] h-[360px] rounded-lg shadow-2xl border flex flex-col overflow-hidden"
         :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
     >
         <!-- Header / search -->

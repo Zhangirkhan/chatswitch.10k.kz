@@ -39,13 +39,23 @@ function attachRuntimeEvents(service) {
   client.on('message_reaction', (reaction) => {
     const senderId = reaction.senderId || '';
     const ownId = client.info?.wid?._serialized || (client.info?.wid?.user ? `${client.info.wid.user}@c.us` : '');
+    const fromMe =
+      typeof reaction?.id?.fromMe === 'boolean'
+        ? reaction.id.fromMe
+        : Boolean(ownId && senderId === ownId);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[${service.sessionName}] message_reaction event: msg=${reaction.msgId?._serialized} sender=${senderId} fromMe=${Boolean(
+        fromMe
+      )} reaction=${JSON.stringify(reaction.reaction)}`
+    );
 
     notifyLaravel('message_reaction', {
       session: service.sessionName,
       messageId: reaction.msgId?._serialized,
       reaction: reaction.reaction,
       senderId,
-      fromMe: Boolean(ownId && senderId === ownId),
+      fromMe,
     });
   });
 }

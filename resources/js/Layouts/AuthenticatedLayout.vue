@@ -114,6 +114,18 @@ onUnmounted(() => {
                     </span>
                 </Link>
 
+                <Link
+                    v-if="route().has('contacts.index')"
+                    :href="route('contacts.index')"
+                    class="wa-rail-btn"
+                    :class="{ active: route().current('contacts.*') }"
+                    title="Контакты"
+                >
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" />
+                    </svg>
+                </Link>
+
                 <template v-if="whatsappSessions.length">
                     <div
                         class="w-7 h-px my-1 shrink-0"
@@ -151,7 +163,7 @@ onUnmounted(() => {
             </div>
         </aside>
 
-        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <slot />
         </div>
 

@@ -4,10 +4,13 @@ import ChatHeader from './Partials/ChatHeader.vue';
 import ChatMessage from './Partials/ChatMessage.vue';
 import ChatInput from './Partials/ChatInput.vue';
 import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
-import { Head } from '@inertiajs/vue3';
+import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
+import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
+import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import type { Chat, Message, MessageReaction, Paginated } from '@/types';
+import { useToastStore } from '@/stores/toast';
 
 const props = defineProps<{
     chat: Chat;
@@ -15,7 +18,92 @@ const props = defineProps<{
     chats: Paginated<Chat>;
 }>();
 
+const { show: showToast } = useToastStore();
+
 const localMessages = ref<Message[]>([...props.messages.data].reverse());
+
+/** Чат после SET NULL на сессии может терять whatsapp_session_id, тогда берём из сообщений / relation. */
+const forwardWhatsappSessionId = computed((): number | null => {
+    const fromChat = props.chat.whatsapp_session_id as number | null | undefined;
+    if (fromChat != null && Number(fromChat) > 0) {
+        return Number(fromChat);
+    }
+    const fromRel = props.chat.whatsapp_session?.id;
+    if (fromRel != null && Number(fromRel) > 0) {
+        return Number(fromRel);
+    }
+    for (const m of localMessages.value) {
+        const mid = m.whatsapp_session_id;
+        if (mid != null && Number(mid) > 0) {
+            return Number(mid);
+        }
+    }
+    return null;
+});
+
+type MessageStatus = 'sent' | 'delivered' | 'read';
+
+function statusFromAck(ack: Message['ack'] | undefined): MessageStatus | null {
+    if (ack === 'read') return 'read';
+    if (ack === 'delivered') return 'delivered';
+    if (ack === 'sent') return 'sent';
+    return null;
+}
+
+function ensureStatus(message: Message): MessageStatus | null {
+    return message.status || statusFromAck(message.ack) || null;
+}
+
+function setLocalMessageStatus(messageId: number, status: MessageStatus): void {
+    const idx = localMessageIndexById(messageId);
+    if (idx < 0) return;
+    const cur = localMessages.value[idx]!;
+    if (cur.status === status) return;
+    localMessages.value[idx] = { ...cur, status };
+}
+
+const statusSimTimers = new Map<number, number[]>();
+
+function clearSimTimers(messageId: number): void {
+    const timers = statusSimTimers.get(messageId);
+    if (!timers) return;
+    timers.forEach((t) => window.clearTimeout(t));
+    statusSimTimers.delete(messageId);
+}
+
+function simulateOutboundStatusProgress(messageId: number): void {
+    clearSimTimers(messageId);
+    const deliveredT = window.setTimeout(() => setLocalMessageStatus(messageId, 'delivered'), 1000);
+    statusSimTimers.set(messageId, [deliveredT]);
+}
+
+function localMessageIndexById(id: unknown): number {
+    const n = Number(id);
+    if (!Number.isFinite(n)) {
+        return -1;
+    }
+    return localMessages.value.findIndex((m) => Number(m.id) === n);
+}
+
+function mergeMessageIntoList(incoming: Message): void {
+    const idx = localMessageIndexById(incoming.id);
+    if (idx >= 0) {
+        const cur = localMessages.value[idx]!;
+        const nextStatus = incoming.status ?? statusFromAck(incoming.ack) ?? cur.status;
+        localMessages.value[idx] = {
+            ...cur,
+            ...incoming,
+            status: nextStatus,
+            media:
+                Array.isArray(incoming.media) && incoming.media.length > 0 ? incoming.media : cur.media,
+        };
+        return;
+    }
+    const next: Message = { ...incoming };
+    const s = ensureStatus(next);
+    if (s) next.status = s;
+    localMessages.value.push(next);
+}
 const messagesContainer = ref<HTMLDivElement | null>(null);
 const typingUsers = ref<Map<number, string>>(new Map());
 const isLoadingMore = ref(false);
@@ -24,7 +112,16 @@ const hasMoreMessages = ref(props.messages.current_page < props.messages.last_pa
 const searchOpen = ref(false);
 const searchQuery = ref('');
 const contactInfoOpen = ref(false);
+const messageInfoOpen = ref(false);
+const messageInfoMessage = ref<Message | null>(null);
 const replyTo = ref<Message | null>(null);
+const forwardOpen = ref(false);
+const forwardMessage = ref<Message | null>(null);
+const forwardMessageIds = ref<number[] | null>(null);
+
+const selectionMode = ref(false);
+const selectedMessageIds = ref<Set<number>>(new Set());
+const selectedCount = computed(() => selectedMessageIds.value.size);
 
 function setReply(msg: Message) {
     replyTo.value = msg;
@@ -32,6 +129,56 @@ function setReply(msg: Message) {
 
 function clearReply() {
     replyTo.value = null;
+}
+
+function openForward(msg: Message) {
+    if (forwardWhatsappSessionId.value == null) {
+        showToast({
+            message: 'У чата нет сессии WhatsApp (или она снята). Пересылка недоступна.',
+        });
+        return;
+    }
+    forwardMessage.value = msg;
+    forwardMessageIds.value = null;
+    forwardOpen.value = true;
+    contactInfoOpen.value = false;
+    messageInfoOpen.value = false;
+}
+
+function closeForward() {
+    forwardOpen.value = false;
+    forwardMessage.value = null;
+    forwardMessageIds.value = null;
+}
+
+function toggleSelectMessage(id: number) {
+    if (!selectionMode.value) selectionMode.value = true;
+    const next = new Set(selectedMessageIds.value);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectedMessageIds.value = next;
+    if (next.size === 0) selectionMode.value = false;
+}
+
+function clearSelection() {
+    selectedMessageIds.value = new Set();
+    selectionMode.value = false;
+}
+
+function openForwardSelected() {
+    const ids = Array.from(selectedMessageIds.value);
+    if (ids.length === 0) return;
+    if (forwardWhatsappSessionId.value == null) {
+        showToast({
+            message: 'У чата нет сессии WhatsApp (или она снята). Пересылка недоступна.',
+        });
+        return;
+    }
+    forwardMessage.value = null;
+    forwardMessageIds.value = ids;
+    forwardOpen.value = true;
+    contactInfoOpen.value = false;
+    messageInfoOpen.value = false;
 }
 
 function onMessageDeleted(id: number) {
@@ -52,6 +199,19 @@ function toggleContactInfo() {
     contactInfoOpen.value = !contactInfoOpen.value;
 }
 
+function openMessageInfo(msg: Message) {
+    // “Данные о сообщении” доступны только для собственных исходящих сообщений.
+    if (msg.direction !== 'outbound') return;
+    messageInfoMessage.value = msg;
+    messageInfoOpen.value = true;
+    contactInfoOpen.value = false;
+}
+
+function closeMessageInfo() {
+    messageInfoOpen.value = false;
+    messageInfoMessage.value = null;
+}
+
 const displayedMessages = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     if (!q) return localMessages.value;
@@ -59,6 +219,58 @@ const displayedMessages = computed(() => {
         (m.body || '').toLowerCase().includes(q),
     );
 });
+
+const pinned = computed(() => (props.chat as any)?.pinned_message || null);
+
+async function unpinPinned(): Promise<void> {
+    try {
+        await axios.delete(route('chats.unpin-message', props.chat.id));
+        // Refresh chat so header banner updates.
+        router.reload({ only: ['chat'] });
+    } catch {
+        // no-op; ChatMessage.vue shows alerts on pin/unpin from context menu
+    }
+}
+
+function jumpToPinned(): void {
+    const id = pinned.value?.id;
+    if (typeof id === 'number') jumpToMessage(id);
+}
+
+function jumpToMessage(id: number) {
+    nextTick(() => {
+        const bubble = messagesContainer.value?.querySelector?.(`[data-message-id="${id}"]`) as HTMLElement | null;
+        if (!bubble) return;
+        bubble.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+        const row = (bubble.closest('.group') as HTMLElement | null) || bubble;
+        // Flash whole row, then fade out smoothly.
+        const prevTransition = row.style.transition;
+        const prevBoxShadow = row.style.boxShadow;
+        const prevBg = row.style.backgroundColor;
+
+        row.style.transition = 'background-color 360ms ease-out, box-shadow 360ms ease-out';
+        row.style.boxShadow = '0 0 0 6px rgba(37, 211, 102, 0.12)';
+        row.style.backgroundColor = 'rgba(37, 211, 102, 0.06)';
+
+        window.setTimeout(() => {
+            row.style.boxShadow = prevBoxShadow;
+            row.style.backgroundColor = prevBg;
+            window.setTimeout(() => {
+                row.style.transition = prevTransition;
+            }, 380);
+        }, 650);
+    });
+}
+
+function openMessageFromSearch(id: number) {
+    const q = searchQuery.value.trim();
+    if (!q) return;
+    // Close search and show full context around the message.
+    searchQuery.value = '';
+    searchOpen.value = false;
+    nextTick(() => jumpToMessage(id));
+}
 
 watch(() => props.messages, (newVal) => {
     localMessages.value = [...newVal.data].reverse();
@@ -74,6 +286,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     cleanupEcho();
+    statusSimTimers.forEach((timers) => timers.forEach((t) => window.clearTimeout(t)));
+    statusSimTimers.clear();
 });
 
 function scrollToBottom() {
@@ -91,7 +305,15 @@ function markAsRead() {
 }
 
 function onMessageSent(message: Message) {
-    localMessages.value.push(message);
+    mergeMessageIntoList(message);
+    if (message.direction === 'outbound') {
+        const s = ensureStatus(message) || 'sent';
+        setLocalMessageStatus(message.id, s);
+        // Never imitate `read` on the client: only the backend may confirm it.
+        if (s === 'sent' || (!message.status && message.ack !== 'read' && message.ack !== 'delivered')) {
+            simulateOutboundStatusProgress(message.id);
+        }
+    }
     scrollToBottom();
 }
 
@@ -131,20 +353,36 @@ let echoChannel: any = null;
 function setupEcho() {
     if (!(window as any).Echo) return;
 
-    echoChannel = (window as any).Echo.channel(`chat.${props.chat.id}`);
+    echoChannel = (window as any).Echo.private(`chat.${props.chat.id}`);
 
     echoChannel.listen('.message.received', (e: any) => {
-        const msg = e.message;
-        if (msg && !localMessages.value.find((m) => m.id === msg.id)) {
-            localMessages.value.push(msg);
-            scrollToBottom();
-            markAsRead();
+        const msg = e.message as Message | undefined;
+        if (!msg?.id) return;
+        const idx = localMessageIndexById(msg.id);
+        if (idx >= 0) {
+            const cur = localMessages.value[idx]!;
+            localMessages.value[idx] = {
+                ...cur,
+                ...msg,
+                media: Array.isArray(msg.media) && msg.media.length > 0 ? msg.media : cur.media,
+            };
+            return;
         }
+        mergeMessageIntoList(msg);
+        scrollToBottom();
+        markAsRead();
     });
 
     echoChannel.listen('.user.typing', (e: any) => {
         typingUsers.value.set(e.userId, e.userName);
         setTimeout(() => typingUsers.value.delete(e.userId), 3000);
+    });
+
+    echoChannel.listen('.message.reactions', (e: any) => {
+        const msg = localMessages.value.find((m) => m.id === e.id);
+        if (msg) {
+            msg.reactions = (e.reactions || []) as MessageReaction[];
+        }
     });
 }
 
@@ -158,8 +396,8 @@ function cleanupEcho() {
 <template>
     <Head :title="chat.chat_name || 'Чат'" />
     <ChatLayout :chats="chats" :selected-chat-id="chat.id">
-        <div class="flex h-full w-full">
-            <div class="flex flex-col flex-1 min-w-0">
+        <div class="flex h-full w-full min-h-0">
+            <div class="flex flex-col flex-1 min-w-0 min-h-0">
                 <ChatHeader
                     :chat="chat"
                     :typing-users="typingUsers"
@@ -204,26 +442,100 @@ function cleanupEcho() {
                     </button>
                 </div>
 
-                <!-- Messages area -->
-                <div
-                    ref="messagesContainer"
-                    class="flex-1 overflow-y-auto wa-scrollbar chat-bg py-3"
-                    @scroll="onScroll"
-                >
-                    <div v-if="isLoadingMore" class="text-center py-2">
-                        <span
-                            class="text-xs px-3 py-1 rounded-full"
-                            :style="{ background: 'var(--wa-date-bubble)', color: 'var(--wa-date-bubble-text)' }"
-                        >Загрузка...</span>
+                <!-- Single wallpaper under messages + input (input floats on top). -->
+                <div class="flex min-h-0 flex-1 flex-col chat-bg">
+                    <!-- Pinned message banner -->
+                    <div
+                        v-if="pinned"
+                        class="shrink-0 px-4 py-2 border-b flex items-center gap-3"
+                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }"
+                    >
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M9 3h6l1 4v5l2 2v2H6v-2l2-2V7l1-4z" />
+                        </svg>
+                        <button type="button" class="flex-1 min-w-0 text-left" @click="jumpToPinned">
+                            <div class="text-xs font-medium truncate" :style="{ color: 'var(--wa-text)' }">
+                                Закреплено
+                            </div>
+                            <div class="text-xs truncate" :style="{ color: 'var(--wa-text-secondary)' }">
+                                {{ (pinned.body || '').trim() || (pinned.type && pinned.type !== 'chat' ? 'Медиа' : '') || 'Сообщение' }}
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                            title="Открепить"
+                            @click="unpinPinned"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
+
+                    <!-- Multi-select bar -->
+                    <div
+                        v-if="selectionMode"
+                        class="shrink-0 px-4 py-2 border-b flex items-center justify-between gap-3"
+                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }"
+                    >
+                        <div class="flex items-center gap-2 min-w-0">
+                            <button
+                                type="button"
+                                class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                                title="Отменить выбор"
+                                @click="clearSelection"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <span class="text-sm font-medium truncate" :style="{ color: 'var(--wa-text)' }">
+                                Выбрано: {{ selectedCount }}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="h-9 px-3 rounded-full text-sm font-medium"
+                                :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                                @click="openForwardSelected"
+                            >
+                                Переслать
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Messages area -->
+                    <div
+                        ref="messagesContainer"
+                        class="min-h-0 flex-1 overflow-y-auto wa-scrollbar py-3 px-3 sm:px-4"
+                        @scroll="onScroll"
+                    >
+                        <div v-if="isLoadingMore" class="py-2 text-center">
+                            <span
+                                class="rounded-full px-3 py-1 text-xs"
+                                :style="{ background: 'var(--wa-date-bubble)', color: 'var(--wa-date-bubble-text)' }"
+                            >Загрузка...</span>
+                        </div>
 
                     <ChatMessage
                         v-for="msg in displayedMessages"
                         :key="msg.id"
                         :message="msg"
+                        :chat="chat"
+                        :is-group-chat="chat.is_group"
+                        :search-mode="searchOpen && !!searchQuery.trim()"
+                        :selection-mode="selectionMode"
+                        :selected="selectedMessageIds.has(msg.id)"
+                        @jump-to="openMessageFromSearch"
+                        @jump-to-message="jumpToMessage"
+                        @forward="openForward"
+                        @toggle-select="toggleSelectMessage"
                         @reply="setReply"
                         @deleted="onMessageDeleted"
                         @reactions-updated="onReactionsUpdated"
+                        @message-info="openMessageInfo"
                     />
 
                     <div v-if="displayedMessages.length === 0" class="flex items-center justify-center h-full">
@@ -239,15 +551,16 @@ function cleanupEcho() {
                             </template>
                         </p>
                     </div>
-                </div>
+                    </div>
 
-                <ChatInput
-                    :chat-id="chat.id"
-                    :session-id="chat.whatsapp_session_id"
-                    :reply-to="replyTo"
-                    @message-sent="onMessageSent"
-                    @cancel-reply="clearReply"
-                />
+                    <ChatInput
+                        :chat-id="chat.id"
+                        :session-id="chat.whatsapp_session_id"
+                        :reply-to="replyTo"
+                        @message-sent="onMessageSent"
+                        @cancel-reply="clearReply"
+                    />
+                </div>
             </div>
 
             <!-- Contact info panel -->
@@ -258,6 +571,23 @@ function cleanupEcho() {
                 @close="toggleContactInfo"
                 @open-search="() => { contactInfoOpen = false; searchOpen = true; }"
             />
+
+            <MessageInfoPanel
+                v-if="messageInfoOpen && messageInfoMessage"
+                :message="messageInfoMessage"
+                @close="closeMessageInfo"
+            />
+
+            <ForwardMessageModal
+                v-if="forwardOpen && forwardWhatsappSessionId !== null"
+                :open="forwardOpen"
+                :message="forwardMessage || undefined"
+                :message-ids="forwardMessageIds || undefined"
+                :whatsapp-session-id="forwardWhatsappSessionId"
+                @close="closeForward"
+            />
         </div>
     </ChatLayout>
 </template>
+
+<!-- Flash styles are applied inline in `jumpToMessage` -->

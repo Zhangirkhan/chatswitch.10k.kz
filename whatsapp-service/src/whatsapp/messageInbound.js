@@ -1,4 +1,6 @@
 const { notifyLaravel } = require('./webhook');
+const { downloadInboundMedia } = require('./downloadInboundMedia');
+const { uploadInboundMediaBuffer } = require('./uploadInboundMedia');
 
 async function handleIncomingMessage(service, message) {
   const chat = await message.getChat();
@@ -29,18 +31,9 @@ async function handleIncomingMessage(service, message) {
     } catch (_) {}
   }
 
-  if (message.hasMedia) {
-    try {
-      const media = await message.downloadMedia();
-      if (media) {
-        messageData.mediaUrl = `data:${media.mimetype};base64,${media.data}`;
-        messageData.mediaMimetype = media.mimetype;
-        messageData.mediaFilename = media.filename || null;
-      }
-    } catch (err) {
-      console.error(`[${service.sessionName}] media download error:`, err.message);
-    }
-  }
+  const media = await downloadInboundMedia(service, message);
+  // Не кладём base64 в JSON вебхука — типичные лимиты post_max_size / nginx ломают голос/видео.
+  // Файл уходит вторым запросом uploadInboundMediaBuffer после создания Message в очереди.
 
   // whatsapp-web.js exposes message.duration (seconds) для аудио/голосовых.
   // Прокидываем на бэкенд, чтобы показать в превью чата «Голосовое сообщение (0:12)».
@@ -52,6 +45,10 @@ async function handleIncomingMessage(service, message) {
   }
 
   await notifyLaravel('message_received', messageData);
+
+  if (media && message.id?._serialized) {
+    await uploadInboundMediaBuffer(service, message.id._serialized, media);
+  }
 }
 
 module.exports = { handleIncomingMessage };

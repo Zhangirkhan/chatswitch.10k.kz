@@ -6,6 +6,7 @@ export interface WhatsappSession {
     id: number;
     session_name: string;
     display_name: string | null;
+    display_color?: string | null;
     phone_number: string | null;
     status: string;
     is_active?: boolean;
@@ -18,6 +19,8 @@ export interface Contact {
     name: string | null;
     push_name: string | null;
     avatar_url?: string | null;
+    /** Laravel `Contact::$casts` / API */
+    profile_picture_url?: string | null;
 }
 
 export interface ChatAssignmentUser {
@@ -55,7 +58,8 @@ export interface Chat {
     id: number;
     chat_name: string | null;
     whatsapp_chat_id: string;
-    whatsapp_session_id: number;
+    /** Может быть null, если сессию удалили (FK SET NULL), пока чат ещё в UI. */
+    whatsapp_session_id: number | null;
     contact_id: number | null;
     contact?: Contact | null;
     whatsapp_session?: WhatsappSession;
@@ -63,6 +67,17 @@ export interface Chat {
     departments?: Department[];
     is_group: boolean;
     is_pinned: boolean;
+    pinned_message_id?: number | null;
+    pinned_message?: {
+        id: number;
+        direction: 'inbound' | 'outbound' | 'system';
+        type: string;
+        body: string | null;
+        sender_name: string | null;
+        sender_phone: string | null;
+        sent_by_user?: { id: number; name: string } | null;
+        message_timestamp: string | null;
+    } | null;
     is_archived: boolean;
     is_muted: boolean;
     is_favorite: boolean;
@@ -115,6 +130,8 @@ export interface Message {
     sender_name: string | null;
     sent_by_user_id: number | null;
     is_forwarded: boolean;
+    /** App-level delivery status (UI-friendly). */
+    status?: 'sent' | 'delivered' | 'read';
     ack: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
     message_timestamp: string | null;
     created_at: string | null;

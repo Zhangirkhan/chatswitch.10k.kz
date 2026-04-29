@@ -36,6 +36,7 @@ const isCreating = ref(false);
 const busySessionId = ref<number | null>(null);
 const editingSessionId = ref<number | null>(null);
 const editedDisplayName = ref('');
+const editedDisplayColor = ref('');
 const qrBySessionId = ref<Record<number, string>>({});
 const qrUpdatedAtBySessionId = ref<Record<number, string>>({});
 const message = ref<string | null>(null);
@@ -240,6 +241,7 @@ async function verify(session: WhatsappSession): Promise<void> {
 function startEdit(session: WhatsappSession): void {
     editingSessionId.value = session.id;
     editedDisplayName.value = session.display_name || '';
+    editedDisplayColor.value = session.display_color || '';
 }
 
 async function saveDisplayName(session: WhatsappSession): Promise<void> {
@@ -255,7 +257,7 @@ async function saveDisplayName(session: WhatsappSession): Promise<void> {
     try {
         const { data } = await axios.patch<{ session: WhatsappSession }>(
             route('settings.connections.update', session.id),
-            { display_name: displayName },
+            { display_name: displayName, display_color: editedDisplayColor.value || null },
         );
         updateSession(data.session);
         editingSessionId.value = null;
@@ -369,13 +371,22 @@ function reloadPage(): void {
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <div v-if="editingSessionId === session.id" class="flex gap-2">
+                            <div v-if="editingSessionId === session.id" class="flex gap-2 items-center">
                                 <input
                                     v-model="editedDisplayName"
                                     type="text"
                                     class="settings-input"
                                     maxlength="100"
                                     @keyup.enter="saveDisplayName(session)"
+                                />
+                                <input
+                                    :value="editedDisplayColor || '#25d366'"
+                                    type="color"
+                                    class="h-[38px] w-[42px] rounded-md border"
+                                    :style="{ borderColor: 'var(--wa-border)', background: 'transparent' }"
+                                    title="Цвет бейджа"
+                                    @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
+                                    @change="saveDisplayName(session)"
                                 />
                                 <button
                                     type="button"
@@ -388,13 +399,21 @@ function reloadPage(): void {
                                 </button>
                             </div>
                             <div v-else>
-                                <button
-                                    type="button"
-                                    class="text-left font-medium text-[var(--wa-text)] hover:underline truncate max-w-full"
-                                    @click="startEdit(session)"
-                                >
-                                    {{ sessionLabel(session) }}
-                                </button>
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <div class="text-left font-medium text-[var(--wa-text)] truncate max-w-full">
+                                        {{ sessionLabel(session) }}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] shrink-0"
+                                        title="Редактировать (название и цвет)"
+                                        @click="startEdit(session)"
+                                    >
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <p class="text-xs text-[var(--wa-text-secondary)] truncate">
                                     {{ session.session_name }}
                                 </p>

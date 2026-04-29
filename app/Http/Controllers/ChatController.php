@@ -87,7 +87,27 @@ final class ChatController extends Controller
     {
         $this->authorize('view', $chat);
 
-        $chat->load(['contact', 'whatsappSession', 'assignments.user', 'departments']);
+        $chat->load([
+            'contact',
+            'whatsappSession',
+            'assignments.user',
+            'departments',
+            'pinnedMessage' => function ($q) {
+                $q->select([
+                    'id',
+                    'chat_id',
+                    'direction',
+                    'type',
+                    'body',
+                    'sender_name',
+                    'sender_phone',
+                    'sent_by_user_id',
+                    'message_timestamp',
+                ])->with([
+                    'sentByUser:id,name',
+                ]);
+            },
+        ]);
 
         $messages = $chat->messages()
             ->with(self::MESSAGE_WITH)
@@ -101,7 +121,7 @@ final class ChatController extends Controller
         // «Единая клиентская база»: все чаты того же клиента (contact), включая разные WA-номера.
         // Нужен, чтобы в панели контакта показывать: с этим человеком общались с WA #1 и WA #2.
         $contactChats = $chat->contact_id !== null
-            ? Chat::with('whatsappSession:id,session_name,display_name,phone_number,status')
+            ? Chat::with('whatsappSession:id,session_name,display_name,display_color,phone_number,status')
                 ->where('contact_id', $chat->contact_id)
                 ->orderByDesc('last_message_at')
                 ->get([
@@ -209,6 +229,38 @@ final class ChatController extends Controller
         return response()->json(['success' => true, 'is_pinned' => $chat->is_pinned]);
     }
 
+    public function pinMessage(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $data = $request->validate([
+            'message_id' => ['required', 'integer', 'exists:messages,id'],
+        ]);
+
+        $message = Message::query()
+            ->where('id', (int) $data['message_id'])
+            ->where('chat_id', $chat->id)
+            ->first();
+
+        if (! $message) {
+            return response()->json(['success' => false, 'error' => 'Сообщение не найдено в этом чате.'], 422);
+        }
+
+        $chat->update(['pinned_message_id' => $message->id]);
+        $chat->loadMissing('pinnedMessage.sentByUser:id,name');
+
+        return response()->json(['success' => true, 'pinned_message' => $chat->pinnedMessage]);
+    }
+
+    public function unpinMessage(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $chat->update(['pinned_message_id' => null]);
+
+        return response()->json(['success' => true]);
+    }
+
     public function archive(Chat $chat): JsonResponse
     {
         $this->authorize('manage', $chat);
@@ -274,6 +326,46 @@ final class ChatController extends Controller
         ]);
 
         return response()->json(['success' => true]);
+    }
+
+    public function saveContact(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        abort_if($chat->is_group, 422, 'Нельзя сохранять контакт для группы.');
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+        ]);
+
+        $name = trim((string) $data['name']);
+        if ($name === '') {
+            return response()->json(['success' => false, 'error' => 'Имя не может быть пустым.'], 422);
+        }
+
+        $chat->loadMissing('contact');
+
+        $phone = $chat->contact?->phone_number;
+        if (! $phone) {
+            // Fallback: derive from whatsapp_chat_id for 1:1 chats
+            $phone = \App\Support\PhoneFormatter::fromWhatsappId($chat->whatsapp_chat_id);
+        }
+
+        if (! $phone) {
+            return response()->json(['success' => false, 'error' => 'Не удалось определить номер контакта.'], 422);
+        }
+
+        $contact = $chat->contact ?: $this->chatService->findOrCreateContactByPhone($phone);
+
+        // Save exactly what operator entered.
+        $contact->name = $name;
+        $contact->saveQuietly();
+
+        if (! $chat->contact_id) {
+            $chat->update(['contact_id' => $contact->id]);
+        }
+
+        return response()->json(['success' => true, 'contact' => $contact]);
     }
 
     public function contacts(Request $request): JsonResponse
@@ -399,6 +491,150 @@ final class ChatController extends Controller
         return response()->json(['success' => true, 'chat_id' => $chat->id]);
     }
 
+    public function syncGroups(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            abort(401);
+        }
+
+        $sessions = $this->sessionsForUser($user)
+            ->where('is_active', true)
+            ->get(['id', 'session_name', 'status']);
+
+        $created = 0;
+        $updated = 0;
+        $errors = [];
+
+        foreach ($sessions as $session) {
+            // Синхронизируем только для реально подключённых номеров.
+            if (($session->status ?? null) !== 'connected') {
+                continue;
+            }
+
+            $resp = $this->whatsappService->getChats($session->session_name);
+            if (empty($resp['success'])) {
+                $errors[] = [
+                    'session' => $session->session_name,
+                    'error' => $resp['error'] ?? 'Unknown error',
+                ];
+
+                continue;
+            }
+
+            $chats = is_array($resp['chats'] ?? null) ? $resp['chats'] : [];
+            foreach ($chats as $c) {
+                if (! is_array($c)) {
+                    continue;
+                }
+                if (empty($c['id']) || empty($c['isGroup'])) {
+                    continue;
+                }
+
+                $waId = (string) $c['id'];
+                $name = trim((string) ($c['name'] ?? '')) ?: $waId;
+
+                $chat = Chat::firstOrCreate(
+                    ['whatsapp_chat_id' => $waId, 'whatsapp_session_id' => $session->id],
+                    [
+                        'chat_name' => $name,
+                        'is_group' => true,
+                        'last_message_at' => null,
+                    ],
+                );
+
+                if ($chat->wasRecentlyCreated) {
+                    $created++;
+                } else {
+                    if (($chat->chat_name ?? '') === '' || $chat->chat_name === $chat->whatsapp_chat_id) {
+                        $chat->update(['chat_name' => $name, 'is_group' => true]);
+                        $updated++;
+                    } elseif (! $chat->is_group) {
+                        $chat->update(['is_group' => true]);
+                        $updated++;
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+    }
+
+    public function groupParticipants(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        if (! $chat->is_group) {
+            return response()->json(['success' => false, 'error' => 'Not a group chat'], 422);
+        }
+
+        $chat->load('whatsappSession:id,session_name,status');
+        $session = $chat->whatsappSession;
+        if (! $session || ($session->status ?? null) !== 'connected') {
+            return response()->json(['success' => false, 'error' => 'WhatsApp session not connected'], 409);
+        }
+
+        $resp = $this->whatsappService->getGroupParticipants($session->session_name, (string) $chat->whatsapp_chat_id);
+        if (empty($resp['success'])) {
+            return response()->json([
+                'success' => false,
+                'error' => $resp['error'] ?? 'Failed to fetch participants',
+            ], 502);
+        }
+
+        $participants = is_array($resp['participants'] ?? null) ? $resp['participants'] : [];
+
+        // Map participants to our saved contacts (by phone digits or whatsapp_id).
+        $digits = [];
+        foreach ($participants as $p) {
+            if (! is_array($p)) continue;
+            $raw = (string) ($p['number'] ?? '');
+            $d = preg_replace('/\D/', '', $raw) ?: null;
+            if ($d) $digits[] = $d;
+            $id = (string) ($p['id'] ?? '');
+            $idDigits = preg_replace('/\D/', '', $id) ?: null;
+            if ($idDigits) $digits[] = $idDigits;
+        }
+        $digits = array_values(array_unique(array_filter($digits)));
+
+        $contacts = $digits
+            ? \App\Models\Contact::query()
+                ->whereIn('phone_number', $digits)
+                ->orWhereIn('whatsapp_id', $digits)
+                ->orWhereIn('whatsapp_id', array_map(fn ($d) => "{$d}@c.us", $digits))
+                ->get(['id', 'phone_number', 'whatsapp_id', 'name'])
+            : collect();
+
+        $byPhone = $contacts->keyBy('phone_number');
+        $byWa = $contacts->keyBy('whatsapp_id');
+
+        $mapped = array_map(function ($p) use ($byPhone, $byWa) {
+            if (! is_array($p)) return $p;
+            $rawNumber = (string) ($p['number'] ?? '');
+            $d = preg_replace('/\D/', '', $rawNumber) ?: null;
+            $waId = (string) ($p['id'] ?? '');
+            $contact = null;
+            if ($d && $byPhone->has($d)) $contact = $byPhone->get($d);
+            if (! $contact && $waId !== '' && $byWa->has($waId)) $contact = $byWa->get($waId);
+            if (! $contact && $d && $byWa->has("{$d}@c.us")) $contact = $byWa->get("{$d}@c.us");
+
+            if ($contact && $contact->name) {
+                $p['saved_name'] = $contact->name;
+            }
+            return $p;
+        }, $participants);
+
+        return response()->json([
+            'success' => true,
+            'participants' => $mapped,
+        ]);
+    }
+
     public function timeline(Request $request, Chat $chat): JsonResponse
     {
         $this->authorize('view', $chat);
@@ -423,6 +659,13 @@ final class ChatController extends Controller
 
         $mime = $file->getMimeType() ?? 'application/octet-stream';
         $originalName = (string) $file->getClientOriginalName();
+        if (str_ends_with(strtolower($originalName), '.webm') && ! str_contains(strtolower($mime), 'webm')) {
+            $mime = 'audio/webm';
+        }
+        $uploadHint = (string) $request->input('type', '');
+        if (in_array($uploadHint, ['voice', 'ptt'], true) && str_starts_with(strtolower($mime), 'video/')) {
+            $mime = 'audio/webm';
+        }
         $caption = (string) $request->input('caption', '');
         $type = MediaType::detect($mime, $request->input('type'));
 
@@ -462,7 +705,9 @@ final class ChatController extends Controller
                 'path' => $storedPath,
                 'mimetype' => $mime,
                 'filename' => $originalName,
-                'caption' => $signedCaption !== '' ? $signedCaption : null,
+                'caption' => $type === 'voice'
+                    ? null
+                    : ($signedCaption !== '' ? $signedCaption : null),
             ],
         );
 

@@ -8,7 +8,7 @@ final class MediaType
 {
     public static function detect(string $mime, ?string $hint = null): string
     {
-        if ($hint && in_array($hint, ['image', 'video', 'audio', 'voice', 'sticker', 'gif', 'document'], true)) {
+        if ($hint && in_array($hint, ['image', 'video', 'audio', 'voice', 'ptt', 'sticker', 'gif', 'document'], true)) {
             return $hint;
         }
 

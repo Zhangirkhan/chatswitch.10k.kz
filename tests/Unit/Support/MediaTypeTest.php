@@ -12,6 +12,7 @@ final class MediaTypeTest extends TestCase
     public function test_detect_respects_hint(): void
     {
         $this->assertSame('voice', MediaType::detect('audio/ogg', 'voice'));
+        $this->assertSame('ptt', MediaType::detect('application/octet-stream', 'ptt'));
     }
 
     public function test_detect_maps_mime_types(): void

@@ -23,7 +23,7 @@ final class UploadFileRequest extends FormRequest
         return [
             'file' => ['required', 'file', 'max:65536'],
             'caption' => ['nullable', 'string', 'max:1024'],
-            'type' => ['nullable', 'string', 'in:image,video,audio,voice,sticker,gif,document'],
+            'type' => ['nullable', 'string', 'in:image,video,audio,voice,ptt,sticker,gif,document'],
         ];
     }
 }

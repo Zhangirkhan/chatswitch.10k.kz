@@ -14,6 +14,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use Symfony\Component\Process\Process;
 
 final class SendOutboundMessageJob implements ShouldQueue
 {
@@ -66,14 +68,24 @@ final class SendOutboundMessageJob implements ShouldQueue
 
         $result = match ($this->payloadType) {
             'text' => $this->sendText($whatsapp, $sessionName, $to),
-            'media' => $this->sendMedia($whatsapp, $sessionName, $to),
+            'media' => $this->sendMedia($whatsapp, $message, $sessionName, $to),
             'poll' => $this->sendPoll($whatsapp, $sessionName, $to),
             'contact' => $this->sendContact($whatsapp, $sessionName, $to),
             default => ['success' => false, 'error' => 'Неизвестный тип исходящего сообщения.'],
         };
 
         if (($result['success'] ?? false) !== true) {
-            $this->markFailed($message, (string) ($result['error'] ?? 'Ошибка отправки в WhatsApp.'));
+            $reason = (string) ($result['error'] ?? 'Ошибка отправки в WhatsApp.');
+            if ($this->isRetryableTransportError($reason) && $this->attempts() < $this->tries) {
+                try {
+                    // Best-effort warm-up when puppeteer frame was detached or client is reconnecting.
+                    $whatsapp->initializeSession($sessionName);
+                } catch (\Throwable) {
+                    // Ignore: retry path below is the actual recovery mechanism.
+                }
+                throw new RuntimeException($reason);
+            }
+            $this->markFailed($message, $reason);
 
             return;
         }
@@ -91,12 +103,25 @@ final class SendOutboundMessageJob implements ShouldQueue
         ])->save();
 
         broadcast(new MessageAckUpdated($message->chat_id, $message->id, 'sent'));
+
+        // If operator reacted before WA id was known, sync that reaction now.
+        $pendingReaction = $message->reactions()
+            ->whereNotNull('user_id')
+            ->where('pending_whatsapp_sync', true)
+            ->orderByDesc('updated_at')
+            ->first();
+        if ($pendingReaction) {
+            SyncMessageReactionToWhatsappJob::dispatch($pendingReaction->id);
+        }
     }
 
     /** @return array<string, mixed> */
     private function sendText(WhatsappService $whatsapp, string $sessionName, string $to): array
     {
-        $body = (string) ($this->payload['body'] ?? '');
+        $body = trim((string) ($this->payload['body'] ?? ''));
+        if ($body === '') {
+            return ['success' => false, 'error' => 'Пустой текст — WhatsApp не примет сообщение.'];
+        }
         $quotedRaw = $this->payload['quoted_message_id'] ?? null;
         $quotedId = is_string($quotedRaw) && $quotedRaw !== '' ? $quotedRaw : null;
 
@@ -104,14 +129,19 @@ final class SendOutboundMessageJob implements ShouldQueue
     }
 
     /** @return array<string, mixed> */
-    private function sendMedia(WhatsappService $whatsapp, string $sessionName, string $to): array
+    private function sendMedia(WhatsappService $whatsapp, Message $message, string $sessionName, string $to): array
     {
         $disk = (string) ($this->payload['disk'] ?? 'local');
         $relativePath = (string) ($this->payload['path'] ?? '');
         $mimetype = (string) ($this->payload['mimetype'] ?? 'application/octet-stream');
         $filename = isset($this->payload['filename']) ? (string) $this->payload['filename'] : null;
+        $filenameLower = $filename !== null ? strtolower($filename) : '';
         $caption = isset($this->payload['caption']) ? (string) $this->payload['caption'] : null;
         $caption = $caption !== '' ? $caption : null;
+        // Подпись оператора как caption у голосовых ломает медиа на стороне WhatsApp («аудио недоступно»).
+        if ($message->type === 'voice') {
+            $caption = null;
+        }
 
         if ($relativePath === '') {
             return ['success' => false, 'error' => 'Не указан путь к файлу медиа.'];
@@ -122,9 +152,92 @@ final class SendOutboundMessageJob implements ShouldQueue
             return ['success' => false, 'error' => 'Файл медиа не найден на диске.'];
         }
 
-        $asVoice = $message->type === 'voice';
+        // Браузерный MediaRecorder → .webm; finfo часто даёт application/octet-stream — тогда без проверки
+        // расширения снова включается sendAudioAsVoice и WA Web падает с нечитаемой ошибкой.
+        $mimeBase = strtolower(trim(explode(';', $mimetype, 2)[0]));
+        $looksWebm = str_contains($mimeBase, 'webm')
+            || ($filenameLower !== '' && str_ends_with($filenameLower, '.webm'));
+        if ($looksWebm && ! str_contains(strtolower($mimetype), 'webm')) {
+            $mimetype = 'audio/webm';
+        }
 
-        return $whatsapp->sendMediaFile($sessionName, $to, $absolutePath, $mimetype, $filename, $caption, $asVoice);
+        $sendPath = $absolutePath;
+        $sendMime = $mimetype;
+        $sendFilename = $filename;
+        $tmpOgg = null;
+
+        if ($message->type === 'voice' && $looksWebm) {
+            $tmpOgg = $this->transcodeWebmToOpusOgg($absolutePath);
+            if ($tmpOgg !== null) {
+                $sendPath = $tmpOgg;
+                // Без «codecs=opus» в строке — часть стеков WA/multer хуже переваривает параметр в multipart.
+                $sendMime = 'audio/ogg';
+                $sendFilename = $filename !== null && str_ends_with(strtolower($filename), '.webm')
+                    ? (string) preg_replace('/\.webm$/i', '.ogg', $filename)
+                    : 'voice.ogg';
+            }
+        }
+
+        // sendAudioAsVoice (PTT) через wwebjs: sendMessage() = 200, но на телефонах часто «аудио недоступно».
+        // Обычное вложение audio/ogg воспроизводится стабильно (визуально — аудиофайл, не «кружок»).
+        try {
+            return $whatsapp->sendMediaFile($sessionName, $to, $sendPath, $sendMime, $sendFilename, $caption, false);
+        } finally {
+            if ($tmpOgg !== null && is_file($tmpOgg)) {
+                @unlink($tmpOgg);
+            }
+        }
+    }
+
+    private function transcodeWebmToOpusOgg(string $webmPath): ?string
+    {
+        $dir = storage_path('app/tmp');
+        if (! is_dir($dir) && ! mkdir($dir, 0755, true) && ! is_dir($dir)) {
+            return null;
+        }
+
+        $out = $dir.'/'.uniqid('wa-voice-', true).'.ogg';
+        // Параметры как у нативных голосовых WhatsApp (см. wwebjs #5683 / обсуждения Opus PTT).
+        $process = new Process([
+            'ffmpeg',
+            '-nostdin',
+            '-hide_banner',
+            '-loglevel', 'error',
+            '-y',
+            '-i',
+            $webmPath,
+            '-vn',
+            '-c:a',
+            'libopus',
+            '-b:a',
+            '16k',
+            '-ac',
+            '1',
+            '-ar',
+            '16000',
+            '-application',
+            'voip',
+            '-map_metadata',
+            '-1',
+            $out,
+        ]);
+        $process->setTimeout(120);
+
+        try {
+            $process->mustRun();
+        } catch (\Throwable) {
+            @unlink($out);
+
+            return null;
+        }
+
+        if (! is_file($out) || filesize($out) < 32) {
+            @unlink($out);
+
+            return null;
+        }
+
+        return $out;
     }
 
     /** @return array<string, mixed> */
@@ -176,5 +289,21 @@ final class SendOutboundMessageJob implements ShouldQueue
         $message->forceFill(['ack' => 'failed'])->save();
 
         broadcast(new MessageAckUpdated($message->chat_id, $message->id, 'failed'));
+    }
+
+    private function isRetryableTransportError(string $reason): bool
+    {
+        $r = mb_strtolower(trim($reason));
+        if ($r === '') {
+            return false;
+        }
+
+        return str_contains($r, 'detached frame')
+            || str_contains($r, 'client not ready')
+            || str_contains($r, 'target closed')
+            || str_contains($r, 'execution context was destroyed')
+            || str_contains($r, 'navigation')
+            || str_contains($r, 'timed out')
+            || str_contains($r, 'timeout');
     }
 }

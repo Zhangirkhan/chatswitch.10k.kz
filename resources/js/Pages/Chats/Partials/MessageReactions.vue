@@ -28,20 +28,44 @@ const grouped = computed<Bucket[]>(() => {
     }
     return Array.from(map.values());
 });
+
+const totalCount = computed(() => (props.reactions ?? []).length);
+
+const panelTitle = computed(() => {
+    return grouped.value
+        .map((b) => `${b.emoji}: ${b.names.join(', ')}`)
+        .join(' | ');
+});
 </script>
 
 <template>
-    <div v-if="grouped.length" class="mt-1 flex flex-wrap gap-1">
-        <button
-            v-for="bucket in grouped"
-            :key="bucket.emoji"
-            type="button"
-            :title="bucket.names.join(', ')"
-            class="flex items-center rounded-full border px-2 py-0.5 text-xs transition"
-            :class="bucket.mine ? 'border-sky-500 bg-sky-500/10' : 'border-zinc-300 bg-white/60 dark:border-zinc-700 dark:bg-zinc-800/60'"
-            @click="emit('react', bucket.emoji)"
+    <div v-if="grouped.length" class="mt-1">
+        <div
+            class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs"
+            :title="panelTitle"
+            :class="'border-zinc-300 bg-white/60 dark:border-zinc-700 dark:bg-zinc-800/60'"
         >
-            <span>{{ bucket.emoji }}</span>
-        </button>
+            <span
+                v-if="totalCount > 1"
+                class="mr-1 tabular-nums"
+                :style="{ color: 'var(--wa-text-secondary)' }"
+            >
+                {{ totalCount }}
+            </span>
+
+            <div class="flex items-center gap-1">
+                <button
+                    v-for="bucket in grouped"
+                    :key="bucket.emoji"
+                    type="button"
+                    class="leading-none transition-opacity hover:opacity-90"
+                    :class="bucket.mine ? 'opacity-100' : 'opacity-90'"
+                    :title="bucket.names.join(', ')"
+                    @click="emit('react', bucket.emoji)"
+                >
+                    <span class="text-[14px] leading-none">{{ bucket.emoji }}</span>
+                </button>
+            </div>
+        </div>
     </div>
 </template>

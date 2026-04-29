@@ -26,6 +26,7 @@ export interface WhatsappSession {
     session_name: string;
     phone_number?: string | null;
     display_name: string | null;
+    display_color?: string | null;
     wa_name: string | null;
     wa_platform?: string | null;
     status: 'disconnected' | 'connecting' | 'qr_pending' | 'connected';
@@ -68,6 +69,17 @@ export interface Chat {
     unread_count: number;
     is_archived: boolean;
     is_pinned: boolean;
+    pinned_message_id?: number | null;
+    pinned_message?: {
+        id: number;
+        direction: 'inbound' | 'outbound' | 'system';
+        type: string;
+        body: string | null;
+        sender_name: string | null;
+        sender_phone: string | null;
+        sent_by_user?: { id: number; name: string } | null;
+        message_timestamp: string | null;
+    } | null;
     is_muted: boolean;
     muted_until: string | null;
     is_favorite: boolean;
@@ -114,6 +126,8 @@ export interface Message {
     sender_name: string | null;
     sent_by_user_id: number | null;
     is_forwarded: boolean;
+    /** App-level delivery status (UI-friendly). */
+    status?: 'sent' | 'delivered' | 'read';
     quoted_message_id?: string | null;
     quoted_message?: QuotedMessagePreview | null;
     ack: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';

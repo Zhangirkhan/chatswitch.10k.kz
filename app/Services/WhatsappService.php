@@ -182,7 +182,14 @@ final class WhatsappService
                 fclose($stream);
             }
 
-            return $response->json() ?: [];
+            /** @var array<string, mixed> $json */
+            $json = $response->json() ?: [];
+            if (! $response->successful() && ($json['success'] ?? null) !== true) {
+                $err = isset($json['error']) && is_string($json['error']) ? $json['error'] : $response->body();
+                $json['error'] = trim($err.' [HTTP '.$response->status().']');
+            }
+
+            return $json;
         } catch (\Throwable $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -215,6 +222,29 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
+    public function getChats(string $sessionName): array
+    {
+        return $this->get('/api/chats', sessionHeader: $sessionName);
+    }
+
+    /** @return array<string, mixed> */
+    public function getGroupParticipants(string $sessionName, string $chatId): array
+    {
+        $encoded = rawurlencode($chatId);
+
+        return $this->get("/api/chats/{$encoded}/participants", sessionHeader: $sessionName);
+    }
+
+    /** @return array<string, mixed> */
+    public function getChatMessages(string $sessionName, string $chatId, int $limit = 500): array
+    {
+        $encoded = rawurlencode($chatId);
+        $limit = max(1, min(5, $limit));
+
+        return $this->get("/api/chats/{$encoded}/messages?limit={$limit}", sessionHeader: $sessionName, timeoutSeconds: 60);
+    }
+
+    /** @return array<string, mixed> */
     public function sendContact(string $sessionName, string $to, string $vcard, ?string $displayName = null): array
     {
         return $this->post('/api/send-contact', [
@@ -237,12 +267,14 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
-    private function get(string $path, int $timeoutSeconds = 30): array
+    private function get(string $path, int $timeoutSeconds = 30, ?string $sessionHeader = null): array
     {
         try {
-            $response = Http::withToken($this->token)
-                ->timeout($timeoutSeconds)
-                ->get($this->baseUrl.$path);
+            $request = Http::withToken($this->token)->timeout($timeoutSeconds);
+            if ($sessionHeader) {
+                $request = $request->withHeaders(['X-WhatsApp-Session' => $sessionHeader]);
+            }
+            $response = $request->get($this->baseUrl.$path);
 
             return $response->json() ?: [];
         } catch (\Throwable $e) {
