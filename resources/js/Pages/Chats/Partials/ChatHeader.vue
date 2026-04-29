@@ -5,6 +5,7 @@ import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
 import type { AssignableUser, Chat, Department } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 
 type MenuPos = { top: number; right: number };
 
@@ -63,6 +64,7 @@ const departmentsMenuPos = ref<MenuPos>({ top: 0, right: 0 });
 const selectedDepartmentIds = ref<number[]>([]);
 const savingDepartments = ref(false);
 const departmentSearchQuery = ref('');
+const scheduledMessagesOpen = ref(false);
 let saveDepartmentsTimer: number | null = null;
 let saveDepartmentsQueued = false;
 
@@ -332,6 +334,7 @@ function onEscape(e: KeyboardEvent) {
         closeMenu();
         closeDepartmentsMenu();
         closeUsersMenu();
+        scheduledMessagesOpen.value = false;
     }
 }
 
@@ -621,6 +624,18 @@ function getTypingText(): string {
                 </template>
             </div>
 
+            <button
+                type="button"
+                class="label-pill label-pill-scheduled"
+                title="Отложенные сообщения"
+                @click="scheduledMessagesOpen = true"
+            >
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="hidden lg:inline">Отложенные</span>
+            </button>
+
             <!-- Сотрудники: одна кнопка с аватарками; зелёная иерархия -->
             <div v-if="showAssignUsersBlock" class="relative">
                 <button
@@ -908,6 +923,12 @@ function getTypingText(): string {
                 </Teleport>
             </div>
         </div>
+
+        <ScheduledMessagesModal
+            :open="scheduledMessagesOpen"
+            :chat-id="chat.id"
+            @close="scheduledMessagesOpen = false"
+        />
     </div>
 </template>
 
@@ -977,6 +998,18 @@ function getTypingText(): string {
 }
 .label-pill-dept-static.label-pill-dept-active {
     opacity: 1;
+}
+
+.label-pill-scheduled {
+    color: #bfdbfe;
+    border-color: color-mix(in srgb, #3b82f6 45%, var(--wa-border-strong));
+    background-color: color-mix(in srgb, #3b82f6 10%, var(--wa-panel));
+    max-width: none;
+    padding-inline: 0.75rem;
+}
+.label-pill-scheduled:hover {
+    background-color: color-mix(in srgb, #3b82f6 16%, var(--wa-panel));
+    border-color: color-mix(in srgb, #3b82f6 60%, var(--wa-border-strong));
 }
 
 /* Сотрудники — зелень (как акцент WhatsApp) */

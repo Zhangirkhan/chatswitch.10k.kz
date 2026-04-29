@@ -184,6 +184,19 @@ export interface AssignableUser {
     roles: string[];
 }
 
+export interface ScheduledMessage {
+    id: number;
+    chat_id: number;
+    body: string;
+    display_body: string | null;
+    scheduled_at: string | null;
+    scheduled_at_label: string | null;
+    status: 'pending' | 'sending' | 'sent' | 'cancelled' | 'failed';
+    error: string | null;
+    sent_message_id: number | null;
+    user: { id: number; name: string } | null;
+}
+
 export interface Paginated<T> {
     data: T[];
     current_page: number;

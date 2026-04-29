@@ -25,3 +25,21 @@ export function normalizePhone(input: string | null | undefined): string {
 export function formatPhone(input: string | null | undefined): string {
     return normalizePhone(input);
 }
+
+/**
+ * Участники группы с @lid в WhatsApp часто приходят с «номером» — десятичным внутренним id,
+ * а не E.164. Такие строки нельзя показывать как телефон и использовать для ЛС.
+ */
+export function isPlausibleInboundSenderPhone(input: string | null | undefined): boolean {
+    const x = String(input || '').replace(/\D/g, '');
+    if (x.length < 10 || x.length > 15) {
+        return false;
+    }
+    if (x.startsWith('1')) {
+        return x.length === 11;
+    }
+    if (x.startsWith('7')) {
+        return x.length >= 10 && x.length <= 12;
+    }
+    return true;
+}

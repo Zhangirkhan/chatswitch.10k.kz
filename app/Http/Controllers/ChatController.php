@@ -24,6 +24,7 @@ use App\Models\MessageMedia;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
+use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
@@ -33,32 +34,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class ChatController extends Controller
 {
-    /**
-     * Набор relations для сообщений, отдаваемых фронту — в Inertia-рендере,
-     * JSON-ответах на отправку и в Echo-broadcast'ах. Один источник правды,
-     * чтобы везде форма объекта `message` была идентичной (включая цитату).
-     *
-     * @var list<string>
-     */
-    private const MESSAGE_WITH = [
-        'media',
-        'sentByUser',
-        'whatsappSession',
-        'reactions.user:id,name',
-        'quotedMessage:id,whatsapp_message_id,direction,type,body,sender_name,sender_phone,sent_by_user_id',
-        'quotedMessage.sentByUser:id,name',
-        'quotedMessage.media:id,message_id,mime_type,filename',
-    ];
-
     public function __construct(
         private readonly ChatService $chatService,
         private readonly WhatsappService $whatsappService,
+        private readonly OutboundChatMessageDispatcher $outboundDispatcher,
     ) {}
 
     public function index(Request $request): Response
@@ -112,7 +96,7 @@ final class ChatController extends Controller
         ]);
 
         $messages = $chat->messages()
-            ->with(self::MESSAGE_WITH)
+            ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->orderByDesc('message_timestamp')
             ->paginate(50);
 
@@ -161,125 +145,15 @@ final class ChatController extends Controller
 
     public function sendMessage(SendMessageRequest $request, Chat $chat): JsonResponse
     {
-        $chat->load('whatsappSession');
-        $session = $chat->whatsappSession;
-        $quotedMessageId = $request->input('quoted_message_id');
-        $text = (string) $request->input('message'); // text used for WhatsApp sending
-        $displayText = (string) ($request->input('display_message') ?? '');
-        if (trim($displayText) === '') {
-            $displayText = $text;
-        }
-        $mentionsRaw = $request->input('mentions', []);
-        $mentionsMetaRaw = $request->input('mentions_meta', []);
-        $mentions = is_array($mentionsRaw)
-            ? array_values(array_filter(array_map(
-                static fn ($m) => is_string($m) ? $m : null,
-                $mentionsRaw
-            )))
-            : [];
-        $mentionsMeta = [];
-        if (is_array($mentionsMetaRaw)) {
-            foreach ($mentionsMetaRaw as $row) {
-                if (! is_array($row)) {
-                    continue;
-                }
-                $id = isset($row['id']) ? trim((string) $row['id']) : '';
-                $number = isset($row['number']) ? preg_replace('/\D/', '', (string) $row['number']) : '';
-                $label = isset($row['label']) ? trim((string) $row['label']) : '';
-                if ($id === '' || $number === '' || $label === '') {
-                    continue;
-                }
-                $mentionsMeta[] = [
-                    'id' => $id,
-                    'number' => $number,
-                    'label' => $label,
-                ];
-            }
-        }
-
-        // Fail-safe: если UI не прислал mentions, пробуем извлечь из текста "@7700..."
-        // (это то, как whatsapp-web.js ожидает упоминания в message body).
-        if ($mentions === []) {
-            $found = [];
-            if (preg_match_all('/(^|\s)@(\d{5,20})\b/u', $text, $m)) {
-                /** @var array<int, string> $nums */
-                $nums = $m[2] ?? [];
-                foreach ($nums as $n) {
-                    $n = preg_replace('/\D/', '', (string) $n);
-                    if ($n !== '') {
-                        $found[] = $n;
-                    }
-                }
-            }
-            if ($found !== []) {
-                $mentions = array_values(array_unique($found));
-            }
-        }
-
-        try {
-            Log::info('chat.sendMessage mention debug', [
-                'chat_id' => $chat->id,
-                'is_group' => (bool) $chat->is_group,
-                'mentions_raw_type' => gettype($mentionsRaw),
-                'mentions_raw_n' => is_array($mentionsRaw) ? count($mentionsRaw) : null,
-                'mentions_before_norm_n' => count($mentions),
-                'text_has_at' => str_contains($text, '@'),
-                'text_preview' => mb_substr(preg_replace('/\s+/u', ' ', $text) ?: '', 0, 120),
-            ]);
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        // whatsapp-web.js ожидает полный JID (например, 7700...@c.us).
-        // UI может прислать просто digits — нормализуем.
-        $mentions = array_values(array_filter(array_map(
-            static function ($m): ?string {
-                if (! is_string($m)) {
-                    return null;
-                }
-                $m = trim($m);
-                if ($m === '') {
-                    return null;
-                }
-                if (str_contains($m, '@')) {
-                    return $m;
-                }
-
-                return preg_replace('/\D/', '', $m).'@c.us';
-            },
-            $mentions
-        )));
-
-        // Подпись оператора («*Имя (Должность)*») уходит и в WhatsApp, и в БД —
-        // так клиент и оператор видят сообщение в одинаковом виде.
-        $signedText = OperatorSignature::prepend($request->user(), $text);
-        $signedDisplayText = OperatorSignature::prepend($request->user(), $displayText);
-
-        $message = $this->chatService->storeOutboundMessage(
-            $chat,
-            $session,
+        $message = $this->outboundDispatcher->sendTextMessage(
             $request->user(),
-            $signedDisplayText,
-            null,
-            $quotedMessageId,
-        );
-
-        if ($mentionsMeta !== []) {
-            $meta = is_array($message->metadata) ? $message->metadata : [];
-            $meta['mentions'] = array_slice($mentionsMeta, 0, 20);
-            $message->forceFill(['metadata' => $meta])->saveQuietly();
-        }
-
-        $message->load(self::MESSAGE_WITH);
-        broadcast(new NewMessageReceived($message, $chat->id));
-
-        SendOutboundMessageJob::dispatch(
-            $message->id,
-            'text',
+            $chat,
             [
-                'body' => $signedText,
-                'quoted_message_id' => $quotedMessageId,
-                'mentions' => $mentions,
+                'message' => $request->input('message'),
+                'display_message' => $request->input('display_message'),
+                'quoted_message_id' => $request->input('quoted_message_id'),
+                'mentions' => $request->input('mentions'),
+                'mentions_meta' => $request->input('mentions_meta'),
             ],
         );
 
@@ -811,7 +685,7 @@ final class ChatController extends Controller
         $beforeId = (int) $request->input('before_id', 0);
 
         $messages = $chat->messages()
-            ->with(self::MESSAGE_WITH)
+            ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->when(
                 is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
                 function ($q) use ($beforeTs, $beforeId): void {
@@ -879,7 +753,7 @@ final class ChatController extends Controller
 
         $chat->update(['last_message_text' => MediaType::previewText($type, $signedCaption)]);
 
-        $message->load(self::MESSAGE_WITH);
+        $message->load(OutboundChatMessageDispatcher::messageWithRelations());
         broadcast(new NewMessageReceived($message, $chat->id));
 
         SendOutboundMessageJob::dispatch(
@@ -935,7 +809,7 @@ final class ChatController extends Controller
 
         $chat->update(['last_message_text' => '📊 '.$question]);
 
-        $message->load(self::MESSAGE_WITH);
+        $message->load(OutboundChatMessageDispatcher::messageWithRelations());
         broadcast(new NewMessageReceived($message, $chat->id));
 
         SendOutboundMessageJob::dispatch(
@@ -986,7 +860,7 @@ final class ChatController extends Controller
 
         $chat->update(['last_message_text' => '👤 '.$displayName]);
 
-        $message->load(self::MESSAGE_WITH);
+        $message->load(OutboundChatMessageDispatcher::messageWithRelations());
         broadcast(new NewMessageReceived($message, $chat->id));
 
         SendOutboundMessageJob::dispatch(

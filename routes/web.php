@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\ApiDocumentationController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunityController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WhatsappSessionController;
@@ -18,6 +20,13 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', fn () => redirect()->route('login'));
+
+Route::redirect('/docs/api/mobile-v1', '/docs/api', 301);
+
+Route::prefix('docs/api')->group(function (): void {
+    Route::get('/', [ApiDocumentationController::class, 'swagger'])->name('docs.api');
+    Route::get('/openapi.yaml', [ApiDocumentationController::class, 'openApiYaml'])->name('docs.api.openapi');
+});
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', fn () => redirect()->route('chats.index'));
@@ -39,6 +48,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats/{chat}/participants', [ChatController::class, 'groupParticipants'])->name('chats.group-participants');
         Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chats.show');
         Route::post('/chats/{chat}/send-message', [ChatController::class, 'sendMessage'])->name('chats.send-message');
+        Route::get('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'index'])->name('chats.scheduled-messages.index');
+        Route::post('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'store'])->name('chats.scheduled-messages.store');
+        Route::put('/chats/{chat}/scheduled-messages/{scheduledMessage}', [ScheduledMessageController::class, 'update'])->name('chats.scheduled-messages.update');
+        Route::delete('/chats/{chat}/scheduled-messages/{scheduledMessage}', [ScheduledMessageController::class, 'destroy'])->name('chats.scheduled-messages.destroy');
         Route::post('/chats/{chat}/typing', [ChatController::class, 'typing'])->name('chats.typing');
         Route::post('/chats/{chat}/mark-read', [ChatController::class, 'markRead'])->name('chats.mark-read');
         Route::post('/chats/{chat}/toggle-pin', [ChatController::class, 'togglePin'])->name('chats.toggle-pin');

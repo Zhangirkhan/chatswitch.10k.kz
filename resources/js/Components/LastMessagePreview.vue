@@ -79,6 +79,29 @@ function formatDuration(total: number): string {
     return `${m}:${r.toString().padStart(2, '0')}`;
 }
 
+function unescapeVcardValue(value: string): string {
+    return value
+        .replace(/\\n/gi, '\n')
+        .replace(/\\,/g, ',')
+        .replace(/\\;/g, ';')
+        .replace(/\\\\/g, '\\')
+        .trim();
+}
+
+function contactNameFromVcard(raw: string | null | undefined): string {
+    const body = String(raw || '');
+    if (!body.includes('BEGIN:VCARD')) {
+        return '';
+    }
+    const lines = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const fnLine = lines.find((line) => /^FN:/i.test(line));
+    const nLine = lines.find((line) => /^N:/i.test(line));
+    const telLine = lines.find((line) => /^TEL/i.test(line));
+    const name = unescapeVcardValue((fnLine || nLine || '').replace(/^[^:]*:/, '').replace(/;+$/g, ''));
+    const phone = unescapeVcardValue((telLine || '').replace(/^[^:]*:/, ''));
+    return name || phone;
+}
+
 const preview = computed<{ kind: MediaKind; label: string } | null>(() => {
     const latest = props.chat.latest_message;
     const fallbackBody = stripWaMarkup(props.chat.last_message_text).trim();
@@ -120,8 +143,12 @@ const preview = computed<{ kind: MediaKind; label: string } | null>(() => {
             }
             return { kind, label: filename !== '' ? filename : 'Документ' };
         }
-        case 'contact':
-            return { kind, label: caption !== '' ? caption : 'Контакт' };
+        case 'contact': {
+            const metaContact = (latest.metadata as { contact?: { name?: string | null; phone?: string | null } } | null | undefined)?.contact;
+            const metaName = (metaContact?.name || metaContact?.phone || '').trim();
+            const vcardName = contactNameFromVcard(latest.body);
+            return { kind, label: metaName || vcardName || 'Контакт' };
+        }
         case 'poll':
             return { kind, label: caption !== '' ? `Опрос: ${caption}` : 'Опрос' };
         case 'chat':

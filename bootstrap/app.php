@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'whatsapp.webhook' => \App\Http\Middleware\VerifyWhatsappWebhook::class,
+            'api.active' => \App\Http\Middleware\EnsureApiUserActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

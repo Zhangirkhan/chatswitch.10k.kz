@@ -30,6 +30,29 @@ final class ChatService
         return is_string($digits) && $digits !== '' ? $digits : null;
     }
 
+    /**
+     * Отсекаем внутренние id WhatsApp (@lid), ошибочно сохранённые как «телефон».
+     * NANP (+1) — ровно 11 цифр; RU/KZ (+7) — 10–12 цифр после нормализации.
+     */
+    private function senderDigitsLookLikeReachablePhone(?string $digits): bool
+    {
+        if ($digits === null || $digits === '' || ! ctype_digit($digits)) {
+            return false;
+        }
+        $len = strlen($digits);
+        if ($len < 10 || $len > 15) {
+            return false;
+        }
+        if (str_starts_with($digits, '1')) {
+            return $len === 11;
+        }
+        if (str_starts_with($digits, '7')) {
+            return $len >= 10 && $len <= 12;
+        }
+
+        return true;
+    }
+
     private function findExistingContactByPhoneOrWaId(?string $raw): ?Contact
     {
         if ($raw === null || trim($raw) === '') {
@@ -204,6 +227,39 @@ final class ChatService
     public function findOrCreateChatForContact(Contact $contact, WhatsappSession $session): Chat
     {
         $digits = preg_replace('/\D/', '', (string) ($contact->whatsapp_id ?: $contact->phone_number));
+        $phoneDigits = $this->normalizePhoneDigits($contact->phone_number);
+
+        $existing = Chat::query()
+            ->where('whatsapp_session_id', $session->id)
+            ->where('is_group', false)
+            ->where(function (Builder $q) use ($contact, $digits, $phoneDigits): void {
+                $q->where('contact_id', $contact->id);
+
+                $candidates = array_values(array_unique(array_filter([
+                    $contact->whatsapp_id,
+                    $contact->phone_number,
+                    $digits,
+                    $phoneDigits,
+                    $digits ? "{$digits}@c.us" : null,
+                    $phoneDigits ? "{$phoneDigits}@c.us" : null,
+                ])));
+
+                if ($candidates !== []) {
+                    $q->orWhereIn('whatsapp_chat_id', $candidates);
+                }
+            })
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($existing !== null) {
+            if (! $existing->contact_id) {
+                $existing->update(['contact_id' => $contact->id]);
+            }
+
+            return $existing;
+        }
+
         $whatsappChatId = str_contains((string) $contact->whatsapp_id, '@')
             ? (string) $contact->whatsapp_id
             : "{$digits}@c.us";
@@ -286,6 +342,10 @@ final class ChatService
         $isGroup = (bool) ($chat->is_group ?? ($data['isGroup'] ?? false));
 
         $senderPhoneRaw = isset($data['senderPhone']) ? (string) $data['senderPhone'] : null;
+        $senderAuthorJid = isset($data['senderAuthorJid']) ? trim((string) $data['senderAuthorJid']) : '';
+        if ($senderAuthorJid !== '' && str_ends_with(strtolower($senderAuthorJid), '@lid')) {
+            $senderPhoneRaw = null;
+        }
         $senderNameRaw = isset($data['senderName']) ? (string) $data['senderName'] : null;
 
         // For group messages we prefer the name as saved in our contacts.
@@ -298,7 +358,10 @@ final class ChatService
             $resolvedSenderName = trim($senderNameRaw);
         }
 
-        $normalizedSenderPhone = $this->normalizePhoneDigits($senderPhoneRaw) ?? $senderPhoneRaw;
+        $normalizedSenderPhone = $this->normalizePhoneDigits($senderPhoneRaw);
+        if ($normalizedSenderPhone !== null && ! $this->senderDigitsLookLikeReachablePhone($normalizedSenderPhone)) {
+            $normalizedSenderPhone = null;
+        }
 
         // Голосовые/аудио — whatsapp-service прокидывает длительность в секундах,
         // чтобы в превью чата показать «Голосовое сообщение (0:12)».

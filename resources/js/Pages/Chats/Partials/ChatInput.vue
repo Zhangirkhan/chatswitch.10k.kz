@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import axios from 'axios';
 import type { Message } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
-import { formatPhone } from '@/utils/phone';
+import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 
 const props = defineProps<{
     chatId: number;
@@ -376,7 +376,9 @@ function replyPreviewText(msg: Message): string {
 
 function replyAuthor(msg: Message): string {
     if (msg.direction === 'outbound') return msg.sent_by_user?.name || 'Вы';
-    return msg.sender_name || formatPhone(msg.sender_phone) || 'Контакт';
+    const ph = msg.sender_phone?.trim();
+    const phoneOk = ph && isPlausibleInboundSenderPhone(ph) ? formatPhone(ph) : '';
+    return msg.sender_name || phoneOk || 'Контакт';
 }
 
 async function sendMessage() {

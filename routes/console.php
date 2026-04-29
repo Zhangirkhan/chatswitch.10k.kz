@@ -16,3 +16,8 @@ Schedule::command('whatsapp:heal')
     ->everyMinute()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('scheduled-messages:send')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();

@@ -88,6 +88,11 @@ function participantLabel(p: GroupParticipant): string {
     return (p.name || p.number || p.id).toString();
 }
 
+function participantInitial(p: GroupParticipant): string {
+    const raw = participantLabel(p).replace(/^~\s*/, '').trim();
+    return (raw || '?').charAt(0).toUpperCase();
+}
+
 async function loadParticipants() {
     if (!isGroup.value) return;
     participantsLoading.value = true;
@@ -111,7 +116,7 @@ function openParticipantMenu(p: GroupParticipant, e: MouseEvent) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const MENU_WIDTH = 280;
-    const MENU_HEIGHT_EST = 240;
+    const MENU_HEIGHT_EST = 300;
     let x = e.clientX;
     let y = e.clientY;
     if (x + MENU_WIDTH + 8 > vw) x = vw - MENU_WIDTH - 8;
@@ -164,7 +169,12 @@ watch(
 );
 
 function onEscape(e: KeyboardEvent) {
-    if (e.key === 'Escape') emit('close');
+    if (e.key !== 'Escape') return;
+    if (participantMenuOpen.value) {
+        closeParticipantMenu();
+        return;
+    }
+    emit('close');
 }
 window.addEventListener('keydown', onEscape);
 onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
@@ -555,7 +565,7 @@ async function saveContactName() {
         <div v-if="participantMenuOpen && participantMenu">
             <div class="fixed inset-0 z-40" @click="closeParticipantMenu" @contextmenu.prevent="closeParticipantMenu"></div>
             <div
-                class="fixed z-50 min-w-[280px] rounded-xl shadow-2xl border py-2"
+                class="participant-popover fixed z-50 w-[min(280px,calc(100vw-16px))] max-w-[280px] rounded-xl shadow-2xl border overflow-hidden"
                 :style="{
                     left: participantMenu.x + 'px',
                     top: participantMenu.y + 'px',
@@ -563,49 +573,70 @@ async function saveContactName() {
                     borderColor: 'var(--wa-border-strong)',
                 }"
             >
-                <div class="px-4 pt-2 pb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                    {{ participantLabel(participantMenu.p) }}
+                <div class="participant-popover__header">
+                    <div class="participant-popover__avatar" aria-hidden="true">
+                        {{ participantInitial(participantMenu.p) }}
+                    </div>
+                    <div class="participant-popover__head-text">
+                        <div class="participant-popover__title">
+                            {{ participantLabel(participantMenu.p) }}
+                        </div>
+                        <div v-if="participantMenu.p.number" class="participant-popover__subtitle tabular-nums">
+                            {{ formatPhone(participantMenu.p.number) }}
+                        </div>
+                        <div v-else class="participant-popover__subtitle">
+                            Номер недоступен
+                        </div>
+                    </div>
                 </div>
 
-                <div class="px-4 pb-2">
-                    <label class="block text-[11px] mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
+                <div class="participant-popover__divider" role="presentation"></div>
+
+                <div class="participant-popover__field-block">
+                    <label class="participant-popover__label" for="participant-save-name">
                         Имя для сохранения
                     </label>
                     <input
+                        id="participant-save-name"
                         v-model="participantName"
                         type="text"
-                        class="w-full px-3 py-2 rounded-xl border-0 focus:ring-0 focus:outline-none"
+                        class="participant-popover__input"
                         :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
-                        placeholder="Введите имя…"
+                        placeholder="Как сохранить в контактах…"
+                        autocomplete="off"
                     />
-                    <div v-if="participantSaveError" class="text-[11px] mt-2" style="color:#ff6b6b;">
+                    <div v-if="participantSaveError" class="participant-popover__error">
                         {{ participantSaveError }}
                     </div>
                 </div>
 
-                <button
-                    class="msg-menu-item"
-                    type="button"
-                    :disabled="participantSaving || !participantMenu.p.number"
-                    @click="addParticipantToContacts"
-                >
-                    <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Добавить в контакты
-                </button>
+                <div class="participant-popover__divider" role="presentation"></div>
 
-                <button
-                    class="msg-menu-item"
-                    type="button"
-                    :disabled="!participantMenu.p.number"
-                    @click="writePrivately"
-                >
-                    <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5m7 7l-3.5-3.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Написать лично
-                </button>
+                <div class="participant-popover__actions">
+                    <button
+                        class="participant-popover__row"
+                        type="button"
+                        :disabled="participantSaving || !participantMenu.p.number"
+                        @click="addParticipantToContacts"
+                    >
+                        <svg class="participant-popover__row-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span class="participant-popover__row-label">Добавить в контакты</span>
+                    </button>
+
+                    <button
+                        class="participant-popover__row"
+                        type="button"
+                        :disabled="!participantMenu.p.number"
+                        @click="writePrivately"
+                    >
+                        <svg class="participant-popover__row-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5m7 7l-3.5-3.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="participant-popover__row-label">Написать лично</span>
+                    </button>
+                </div>
             </div>
         </div>
     </teleport>
@@ -706,5 +737,120 @@ async function saveContactName() {
     font-size: 0.75rem;
     color: var(--wa-text-secondary);
     max-width: 260px;
+}
+
+.participant-popover__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 0.875rem 0.75rem;
+}
+.participant-popover__avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--wa-accent);
+    background: var(--wa-panel);
+    border: 1px solid var(--wa-border);
+}
+.participant-popover__head-text {
+    min-width: 0;
+    flex: 1;
+    padding-top: 0.125rem;
+}
+.participant-popover__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--wa-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.participant-popover__subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: var(--wa-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.participant-popover__divider {
+    height: 1px;
+    margin: 0 0.75rem;
+    background: var(--wa-border);
+}
+.participant-popover__field-block {
+    padding: 0.75rem 0.875rem 0.625rem;
+}
+.participant-popover__label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.375rem;
+    color: var(--wa-text-secondary);
+}
+.participant-popover__input {
+    width: 100%;
+    border-radius: 0.625rem;
+    border: 1px solid var(--wa-border);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.12s ease;
+}
+.participant-popover__input:focus {
+    border-color: var(--wa-accent);
+}
+.participant-popover__error {
+    margin-top: 0.375rem;
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    color: #ff6b6b;
+}
+.participant-popover__actions {
+    padding: 0.25rem 0 0.375rem;
+}
+.participant-popover__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    text-align: left;
+    font-size: 0.875rem;
+    color: var(--wa-text);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+}
+.participant-popover__row:not(:disabled):hover {
+    background-color: var(--wa-panel-hover);
+}
+.participant-popover__row:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+.participant-popover__row-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    color: var(--wa-text-secondary);
+}
+.participant-popover__row-label {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
 }
 </style>

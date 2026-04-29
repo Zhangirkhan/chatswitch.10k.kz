@@ -361,11 +361,11 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                     />
                     <div
                         v-if="getSessionLabel(chat) || showAssigneePill"
-                        class="flex flex-wrap items-center gap-1 min-w-0"
+                        class="flex max-w-full min-w-0 flex-col items-start gap-1"
                     >
                         <span
                             v-if="getSessionLabel(chat)"
-                            class="shrink-0 text-[10px] px-1.5 py-0 rounded font-medium"
+                            class="max-w-full truncate text-[10px] px-1.5 py-0 rounded font-medium"
                             :style="sessionBadgeStyle(chat)"
                             :title="sessionTooltip(chat)"
                         >

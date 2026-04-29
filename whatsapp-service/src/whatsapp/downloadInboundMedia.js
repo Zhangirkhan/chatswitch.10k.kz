@@ -25,7 +25,7 @@ async function downloadInboundMedia(service, message) {
   const voiceLike = type === 'ptt' || type === 'voice' || type === 'audio';
 
   if (!media && (voiceLike || message.hasMedia)) {
-    const delaysMs = [400, 1200, 2800];
+    const delaysMs = [400, 1200, 2800, 6000, 12000, 25000, 45000];
     for (const ms of delaysMs) {
       await new Promise((r) => setTimeout(r, ms));
       const refreshed = await service.client.getMessageById(message.id._serialized).catch(() => null);
@@ -37,6 +37,12 @@ async function downloadInboundMedia(service, message) {
         break;
       }
     }
+  }
+
+  if (!media && (voiceLike || message.hasMedia)) {
+    console.warn(
+      `[${service.sessionName}] media unavailable after retries: id=${message.id?._serialized || 'unknown'} type=${type || 'unknown'} hasMedia=${Boolean(message.hasMedia)}`
+    );
   }
 
   return media;

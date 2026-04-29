@@ -7,7 +7,7 @@ import MessageReactions from './MessageReactions.vue';
 import MessageStatus from './MessageStatus.vue';
 import { useToastStore } from '@/stores/toast';
 import type { Chat, Message, MessageMedia, MessageReaction } from '@/types';
-import { formatPhone } from '@/utils/phone';
+import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { renderWaMarkup, stripWaMarkup } from '@/utils/waMarkup';
 import LinkPreview from '@/Components/LinkPreview.vue';
 
@@ -60,12 +60,17 @@ const QUICK_REACTION_BAR_H = 32;
 const MENU_REACTION_GAP = 6;
 const showGroupSender = computed(() => !!props.isGroupChat && isInbound.value);
 const isGroup = computed(() => !!props.isGroupChat);
-const senderPhoneDigits = computed(() => (props.message.sender_phone || '').trim());
+const senderPhoneDigits = computed(() => {
+    const raw = (props.message.sender_phone || '').trim();
+    if (!raw || !isPlausibleInboundSenderPhone(raw)) return '';
+    return raw.replace(/\D/g, '');
+});
 const canReplyPrivately = computed(() => isGroup.value && isInbound.value && senderPhoneDigits.value !== '' && senderPhoneDigits.value !== '0');
 const canShowMessageInfo = computed(() => !isGroup.value && canViewMessageInfo.value);
 const groupSenderLabel = computed(() => {
     const name = (props.message.sender_name || '').trim();
-    const phone = (props.message.sender_phone || '').trim();
+    const phoneRaw = (props.message.sender_phone || '').trim();
+    const phone = phoneRaw && isPlausibleInboundSenderPhone(phoneRaw) ? formatPhone(phoneRaw) : '';
     if (!name) return phone || '';
     if (!phone) return `~ ${name}`;
     return `~ ${name} · ${phone}`;
@@ -93,8 +98,11 @@ const quotedAuthor = computed(() => {
     if (sentBy) return sentBy;
     const name = q.sender_name ? String(q.sender_name).trim() : '';
     if (name) return name;
-    const phone = q.sender_phone ? String(q.sender_phone).trim() : '';
-    return phone;
+    const phoneRaw = q.sender_phone ? String(q.sender_phone).trim() : '';
+    if (phoneRaw && isPlausibleInboundSenderPhone(phoneRaw)) {
+        return formatPhone(phoneRaw) || phoneRaw;
+    }
+    return '';
 });
 const quotedPreview = computed(() => {
     const q = quoted.value as any;
@@ -204,6 +212,7 @@ const operatorInitial = computed(() => {
 });
 
 type MentionMeta = { id: string; number: string; label: string };
+type ContactCard = { name: string; phone: string; avatarUrl?: string | null; contactId?: number | null };
 type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'mention'; text: string; number: string; id: string; label: string };
@@ -253,6 +262,72 @@ function openChatForMention(m: { number: string }) {
     const sessionId = props.chat?.whatsapp_session_id;
     if (!phone || !sessionId) return;
     router.post(route('chats.start'), { phone, whatsapp_session_id: sessionId }, { preserveScroll: true });
+}
+
+function unescapeVcardValue(value: string): string {
+    return value
+        .replace(/\\n/gi, '\n')
+        .replace(/\\,/g, ',')
+        .replace(/\\;/g, ';')
+        .replace(/\\\\/g, '\\')
+        .trim();
+}
+
+function parseVcardContact(raw: string): ContactCard | null {
+    const start = raw.indexOf('BEGIN:VCARD');
+    if (start < 0) return null;
+    const end = raw.indexOf('END:VCARD', start);
+    const vcard = raw.slice(start, end >= 0 ? end + 'END:VCARD'.length : undefined);
+    const lines = vcard.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const fnLine = lines.find((line) => /^FN:/i.test(line));
+    const nLine = lines.find((line) => /^N:/i.test(line));
+    const telLine = lines.find((line) => /^TEL/i.test(line));
+    const name = unescapeVcardValue((fnLine || nLine || '').replace(/^[^:]*:/, '').replace(/;+$/g, ''));
+    const phoneRaw = unescapeVcardValue((telLine || '').replace(/^[^:]*:/, ''));
+    const phone = phoneRaw.trim();
+    if (!name && !phone) return null;
+    return { name: name || phone, phone };
+}
+
+const contactCard = computed<ContactCard | null>(() => {
+    const meta = props.message.metadata as any;
+    const contact = meta?.contact;
+    if (contact && typeof contact === 'object') {
+        const name = String(contact.name || '').trim();
+        const phone = String(contact.phone || '').trim();
+        const avatarUrl = contact.avatar_url ? String(contact.avatar_url) : null;
+        const contactId = Number(contact.id || 0) > 0 ? Number(contact.id) : null;
+        if (name || phone) {
+            return { name: name || phone, phone, avatarUrl, contactId };
+        }
+    }
+
+    const body = String(props.message.body || '');
+    if (normalizedMessageType.value === 'vcard' || normalizedMessageType.value === 'contact' || body.includes('BEGIN:VCARD')) {
+        return parseVcardContact(body);
+    }
+
+    return null;
+});
+
+function openChatForContactCard(card: ContactCard): void {
+    const phone = String(card.phone || '').replace(/\D/g, '').trim();
+    const sessionId = props.chat?.whatsapp_session_id;
+    if (!phone || !sessionId) return;
+    const payload: {
+        phone: string;
+        whatsapp_session_id: number;
+        name: string;
+        contact_id?: number;
+    } = {
+        phone,
+        whatsapp_session_id: sessionId,
+        name: card.name,
+    };
+    if (card.contactId) {
+        payload.contact_id = card.contactId;
+    }
+    router.post(route('chats.start'), payload, { preserveScroll: true });
 }
 
 function renderSegmentHtml(text: string): string {
@@ -535,6 +610,9 @@ const isOperatorSignatureOnlyBody = computed(() => {
 
 const showMessageBody = computed(() => {
     if (!props.message.body?.trim()) {
+        return false;
+    }
+    if (contactCard.value) {
         return false;
     }
     if (showGroupSender.value && groupSenderLabel.value) {
@@ -1046,6 +1124,39 @@ onBeforeUnmount(() => {
                     <path d="M14 7l5 5-5 5v-3H5v-4h9V7z" />
                 </svg>
                 <span>Переслано</span>
+            </div>
+
+            <div v-if="contactCard" class="wa-contact-card mb-1" :class="fullBleedVisualBubble ? '' : 'pr-14'">
+                <span
+                    v-if="showGroupSender && groupSenderLabel"
+                    class="mb-1 block text-[12px] font-medium"
+                    :style="{ color: 'var(--wa-accent)' }"
+                >
+                    {{ groupSenderLabel }}
+                </span>
+                <div class="wa-contact-card-main">
+                    <div class="wa-contact-avatar">
+                        <img
+                            v-if="contactCard.avatarUrl"
+                            :src="contactCard.avatarUrl"
+                            alt=""
+                        />
+                        <svg v-else class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v1h16v-1c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                    </div>
+                    <div class="wa-contact-info">
+                        <div class="wa-contact-name">{{ contactCard.name }}</div>
+                        <div v-if="contactCard.phone" class="wa-contact-phone">{{ formatPhone(contactCard.phone) || contactCard.phone }}</div>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    class="wa-contact-action"
+                    @click.stop="openChatForContactCard(contactCard)"
+                >
+                    Сообщение
+                </button>
             </div>
 
             <!-- Quoted / reply preview -->
@@ -1681,6 +1792,72 @@ onBeforeUnmount(() => {
 
 .wa-msg-selected {
     box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.25);
+}
+
+.wa-contact-card {
+    width: 100%;
+    min-width: min(280px, 100%);
+    overflow: hidden;
+}
+.wa-contact-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px 12px;
+}
+.wa-contact-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #b9c0c5;
+    background: rgba(0, 0, 0, 0.22);
+}
+.wa-contact-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.wa-contact-info {
+    min-width: 0;
+    flex: 1;
+}
+.wa-contact-name {
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 700;
+    color: var(--wa-bubble-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wa-contact-phone {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--wa-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wa-contact-action {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: #25d366;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    transition: background-color 0.12s ease;
+}
+.wa-contact-action:hover {
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .wa-quick-reactions {

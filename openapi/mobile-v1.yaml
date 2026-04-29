@@ -1,0 +1,496 @@
+openapi: 3.0.3
+info:
+  title: ChatSwitch Mobile API
+  version: "1.0.0"
+  description: |
+    REST API v1 для мобильного клиента (Laravel Sanctum, Bearer-токен).
+
+    **Доступ:** роли `administrator`, `manager`, `employee` (кроме `POST /auth/login`).
+
+    **Неактивный пользователь** (`is_active: false`): логин — HTTP 403; при уже выданном токене — 403 на защищённых маршрутах.
+
+    **Лимиты:** группа `throttle:api` (лимитер `api` в приложении); неудачные логины — до 5 попыток по ключу email+IP (429).
+
+servers:
+  - url: /
+    description: Текущий хост приложения
+
+tags:
+  - name: Auth
+    description: Вход, выход, текущий пользователь
+  - name: Departments
+    description: Отделы
+  - name: Chats
+    description: Чаты и сообщения
+
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход (выдача токена)
+      operationId: authLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "403":
+          description: Аккаунт деактивирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "422":
+          description: Неверные учётные данные или ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "429":
+          description: Слишком много попыток входа
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход (отзыв текущего токена)
+      operationId: authLogout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          description: Нет или недействительный токен
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Текущий пользователь
+      operationId: authMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK (обёртка Laravel `data`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResourceResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет роли / деактивирован
+
+  /api/v1/departments:
+    get:
+      tags: [Departments]
+      summary: Список активных отделов
+      operationId: departmentsIndex
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK (обёртка Laravel `data`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepartmentListResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет роли / деактивирован
+
+  /api/v1/chats:
+    get:
+      tags: [Chats]
+      summary: Список чатов (не в архиве)
+      operationId: chatsIndex
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Поиск по имени чата / контакту (как на вебе)
+      responses:
+        "200":
+          description: Пагинированный список
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedChats"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа
+
+  /api/v1/chats/archived:
+    get:
+      tags: [Chats]
+      summary: Архивные чаты
+      operationId: chatsArchived
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedChats"
+
+  /api/v1/chats/{chat}:
+    get:
+      tags: [Chats]
+      summary: Карточка чата
+      operationId: chatsShow
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      responses:
+        "200":
+          description: OK (обёртка Laravel `data`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResourceResponse"
+        "403":
+          description: Политика ChatPolicy (нет view)
+        "404":
+          description: Чат не найден
+
+  /api/v1/chats/{chat}/messages:
+    get:
+      tags: [Chats]
+      summary: История сообщений (курсор)
+      operationId: chatMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: before_timestamp
+          schema: { type: string }
+          description: Загрузка страницы старше этого времени
+        - in: query
+          name: before_id
+          schema: { type: integer }
+          description: Уточнение при равном before_timestamp
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesCursorResponse"
+        "403":
+          description: Нет view на чат
+    post:
+      tags: [Chats]
+      summary: Отправить исходящее текстовое сообщение
+      operationId: chatSendMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    $ref: "#/components/schemas/Message"
+        "403":
+          description: Нет sendMessage / view
+        "422":
+          description: Валидация
+
+  /api/v1/chats/{chat}/read:
+    post:
+      tags: [Chats]
+      summary: Отметить прочитанным (сброс unread + seen в WhatsApp)
+      operationId: chatMarkRead
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "403":
+          description: Нет view
+
+  /api/v1/chats/{chat}/typing:
+    post:
+      tags: [Chats]
+      summary: Индикатор «печатает»
+      operationId: chatTyping
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "403":
+          description: Нет view
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum personal access token
+      description: 'Заголовок Authorization: Bearer {token}'
+
+  parameters:
+    ChatId:
+      name: chat
+      in: path
+      required: true
+      description: ID чата
+      schema:
+        type: integer
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [token, token_type, user]
+      properties:
+        token:
+          type: string
+          description: Plaintext токен (показывается только при создании)
+        token_type:
+          type: string
+          example: Bearer
+        user:
+          $ref: "#/components/schemas/User"
+
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Выход выполнен.
+
+    UserResourceResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        department_id: { type: integer, nullable: true }
+        is_active: { type: boolean }
+        roles:
+          type: array
+          items: { type: string }
+          example: [employee]
+        department:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Department"
+
+    Department:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        is_active: { type: boolean }
+
+    DepartmentListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Department"
+
+    ChatResourceResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Chat"
+
+    Chat:
+      type: object
+      description: Поля из ChatResource (часть опциональна, если связь не загружена)
+      properties:
+        id: { type: integer }
+        whatsapp_chat_id: { type: string }
+        whatsapp_session_id: { type: integer }
+        contact_id: { type: integer, nullable: true }
+        chat_name: { type: string, nullable: true }
+        is_group: { type: boolean }
+        last_message_text: { type: string, nullable: true }
+        last_message_at: { type: string, format: date-time, nullable: true }
+        last_message_direction: { type: string, nullable: true }
+        unread_count: { type: integer }
+        is_archived: { type: boolean }
+        is_pinned: { type: boolean }
+        is_muted: { type: boolean }
+        muted_until: { type: string, format: date-time, nullable: true }
+        is_favorite: { type: boolean }
+        pinned_message_id: { type: integer, nullable: true }
+
+    PaginatedChats:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Chat"
+        links:
+          type: object
+          additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+
+    Message:
+      type: object
+      description: Поля из MessageResource
+      properties:
+        id: { type: integer }
+        chat_id: { type: integer }
+        direction: { type: string, enum: [inbound, outbound, system] }
+        type: { type: string }
+        body: { type: string, nullable: true }
+        metadata: { type: object, additionalProperties: true, nullable: true }
+        sender_phone: { type: string, nullable: true }
+        sender_name: { type: string, nullable: true }
+        sent_by_user_id: { type: integer, nullable: true }
+        is_forwarded: { type: boolean }
+        quoted_message_id: { type: string, nullable: true }
+        ack: { type: string }
+        message_timestamp: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+
+    MessagesCursorResponse:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+
+    SendMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 4096
+        display_message:
+          type: string
+          maxLength: 4096
+          nullable: true
+        quoted_message_id:
+          type: string
+          maxLength: 255
+          nullable: true
+        mentions:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        mentions_meta:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [id, number, label]
+            properties:
+              id: { type: string }
+              number: { type: string }
+              label: { type: string }
+
+    SuccessFlag:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    ErrorMessage:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
