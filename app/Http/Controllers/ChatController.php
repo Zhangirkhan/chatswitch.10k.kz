@@ -33,6 +33,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -216,7 +217,7 @@ final class ChatController extends Controller
         }
 
         try {
-            \Illuminate\Support\Facades\Log::info('chat.sendMessage mention debug', [
+            Log::info('chat.sendMessage mention debug', [
                 'chat_id' => $chat->id,
                 'is_group' => (bool) $chat->is_group,
                 'mentions_raw_type' => gettype($mentionsRaw),
@@ -233,11 +234,18 @@ final class ChatController extends Controller
         // UI может прислать просто digits — нормализуем.
         $mentions = array_values(array_filter(array_map(
             static function ($m): ?string {
-                if (!is_string($m)) return null;
+                if (! is_string($m)) {
+                    return null;
+                }
                 $m = trim($m);
-                if ($m === '') return null;
-                if (str_contains($m, '@')) return $m;
-                return preg_replace('/\D/', '', $m) . '@c.us';
+                if ($m === '') {
+                    return null;
+                }
+                if (str_contains($m, '@')) {
+                    return $m;
+                }
+
+                return preg_replace('/\D/', '', $m).'@c.us';
             },
             $mentions
         )));
@@ -1011,11 +1019,6 @@ final class ChatController extends Controller
             $rawDeptIds = $chat->relationLoaded('departments')
                 ? $chat->departments->pluck('id')->all()
                 : $chat->departments()->pluck('departments.id')->all();
-            if ($rawDeptIds === []) {
-                // Админ сначала прикрепляет к чату отдел(а) — до этого список пустой.
-                return collect();
-            }
-            // Полный список активных пользователей; новых можно сохранить только из отделов чата (см. ChatAssignmentController).
             $adminChatDepartmentIds = array_values(array_map(intval(...), $rawDeptIds));
         } elseif ($user->hasRole('manager')) {
             $query->where('department_id', $user->department_id);

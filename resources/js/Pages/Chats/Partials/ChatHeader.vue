@@ -160,7 +160,6 @@ async function saveDepartments(closeAfterSave = true) {
 const assignableUsersList = computed<AssignableUser[]>(() => props.assignableUsers ?? []);
 const isAdministrator = computed(() => (page.props.auth?.user?.roles ?? []).includes('administrator'));
 const isManager = computed(() => (page.props.auth?.user?.roles ?? []).includes('manager'));
-const chatHasDepartmentsForAssign = computed(() => (props.chat.departments?.length ?? 0) > 0);
 
 /** У руководителя — как раньше; у админа кнопка видна всегда, но без отделов у чата неактивна. */
 const showAssignUsersBlock = computed(() => {
@@ -170,16 +169,9 @@ const showAssignUsersBlock = computed(() => {
     return isAdministrator.value;
 });
 
-const assignUsersDisabled = computed(
-    () =>
-        (isAdministrator.value && !chatHasDepartmentsForAssign.value) ||
-        assignableUsersList.value.length === 0,
-);
+const assignUsersDisabled = computed(() => assignableUsersList.value.length === 0);
 
 const assignUsersButtonTitle = computed(() => {
-    if (isAdministrator.value && !chatHasDepartmentsForAssign.value) {
-        return 'Сначала прикрепите к чату хотя бы один отдел («Отделы»), затем назначайте сотрудников из этих отделов.';
-    }
     if (assignableUsersList.value.length === 0) {
         return 'Нет активных пользователей в системе.';
     }

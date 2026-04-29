@@ -7,7 +7,6 @@ namespace App\Http\Controllers;
 use App\Events\ChatsListNotify;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
-use App\Models\User;
 use App\Services\ChatService;
 use App\Support\ChatBroadcastAudience;
 use Illuminate\Http\JsonResponse;
@@ -26,8 +25,6 @@ final class ChatAssignmentController extends Controller
         $validated = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
-
-        $this->assertAdministratorAssigneeRules($request, $chat, [(int) $validated['user_id']]);
 
         $oldIds = $chat->assignments()->pluck('user_id')->all();
 
@@ -77,7 +74,6 @@ final class ChatAssignmentController extends Controller
         $actorId = $request->user()->id;
 
         $oldIds = $chat->assignments()->pluck('user_id')->all();
-        $this->assertAdministratorAssigneeRules($request, $chat, $userIds);
 
         $chat->assignments()->whereNotIn('user_id', $userIds)->delete();
 
@@ -99,12 +95,6 @@ final class ChatAssignmentController extends Controller
         ]);
     }
 
-    /**
-     * У администратора к чату должны быть прикреплены отделы; новых ответственных можно брать только из этих отделов
-     * (уже закреплённые ранее сохраняются, даже если отдел в профиле не совпадает).
-     *
-     * @param  list<int>  $userIds
-     */
     /**
      * @param  list<int|string>  $oldIds
      * @param  list<int|string>  $newIds
@@ -131,37 +121,5 @@ final class ChatAssignmentController extends Controller
             (bool) $chat->is_muted,
             $added,
         ));
-    }
-
-    private function assertAdministratorAssigneeRules(Request $request, Chat $chat, array $userIds): void
-    {
-        $actor = $request->user();
-        if ($actor === null || ! $actor->hasRole('administrator')) {
-            return;
-        }
-
-        $departmentIds = $chat->departments()->pluck('departments.id')->all();
-        if ($departmentIds === []) {
-            abort(422, 'Сначала прикрепите к чату хотя бы один отдел, затем назначайте сотрудников.');
-        }
-
-        $allowedNew = User::query()
-            ->where('is_active', true)
-            ->whereIn('department_id', $departmentIds)
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->all();
-
-        $oldIds = $chat->assignments()->pluck('user_id')->map(fn ($id): int => (int) $id)->all();
-
-        foreach ($userIds as $rawId) {
-            $id = (int) $rawId;
-            if (in_array($id, $oldIds, true)) {
-                continue;
-            }
-            if (! in_array($id, $allowedNew, true)) {
-                abort(422, 'Назначать можно только сотрудников из отделов, прикреплённых к этому чату.');
-            }
-        }
     }
 }
