@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, nextTick } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
@@ -7,7 +7,7 @@ import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
 import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
 import LastMessagePreview from '@/Components/LastMessagePreview.vue';
 import { useToastStore } from '@/stores/toast';
-import type { Chat } from '@/types';
+import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
 
 const { show: showToast } = useToastStore();
@@ -16,6 +16,32 @@ const props = defineProps<{
     chat: Chat;
     isSelected: boolean;
 }>();
+
+const page = usePage<PageProps>();
+
+/** Плашки «кто закреплён» — только у администратора и руководителя. */
+const showAssigneeBadges = computed(() => {
+    const roles = page.props.auth?.user?.roles ?? [];
+    return roles.includes('administrator') || roles.includes('manager');
+});
+
+const assigneeNames = computed(() =>
+    (props.chat.assignments ?? [])
+        .map((a) => a.user?.name?.trim())
+        .filter((n): n is string => Boolean(n && n.length > 0)),
+);
+
+/** Все ответственные в плашке списком (без «Имя +N»). */
+const assigneePillLabel = computed(() => assigneeNames.value.join(', '));
+
+const assigneePillTitle = computed(() =>
+    assigneeNames.value.length > 0 ? `Ответственные: ${assigneeNames.value.join(', ')}` : '',
+);
+
+/** Плашка закреплённых только если есть хотя бы один назначенный. */
+const showAssigneePill = computed(
+    () => showAssigneeBadges.value && assigneeNames.value.length > 0,
+);
 
 const menuOpen = ref(false);
 const menuX = ref(0);
@@ -68,7 +94,7 @@ function closeMenu() {
     menuOpen.value = false;
 }
 
-async function run(action: () => Promise<unknown>, reloadKeys: string[] = ['chats', 'archivedCount']) {
+async function run(action: () => Promise<unknown>, reloadKeys: string[] = ['chats', 'archivedCount', 'unreadChatsCount']) {
     if (working.value) return;
     working.value = true;
     try {
@@ -89,7 +115,7 @@ function togglePin() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-pin', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount'] });
+                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
                 },
             },
         });
@@ -105,7 +131,7 @@ function toggleArchive() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.archive', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount'] });
+                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
                 },
             },
         });
@@ -116,7 +142,7 @@ const isGroupChat = computed<boolean>(() => props.chat.is_group);
 
 async function muteApi(payload: { duration?: '8h' | '1w' | 'always'; unmute?: boolean }): Promise<void> {
     await axios.post(route('chats.toggle-mute', props.chat.id), payload);
-    router.reload({ only: ['chats', 'chat'] });
+    router.reload({ only: ['chats', 'chat', 'unreadChatsCount'] });
 }
 
 function toggleMute() {
@@ -166,7 +192,7 @@ function toggleFavorite() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-favorite', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount'] });
+                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
                 },
             },
         });
@@ -182,7 +208,7 @@ function toggleUnread() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-unread', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount'] });
+                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
                 },
             },
         });
@@ -327,22 +353,34 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                     {{ formatTime(chat.last_message_at) }}
                 </span>
             </div>
-            <div class="flex items-center justify-between mt-1">
-                <div class="flex items-center gap-1 min-w-0 flex-1">
-                    <span
-                        v-if="getSessionLabel(chat)"
-                        class="shrink-0 text-[10px] px-1.5 py-0 rounded font-medium"
-                        :style="sessionBadgeStyle(chat)"
-                        :title="sessionTooltip(chat)"
-                    >
-                        {{ getSessionLabel(chat) }}
-                    </span>
+            <div class="flex items-start justify-between gap-1 mt-1">
+                <div class="flex flex-col gap-1 min-w-0 flex-1">
                     <LastMessagePreview
                         :chat="chat"
-                        class="text-sm text-[var(--wa-text-secondary)] truncate"
+                        class="text-sm text-[var(--wa-text-secondary)] truncate min-w-0"
                     />
+                    <div
+                        v-if="getSessionLabel(chat) || showAssigneePill"
+                        class="flex flex-wrap items-center gap-1 min-w-0"
+                    >
+                        <span
+                            v-if="getSessionLabel(chat)"
+                            class="shrink-0 text-[10px] px-1.5 py-0 rounded font-medium"
+                            :style="sessionBadgeStyle(chat)"
+                            :title="sessionTooltip(chat)"
+                        >
+                            {{ getSessionLabel(chat) }}
+                        </span>
+                        <span
+                            v-if="showAssigneePill"
+                            class="min-w-0 max-w-full text-[10px] px-1.5 py-0.5 rounded font-medium assignee-pill assignee-pill-expanded leading-snug"
+                            :title="assigneePillTitle"
+                        >
+                            {{ assigneePillLabel }}
+                        </span>
+                    </div>
                 </div>
-                <div class="ml-1 shrink-0 flex items-center gap-1 bottom-meta">
+                <div class="ml-1 shrink-0 flex items-center gap-1 bottom-meta self-center">
                     <BellOffIcon
                         v-if="chat.is_muted"
                         :size="18"
@@ -490,6 +528,18 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
 .chat-list-item.is-selected {
     --icon-cutout: var(--wa-selected);
     background-color: var(--wa-selected);
+}
+
+/* Плашка закреплённых (отличается от зелёной плашки WhatsApp-сессии). */
+.assignee-pill {
+    background: color-mix(in srgb, var(--wa-accent) 18%, transparent);
+    color: #b6f7df;
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, transparent);
+}
+.assignee-pill-expanded {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .bottom-meta {

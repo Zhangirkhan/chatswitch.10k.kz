@@ -9,13 +9,15 @@ import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
-import type { Chat, Message, MessageReaction, Paginated } from '@/types';
+import type { AssignableUser, Chat, Department, Message, MessageReaction, Paginated } from '@/types';
 import { useToastStore } from '@/stores/toast';
 
 const props = defineProps<{
     chat: Chat;
     messages: Paginated<Message>;
     chats: Paginated<Chat>;
+    departments?: Department[];
+    assignableUsers?: AssignableUser[];
 }>();
 
 const { show: showToast } = useToastStore();
@@ -212,12 +214,23 @@ function closeMessageInfo() {
     messageInfoMessage.value = null;
 }
 
+function messageTimelineMs(m: Message): number {
+    const raw = m.message_timestamp || m.created_at;
+    if (!raw) return 0;
+    const t = new Date(raw).getTime();
+    return Number.isFinite(t) ? t : 0;
+}
+
 const displayedMessages = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     if (!q) return localMessages.value;
-    return localMessages.value.filter((m) =>
-        (m.body || '').toLowerCase().includes(q),
-    );
+    const hits = localMessages.value.filter((m) => (m.body || '').toLowerCase().includes(q));
+    // Новые совпадения сверху (как в поиске мессенджеров: приоритет у последних сообщений).
+    return [...hits].sort((a, b) => {
+        const diff = messageTimelineMs(b) - messageTimelineMs(a);
+        if (diff !== 0) return diff;
+        return b.id - a.id;
+    });
 });
 
 const pinned = computed(() => (props.chat as any)?.pinned_message || null);
@@ -226,7 +239,7 @@ async function unpinPinned(): Promise<void> {
     try {
         await axios.delete(route('chats.unpin-message', props.chat.id));
         // Refresh chat so header banner updates.
-        router.reload({ only: ['chat'] });
+        router.reload({ only: ['chat', 'unreadChatsCount'] });
     } catch {
         // no-op; ChatMessage.vue shows alerts on pin/unpin from context menu
     }
@@ -300,11 +313,16 @@ function scrollToBottom() {
 
 function markAsRead() {
     if (props.chat.unread_count > 0) {
-        axios.post(route('chats.mark-read', props.chat.id)).catch(() => {});
+        axios
+            .post(route('chats.mark-read', props.chat.id))
+            .then(() => {
+                router.reload({ only: ['unreadChatsCount', 'chat'] });
+            })
+            .catch(() => {});
     }
 }
 
-function onMessageSent(message: Message) {
+async function onMessageSent(message: Message) {
     mergeMessageIntoList(message);
     if (message.direction === 'outbound') {
         const s = ensureStatus(message) || 'sent';
@@ -315,6 +333,12 @@ function onMessageSent(message: Message) {
         }
     }
     scrollToBottom();
+    // Назначения/отделы в шапке и плашки в списке (в т.ч. авто-добавление админа) — сразу с сервера.
+    try {
+        await router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
+    } catch {
+        /* сеть / 419 — локальное сообщение уже в ленте */
+    }
 }
 
 async function loadMoreMessages() {
@@ -323,13 +347,22 @@ async function loadMoreMessages() {
 
     const oldestMsg = localMessages.value[0];
     const ts = oldestMsg?.message_timestamp || oldestMsg?.created_at;
+    const beforeId = oldestMsg?.id;
+
+    const el = messagesContainer.value;
+    const prevScrollHeight = el?.scrollHeight ?? 0;
 
     try {
         const { data } = await axios.get(route('api.chats.timeline', props.chat.id), {
-            params: { before_timestamp: ts, limit: 50 },
+            params: { before_timestamp: ts, before_id: beforeId, limit: 50 },
         });
         if (data.messages?.length) {
             localMessages.value = [...data.messages, ...localMessages.value];
+            await nextTick();
+            if (el) {
+                const delta = el.scrollHeight - prevScrollHeight;
+                el.scrollTop += delta;
+            }
         }
         if (!data.messages?.length || data.messages.length < 50) {
             hasMoreMessages.value = false;
@@ -338,13 +371,6 @@ async function loadMoreMessages() {
         console.error('Load more failed:', err);
     } finally {
         isLoadingMore.value = false;
-    }
-}
-
-function onScroll() {
-    if (!messagesContainer.value) return;
-    if (messagesContainer.value.scrollTop < 200) {
-        loadMoreMessages();
     }
 }
 
@@ -401,6 +427,8 @@ function cleanupEcho() {
                 <ChatHeader
                     :chat="chat"
                     :typing-users="typingUsers"
+                    :departments="departments"
+                    :assignable-users="assignableUsers"
                     @toggle-search="toggleSearch"
                     @show-contact-info="toggleContactInfo"
                 />
@@ -510,13 +538,20 @@ function cleanupEcho() {
                     <div
                         ref="messagesContainer"
                         class="min-h-0 flex-1 overflow-y-auto wa-scrollbar py-3 px-3 sm:px-4"
-                        @scroll="onScroll"
                     >
-                        <div v-if="isLoadingMore" class="py-2 text-center">
-                            <span
-                                class="rounded-full px-3 py-1 text-xs"
-                                :style="{ background: 'var(--wa-date-bubble)', color: 'var(--wa-date-bubble-text)' }"
-                            >Загрузка...</span>
+                        <div v-if="hasMoreMessages" class="mb-3 flex justify-center">
+                            <button
+                                type="button"
+                                class="rounded-full px-4 py-2 text-xs font-medium transition hover:opacity-90 disabled:opacity-50"
+                                :style="{
+                                    background: 'var(--wa-date-bubble)',
+                                    color: 'var(--wa-date-bubble-text)',
+                                }"
+                                :disabled="isLoadingMore"
+                                @click="loadMoreMessages"
+                            >
+                                {{ isLoadingMore ? 'Загрузка…' : 'Загрузить ещё 50 сообщений' }}
+                            </button>
                         </div>
 
                     <ChatMessage
@@ -557,6 +592,7 @@ function cleanupEcho() {
                         :chat-id="chat.id"
                         :session-id="chat.whatsapp_session_id"
                         :reply-to="replyTo"
+                        :is-group="chat.is_group"
                         @message-sent="onMessageSent"
                         @cancel-reply="clearReply"
                     />
@@ -586,6 +622,7 @@ function cleanupEcho() {
                 :whatsapp-session-id="forwardWhatsappSessionId"
                 @close="closeForward"
             />
+
         </div>
     </ChatLayout>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
@@ -28,6 +28,22 @@ const props = defineProps<{
     assignableUsers?: AssignableUser[];
 }>();
 
+const page = usePage<any>();
+
+/** Сотрудник не меняет отделы чата — только админ и руководитель. */
+const canEditChatDepartments = computed(() => {
+    const roles = page.props.auth?.user?.roles ?? [];
+    if (roles.includes('administrator')) return true;
+    if (roles.includes('manager')) return true;
+    return false;
+});
+
+/** Подпись для сотрудника: только свой отдел из профиля. */
+const employeeOwnDepartmentLabel = computed(() => {
+    const name = page.props.auth?.user?.department?.name?.trim();
+    return name && name.length > 0 ? name : 'Без отдела';
+});
+
 const emit = defineEmits<{
     (e: 'toggle-search'): void;
     (e: 'show-contact-info'): void;
@@ -46,6 +62,9 @@ const departmentsBtnRef = ref<HTMLButtonElement | null>(null);
 const departmentsMenuPos = ref<MenuPos>({ top: 0, right: 0 });
 const selectedDepartmentIds = ref<number[]>([]);
 const savingDepartments = ref(false);
+const departmentSearchQuery = ref('');
+let saveDepartmentsTimer: number | null = null;
+let saveDepartmentsQueued = false;
 
 function syncSelectedFromChat() {
     selectedDepartmentIds.value = (props.chat.departments ?? []).map((d) => d.id);
@@ -53,18 +72,31 @@ function syncSelectedFromChat() {
 syncSelectedFromChat();
 watch(() => props.chat.id, syncSelectedFromChat);
 watch(() => props.chat.departments, syncSelectedFromChat, { deep: true });
+watch(departmentsMenuOpen, (open) => {
+    if (!open) {
+        departmentSearchQuery.value = '';
+    }
+});
 
 const selectedDepartments = computed<Department[]>(() =>
     departmentsList.value.filter((d) => selectedDepartmentIds.value.includes(d.id)),
 );
 
+const filteredDepartments = computed<Department[]>(() => {
+    const q = departmentSearchQuery.value.trim().toLowerCase();
+    if (!q) {
+        return departmentsList.value;
+    }
+    return departmentsList.value.filter((d) => d.name.toLowerCase().includes(q));
+});
+
 const departmentsLabel = computed<string>(() => {
     const count = selectedDepartmentIds.value.length;
-    if (count === 0) return 'Выбрать отделы';
+    if (count === 0) return 'Отделы';
     if (count === 1) {
         return selectedDepartments.value[0]?.name ?? 'Отдел';
     }
-    return `Отделы: ${count}`;
+    return selectedDepartments.value.map((d) => d.name).join(', ');
 });
 
 function toggleDepartmentsMenu() {
@@ -87,30 +119,85 @@ function toggleDepartment(id: number) {
     } else {
         selectedDepartmentIds.value = selectedDepartmentIds.value.filter((v) => v !== id);
     }
+    scheduleSaveDepartments();
 }
 
-async function saveDepartments() {
-    if (savingDepartments.value) return;
+function scheduleSaveDepartments() {
+    if (saveDepartmentsTimer !== null) {
+        window.clearTimeout(saveDepartmentsTimer);
+    }
+    saveDepartmentsTimer = window.setTimeout(() => {
+        saveDepartmentsTimer = null;
+        void saveDepartments(false);
+    }, 250);
+}
+
+async function saveDepartments(closeAfterSave = true) {
+    if (savingDepartments.value) {
+        saveDepartmentsQueued = true;
+        return;
+    }
+    saveDepartmentsQueued = false;
     savingDepartments.value = true;
     try {
         await axios.post(route('chats.departments.sync', props.chat.id), {
             department_ids: selectedDepartmentIds.value,
         });
-        router.reload({ only: ['chat'] });
-        closeDepartmentsMenu();
+        router.reload({ only: ['chat', 'unreadChatsCount'] });
+        if (closeAfterSave) {
+            closeDepartmentsMenu();
+        }
     } finally {
         savingDepartments.value = false;
+        if (saveDepartmentsQueued) {
+            saveDepartmentsQueued = false;
+            scheduleSaveDepartments();
+        }
     }
 }
 
 // --- Assignable users (сотрудники + руководители) ---------------------------
 const assignableUsersList = computed<AssignableUser[]>(() => props.assignableUsers ?? []);
-const canAssignUsers = computed(() => assignableUsersList.value.length > 0);
+const isAdministrator = computed(() => (page.props.auth?.user?.roles ?? []).includes('administrator'));
+const isManager = computed(() => (page.props.auth?.user?.roles ?? []).includes('manager'));
+const chatHasDepartmentsForAssign = computed(() => (props.chat.departments?.length ?? 0) > 0);
+
+/** У руководителя — как раньше; у админа кнопка видна всегда, но без отделов у чата неактивна. */
+const showAssignUsersBlock = computed(() => {
+    if (isManager.value) {
+        return assignableUsersList.value.length > 0;
+    }
+    return isAdministrator.value;
+});
+
+const assignUsersDisabled = computed(
+    () =>
+        (isAdministrator.value && !chatHasDepartmentsForAssign.value) ||
+        assignableUsersList.value.length === 0,
+);
+
+const assignUsersButtonTitle = computed(() => {
+    if (isAdministrator.value && !chatHasDepartmentsForAssign.value) {
+        return 'Сначала прикрепите к чату хотя бы один отдел («Отделы»), затем назначайте сотрудников из этих отделов.';
+    }
+    if (assignableUsersList.value.length === 0) {
+        return 'Нет активных пользователей в системе.';
+    }
+    return selectedUserIds.value.length
+        ? selectedUsers.value.map((u) => u.name).join(', ')
+        : 'Назначить сотрудников на чат';
+});
 const usersMenuOpen = ref(false);
 const usersBtnRef = ref<HTMLButtonElement | null>(null);
 const usersMenuPos = ref<MenuPos>({ top: 0, right: 0 });
+/** Корни выпадашек (Teleport): скролл внутри списка не должен закрывать окно */
+const departmentsMenuPanelRef = ref<HTMLElement | null>(null);
+const usersMenuPanelRef = ref<HTMLElement | null>(null);
+const overflowMenuPanelRef = ref<HTMLElement | null>(null);
 const selectedUserIds = ref<number[]>([]);
 const savingUsers = ref(false);
+let saveUsersTimer: number | null = null;
+let saveUsersQueued = false;
 
 function syncSelectedUsersFromChat() {
     selectedUserIds.value = (props.chat.assignments ?? []).map((a) => a.user_id);
@@ -137,8 +224,18 @@ function roleLabel(roles: string[]): string {
     return '';
 }
 
+/** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
+function assignableUserRoleLine(u: AssignableUser): string {
+    const base = roleLabel(u.roles);
+    if (!base) return '';
+    if (u.roles.includes('manager')) {
+        const dept = (u.department_name || '').trim();
+        if (dept) return `${base} (${dept})`;
+    }
+    return base;
+}
+
 const userSearchQuery = ref('');
-const showAssignableUserSearch = computed(() => assignableUsersList.value.length > 10);
 
 watch(usersMenuOpen, (open) => {
     if (!open) {
@@ -148,15 +245,16 @@ watch(usersMenuOpen, (open) => {
 
 const filteredAssignableUsers = computed(() => {
     const list = assignableUsersList.value;
-    if (!showAssignableUserSearch.value || !userSearchQuery.value.trim()) {
+    const q = userSearchQuery.value.trim().toLowerCase();
+    if (!q) {
         return list;
     }
-    const q = userSearchQuery.value.trim().toLowerCase();
     return list.filter((u) => {
         const name = (u.name || '').toLowerCase();
         const email = (u.email || '').toLowerCase();
-        const role = roleLabel(u.roles).toLowerCase();
-        return name.includes(q) || email.includes(q) || role.includes(q);
+        const role = assignableUserRoleLine(u).toLowerCase();
+        const dept = (u.department_name || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || role.includes(q) || dept.includes(q);
     });
 });
 
@@ -167,6 +265,13 @@ function toggleUsersMenu() {
     }
     usersMenuPos.value = computeMenuPosition(usersBtnRef.value);
     usersMenuOpen.value = true;
+}
+
+function onAssignUsersButtonClick() {
+    if (assignUsersDisabled.value) {
+        return;
+    }
+    toggleUsersMenu();
 }
 
 function closeUsersMenu() {
@@ -180,19 +285,40 @@ function toggleUser(id: number) {
     } else {
         selectedUserIds.value = selectedUserIds.value.filter((v) => v !== id);
     }
+    scheduleSaveUsers();
 }
 
-async function saveUsers() {
-    if (savingUsers.value) return;
+function scheduleSaveUsers() {
+    if (saveUsersTimer !== null) {
+        window.clearTimeout(saveUsersTimer);
+    }
+    saveUsersTimer = window.setTimeout(() => {
+        saveUsersTimer = null;
+        void saveUsers(false);
+    }, 250);
+}
+
+async function saveUsers(closeAfterSave = true) {
+    if (savingUsers.value) {
+        saveUsersQueued = true;
+        return;
+    }
+    saveUsersQueued = false;
     savingUsers.value = true;
     try {
         await axios.post(route('chats.assign.sync', props.chat.id), {
             user_ids: selectedUserIds.value,
         });
-        router.reload({ only: ['chat'] });
-        closeUsersMenu();
+        router.reload({ only: ['chat', 'unreadChatsCount'] });
+        if (closeAfterSave) {
+            closeUsersMenu();
+        }
     } finally {
         savingUsers.value = false;
+        if (saveUsersQueued) {
+            saveUsersQueued = false;
+            scheduleSaveUsers();
+        }
     }
 }
 
@@ -217,8 +343,8 @@ function onEscape(e: KeyboardEvent) {
     }
 }
 
-// Пересчитываем позицию открытых меню при ресайзе и закрываем при скролле страницы:
-// это надёжнее, чем гоняться за скроллом внутри произвольных контейнеров.
+// Пересчитываем позицию открытых меню при ресайзе; при скролле закрываем только если
+// скролл не изнутри самой выпадашки (иначе прокрутка списка сотрудников закрывала окно).
 function onViewportChange() {
     if (departmentsMenuOpen.value) {
         departmentsMenuPos.value = computeMenuPosition(departmentsBtnRef.value);
@@ -230,7 +356,19 @@ function onViewportChange() {
         menuPos.value = computeMenuPosition(menuBtnRef.value, 4);
     }
 }
-function onViewportScroll() {
+function scrollTargetInsideOpenHeaderMenu(target: EventTarget | null): boolean {
+    if (!(target instanceof Node)) {
+        return false;
+    }
+    const roots = [departmentsMenuPanelRef.value, usersMenuPanelRef.value, overflowMenuPanelRef.value];
+    return roots.some((root) => root != null && root.contains(target));
+}
+
+/** Закрываем при скролле страницы/родителя, но не при прокрутке внутри открытой выпадашки. */
+function onViewportScroll(e: Event) {
+    if (scrollTargetInsideOpenHeaderMenu(e.target)) {
+        return;
+    }
     closeMenu();
     closeDepartmentsMenu();
     closeUsersMenu();
@@ -243,6 +381,14 @@ onBeforeUnmount(() => {
     window.removeEventListener('keydown', onEscape);
     window.removeEventListener('resize', onViewportChange);
     window.removeEventListener('scroll', onViewportScroll, true);
+    if (saveDepartmentsTimer !== null) {
+        window.clearTimeout(saveDepartmentsTimer);
+        saveDepartmentsTimer = null;
+    }
+    if (saveUsersTimer !== null) {
+        window.clearTimeout(saveUsersTimer);
+        saveUsersTimer = null;
+    }
 });
 
 async function togglePin() {
@@ -251,7 +397,7 @@ async function togglePin() {
     working.value = true;
     try {
         await axios.post(route('chats.toggle-pin', props.chat.id));
-        router.reload({ only: ['chat', 'chats'] });
+        router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
     } finally {
         working.value = false;
     }
@@ -295,7 +441,7 @@ async function clearChat() {
     working.value = true;
     try {
         await axios.post(route('chats.clear', props.chat.id));
-        router.reload({ only: ['messages', 'chat'] });
+        router.reload({ only: ['messages', 'chat', 'unreadChatsCount'] });
     } finally {
         working.value = false;
     }
@@ -357,144 +503,173 @@ function getTypingText(): string {
             </p>
         </div>
 
-        <div v-if="chat.assignments?.length" class="flex -space-x-1.5 shrink-0 mr-2">
-            <div
-                v-for="a in chat.assignments.slice(0, 3)"
-                :key="a.id"
-                class="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[10px] font-bold"
-                :style="{
-                    background: 'var(--wa-accent-soft)',
-                    color: 'var(--wa-accent)',
-                    borderColor: 'var(--wa-panel-header)'
-                }"
-                :title="a.user?.name"
-            >
-                {{ a.user?.name?.charAt(0)?.toUpperCase() }}
-            </div>
-            <div
-                v-if="chat.assignments.length > 3"
-                class="w-7 h-7 rounded-full border-2 flex items-center justify-center text-[10px] font-medium"
-                :style="{
-                    background: 'var(--wa-selected)',
-                    color: 'var(--wa-text-secondary)',
-                    borderColor: 'var(--wa-panel-header)'
-                }"
-            >
-                +{{ chat.assignments.length - 3 }}
-            </div>
-        </div>
-
         <div class="flex items-center gap-2 shrink-0">
-            <!-- Departments multi-select -->
+            <!-- Отделы: сотрудник только видит свой; админ/руководитель — выбор -->
             <div class="relative">
-                <button
-                    ref="departmentsBtnRef"
-                    type="button"
-                    class="label-pill"
-                    :class="{ 'label-pill-active': selectedDepartmentIds.length > 0 }"
-                    :title="selectedDepartmentIds.length ? selectedDepartments.map((d) => d.name).join(', ') : 'Прикрепить отделы к чату'"
-                    @click="toggleDepartmentsMenu"
+                <div
+                    v-if="!canEditChatDepartments"
+                    class="label-pill label-pill-dept label-pill-dept-static cursor-default opacity-95"
+                    :class="{ 'label-pill-dept-active': (page.props.auth?.user?.department_id ?? null) !== null }"
+                    title="Ваш отдел. Изменить отделы чата могут только руководитель или администратор."
                 >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    <span class="truncate">{{ departmentsLabel }}</span>
-                    <svg class="w-3 h-3 opacity-70" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
+                    <span class="truncate">{{ employeeOwnDepartmentLabel }}</span>
+                </div>
 
-                <Teleport to="body">
-                    <div
-                        v-if="departmentsMenuOpen"
-                        @click="closeDepartmentsMenu"
-                        class="fixed inset-0 z-[900]"
-                    ></div>
-
-                    <div
-                        v-if="departmentsMenuOpen"
-                        class="fixed min-w-[280px] rounded-lg shadow-xl z-[1000] border header-menu overflow-hidden"
-                        :style="{
-                            top: `${departmentsMenuPos.top}px`,
-                            right: `${departmentsMenuPos.right}px`,
-                            background: 'var(--wa-panel-header)',
-                            borderColor: 'var(--wa-border-strong)',
-                        }"
+                <template v-else>
+                    <button
+                        ref="departmentsBtnRef"
+                        type="button"
+                        class="label-pill label-pill-dept"
+                        :class="{ 'label-pill-dept-active': selectedDepartmentIds.length > 0 }"
+                        :title="selectedDepartmentIds.length ? selectedDepartments.map((d) => d.name).join(', ') : 'Прикрепить отделы к чату'"
+                        @click="toggleDepartmentsMenu"
                     >
-                        <div
-                            class="px-4 py-2.5 text-[13px] font-medium border-b"
-                            :style="{ color: 'var(--wa-text-secondary)', borderColor: 'var(--wa-border)' }"
-                        >
-                            Отделы
-                        </div>
+                        <span class="truncate">{{ departmentsLabel }}</span>
+                    </button>
 
-                        <div class="max-h-[280px] overflow-y-auto wa-scrollbar py-1">
-                            <label
-                                v-for="d in departmentsList"
-                                :key="d.id"
-                                class="dept-item"
+                    <Teleport to="body">
+                        <div
+                            v-if="departmentsMenuOpen"
+                            @click="closeDepartmentsMenu"
+                            class="fixed inset-0 z-[900]"
+                        ></div>
+
+                        <div
+                            v-if="departmentsMenuOpen"
+                            ref="departmentsMenuPanelRef"
+                            class="fixed w-[min(92vw,360px)] max-h-[min(90vh,440px)] flex flex-col rounded-xl shadow-2xl z-[1000] border header-menu assign-popover overflow-hidden"
+                            :style="{
+                                top: `${departmentsMenuPos.top}px`,
+                                right: `${departmentsMenuPos.right}px`,
+                                background: 'var(--wa-panel-header)',
+                                borderColor: 'var(--wa-border-strong)',
+                            }"
+                            @click.stop
+                        >
+                            <div
+                                v-if="selectedDepartments.length"
+                                class="assign-selected"
                             >
-                                <input
-                                    type="checkbox"
-                                    class="dept-checkbox"
-                                    :checked="selectedDepartmentIds.includes(d.id)"
-                                    @change="toggleDepartment(d.id)"
-                                />
-                                <span class="flex-1 truncate">{{ d.name }}</span>
-                            </label>
+                                <button
+                                    v-for="d in selectedDepartments"
+                                    :key="d.id"
+                                    type="button"
+                                    class="assign-chip assign-chip-dept"
+                                    :title="d.name"
+                                    @click="toggleDepartment(d.id)"
+                                >
+                                    <span class="truncate">{{ d.name }}</span>
+                                    <svg class="w-3.5 h-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                                <span
+                                    v-if="savingDepartments"
+                                    class="text-xs self-center"
+                                    :style="{ color: 'var(--wa-text-secondary)' }"
+                                >
+                                    Сохранение...
+                                </span>
+                            </div>
 
                             <div
-                                v-if="departmentsList.length === 0"
-                                class="px-4 py-3 text-[13px]"
-                                :style="{ color: 'var(--wa-text-secondary)' }"
+                                class="assign-search-wrap"
+                                :style="{ borderColor: 'var(--wa-border)' }"
                             >
-                                Нет доступных отделов.
-                                Создайте их в разделе «Настройки → Отделы».
+                                <label class="assign-searchbox">
+                                    <svg class="w-5 h-5 shrink-0 opacity-55" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.1-5.15a6.25 6.25 0 11-12.5 0 6.25 6.25 0 0112.5 0z" />
+                                    </svg>
+                                    <input
+                                        v-model="departmentSearchQuery"
+                                        type="search"
+                                        autocomplete="off"
+                                        placeholder="Поиск..."
+                                        class="assign-search"
+                                    />
+                                </label>
+                            </div>
+
+                            <div class="assign-list wa-scrollbar flex-1 min-h-0 overflow-y-auto">
+                                <button
+                                    v-for="d in filteredDepartments"
+                                    :key="d.id"
+                                    type="button"
+                                    class="assign-row"
+                                    :class="{ 'assign-row-dept-active': selectedDepartmentIds.includes(d.id) }"
+                                    @click="toggleDepartment(d.id)"
+                                >
+                                    <span class="assign-avatar assign-avatar-dept" aria-hidden="true">
+                                        {{ d.name?.charAt(0)?.toUpperCase() }}
+                                    </span>
+                                    <span class="flex-1 truncate text-left assign-name">{{ d.name }}</span>
+                                    <svg
+                                        v-if="selectedDepartmentIds.includes(d.id)"
+                                        class="assign-check assign-check-dept"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.8"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+
+                                <div
+                                    v-if="filteredDepartments.length === 0"
+                                    class="px-5 py-4 text-sm"
+                                    :style="{ color: 'var(--wa-text-secondary)' }"
+                                >
+                                    {{ departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
+                                </div>
                             </div>
                         </div>
-
-                        <div
-                            v-if="departmentsList.length > 0"
-                            class="flex items-center justify-end gap-2 px-3 py-2 border-t"
-                            :style="{ borderColor: 'var(--wa-border)' }"
-                        >
-                            <button
-                                type="button"
-                                class="dept-btn"
-                                @click="closeDepartmentsMenu"
-                            >
-                                Отмена
-                            </button>
-                            <button
-                                type="button"
-                                class="dept-btn dept-btn-primary"
-                                :disabled="savingDepartments"
-                                @click="saveDepartments"
-                            >
-                                {{ savingDepartments ? 'Сохранение...' : 'Сохранить' }}
-                            </button>
-                        </div>
-                    </div>
-                </Teleport>
+                    </Teleport>
+                </template>
             </div>
 
-            <!-- Assignable users multi-select -->
-            <div v-if="canAssignUsers" class="relative">
+            <!-- Сотрудники: одна кнопка с аватарками; зелёная иерархия -->
+            <div v-if="showAssignUsersBlock" class="relative">
                 <button
                     ref="usersBtnRef"
                     type="button"
-                    class="label-pill"
-                    :class="{ 'label-pill-active': selectedUserIds.length > 0 }"
-                    :title="selectedUserIds.length ? selectedUsers.map((u) => u.name).join(', ') : 'Назначить сотрудников на чат'"
-                    @click="toggleUsersMenu"
+                    class="label-pill label-pill-staff label-pill-staff-avatars"
+                    :class="{
+                        'label-pill-staff-active': selectedUserIds.length > 0,
+                        'opacity-50 cursor-not-allowed': assignUsersDisabled,
+                    }"
+                    :disabled="assignUsersDisabled"
+                    :title="assignUsersButtonTitle"
+                    @click="onAssignUsersButtonClick"
                 >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <span class="truncate">{{ usersLabel }}</span>
-                    <svg class="w-3 h-3 opacity-70" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <div
+                        v-if="selectedUsers.length"
+                        class="flex -space-x-2 shrink-0"
+                        aria-hidden="true"
+                    >
+                        <div
+                            v-for="u in selectedUsers.slice(0, 3)"
+                            :key="u.id"
+                            class="staff-pill-avatar header-staff-avatar"
+                            :title="u.name"
+                        >
+                            {{ u.name?.charAt(0)?.toUpperCase() }}
+                        </div>
+                        <div
+                            v-if="selectedUserIds.length > 3"
+                            class="staff-pill-avatar header-staff-avatar header-staff-more"
+                        >
+                            +{{ selectedUserIds.length - 3 }}
+                        </div>
+                    </div>
+                    <div
+                        v-else
+                        class="staff-pill-avatar header-staff-avatar"
+                        aria-hidden="true"
+                    >
+                        +
+                    </div>
                 </button>
 
                 <Teleport to="body">
@@ -506,99 +681,129 @@ function getTypingText(): string {
 
                     <div
                         v-if="usersMenuOpen"
-                        class="fixed min-w-[300px] rounded-lg shadow-xl z-[1000] border header-menu overflow-hidden"
+                        ref="usersMenuPanelRef"
+                            class="fixed w-[min(92vw,360px)] max-h-[min(90vh,440px)] flex flex-col rounded-xl shadow-2xl z-[1000] border header-menu assign-popover overflow-hidden"
                         :style="{
                             top: `${usersMenuPos.top}px`,
                             right: `${usersMenuPos.right}px`,
                             background: 'var(--wa-panel-header)',
                             borderColor: 'var(--wa-border-strong)',
                         }"
+                        @click.stop
                     >
                         <div
-                            class="px-4 py-2.5 text-[13px] font-medium border-b"
-                            :style="{ color: 'var(--wa-text-secondary)', borderColor: 'var(--wa-border)' }"
+                            v-if="selectedUsers.length"
+                            class="assign-selected"
                         >
-                            Назначить сотрудников
-                        </div>
-
-                        <div
-                            v-if="showAssignableUserSearch"
-                            class="px-3 py-2 border-b shrink-0"
-                            :style="{ borderColor: 'var(--wa-border)' }"
-                            @click.stop
-                        >
-                            <input
-                                v-model="userSearchQuery"
-                                type="search"
-                                autocomplete="off"
-                                placeholder="Поиск по имени, почте, роли…"
-                                class="users-assign-search"
-                            />
-                        </div>
-
-                        <div class="users-assign-list wa-scrollbar py-1">
-                            <label
-                                v-for="u in filteredAssignableUsers"
+                            <button
+                                v-for="u in selectedUsers"
                                 :key="u.id"
-                                class="dept-item"
-                                @click.stop
+                                type="button"
+                                class="assign-chip assign-chip-staff"
+                                :title="u.name"
+                                @click="toggleUser(u.id)"
                             >
-                                <input
-                                    type="checkbox"
-                                    class="dept-checkbox"
-                                    :checked="selectedUserIds.includes(u.id)"
-                                    @change="toggleUser(u.id)"
-                                />
-                                <div class="flex-1 min-w-0">
-                                    <div class="truncate text-[14px]">{{ u.name }}</div>
-                                    <div
-                                        v-if="roleLabel(u.roles)"
-                                        class="truncate text-[11px]"
-                                        :style="{ color: 'var(--wa-text-secondary)' }"
-                                    >
-                                        {{ roleLabel(u.roles) }}
-                                    </div>
-                                </div>
-                            </label>
-                            <div
-                                v-if="filteredAssignableUsers.length === 0"
-                                class="px-4 py-3 text-[13px]"
+                                <span class="truncate">{{ u.name }}</span>
+                                <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <span
+                                v-if="savingUsers"
+                                class="text-xs self-center"
                                 :style="{ color: 'var(--wa-text-secondary)' }"
                             >
-                                Ничего не найдено
-                            </div>
+                                Сохранение...
+                            </span>
                         </div>
 
                         <div
-                            class="flex items-center justify-end gap-2 px-3 py-2 border-t"
+                            class="assign-search-wrap"
                             :style="{ borderColor: 'var(--wa-border)' }"
                         >
+                            <label class="assign-searchbox">
+                                <svg class="w-5 h-5 shrink-0 opacity-55" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.1-5.15a6.25 6.25 0 11-12.5 0 6.25 6.25 0 0112.5 0z" />
+                                </svg>
+                                <input
+                                    v-model="userSearchQuery"
+                                    type="search"
+                                    autocomplete="off"
+                                    placeholder="Поиск..."
+                                    class="assign-search"
+                                />
+                            </label>
+                        </div>
+
+                        <div class="assign-list wa-scrollbar flex-1 min-h-0 overflow-y-auto">
                             <button
+                                v-for="u in filteredAssignableUsers"
+                                :key="u.id"
                                 type="button"
-                                class="dept-btn"
-                                @click="closeUsersMenu"
+                                class="assign-row"
+                                :class="{ 'assign-row-staff-active': selectedUserIds.includes(u.id) }"
+                                @click="toggleUser(u.id)"
                             >
-                                Отмена
+                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
+                                    {{ u.name?.charAt(0)?.toUpperCase() }}
+                                </span>
+                                <span class="flex-1 min-w-0 text-left">
+                                    <span class="block truncate assign-name">{{ u.name }}</span>
+                                    <div
+                                        v-if="assignableUserRoleLine(u)"
+                                        class="truncate assign-role"
+                                        :style="{ color: 'var(--wa-text-secondary)' }"
+                                    >
+                                        {{ assignableUserRoleLine(u) }}
+                                    </div>
+                                </span>
+                                <svg
+                                    v-if="selectedUserIds.includes(u.id)"
+                                    class="assign-check assign-check-staff"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.8"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
                             </button>
-                            <button
-                                type="button"
-                                class="dept-btn dept-btn-primary"
-                                :disabled="savingUsers"
-                                @click="saveUsers"
+                            <div
+                                v-if="filteredAssignableUsers.length === 0"
+                                class="px-5 py-4 text-sm"
+                                :style="{ color: 'var(--wa-text-secondary)' }"
                             >
-                                {{ savingUsers ? 'Сохранение...' : 'Сохранить' }}
-                            </button>
+                                {{ userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для списка' }}
+                            </div>
                         </div>
                     </div>
                 </Teleport>
             </div>
 
-            <button class="wa-header-btn" title="Видеозвонок" @click="notImplemented('Видеозвонок')">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-            </button>
-            <button class="wa-header-btn" title="Поиск" @click="openSearch">
+            <div
+                v-else-if="chat.assignments?.length"
+                class="label-pill label-pill-staff label-pill-staff-static label-pill-staff-avatars"
+                title="Ответственные за этот чат"
+            >
+                <div class="flex -space-x-2 shrink-0" aria-hidden="true">
+                    <div
+                        v-for="a in chat.assignments.slice(0, 3)"
+                        :key="a.id"
+                        class="staff-pill-avatar header-staff-avatar"
+                    >
+                        {{ a.user?.name?.charAt(0)?.toUpperCase() }}
+                    </div>
+                    <div
+                        v-if="chat.assignments.length > 3"
+                        class="staff-pill-avatar header-staff-avatar header-staff-more"
+                    >
+                        +{{ chat.assignments.length - 3 }}
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="wa-header-btn" title="Поиск" @click="openSearch">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -628,6 +833,7 @@ function getTypingText(): string {
 
                     <div
                         v-if="menuOpen"
+                        ref="overflowMenuPanelRef"
                         class="fixed min-w-[240px] rounded-lg shadow-xl py-2 z-[1000] border header-menu"
                         :style="{
                             top: `${menuPos.top}px`,
@@ -731,7 +937,8 @@ function getTypingText(): string {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.375rem 0.75rem 0.375rem 0.625rem;
+    height: 2.15rem;
+    padding: 0 0.72rem;
     border-radius: 9999px;
     font-size: 0.8125rem;
     color: var(--wa-text);
@@ -752,6 +959,99 @@ function getTypingText(): string {
 .label-pill-active:hover {
     background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
 }
+
+/* Отделы — янтарь (иерархия: не зелёный «сотрудники») */
+.label-pill-dept {
+    color: #fde68a;
+    border-color: color-mix(in srgb, #f59e0b 45%, var(--wa-border-strong));
+    background-color: color-mix(in srgb, #f59e0b 10%, var(--wa-panel));
+    padding-inline: 0.95rem;
+    max-width: 14rem;
+}
+.label-pill-dept:hover:not(:disabled) {
+    background-color: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+    border-color: color-mix(in srgb, #f59e0b 55%, var(--wa-border-strong));
+}
+.label-pill-dept-active {
+    color: #fffbeb;
+    border-color: color-mix(in srgb, #f59e0b 70%, transparent);
+    background-color: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
+}
+.label-pill-dept-active:hover:not(:disabled) {
+    background-color: color-mix(in srgb, #f59e0b 28%, var(--wa-panel));
+}
+.label-pill-dept-static {
+    pointer-events: none;
+}
+.label-pill-dept-static.label-pill-dept-active {
+    opacity: 1;
+}
+
+/* Сотрудники — зелень (как акцент WhatsApp) */
+.label-pill-staff {
+    border-color: var(--wa-border-strong);
+}
+.label-pill-staff-avatars {
+    min-width: 0;
+    height: 2.15rem;
+    padding: 0 0.42rem;
+    justify-content: center;
+    overflow: visible;
+}
+.label-pill-staff-active {
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 60%, transparent);
+    background-color: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
+}
+.label-pill-staff-active:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
+}
+.label-pill-staff-static {
+    pointer-events: none;
+    opacity: 0.95;
+}
+
+.staff-pill-avatar {
+    background: color-mix(in srgb, var(--wa-accent) 24%, var(--wa-panel));
+    color: var(--wa-accent);
+    border-color: var(--wa-panel-header);
+}
+.header-staff-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 9999px;
+    border-width: 2px;
+    font-size: 0.64rem;
+    font-weight: 800;
+}
+.header-staff-more {
+    color: var(--wa-text-secondary);
+    background: color-mix(in srgb, var(--wa-panel) 82%, var(--wa-accent) 18%);
+    font-weight: 700;
+}
+
+.dept-checkbox-dept {
+    accent-color: #f59e0b;
+}
+.dept-checkbox-staff {
+    accent-color: var(--wa-accent);
+}
+
+.dept-btn-dept-primary {
+    color: #422006;
+    background: linear-gradient(180deg, #fcd34d, #f59e0b);
+    font-weight: 600;
+}
+.dept-btn-dept-primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+}
+.dept-btn-dept-primary:disabled {
+    opacity: 0.5;
+}
+
 .dept-item {
     display: flex;
     align-items: center;
@@ -798,29 +1098,145 @@ function getTypingText(): string {
     opacity: 0.5;
     cursor: not-allowed;
 }
-.users-assign-search {
+.assign-popover {
+    background: var(--wa-panel-header);
+}
+.assign-selected {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.65rem 0.75rem 0.55rem;
+    border-bottom: 1px solid var(--wa-border);
+}
+.assign-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    max-width: 7.75rem;
+    min-height: 1.85rem;
+    padding: 0.28rem 0.6rem 0.28rem 0.7rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+.assign-chip-staff {
+    color: #dcfff2;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--wa-accent) 96%, #ffffff 4%), color-mix(in srgb, var(--wa-accent) 86%, var(--wa-bg) 14%));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 30%, transparent) inset;
+}
+.assign-chip-dept {
+    color: #fff7ed;
+    background: linear-gradient(180deg, #f59e0b, color-mix(in srgb, #f59e0b 82%, #78350f 18%));
+    box-shadow: 0 0 0 1px color-mix(in srgb, #f59e0b 35%, transparent) inset;
+}
+.assign-chip:hover {
+    filter: brightness(1.05);
+}
+.assign-search-wrap {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--wa-border);
+    flex-shrink: 0;
+}
+.assign-searchbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 2.7rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--wa-border-strong);
+    border-radius: 0.75rem;
+    color: var(--wa-text-secondary);
+    background: color-mix(in srgb, var(--wa-panel) 72%, var(--wa-panel-input) 28%);
+    transition: border-color 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.assign-searchbox:focus-within {
+    border-color: color-mix(in srgb, var(--wa-accent) 70%, var(--wa-border-strong));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 30%, transparent);
+    background: color-mix(in srgb, var(--wa-panel) 84%, var(--wa-panel-input) 16%);
+}
+.assign-search {
     width: 100%;
     box-sizing: border-box;
-    padding: 0.4375rem 0.75rem;
-    font-size: 0.8125rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-panel);
+    padding: 0;
+    font-size: 0.875rem;
+    border: 0;
+    background: transparent;
     color: var(--wa-text);
     outline: none;
 }
-.users-assign-search::placeholder {
+.assign-search::placeholder {
     color: var(--wa-text-secondary);
 }
-.users-assign-search:focus {
-    border-color: var(--wa-accent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 35%, transparent);
-}
-/* Видимы примерно 3 строки списка; остальное — прокрутка */
-.users-assign-list {
-    max-height: 11.75rem;
-    overflow-y: auto;
+/* Высота списка — flex внутри панели; прокрутка в контейнере */
+.assign-list {
     min-height: 0;
+}
+.assign-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    min-height: 3.35rem;
+    padding: 0.42rem 0.75rem;
+    color: var(--wa-text);
+    transition: background-color 0.12s ease;
+}
+.assign-row:hover {
+    background: var(--wa-panel-hover);
+}
+.assign-row-staff-active {
+    background: color-mix(in srgb, var(--wa-accent) 16%, transparent);
+}
+.assign-row-staff-active:hover {
+    background: color-mix(in srgb, var(--wa-accent) 20%, transparent);
+}
+.assign-row-dept-active {
+    background: color-mix(in srgb, #f59e0b 16%, transparent);
+}
+.assign-row-dept-active:hover {
+    background: color-mix(in srgb, #f59e0b 20%, transparent);
+}
+.assign-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.15rem;
+    height: 2.15rem;
+    flex: 0 0 2.15rem;
+    border-radius: 9999px;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+.assign-avatar-staff {
+    color: #dcfff2;
+    background: var(--wa-accent);
+}
+.assign-avatar-dept {
+    color: #fff7ed;
+    background: #f59e0b;
+}
+.assign-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+.assign-role {
+    margin-top: 0.12rem;
+    font-size: 0.74rem;
+    line-height: 1.2;
+}
+.assign-check {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: 0 0 auto;
+}
+.assign-check-staff {
+    color: var(--wa-accent);
+}
+.assign-check-dept {
+    color: #f59e0b;
 }
 .header-menu {
     animation: header-menu-pop 0.12s ease-out;

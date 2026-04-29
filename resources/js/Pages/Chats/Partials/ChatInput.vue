@@ -9,6 +9,7 @@ const props = defineProps<{
     chatId: number;
     sessionId?: number | null;
     replyTo?: Message | null;
+    isGroup?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +38,332 @@ let typingTimeout: ReturnType<typeof setTimeout>;
 
 const hasText = computed(() => messageText.value.trim().length > 0);
 
+type GroupParticipant = {
+    id: string;
+    saved_name?: string | null;
+    name?: string | null;
+    pushname?: string | null;
+    number?: string | null;
+};
+
+const participants = ref<GroupParticipant[]>([]);
+const participantsLoading = ref(false);
+const participantsLoadError = ref<string | null>(null);
+const participantsRetryCount = ref(0);
+const mentionOpen = ref(false);
+const mentionQuery = ref('');
+const mentionActiveIndex = ref(0);
+
+function mentionDisplayName(p: GroupParticipant): string {
+    // Для упоминаний WhatsApp обычно важнее то, что пользователь видит в чатах:
+    // отдаём приоритет нашему "Сохранённому имени", чтобы было как в клиент-листе.
+    return String(p.saved_name ?? p.pushname ?? p.name ?? p.number ?? p.id ?? '').trim();
+}
+
+function mentionDigits(p: GroupParticipant): string {
+    // Для текста сообщения WhatsApp ожидает "@<number>" (цифры телефона).
+    // Используем только `number`; `id` может быть @lid и не соответствует номеру.
+    const raw = String(p.number ?? '');
+    const digits = raw.replace(/\D/g, '');
+    return digits.trim();
+}
+
+type MentionSerializeMode = 'digits' | 'label';
+
+function serializeEditor(root: HTMLElement, mentionMode: MentionSerializeMode): string {
+    const toText = (node: Node): string => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return String(node.textContent || '');
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+
+        const el = node as HTMLElement;
+
+        // Mention pills: send as "@<digits>" for WhatsApp body; display as "@<label>" for UI storage.
+        const mentionNumber = el.dataset?.mentionNumber;
+        if (mentionNumber) {
+            if (mentionMode === 'label') {
+                const label = String(el.dataset?.mentionLabel || '').trim();
+                return label ? `@${label}` : '';
+            }
+
+            const digits = String(mentionNumber).replace(/\D/g, '');
+            return digits ? `@${digits}` : '';
+        }
+
+        const tag = el.tagName.toUpperCase();
+        if (tag === 'BR') {
+            return '\n';
+        }
+
+        // Helper: serialize children
+        const children = Array.from(el.childNodes).map(toText).join('');
+
+        // WhatsApp-like formatting markers
+        const wrap = (marker: string, content: string): string => {
+            const inner = content;
+            // Avoid wrapping empty/whitespace-only: WA ignores it and it creates noise.
+            if (!inner || !inner.replace(/\s+/g, '').length) return inner;
+            return `${marker}${inner}${marker}`;
+        };
+
+        const style = (el.getAttribute('style') || '').toLowerCase();
+        const fontWeight = (el.style.fontWeight || '').toLowerCase();
+        const fontStyle = (el.style.fontStyle || '').toLowerCase();
+        const textDecoration = (el.style.textDecoration || '').toLowerCase();
+
+        const isBoldStyle =
+            fontWeight === 'bold' ||
+            (fontWeight !== '' && Number.isFinite(Number(fontWeight)) && Number(fontWeight) >= 600) ||
+            style.includes('font-weight:bold') ||
+            style.includes('font-weight: bold') ||
+            style.includes('font-weight:700') ||
+            style.includes('font-weight: 700') ||
+            style.includes('font-weight:600') ||
+            style.includes('font-weight: 600');
+        const isItalicStyle =
+            fontStyle === 'italic' ||
+            style.includes('font-style:italic') ||
+            style.includes('font-style: italic');
+        const isStrikeStyle =
+            textDecoration.includes('line-through') ||
+            style.includes('line-through') ||
+            style.includes('text-decoration:line-through') ||
+            style.includes('text-decoration: line-through');
+
+        if (tag === 'B' || tag === 'STRONG') {
+            return wrap('*', children);
+        }
+        if (tag === 'I' || tag === 'EM') {
+            return wrap('_', children);
+        }
+        if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') {
+            return wrap('~', children);
+        }
+        if (tag === 'CODE') {
+            // Inline code
+            const inner = children.replace(/\n+/g, ' ').trim();
+            return inner ? '`' + inner + '`' : '';
+        }
+        if (tag === 'PRE') {
+            const inner = children.replace(/\s+$/g, '');
+            return inner ? '```' + inner + '```' : '';
+        }
+        if (tag === 'BLOCKQUOTE') {
+            const inner = children.replace(/\s+$/g, '');
+            if (!inner) return '';
+            return inner
+                .split('\n')
+                .map((line) => (line.trim() ? `> ${line}` : '>'))
+                .join('\n');
+        }
+        if (tag === 'LI') {
+            // LI handled by parent UL/OL, but keep fallback.
+            return children.trim() ? children + '\n' : '';
+        }
+        if (tag === 'UL' || tag === 'OL') {
+            const items = Array.from(el.children).filter((c) => (c as HTMLElement).tagName.toUpperCase() === 'LI') as HTMLElement[];
+            if (!items.length) return children;
+            const lines: string[] = [];
+            items.forEach((li, idx) => {
+                const t = toText(li).replace(/\s+$/g, '');
+                if (!t.trim()) return;
+                const prefix = tag === 'OL' ? `${idx + 1}. ` : '- ';
+                // Normalize internal newlines in list items (indent as best-effort).
+                const parts = t.split('\n').filter((x) => x !== '');
+                if (parts.length <= 1) {
+                    lines.push(prefix + t.trim());
+                } else {
+                    lines.push(prefix + parts[0]!.trim());
+                    for (const extra of parts.slice(1)) {
+                        lines.push('  ' + extra.trim());
+                    }
+                }
+            });
+            return lines.join('\n') + (lines.length ? '\n' : '');
+        }
+
+        // Preserve line breaks around common block containers.
+        const isBlock = ['DIV', 'P'].includes(tag);
+        if (isBlock) {
+            const inner = children.replace(/\s+$/g, '');
+            return inner ? inner + '\n' : '';
+        }
+
+        // execCommand() often uses <span style="font-weight:..."> instead of <b>/<i>/<s>.
+        // Apply style-based formatting for those cases.
+        if (tag === 'SPAN' || tag === 'FONT') {
+            let out = children;
+            if (isBoldStyle) out = wrap('*', out);
+            if (isItalicStyle) out = wrap('_', out);
+            if (isStrikeStyle) out = wrap('~', out);
+            return out;
+        }
+
+        // Generic fallback: apply inline style markers (covers e.g. <div style="font-weight:700">).
+        if (isBoldStyle || isItalicStyle || isStrikeStyle) {
+            let out = children;
+            if (isBoldStyle) out = wrap('*', out);
+            if (isItalicStyle) out = wrap('_', out);
+            if (isStrikeStyle) out = wrap('~', out);
+            return out;
+        }
+
+        return children;
+    };
+
+    const raw = Array.from(root.childNodes).map(toText).join('');
+    return raw.replace(/\u00A0/g, ' ').replace(/\n{3,}/g, '\n\n');
+}
+
+function serializeEditorForSend(root: HTMLElement): string {
+    return serializeEditor(root, 'digits');
+}
+
+function serializeEditorForDisplay(root: HTMLElement): string {
+    return serializeEditor(root, 'label');
+}
+
+const mentionCandidates = computed(() => {
+    if (!props.isGroup) return [];
+    const q = mentionQuery.value.trim().toLowerCase();
+    const base = participants.value.slice(0, 10);
+    if (!q) return base;
+
+    const filtered = participants.value
+        .filter((p) => {
+            const label = mentionDisplayName(p).toLowerCase();
+            if (!label) return false;
+            return label.startsWith(q) || label.includes(q);
+        })
+        .slice(0, 10);
+
+    // Если фильтр ничего не нашёл, всё равно показываем базовый список,
+    // чтобы можно было выбрать человека из панели.
+    return filtered.length > 0 ? filtered : base;
+});
+
+watch(
+    () => [mentionOpen.value, mentionQuery.value, mentionCandidates.value.length] as const,
+    () => {
+        mentionActiveIndex.value = 0;
+    },
+);
+
+async function loadParticipants(): Promise<void> {
+    if (!props.isGroup) {
+        participants.value = [];
+        return;
+    }
+    if (participantsLoading.value) return;
+
+    try {
+        participantsLoading.value = true;
+        participantsLoadError.value = null;
+        const { data } = await axios.get(route('chats.group-participants', props.chatId));
+        participants.value = Array.isArray(data?.participants) ? data.participants : [];
+        participantsRetryCount.value = 0;
+    } catch {
+        participantsLoadError.value = 'Не удалось загрузить участников';
+        participants.value = participants.value || [];
+
+        // Retry: session can be "not ready" for a moment right after reconnect/restart.
+        if (participantsRetryCount.value < 3) {
+            participantsRetryCount.value += 1;
+            const delayMs = 700 * Math.pow(2, participantsRetryCount.value - 1);
+            window.setTimeout(() => {
+                void loadParticipants();
+            }, delayMs);
+        }
+    }
+    finally {
+        participantsLoading.value = false;
+    }
+}
+
+function updateMentionStateFromText(text: string): void {
+    if (!props.isGroup) {
+        mentionOpen.value = false;
+        mentionQuery.value = '';
+        return;
+    }
+    // В contenteditable `innerText` часто добавляет переносы строк в конце.
+    // Для UX нам важно распознавать "последний ввод" даже при trailing whitespace.
+    const t = text.replace(/\s+$/g, '');
+    const match = t.match(/(^|\s)@([^\s@]*)$/);
+    if (!match) {
+        mentionOpen.value = false;
+        mentionQuery.value = '';
+        return;
+    }
+    mentionOpen.value = true;
+    mentionQuery.value = match[2] || '';
+}
+
+function extractMentionIdsFromText(text: string): string[] {
+    if (!props.isGroup) return [];
+    const ids = new Set<string>();
+
+    const root = editorRef.value;
+    if (root) {
+        // В `mentions` отправляем реальные WA JID участника (e.g. 770...@c.us или ...@lid).
+        // Это то, что `whatsapp-web.js` ожидает в options.mentions.
+        root.querySelectorAll<HTMLElement>('[data-mention-id]').forEach((el) => {
+            const jid = String(el.dataset.mentionId || '').trim();
+            if (jid) ids.add(jid);
+        });
+        return [...ids].slice(0, 20);
+    }
+
+    // Fallback: parse from text (best-effort)
+    const t = text || '';
+    // Если по какой-то причине pills нет (например, при вставке текста),
+    // пробуем вытащить digits и превратить в @c.us — это лучше, чем ничего.
+    const tokens = Array.from(t.matchAll(/(^|\s)@(\d{5,20})\b/g)).map((m) => String(m[2] || '').trim());
+    tokens.forEach((d) => {
+        const digits = d.replace(/\D/g, '');
+        if (digits) ids.add(`${digits}@c.us`);
+    });
+    return [...ids].slice(0, 20);
+}
+
+function applyMention(p: GroupParticipant): void {
+    const digits = mentionDigits(p);
+    const label = mentionDisplayName(p);
+    const jid = String(p.id ?? '').trim();
+    if (!digits || !label || !jid) return;
+
+    const el = editorRef.value;
+    if (!el) return;
+
+    // Replace trailing "@query" (visible) with a non-editable mention pill.
+    const visible = (el.innerText || '').replace(/\u00A0/g, ' ').replace(/\s+$/g, '');
+    const re = /(^|\s)@([^\s@]*)$/;
+    const prefix = re.test(visible) ? visible.replace(re, '$1') : `${visible}${visible.endsWith(' ') || visible === '' ? '' : ' '}`;
+
+    el.innerHTML = '';
+    if (prefix) {
+        el.appendChild(document.createTextNode(prefix));
+    }
+
+    const span = document.createElement('span');
+    span.dataset.mentionId = jid;
+    span.dataset.mentionNumber = digits;
+    span.dataset.mentionLabel = label;
+    span.className = 'wa-mention-pill';
+    span.contentEditable = 'false';
+    span.textContent = `@${label}`;
+    el.appendChild(span);
+    el.appendChild(document.createTextNode(' '));
+
+    syncPlainTextFromEditor();
+    mentionOpen.value = false;
+    mentionQuery.value = '';
+    nextTick(() => editorRef.value?.focus());
+}
+
 watch(() => props.replyTo, (val) => {
     if (val) nextTick(() => editorRef.value?.focus());
 });
@@ -53,16 +380,41 @@ function replyAuthor(msg: Message): string {
 }
 
 async function sendMessage() {
-    const text = messageText.value.trim();
-    if (!text || isSending.value) return;
+    const sendText = messageText.value.trim();
+    const displayText = editorRef.value
+        ? serializeEditorForDisplay(editorRef.value).replace(/\s+$/g, '').trim()
+        : '';
+    if (!sendText || isSending.value) return;
 
     isSending.value = true;
-    const prevText = text;
+    const mentions = extractMentionIdsFromText(sendText);
+    const mentionsMeta: Array<{ id: string; number: string; label: string }> = [];
+    const root = editorRef.value;
+    if (root) {
+        root.querySelectorAll<HTMLElement>('[data-mention-id]').forEach((el) => {
+            const id = String(el.dataset.mentionId || '').trim();
+            const number = String(el.dataset.mentionNumber || '').replace(/\D/g, '').trim();
+            const label = String(el.dataset.mentionLabel || '').trim();
+            if (id && number && label) {
+                mentionsMeta.push({ id, number, label });
+            }
+        });
+    }
+    const prevText = sendText;
     messageText.value = '';
     clearEditor();
 
     try {
-        const payload: Record<string, unknown> = { message: text };
+        const payload: Record<string, unknown> = { message: sendText };
+        if (displayText && displayText !== sendText) {
+            payload.display_message = displayText;
+        }
+        if (mentions.length > 0) {
+            payload.mentions = mentions;
+        }
+        if (mentionsMeta.length > 0) {
+            payload.mentions_meta = mentionsMeta;
+        }
         if (props.replyTo?.whatsapp_message_id) {
             payload.quoted_message_id = props.replyTo.whatsapp_message_id;
         }
@@ -82,6 +434,47 @@ async function sendMessage() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+    if (props.isGroup && mentionOpen.value && mentionCandidates.value.length > 0) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            mentionActiveIndex.value = Math.min(
+                mentionCandidates.value.length - 1,
+                mentionActiveIndex.value + 1,
+            );
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            mentionActiveIndex.value = Math.max(0, mentionActiveIndex.value - 1);
+            return;
+        }
+        if (e.key === 'Tab') {
+            // Keep mention menu open and cycle candidates with Tab / Shift+Tab.
+            // (Don't move focus away from the editor.)
+            e.preventDefault();
+            const max = mentionCandidates.value.length - 1;
+            if (max < 0) return;
+            if (e.shiftKey) {
+                mentionActiveIndex.value = mentionActiveIndex.value <= 0 ? max : mentionActiveIndex.value - 1;
+            } else {
+                mentionActiveIndex.value = mentionActiveIndex.value >= max ? 0 : mentionActiveIndex.value + 1;
+            }
+            return;
+        }
+        if (e.key === 'Enter') {
+            // Choose mention instead of sending.
+            e.preventDefault();
+            const p = mentionCandidates.value[mentionActiveIndex.value];
+            if (p) applyMention(p);
+            return;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            mentionOpen.value = false;
+            mentionQuery.value = '';
+            return;
+        }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
@@ -90,6 +483,7 @@ function handleKeydown(e: KeyboardEvent) {
 
 function onInput() {
     syncPlainTextFromEditor();
+    updateMentionStateFromText(messageText.value);
     autoResizeEditor();
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
@@ -120,6 +514,8 @@ function clearEditor() {
     el.innerHTML = '';
     el.style.height = '';
     formatBarOpen.value = false;
+    mentionOpen.value = false;
+    mentionQuery.value = '';
 }
 
 function setEditorPlainText(text: string) {
@@ -134,7 +530,10 @@ function syncPlainTextFromEditor() {
     const el = editorRef.value;
     if (!el) return;
     // innerText preserves line breaks similar to textarea behavior.
-    messageText.value = (el.innerText || '').replace(/\u00A0/g, ' ');
+    // Убираем хвостовые переводы строк/пробелы — иначе распознавание `@` ломается.
+    const visible = (el.innerText || '').replace(/\u00A0/g, ' ').replace(/\s+$/g, '');
+    messageText.value = serializeEditorForSend(el).replace(/\s+$/g, '');
+    updateMentionStateFromText(visible);
 }
 
 function selectionInsideEditor(): boolean {
@@ -213,7 +612,11 @@ function onPaste(e: ClipboardEvent) {
 
 onMounted(() => {
     document.addEventListener('selectionchange', updateFormatBarFromSelection);
+    loadParticipants();
 });
+
+watch(() => props.chatId, () => loadParticipants());
+watch(() => props.isGroup, () => loadParticipants());
 
 onBeforeUnmount(() => {
     document.removeEventListener('selectionchange', updateFormatBarFromSelection);
@@ -855,7 +1258,7 @@ watch(anyOverlayOpen, (open) => {
                     </svg>
                 </button>
 
-                <div class="wa-input-pill flex-1">
+                <div class="wa-input-pill flex-1 relative">
                     <div
                         ref="editorRef"
                         class="wa-rich-editor wa-scrollbar"
@@ -863,11 +1266,50 @@ watch(anyOverlayOpen, (open) => {
                         role="textbox"
                         aria-multiline="true"
                         data-placeholder="Введите сообщение"
-                        @keydown="handleKeydown"
+                        @keydown.capture="handleKeydown"
                         @input="onInput"
                         @copy="onCopy"
                         @paste="onPaste"
                     ></div>
+
+                    <!-- Mentions (group chats) -->
+                    <div
+                        v-if="props.isGroup && mentionOpen"
+                        class="absolute bottom-full left-0 mb-2 w-[320px] rounded-lg shadow-2xl border overflow-hidden z-50"
+                        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                    >
+                        <div
+                            v-if="mentionCandidates.length > 0"
+                            class="max-h-[240px] overflow-y-auto"
+                        >
+                            <button
+                                v-for="p in mentionCandidates"
+                                :key="p.id"
+                                type="button"
+                                class="w-full text-left px-3 py-2 hover:brightness-110 transition"
+                                :class="{
+                                    'brightness-110': mentionCandidates[mentionActiveIndex]?.id === p.id,
+                                }"
+                                @mousedown.prevent
+                                @click="applyMention(p)"
+                            >
+                                <div class="text-[13px] leading-tight text-[var(--wa-text)]">
+                                    {{ mentionDisplayName(p) }}
+                                </div>
+                            </button>
+                        </div>
+                        <div v-else class="px-3 py-2 text-[12px] opacity-70">
+                            <template v-if="participantsLoading">
+                                Загружаем участников...
+                            </template>
+                            <template v-else-if="participantsLoadError">
+                                Не удалось загрузить участников
+                            </template>
+                            <template v-else>
+                                Нет участников для упоминания
+                            </template>
+                        </div>
+                    </div>
                 </div>
 
                 <EmojiPicker
@@ -1412,6 +1854,19 @@ watch(anyOverlayOpen, (open) => {
 .wa-rich-editor:empty:before {
     content: attr(data-placeholder);
     color: #9aa0a6;
+}
+
+.wa-mention-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 0 2px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--wa-accent) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 45%, transparent);
+    color: #eaf4ff;
+    font-size: 14px;
+    line-height: 20px;
+    user-select: none;
 }
 
 .wa-rich-editor blockquote {

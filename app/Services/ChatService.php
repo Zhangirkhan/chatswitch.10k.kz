@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Events\NewMessageReceived;
 use App\Models\Chat;
+use App\Models\ChatAssignment;
 use App\Models\Contact;
 use App\Models\Department;
 use App\Models\Message;
@@ -470,7 +471,61 @@ final class ChatService
             'last_message_direction' => 'outbound',
         ]);
 
+        $this->releaseAdministratorIfSoleAssigneeOnOutbound($chat, $user);
+        $this->attachAdministratorWhenJoiningStaffedChat($chat, $user);
+
         return $message;
+    }
+
+    /**
+     * Если в чате уже есть закреплённые сотрудники, исходящее сообщение администратора
+     * добавляет его в chat_assignments — имя появляется в плашке ответственных в списке чатов.
+     */
+    private function attachAdministratorWhenJoiningStaffedChat(Chat $chat, User $user): void
+    {
+        if (! $user->hasRole('administrator')) {
+            return;
+        }
+
+        if (! $chat->assignments()->exists()) {
+            return;
+        }
+
+        if ($chat->assignments()->where('user_id', $user->id)->exists()) {
+            return;
+        }
+
+        $oldIds = $chat->assignments()->pluck('user_id')->all();
+
+        ChatAssignment::firstOrCreate(
+            ['chat_id' => $chat->id, 'user_id' => $user->id],
+            ['assigned_by' => $user->id],
+        );
+
+        $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->logAssignmentChange($chat, $user, $oldIds, $newIds);
+    }
+
+    /**
+     * Ответ администратора не должен оставлять его единственным «ответственным» за чат:
+     * если в chat_assignments только он — запись снимается (супервизия без фиктивного захвата).
+     * При нескольких ответственных или если админ не назначен — не меняем.
+     */
+    private function releaseAdministratorIfSoleAssigneeOnOutbound(Chat $chat, User $user): void
+    {
+        if (! $user->hasRole('administrator')) {
+            return;
+        }
+
+        $assignments = $chat->assignments()->get(['id', 'user_id']);
+        if ($assignments->count() !== 1) {
+            return;
+        }
+
+        $row = $assignments->first();
+        if ($row !== null && (int) $row->user_id === (int) $user->id) {
+            ChatAssignment::query()->whereKey($row->id)->delete();
+        }
     }
 
     /**

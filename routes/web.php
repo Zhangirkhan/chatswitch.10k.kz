@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
-use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CommunityController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ProfileController;
@@ -60,6 +61,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/messages/forward-bulk', [MessageController::class, 'forwardBulk'])->name('messages.forward-bulk');
         Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
 
+        Route::get('/link-preview', LinkPreviewController::class)->name('link-preview');
+
         Route::post('/chats/{chat}/assign', [ChatAssignmentController::class, 'store'])->name('chats.assign');
         Route::post('/chats/{chat}/assign/sync', [ChatAssignmentController::class, 'sync'])->name('chats.assign.sync');
         Route::delete('/chats/{chat}/assign/{assignment}', [ChatAssignmentController::class, 'destroy'])->name('chats.unassign');
@@ -91,12 +94,15 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/departments', [DepartmentController::class, 'index'])->name('settings.departments');
         Route::post('/departments', [DepartmentController::class, 'store'])->name('settings.departments.store');
         Route::put('/departments/{department}', [DepartmentController::class, 'update'])->name('settings.departments.update');
+        Route::post('/departments/{department}/members', [DepartmentController::class, 'syncMembers'])->name('settings.departments.members.sync');
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('settings.departments.destroy');
 
         Route::get('/users', [UserManagementController::class, 'index'])->name('settings.users');
         Route::post('/users', [UserManagementController::class, 'store'])->name('settings.users.store');
         Route::put('/users/{user}', [UserManagementController::class, 'update'])->name('settings.users.update');
         Route::delete('/users/{user}', [UserManagementController::class, 'destroy'])->name('settings.users.destroy');
+
+        Route::get('/clients', [ContactController::class, 'settingsIndex'])->name('settings.clients');
 
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, router } from '@inertiajs/vue3';
+import { ref, watch } from 'vue';
 import axios from 'axios';
 import type { User, Department, WhatsappSession } from '@/types';
+import { useToastStore } from '@/stores/toast';
 
 const props = defineProps<{
     users: User[];
@@ -12,18 +13,31 @@ const props = defineProps<{
     availableRoles: string[];
 }>();
 
+const { show: showToast } = useToastStore();
+
 const local = ref<User[]>([...props.users]);
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const form = ref({
     name: '',
     email: '',
+    phone: '',
     password: '',
     role: 'employee',
     department_id: null as number | null,
     is_active: true,
     whatsapp_session_ids: [] as number[],
 });
+
+watch(
+    () => props.users,
+    (next) => {
+        if (!showForm.value) {
+            local.value = [...next];
+        }
+    },
+    { deep: true },
+);
 
 const roleLabels: Record<string, string> = {
     administrator: 'Администратор',
@@ -36,6 +50,7 @@ function openAdd() {
     form.value = {
         name: '',
         email: '',
+        phone: '',
         password: '',
         role: 'employee',
         department_id: null,
@@ -47,16 +62,22 @@ function openAdd() {
 
 function openEdit(user: User) {
     editingId.value = user.id;
+    const primaryPhone = (user.phone || user.phones?.[0] || '').trim();
     form.value = {
         name: user.name,
         email: user.email,
+        phone: primaryPhone,
         password: '',
         role: user.roles?.[0] || 'employee',
-        department_id: user.department_id,
+        department_id: user.department_id ?? null,
         is_active: user.is_active,
         whatsapp_session_ids: [...(user.whatsapp_session_ids || [])],
     };
     showForm.value = true;
+}
+
+function closeModal() {
+    showForm.value = false;
 }
 
 function toggleSession(id: number) {
@@ -83,6 +104,11 @@ function sessionStatusColor(status: string): string {
     return '#ef4444';
 }
 
+function userPrimaryPhone(user: User): string {
+    const p = (user.phone || user.phones?.[0] || '').trim();
+    return p !== '' ? p : '—';
+}
+
 function buildPayload(): Record<string, unknown> {
     const dept = form.value.department_id;
     const department_id =
@@ -90,10 +116,12 @@ function buildPayload(): Record<string, unknown> {
             ? null
             : Number(dept);
 
+    const phoneTrim = form.value.phone.trim();
     const payload: Record<string, unknown> = {
         name: form.value.name.trim(),
         email: form.value.email.trim(),
-        phones: [],
+        phone: phoneTrim !== '' ? phoneTrim : null,
+        phones: phoneTrim !== '' ? [phoneTrim] : [],
         role: form.value.role,
         department_id,
         whatsapp_session_ids: form.value.whatsapp_session_ids,
@@ -125,29 +153,34 @@ function validationMessage(err: unknown): string {
 async function save() {
     if (!form.value.name.trim() || !form.value.email.trim()) return;
     if (!editingId.value && !form.value.password.trim()) {
-        alert('Укажите пароль для нового пользователя');
+        showToast({ message: 'Укажите пароль для нового пользователя', duration: 4000 });
         return;
     }
     try {
         const payload = buildPayload();
         if (editingId.value) {
-            const { data } = await axios.put(route('settings.users.update', editingId.value), payload);
-            const idx = local.value.findIndex((u) => u.id === editingId.value);
-            if (idx !== -1) local.value[idx] = data.user;
+            await axios.put(route('settings.users.update', editingId.value), payload);
+            showToast({ message: 'Данные пользователя сохранены', duration: 3000 });
         } else {
-            const { data } = await axios.post(route('settings.users.store'), payload);
-            local.value.push(data.user);
+            await axios.post(route('settings.users.store'), payload);
+            showToast({ message: 'Пользователь создан', duration: 3000 });
         }
         showForm.value = false;
+        await router.reload({ only: ['users'] });
     } catch (err: unknown) {
-        alert(validationMessage(err));
+        showToast({ message: validationMessage(err), duration: 6000 });
     }
 }
 
 async function remove(user: User) {
     if (!confirm(`Удалить пользователя "${user.name}"?`)) return;
-    await axios.delete(route('settings.users.destroy', user.id));
-    local.value = local.value.filter((u) => u.id !== user.id);
+    try {
+        await axios.delete(route('settings.users.destroy', user.id));
+        showToast({ message: 'Пользователь удалён', duration: 3000 });
+        await router.reload({ only: ['users'] });
+    } catch (err: unknown) {
+        showToast({ message: validationMessage(err), duration: 6000 });
+    }
 }
 </script>
 
@@ -165,137 +198,64 @@ async function remove(user: User) {
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
-            <!-- Form -->
+            <p class="text-sm text-[var(--wa-text-secondary)] max-w-3xl">
+                Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
+            </p>
+
+            <!-- Users table: действия сразу после имени, чтобы кнопки не уезжали за край экрана -->
             <div
-                v-if="showForm"
-                class="rounded-lg border p-5"
+                class="rounded-lg border overflow-x-auto"
                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
             >
-                <h3 class="text-sm font-medium mb-4 text-[var(--wa-text)]">
-                    {{ editingId ? 'Редактировать пользователя' : 'Новый пользователь' }}
-                </h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Имя</label>
-                        <input v-model="form.name" type="text" class="settings-input" />
-                    </div>
-                    <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Email</label>
-                        <input v-model="form.email" type="email" class="settings-input" />
-                    </div>
-                    <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
-                            Пароль {{ editingId ? '(оставьте пустым, если не меняете)' : '' }}
-                        </label>
-                        <input v-model="form.password" type="password" class="settings-input" />
-                    </div>
-                    <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
-                        <select v-model="form.role" class="settings-input">
-                            <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отдел</label>
-                        <select v-model="form.department_id" class="settings-input">
-                            <option :value="null">— Без отдела —</option>
-                            <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
-                        </select>
-                    </div>
-
-                    <div class="col-span-full">
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
-                            Подключения WhatsApp
-                        </label>
-                        <p class="text-xs text-[var(--wa-text-secondary)] mb-2">
-                            Названия из раздела «Подключения» (например «WhatsApp #1»). Номер телефона аккаунта WhatsApp здесь не
-                            показывается.
-                        </p>
-                        <div
-                            v-if="whatsappSessions.length === 0"
-                            class="text-xs text-[var(--wa-text-secondary)] italic"
-                        >
-                            Пока нет сессий. Добавьте их в «Подключения».
-                        </div>
-                        <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <label
-                                v-for="s in whatsappSessions"
-                                :key="s.id"
-                                class="flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition hover:brightness-95"
-                                :style="{
-                                    background: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-selected)' : 'var(--wa-bg)',
-                                    borderColor: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-accent)' : 'var(--wa-border-strong)',
-                                }"
-                            >
-                                <input
-                                    type="checkbox"
-                                    :checked="form.whatsapp_session_ids.includes(s.id)"
-                                    class="w-4 h-4 rounded"
-                                    @change="toggleSession(s.id)"
-                                />
-                                <span
-                                    class="w-2 h-2 rounded-full shrink-0"
-                                    :style="{ background: sessionStatusColor(s.status) }"
-                                    :title="s.status"
-                                ></span>
-                                <div class="min-w-0 flex-1">
-                                    <div class="text-sm font-medium text-[var(--wa-text)] truncate">
-                                        {{ sessionLabel(s) }}
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div v-if="editingId" class="flex items-center gap-2 col-span-full">
-                        <input v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
-                        <label class="text-sm text-[var(--wa-text-secondary)]">Активен</label>
-                    </div>
-                </div>
-                <div class="flex gap-2 mt-4">
-                    <button
-                        class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                        @click="save"
-                    >Сохранить</button>
-                    <button
-                        class="px-4 py-2 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
-                        @click="showForm = false"
-                    >Отмена</button>
-                </div>
-            </div>
-
-            <!-- Users table -->
-            <div
-                class="rounded-lg border overflow-hidden"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
-            >
-                <table class="w-full text-sm">
+                <table class="w-full text-sm min-w-[720px]">
                     <thead :style="{ background: 'var(--wa-panel-header)' }">
                         <tr>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Имя</th>
+                            <th class="text-right px-5 py-3 font-medium text-[var(--wa-text-secondary)] whitespace-nowrap w-[1%]">
+                                Действия
+                            </th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Email</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Телефон</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Роль</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Отдел</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">WhatsApp</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Статус</th>
-                            <th class="text-right px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="local.length === 0">
-                            <td colspan="7" class="px-5 py-10 text-center text-[var(--wa-text-secondary)]">
+                            <td colspan="8" class="px-5 py-10 text-center text-[var(--wa-text-secondary)]">
                                 Нет пользователей
                             </td>
                         </tr>
                         <tr
                             v-for="user in local"
                             :key="user.id"
-                            class="border-t"
+                            class="border-t transition-colors hover:bg-[color-mix(in_srgb,var(--wa-panel-hover)_65%,transparent)] cursor-pointer"
                             :style="{ borderColor: 'var(--wa-border)' }"
+                            title="Нажмите строку, чтобы редактировать"
+                            @click="openEdit(user)"
                         >
                             <td class="px-5 py-3 font-medium text-[var(--wa-text)]">{{ user.name }}</td>
+                            <td class="px-5 py-3 text-right whitespace-nowrap align-middle" @click.stop>
+                                <button
+                                    type="button"
+                                    class="text-xs px-2 py-1 rounded-md border mr-2 transition hover:brightness-95"
+                                    :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                    @click="openEdit(user)"
+                                >
+                                    Изменить
+                                </button>
+                                <button
+                                    type="button"
+                                    class="text-xs px-2 py-1 rounded-md border border-red-500/40 text-red-400 transition hover:bg-red-500/10"
+                                    @click="remove(user)"
+                                >
+                                    Удалить
+                                </button>
+                            </td>
                             <td class="px-5 py-3 text-[var(--wa-text-secondary)]">{{ user.email }}</td>
+                            <td class="px-5 py-3 text-[var(--wa-text-secondary)] text-xs font-mono">{{ userPrimaryPhone(user) }}</td>
                             <td class="px-5 py-3">
                                 <span
                                     class="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -341,22 +301,150 @@ async function remove(user: User) {
                                     </span>
                                 </span>
                             </td>
-                            <td class="px-5 py-3 text-right whitespace-nowrap">
-                                <button
-                                    class="text-xs hover:underline mr-3"
-                                    :style="{ color: 'var(--wa-accent)' }"
-                                    @click="openEdit(user)"
-                                >Изменить</button>
-                                <button
-                                    class="text-xs text-red-500 hover:underline"
-                                    @click="remove(user)"
-                                >Удалить</button>
-                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="showForm"
+                class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60"
+                role="dialog"
+                aria-modal="true"
+                :aria-label="editingId ? 'Редактирование пользователя' : 'Новый пользователь'"
+                @click.self="closeModal"
+            >
+                <div
+                    class="w-full max-w-xl max-h-[min(90vh,800px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                    @click.stop
+                >
+                    <div class="px-5 py-4 border-b shrink-0 flex items-center justify-between gap-3" :style="{ borderColor: 'var(--wa-border)' }">
+                        <h3 class="text-base font-medium text-[var(--wa-text)]">
+                            {{ editingId ? 'Редактировать пользователя' : 'Новый пользователь' }}
+                        </h3>
+                        <button
+                            type="button"
+                            class="text-sm text-[var(--wa-text-secondary)] hover:text-[var(--wa-text)] px-2 py-1 rounded"
+                            aria-label="Закрыть"
+                            @click="closeModal"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Имя</label>
+                                <input v-model="form.name" type="text" class="settings-input" autocomplete="name" />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Email</label>
+                                <input v-model="form.email" type="email" class="settings-input" autocomplete="email" />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Телефон</label>
+                                <input
+                                    v-model="form.phone"
+                                    type="tel"
+                                    class="settings-input"
+                                    placeholder="+7…"
+                                    autocomplete="tel"
+                                />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
+                                    Пароль {{ editingId ? '(оставьте пустым, если не меняете)' : '' }}
+                                </label>
+                                <input v-model="form.password" type="password" class="settings-input" autocomplete="new-password" />
+                            </div>
+                            <div>
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
+                                <select v-model="form.role" class="settings-input">
+                                    <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отдел</label>
+                                <select v-model="form.department_id" class="settings-input">
+                                    <option :value="null">— Без отдела —</option>
+                                    <option v-for="d in departments" :key="d.id" :value="d.id">
+                                        {{ d.name }}{{ d.is_active === false ? ' (неактивен)' : '' }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="pt-1">
+                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Подключения WhatsApp</label>
+                            <p class="text-xs text-[var(--wa-text-secondary)] mb-2">
+                                Названия из раздела «Подключения». Номер аккаунта WhatsApp здесь не показывается.
+                            </p>
+                            <div
+                                v-if="whatsappSessions.length === 0"
+                                class="text-xs text-[var(--wa-text-secondary)] italic"
+                            >
+                                Пока нет сессий. Добавьте их в «Подключения».
+                            </div>
+                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto wa-scrollbar pr-1">
+                                <label
+                                    v-for="s in whatsappSessions"
+                                    :key="s.id"
+                                    class="flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition hover:brightness-95"
+                                    :style="{
+                                        background: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-selected)' : 'var(--wa-bg)',
+                                        borderColor: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-accent)' : 'var(--wa-border-strong)',
+                                    }"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="form.whatsapp_session_ids.includes(s.id)"
+                                        class="w-4 h-4 rounded shrink-0"
+                                        @change="toggleSession(s.id)"
+                                    />
+                                    <span
+                                        class="w-2 h-2 rounded-full shrink-0"
+                                        :style="{ background: sessionStatusColor(s.status) }"
+                                        :title="s.status"
+                                    ></span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm font-medium text-[var(--wa-text)] truncate">
+                                            {{ sessionLabel(s) }}
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div v-if="editingId" class="flex items-center gap-2 pt-1">
+                            <input id="user-active" v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
+                            <label for="user-active" class="text-sm text-[var(--wa-text)] cursor-pointer">Активен (может входить в систему)</label>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 px-5 py-3 border-t shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
+                        <button
+                            type="button"
+                            class="px-4 py-2 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                            @click="closeModal"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            @click="save"
+                        >
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </SettingsLayout>
 </template>
 

@@ -40,11 +40,52 @@ const PATTERNS: Array<{ re: RegExp; tag: string }> = [
     { re: /`([^`\n]+?)`/g, tag: 'code' },
 ];
 
+function escapeAttr(input: string): string {
+    // Input is already HTML-escaped in renderWaMarkup(), but href/title attributes
+    // need quotes escaping too (defense in depth).
+    return input.replace(/"/g, '&quot;');
+}
+
+function normalizeUrl(raw: string): string {
+    const v = raw.trim();
+    if (/^https?:\/\//i.test(v)) return v;
+    if (/^www\./i.test(v)) return `https://${v}`;
+    return v;
+}
+
+function linkifyHtmlOutsideCode(html: string): string {
+    // Keep links out of <code>...</code> blocks (inline/backticks and triple).
+    const parts = html.split(/(<code>[\s\S]*?<\/code>)/g);
+    return parts
+        .map((part) => {
+            if (part.startsWith('<code>') && part.endsWith('</code>')) {
+                return part;
+            }
+
+            // URLs (http(s):// or www.) – exclude quotes and tag delimiters.
+            const urlRe = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+            return part.replace(urlRe, (m: string) => {
+                // Trim common trailing punctuation that shouldn't be part of URL.
+                let url = m;
+                let trailing = '';
+                while (/[)\],.!?:;]$/.test(url)) {
+                    trailing = url.slice(-1) + trailing;
+                    url = url.slice(0, -1);
+                }
+                const href = normalizeUrl(url);
+                const safeHref = escapeAttr(href);
+                const label = url; // already escaped text
+                return `<a class="wa-link" href="${safeHref}" target="_blank" rel="noopener noreferrer nofollow">${label}</a>${trailing}`;
+            });
+        })
+        .join('');
+}
+
 export function renderWaMarkup(input: string | null | undefined): string {
     if (input == null) return '';
     const escaped = escapeHtml(String(input));
 
-    return PATTERNS.reduce((acc, { re, tag }) => {
+    const withMarkup = PATTERNS.reduce((acc, { re, tag }) => {
         return acc.replace(re, (_m, p1: string | undefined, p2: string | undefined) => {
             if (p2 === undefined) {
                 return `<${tag}>${p1}</${tag}>`;
@@ -52,6 +93,8 @@ export function renderWaMarkup(input: string | null | undefined): string {
             return `${p1 ?? ''}<${tag}>${p2}</${tag}>`;
         });
     }, escaped);
+
+    return linkifyHtmlOutsideCode(withMarkup);
 }
 
 /**

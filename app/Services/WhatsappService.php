@@ -112,14 +112,36 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
-    public function sendMessage(string $sessionName, string $to, string $message, ?string $quotedMessageId = null): array
+    public function sendMessage(
+        string $sessionName,
+        string $to,
+        string $message,
+        ?string $quotedMessageId = null,
+        array $mentions = [],
+    ): array
     {
         $payload = ['to' => $to, 'message' => $message];
         if ($quotedMessageId) {
             $payload['quotedMessageId'] = $quotedMessageId;
         }
 
+        if ($mentions !== []) {
+            $payload['mentions'] = array_values(array_filter(
+                $mentions,
+                static fn ($m) => is_string($m) && trim($m) !== '',
+            ));
+        }
+
         return $this->post('/api/send-message', $payload, $sessionName);
+    }
+
+    /** @return array<string, mixed> */
+    public function forwardMessage(string $sessionName, string $to, string $sourceWhatsappMessageId): array
+    {
+        return $this->post('/api/forward-message', [
+            'to' => $to,
+            'sourceMessageId' => $sourceWhatsappMessageId,
+        ], $sessionName);
     }
 
     /** @return array<string, mixed> */

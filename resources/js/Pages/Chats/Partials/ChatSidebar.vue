@@ -77,7 +77,7 @@ onMounted(() => {
 onMounted(async () => {
     try {
         await axios.post(route('chats.sync-groups'));
-        router.reload({ only: ['chats'] });
+        router.reload({ only: ['chats', 'unreadChatsCount'] });
     } catch {
         // ignore (offline / service not ready)
     }
@@ -111,7 +111,7 @@ watch(searchQuery, (val) => {
         router.get(route('chats.index'), { search: val || undefined }, {
             preserveState: true,
             preserveScroll: true,
-            only: ['chats'],
+            only: ['chats', 'unreadChatsCount'],
         });
     }, 300);
 });
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
 .subtab-active {
     color: var(--wa-accent);
     border-bottom-color: var(--wa-accent);
-    font-weight: 600;
+    font-weight: 500;
 }
 .subtab-active:hover {
     color: var(--wa-accent);
@@ -610,7 +610,7 @@ onBeforeUnmount(() => {
     animation: filter-menu-pop 0.12s ease-out;
 }
 .banner {
-    background-color: var(--wa-panel-header);
+    background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel-header));
 }
 .menu-item {
     display: flex;

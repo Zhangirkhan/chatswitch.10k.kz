@@ -1,10 +1,25 @@
 import axios from 'axios';
+
 window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
-const csrf = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
-if (csrf) {
-    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = csrf;
-}
+
+/**
+ * Не подставлять X-CSRF-TOKEN из <meta> один раз при загрузке: при долгой вкладке meta устаревает,
+ * а Laravel в VerifyCsrfToken смотрит на X-CSRF-TOKEN раньше, чем на X-XSRF-TOKEN из cookie.
+ * Cookie XSRF-TOKEN обновляется с каждым ответом; axios читает её на каждый запрос.
+ */
+window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+
+window.axios.interceptors.response.use(
+    (response) => response,
+    (error: { response?: { status?: number } }) => {
+        if (error.response?.status === 419) {
+            window.location.reload();
+        }
+        return Promise.reject(error);
+    },
+);
 
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';

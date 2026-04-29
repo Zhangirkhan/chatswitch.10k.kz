@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ChatsListNotify;
 use App\Events\MessageAckUpdated;
 use App\Events\MessageReactionsUpdated;
 use App\Events\NewMessageReceived;
 use App\Events\WhatsappStatusChanged;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessWhatsappCallRejectedJob;
 use App\Jobs\ProcessWhatsappInboundJob;
+use App\Models\Chat;
 use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Models\MessageReaction;
 use App\Models\WhatsappSession;
+use App\Support\ChatBroadcastAudience;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,6 +30,7 @@ final class WhatsappWebhookController extends Controller
 
         return match ($event) {
             'message_received' => $this->onMessageReceived($data),
+            'call_incoming' => $this->onCallIncoming($data),
             'connected' => $this->onConnected($data),
             'disconnected' => $this->onDisconnected($data),
             'qr_generated' => $this->onQrGenerated($data),
@@ -104,6 +109,64 @@ final class WhatsappWebhookController extends Controller
         ProcessWhatsappInboundJob::dispatch($data);
 
         return response()->json(['status' => 'queued']);
+    }
+
+    private function onCallIncoming(array $data): JsonResponse
+    {
+        $this->broadcastIncomingCallNotification($data);
+        ProcessWhatsappCallRejectedJob::dispatch($data);
+
+        return response()->json(['status' => 'queued']);
+    }
+
+    /**
+     * Мгновенное уведомление в открытом веб-клиенте (Echo + Web Notifications), пока вкладка в фоне.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function broadcastIncomingCallNotification(array $data): void
+    {
+        $fromMe = filter_var($data['fromMe'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if ($fromMe) {
+            return;
+        }
+
+        $sessionName = trim((string) ($data['session'] ?? ''));
+        $peerJid = trim((string) ($data['peerJid'] ?? ''));
+        if ($sessionName === '' || $peerJid === '') {
+            return;
+        }
+
+        $session = WhatsappSession::query()->where('session_name', $sessionName)->first();
+        if ($session === null) {
+            return;
+        }
+
+        $chat = Chat::query()
+            ->where('whatsapp_session_id', $session->id)
+            ->where('whatsapp_chat_id', $peerJid)
+            ->first();
+
+        if ($chat === null) {
+            return;
+        }
+
+        $recipientUserIds = ChatBroadcastAudience::userIdsWithAccessToChat($chat);
+        if ($recipientUserIds === []) {
+            return;
+        }
+
+        $chat->loadMissing(['contact', 'whatsappSession']);
+
+        broadcast(new ChatsListNotify(
+            $chat->id,
+            'call_incoming',
+            'Входящий звонок WhatsApp',
+            ChatBroadcastAudience::chatDisplayName($chat),
+            ChatBroadcastAudience::absoluteIconUrl($chat->contact?->profile_picture_url),
+            (bool) $chat->is_muted,
+            $recipientUserIds,
+        ));
     }
 
     private function onConnected(array $data): JsonResponse

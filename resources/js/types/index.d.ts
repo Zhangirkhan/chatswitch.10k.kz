@@ -41,6 +41,7 @@ export interface Contact {
     phone_number: string;
     name: string | null;
     push_name: string | null;
+    display_name?: string | null;
     profile_picture_url: string | null;
     is_business: boolean;
 }
@@ -178,6 +179,8 @@ export interface AssignableUser {
     name: string;
     email?: string | null;
     department_id?: number | null;
+    /** Название отдела пользователя (для подписи у руководителя в списке назначения). */
+    department_name?: string | null;
     roles: string[];
 }
 

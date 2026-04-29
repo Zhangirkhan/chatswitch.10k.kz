@@ -84,6 +84,23 @@ final class ChatPolicy
         return false;
     }
 
+    /**
+     * Прикрепление отделов к чату: только администратор и руководитель.
+     * Сотрудник видит в интерфейсе только свой отдел (без изменения).
+     */
+    public function syncDepartments(User $user, Chat $chat): bool
+    {
+        if ($user->hasRole('administrator')) {
+            return true;
+        }
+
+        if ($user->hasRole('manager')) {
+            return $this->view($user, $chat);
+        }
+
+        return false;
+    }
+
     public function delete(User $user, Chat $chat): bool
     {
         return $this->manage($user, $chat);

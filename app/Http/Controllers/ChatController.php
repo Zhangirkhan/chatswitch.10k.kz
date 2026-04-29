@@ -27,6 +27,7 @@ use App\Services\ChatService;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
+use App\Support\PhoneFormatter;
 use App\Support\VCard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -137,7 +138,7 @@ final class ChatController extends Controller
             'chats' => $allChats,
             'contactChats' => $contactChats,
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'assignableUsers' => $this->assignableUsersFor($request->user()),
+            'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
         ]);
     }
 
@@ -162,20 +163,104 @@ final class ChatController extends Controller
         $chat->load('whatsappSession');
         $session = $chat->whatsappSession;
         $quotedMessageId = $request->input('quoted_message_id');
-        $text = (string) $request->input('message');
+        $text = (string) $request->input('message'); // text used for WhatsApp sending
+        $displayText = (string) ($request->input('display_message') ?? '');
+        if (trim($displayText) === '') {
+            $displayText = $text;
+        }
+        $mentionsRaw = $request->input('mentions', []);
+        $mentionsMetaRaw = $request->input('mentions_meta', []);
+        $mentions = is_array($mentionsRaw)
+            ? array_values(array_filter(array_map(
+                static fn ($m) => is_string($m) ? $m : null,
+                $mentionsRaw
+            )))
+            : [];
+        $mentionsMeta = [];
+        if (is_array($mentionsMetaRaw)) {
+            foreach ($mentionsMetaRaw as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $id = isset($row['id']) ? trim((string) $row['id']) : '';
+                $number = isset($row['number']) ? preg_replace('/\D/', '', (string) $row['number']) : '';
+                $label = isset($row['label']) ? trim((string) $row['label']) : '';
+                if ($id === '' || $number === '' || $label === '') {
+                    continue;
+                }
+                $mentionsMeta[] = [
+                    'id' => $id,
+                    'number' => $number,
+                    'label' => $label,
+                ];
+            }
+        }
+
+        // Fail-safe: если UI не прислал mentions, пробуем извлечь из текста "@7700..."
+        // (это то, как whatsapp-web.js ожидает упоминания в message body).
+        if ($mentions === []) {
+            $found = [];
+            if (preg_match_all('/(^|\s)@(\d{5,20})\b/u', $text, $m)) {
+                /** @var array<int, string> $nums */
+                $nums = $m[2] ?? [];
+                foreach ($nums as $n) {
+                    $n = preg_replace('/\D/', '', (string) $n);
+                    if ($n !== '') {
+                        $found[] = $n;
+                    }
+                }
+            }
+            if ($found !== []) {
+                $mentions = array_values(array_unique($found));
+            }
+        }
+
+        try {
+            \Illuminate\Support\Facades\Log::info('chat.sendMessage mention debug', [
+                'chat_id' => $chat->id,
+                'is_group' => (bool) $chat->is_group,
+                'mentions_raw_type' => gettype($mentionsRaw),
+                'mentions_raw_n' => is_array($mentionsRaw) ? count($mentionsRaw) : null,
+                'mentions_before_norm_n' => count($mentions),
+                'text_has_at' => str_contains($text, '@'),
+                'text_preview' => mb_substr(preg_replace('/\s+/u', ' ', $text) ?: '', 0, 120),
+            ]);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // whatsapp-web.js ожидает полный JID (например, 7700...@c.us).
+        // UI может прислать просто digits — нормализуем.
+        $mentions = array_values(array_filter(array_map(
+            static function ($m): ?string {
+                if (!is_string($m)) return null;
+                $m = trim($m);
+                if ($m === '') return null;
+                if (str_contains($m, '@')) return $m;
+                return preg_replace('/\D/', '', $m) . '@c.us';
+            },
+            $mentions
+        )));
 
         // Подпись оператора («*Имя (Должность)*») уходит и в WhatsApp, и в БД —
         // так клиент и оператор видят сообщение в одинаковом виде.
         $signedText = OperatorSignature::prepend($request->user(), $text);
+        $signedDisplayText = OperatorSignature::prepend($request->user(), $displayText);
 
         $message = $this->chatService->storeOutboundMessage(
             $chat,
             $session,
             $request->user(),
-            $signedText,
+            $signedDisplayText,
             null,
             $quotedMessageId,
         );
+
+        if ($mentionsMeta !== []) {
+            $meta = is_array($message->metadata) ? $message->metadata : [];
+            $meta['mentions'] = array_slice($mentionsMeta, 0, 20);
+            $message->forceFill(['metadata' => $meta])->saveQuietly();
+        }
 
         $message->load(self::MESSAGE_WITH);
         broadcast(new NewMessageReceived($message, $chat->id));
@@ -183,7 +268,11 @@ final class ChatController extends Controller
         SendOutboundMessageJob::dispatch(
             $message->id,
             'text',
-            ['body' => $signedText, 'quoted_message_id' => $quotedMessageId],
+            [
+                'body' => $signedText,
+                'quoted_message_id' => $quotedMessageId,
+                'mentions' => $mentions,
+            ],
         );
 
         return response()->json(['success' => true, 'message' => $message]);
@@ -348,7 +437,7 @@ final class ChatController extends Controller
         $phone = $chat->contact?->phone_number;
         if (! $phone) {
             // Fallback: derive from whatsapp_chat_id for 1:1 chats
-            $phone = \App\Support\PhoneFormatter::fromWhatsappId($chat->whatsapp_chat_id);
+            $phone = PhoneFormatter::fromWhatsappId($chat->whatsapp_chat_id);
         }
 
         if (! $phone) {
@@ -365,12 +454,17 @@ final class ChatController extends Controller
             $chat->update(['contact_id' => $contact->id]);
         }
 
+        // Keep the UI chat title consistent with the saved contact name.
+        // (Lists/side panels prefer `chat.chat_name`.)
+        $chat->update(['chat_name' => $name]);
+
         return response()->json(['success' => true, 'contact' => $contact]);
     }
 
     public function contacts(Request $request): JsonResponse
     {
         $search = trim((string) $request->input('search', ''));
+        $sessionId = (int) $request->input('whatsapp_session_id', 0);
 
         $query = Contact::query()->orderByRaw('COALESCE(name, push_name, phone_number) asc');
 
@@ -386,12 +480,60 @@ final class ChatController extends Controller
             });
         }
 
+        $recentChats = $this->chatService->getChatsForUser($request->user())
+            ->when($sessionId > 0, fn ($q) => $q->where('whatsapp_session_id', $sessionId))
+            ->whereNotNull('contact_id')
+            ->where('is_group', false)
+            ->orderByDesc('last_message_at')
+            ->limit(200)
+            ->get(['contact_id', 'chat_name', 'last_message_at']);
+
+        $recentContactIds = $recentChats
+            ->pluck('contact_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $chatNameByContactId = $recentChats
+            ->filter(fn (Chat $c) => $c->contact_id !== null && trim((string) $c->chat_name) !== '')
+            ->mapWithKeys(fn (Chat $c) => [(int) $c->contact_id => trim((string) $c->chat_name)]);
+
+        $contacts = $query->limit(300)->get();
+        if ($recentContactIds !== []) {
+            $priority = array_flip($recentContactIds);
+            $contacts = $contacts
+                ->sortBy(fn (Contact $c) => $priority[$c->id] ?? PHP_INT_MAX)
+                ->values();
+        }
+        $contacts = $contacts
+            ->map(function (Contact $c) use ($chatNameByContactId) {
+                $saved = trim((string) ($c->name ?? ''));
+                $chatName = trim((string) ($chatNameByContactId[$c->id] ?? ''));
+                $push = trim((string) ($c->push_name ?? ''));
+                $phone = trim((string) ($c->phone_number ?? ''));
+                $savedLooksLikeWaNick = $saved !== '' && $push !== '' && mb_strtolower($saved) === mb_strtolower($push);
+                $displayName = $saved !== '' && ! $savedLooksLikeWaNick
+                    ? $saved
+                    : ($chatName !== '' ? $chatName : ($saved !== '' ? $saved : ($push !== '' ? $push : $phone)));
+
+                return [
+                    'id' => $c->id,
+                    'whatsapp_id' => $c->whatsapp_id,
+                    'phone_number' => $c->phone_number,
+                    'name' => $c->name,
+                    'push_name' => $c->push_name,
+                    'profile_picture_url' => $c->profile_picture_url,
+                    'display_name' => $displayName,
+                ];
+            })
+            ->values();
+
         $sessions = $this->sessionsForUser($request->user())
             ->orderBy('display_name')
             ->get(['whatsapp_sessions.id', 'session_name', 'display_name', 'phone_number', 'status']);
 
         return response()->json([
-            'contacts' => $query->limit(300)->get(),
+            'contacts' => $contacts,
             'sessions' => $sessions,
         ]);
     }
@@ -592,18 +734,24 @@ final class ChatController extends Controller
         // Map participants to our saved contacts (by phone digits or whatsapp_id).
         $digits = [];
         foreach ($participants as $p) {
-            if (! is_array($p)) continue;
+            if (! is_array($p)) {
+                continue;
+            }
             $raw = (string) ($p['number'] ?? '');
             $d = preg_replace('/\D/', '', $raw) ?: null;
-            if ($d) $digits[] = $d;
+            if ($d) {
+                $digits[] = $d;
+            }
             $id = (string) ($p['id'] ?? '');
             $idDigits = preg_replace('/\D/', '', $id) ?: null;
-            if ($idDigits) $digits[] = $idDigits;
+            if ($idDigits) {
+                $digits[] = $idDigits;
+            }
         }
         $digits = array_values(array_unique(array_filter($digits)));
 
         $contacts = $digits
-            ? \App\Models\Contact::query()
+            ? Contact::query()
                 ->whereIn('phone_number', $digits)
                 ->orWhereIn('whatsapp_id', $digits)
                 ->orWhereIn('whatsapp_id', array_map(fn ($d) => "{$d}@c.us", $digits))
@@ -614,18 +762,27 @@ final class ChatController extends Controller
         $byWa = $contacts->keyBy('whatsapp_id');
 
         $mapped = array_map(function ($p) use ($byPhone, $byWa) {
-            if (! is_array($p)) return $p;
+            if (! is_array($p)) {
+                return $p;
+            }
             $rawNumber = (string) ($p['number'] ?? '');
             $d = preg_replace('/\D/', '', $rawNumber) ?: null;
             $waId = (string) ($p['id'] ?? '');
             $contact = null;
-            if ($d && $byPhone->has($d)) $contact = $byPhone->get($d);
-            if (! $contact && $waId !== '' && $byWa->has($waId)) $contact = $byWa->get($waId);
-            if (! $contact && $d && $byWa->has("{$d}@c.us")) $contact = $byWa->get("{$d}@c.us");
+            if ($d && $byPhone->has($d)) {
+                $contact = $byPhone->get($d);
+            }
+            if (! $contact && $waId !== '' && $byWa->has($waId)) {
+                $contact = $byWa->get($waId);
+            }
+            if (! $contact && $d && $byWa->has("{$d}@c.us")) {
+                $contact = $byWa->get("{$d}@c.us");
+            }
 
             if ($contact && $contact->name) {
                 $p['saved_name'] = $contact->name;
             }
+
             return $p;
         }, $participants);
 
@@ -639,11 +796,31 @@ final class ChatController extends Controller
     {
         $this->authorize('view', $chat);
 
+        $limit = (int) $request->input('limit', 50);
+        $limit = min(100, max(1, $limit));
+
+        $beforeTs = $request->input('before_timestamp');
+        $beforeId = (int) $request->input('before_id', 0);
+
         $messages = $chat->messages()
             ->with(self::MESSAGE_WITH)
-            ->orderByDesc('message_timestamp')
-            ->when($request->input('before_timestamp'), fn ($q, $ts) => $q->where('message_timestamp', '<', $ts))
-            ->limit((int) $request->input('limit', 50))
+            ->when(
+                is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
+                function ($q) use ($beforeTs, $beforeId): void {
+                    if ($beforeId > 0) {
+                        $q->whereRaw(
+                            '(COALESCE(message_timestamp, created_at) < ?) OR (COALESCE(message_timestamp, created_at) = ? AND id < ?)',
+                            [$beforeTs, $beforeTs, $beforeId],
+                        );
+
+                        return;
+                    }
+                    $q->whereRaw('COALESCE(message_timestamp, created_at) < ?', [$beforeTs]);
+                },
+            )
+            ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+            ->orderByDesc('id')
+            ->limit($limit)
             ->get()
             ->reverse()
             ->values();
@@ -813,7 +990,7 @@ final class ChatController extends Controller
         return response()->json(['success' => true, 'message' => $message]);
     }
 
-    private function assignableUsersFor(?User $user): Collection
+    private function assignableUsersFor(?User $user, ?Chat $chat = null): Collection
     {
         if (! $user) {
             return collect();
@@ -821,23 +998,49 @@ final class ChatController extends Controller
 
         $query = User::query()
             ->where('is_active', true)
-            ->with('roles:id,name')
+            ->with(['roles:id,name', 'department:id,name'])
             ->orderBy('name');
 
+        /** @var list<int>|null Отделы чата для сортировки списка у администратора (сверху — из отделов чата). */
+        $adminChatDepartmentIds = null;
+
         if ($user->hasRole('administrator')) {
-            // all active
+            if ($chat === null) {
+                return collect();
+            }
+            $rawDeptIds = $chat->relationLoaded('departments')
+                ? $chat->departments->pluck('id')->all()
+                : $chat->departments()->pluck('departments.id')->all();
+            if ($rawDeptIds === []) {
+                // Админ сначала прикрепляет к чату отдел(а) — до этого список пустой.
+                return collect();
+            }
+            // Полный список активных пользователей; новых можно сохранить только из отделов чата (см. ChatAssignmentController).
+            $adminChatDepartmentIds = array_values(array_map(intval(...), $rawDeptIds));
         } elseif ($user->hasRole('manager')) {
             $query->where('department_id', $user->department_id);
         } else {
             return collect();
         }
 
-        return $query->get(['id', 'name', 'email', 'department_id'])
+        $users = $query->get(['id', 'name', 'email', 'department_id']);
+
+        if ($adminChatDepartmentIds !== null) {
+            $users = $users->sortBy(function (User $u) use ($adminChatDepartmentIds): array {
+                $uid = $u->department_id !== null ? (int) $u->department_id : null;
+                $inChatDept = $uid !== null && in_array($uid, $adminChatDepartmentIds, true);
+
+                return [$inChatDept ? 0 : 1, mb_strtolower($u->name)];
+            })->values();
+        }
+
+        return $users
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'email' => $u->email,
                 'department_id' => $u->department_id,
+                'department_name' => $u->department?->name,
                 'roles' => $u->roles->pluck('name')->all(),
             ])
             ->values();

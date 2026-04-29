@@ -275,8 +275,11 @@ final class MessageController extends Controller
                 'message_timestamp' => now(),
             ]);
 
-            $payloadType = 'text';
-            $payload = ['body' => $outboundBody, 'quoted_message_id' => null];
+            $sourceWhatsappMessageId = trim((string) ($message->whatsapp_message_id ?? ''));
+            $payloadType = $sourceWhatsappMessageId !== '' ? 'forward' : 'text';
+            $payload = $sourceWhatsappMessageId !== ''
+                ? ['source_whatsapp_message_id' => $sourceWhatsappMessageId]
+                : ['body' => $outboundBody, 'quoted_message_id' => null];
 
             /** @var Collection<int, MessageMedia> $media */
             $media = $message->media ?? collect();
@@ -290,19 +293,21 @@ final class MessageController extends Controller
                         'file_size' => $m->file_size,
                     ]);
                 }
-                $payloadType = 'media';
-                $first = $media->first();
-                $captionRaw = trim((string) ($message->body ?? ''));
-                $caption = $captionRaw !== ''
-                    ? OperatorSignature::prepend($user, (string) $message->body)
-                    : OperatorSignature::prepend($user, MediaType::previewText($message->type ?: 'chat', null));
-                $payload = [
-                    'disk' => 'local',
-                    'path' => (string) ($first?->disk_path ?? ''),
-                    'mimetype' => (string) ($first?->mime_type ?? 'application/octet-stream'),
-                    'filename' => $first?->filename,
-                    'caption' => $caption,
-                ];
+                if ($sourceWhatsappMessageId === '') {
+                    $payloadType = 'media';
+                    $first = $media->first();
+                    $captionRaw = trim((string) ($message->body ?? ''));
+                    $caption = $captionRaw !== ''
+                        ? OperatorSignature::prepend($user, (string) $message->body)
+                        : OperatorSignature::prepend($user, MediaType::previewText($message->type ?: 'chat', null));
+                    $payload = [
+                        'disk' => 'local',
+                        'path' => (string) ($first?->disk_path ?? ''),
+                        'mimetype' => (string) ($first?->mime_type ?? 'application/octet-stream'),
+                        'filename' => $first?->filename,
+                        'caption' => $caption,
+                    ];
+                }
             }
 
             SendOutboundMessageJob::dispatch($forward->id, $payloadType, $payload);
@@ -377,8 +382,11 @@ final class MessageController extends Controller
                     'message_timestamp' => now(),
                 ]);
 
-                $payloadType = 'text';
-                $payload = ['body' => $outboundBody, 'quoted_message_id' => null];
+                $sourceWhatsappMessageId = trim((string) ($src->whatsapp_message_id ?? ''));
+                $payloadType = $sourceWhatsappMessageId !== '' ? 'forward' : 'text';
+                $payload = $sourceWhatsappMessageId !== ''
+                    ? ['source_whatsapp_message_id' => $sourceWhatsappMessageId]
+                    : ['body' => $outboundBody, 'quoted_message_id' => null];
 
                 $media = $src->media ?? collect();
                 if ($media->isNotEmpty()) {
@@ -391,19 +399,21 @@ final class MessageController extends Controller
                             'file_size' => $m->file_size,
                         ]);
                     }
-                    $payloadType = 'media';
-                    $first = $media->first();
-                    $captionRaw = trim((string) ($src->body ?? ''));
-                    $caption = $captionRaw !== ''
-                        ? OperatorSignature::prepend($user, (string) $src->body)
-                        : OperatorSignature::prepend($user, MediaType::previewText($src->type ?: 'chat', null));
-                    $payload = [
-                        'disk' => 'local',
-                        'path' => (string) ($first?->disk_path ?? ''),
-                        'mimetype' => (string) ($first?->mime_type ?? 'application/octet-stream'),
-                        'filename' => $first?->filename,
-                        'caption' => $caption,
-                    ];
+                    if ($sourceWhatsappMessageId === '') {
+                        $payloadType = 'media';
+                        $first = $media->first();
+                        $captionRaw = trim((string) ($src->body ?? ''));
+                        $caption = $captionRaw !== ''
+                            ? OperatorSignature::prepend($user, (string) $src->body)
+                            : OperatorSignature::prepend($user, MediaType::previewText($src->type ?: 'chat', null));
+                        $payload = [
+                            'disk' => 'local',
+                            'path' => (string) ($first?->disk_path ?? ''),
+                            'mimetype' => (string) ($first?->mime_type ?? 'application/octet-stream'),
+                            'filename' => $first?->filename,
+                            'caption' => $caption,
+                        ];
+                    }
                 }
 
                 SendOutboundMessageJob::dispatch($forward->id, $payloadType, $payload);

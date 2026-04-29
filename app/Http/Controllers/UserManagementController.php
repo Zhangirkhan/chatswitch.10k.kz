@@ -23,7 +23,7 @@ final class UserManagementController extends Controller
             ->get()
             ->map(fn (User $user) => $this->transformUser($user));
 
-        $departments = Department::where('is_active', true)->orderBy('name')->get();
+        $departments = Department::query()->orderBy('name')->get(['id', 'name', 'is_active']);
 
         $whatsappSessions = WhatsappSession::orderBy('display_name')
             ->get(['id', 'session_name', 'display_name', 'status']);

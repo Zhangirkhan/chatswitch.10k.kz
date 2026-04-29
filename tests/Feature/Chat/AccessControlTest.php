@@ -6,6 +6,7 @@ namespace Tests\Feature\Chat;
 
 use App\Models\Chat;
 use App\Models\ChatAssignment;
+use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,5 +66,34 @@ final class AccessControlTest extends TestCase
         ]);
 
         $this->assertTrue($user->can('view', $chat));
+    }
+
+    public function test_employee_cannot_sync_chat_departments(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Отдел тест',
+            'description' => null,
+            'is_active' => true,
+        ]);
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        ChatAssignment::create([
+            'chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
+
+        $this->assertFalse($user->can('syncDepartments', $chat));
+
+        $this->actingAs($user, 'web')
+            ->postJson(route('chats.departments.sync', $chat), [
+                'department_ids' => [$dept->id],
+            ])
+            ->assertForbidden();
     }
 }

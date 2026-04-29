@@ -18,6 +18,7 @@ export interface Contact {
     phone_number: string | null;
     name: string | null;
     push_name: string | null;
+    display_name?: string | null;
     avatar_url?: string | null;
     /** Laravel `Contact::$casts` / API */
     profile_picture_url?: string | null;

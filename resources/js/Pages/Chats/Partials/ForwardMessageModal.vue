@@ -24,13 +24,20 @@ const sending = ref(false);
 const error = ref<string | null>(null);
 
 function contactLabel(c: Contact): string {
+    const preferred = (c.display_name || '').trim();
+    if (preferred) return preferred;
     return c.name || (c.push_name ? `~ ${c.push_name}` : '') || formatPhone(c.phone_number) || '';
 }
 
 async function loadContacts(): Promise<void> {
     loading.value = true;
     try {
-        const { data } = await axios.get(route('chats.contacts'), { params: { search: q.value || undefined } });
+        const { data } = await axios.get(route('chats.contacts'), {
+            params: {
+                search: q.value || undefined,
+                whatsapp_session_id: props.whatsappSessionId,
+            },
+        });
         contacts.value = (data.contacts || []) as Contact[];
     } finally {
         loading.value = false;
@@ -55,11 +62,19 @@ watch(
 );
 
 const selectedCount = computed(() => selected.value.size);
+const selectedContacts = computed(() => contacts.value.filter((c) => selected.value.has(c.id)));
 
 function toggleContact(id: number) {
     const next = new Set(selected.value);
     if (next.has(id)) next.delete(id);
     else next.add(id);
+    selected.value = next;
+}
+
+function removeSelected(id: number) {
+    if (!selected.value.has(id)) return;
+    const next = new Set(selected.value);
+    next.delete(id);
     selected.value = next;
 }
 
@@ -153,6 +168,24 @@ onMounted(() => {
                             class="w-full pl-10 pr-3 py-2 rounded-full text-sm border-0 focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
                         />
+                    </div>
+
+                    <div v-if="selectedContacts.length" class="mt-3">
+                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Кому:</div>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="c in selectedContacts"
+                                :key="`selected-${c.id}`"
+                                type="button"
+                                class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                @click="removeSelected(c.id)"
+                                :title="`Убрать ${contactLabel(c) || 'контакт'}`"
+                            >
+                                <span class="max-w-[180px] truncate">{{ contactLabel(c) || 'Без имени' }}</span>
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div v-if="error" class="text-xs mt-3" style="color:#ff6b6b;">

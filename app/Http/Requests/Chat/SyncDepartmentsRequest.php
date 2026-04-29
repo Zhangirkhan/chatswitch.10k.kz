@@ -14,7 +14,7 @@ final class SyncDepartmentsRequest extends FormRequest
         /** @var Chat|null $chat */
         $chat = $this->route('chat');
 
-        return $chat !== null && $this->user()?->can('manage', $chat) === true;
+        return $chat !== null && $this->user()?->can('syncDepartments', $chat) === true;
     }
 
     /** @return array<string, mixed> */

@@ -174,7 +174,7 @@ async function togglePin() {
     working.value = true;
     try {
         await axios.post(route('chats.toggle-pin', props.chat.id));
-        router.reload({ only: ['chat', 'chats'] });
+        router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
     } finally {
         working.value = false;
     }
@@ -185,7 +185,7 @@ async function clearChat() {
     working.value = true;
     try {
         await axios.post(route('chats.clear', props.chat.id));
-        router.reload({ only: ['messages', 'chat'] });
+        router.reload({ only: ['messages', 'chat', 'unreadChatsCount'] });
     } finally {
         working.value = false;
     }
@@ -195,9 +195,16 @@ function notImplemented(name: string) {
     alert(`«${name}» — скоро будет доступно.`);
 }
 
+function preferredEditableName(): string {
+    // Приоритет: то, что отображается в шапке чата (`chat_name`), должно также
+    // подставляться в модалку редактирования, иначе вы увидите “старое” значение,
+    // если contact.name не успел синхронизироваться на фронте.
+    return (props.chat.chat_name || props.chat.contact?.name || props.chat.contact?.push_name || '').trim();
+}
+
 function openEdit() {
     saveError.value = null;
-    editName.value = (props.chat.contact?.name || '').toString();
+    editName.value = preferredEditableName();
     editOpen.value = true;
 }
 
@@ -219,7 +226,7 @@ async function saveContactName() {
     try {
         await axios.post(route('chats.save-contact', props.chat.id), { name });
         closeEdit();
-        router.reload({ only: ['chat', 'chats', 'messages'] });
+        router.reload({ only: ['chat', 'chats', 'messages', 'unreadChatsCount'] });
     } catch (e: any) {
         saveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось сохранить контакт';
     } finally {
@@ -409,25 +416,12 @@ async function saveContactName() {
                 </div>
             </div>
 
-            <!-- 3 action tiles -->
-            <div class="px-4 pb-4 grid grid-cols-3 gap-2">
-                <button class="action-tile" @click="emit('open-search')" type="button">
+            <div class="px-4 pb-4">
+                <button class="action-tile w-full" type="button" @click="emit('open-search')">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     <span>Поиск</span>
-                </button>
-                <button class="action-tile" @click="notImplemented('Видеозвонок')" type="button">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <span>Видео</span>
-                </button>
-                <button class="action-tile" @click="notImplemented('Аудиозвонок')" type="button">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M19.05 17.34l-2.39-2.39a1.49 1.49 0 00-2.11 0l-.75.75a9.02 9.02 0 01-4.5-4.5l.75-.75a1.49 1.49 0 000-2.11L7.66 5.95a1.49 1.49 0 00-2.11 0l-1.3 1.3a2 2 0 00-.46 2.12A18 18 0 0015.63 21a2 2 0 002.12-.46l1.3-1.3a1.49 1.49 0 000-1.9z"/>
-                    </svg>
-                    <span>Аудио</span>
                 </button>
             </div>
 

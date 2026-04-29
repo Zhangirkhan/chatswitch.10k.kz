@@ -5,10 +5,19 @@ import Avatar from '@/Components/Avatar.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
+import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
 
 const page = usePage<any>();
 const user = computed(() => page.props.auth.user);
+const userId = computed(() => (typeof user.value?.id === 'number' ? user.value.id : null));
+
+useChatsListDesktopNotifications(
+    () => userId.value,
+    () => userId.value,
+);
 const unreadChatsCount = computed<number>(() => Number(page.props.unreadChatsCount || 0));
+useUnreadFavicon(() => unreadChatsCount.value);
 const whatsappSessions = ref<WhatsappSession[]>([]);
 let whatsappStatusChannel: any = null;
 

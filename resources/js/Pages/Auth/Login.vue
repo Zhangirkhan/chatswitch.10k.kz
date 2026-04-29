@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import GuestLayout from '@/Layouts/GuestLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 defineProps<{
     canResetPassword?: boolean;
     status?: string;
 }>();
+
+const page = usePage();
+const flashError = computed(() => {
+    const flash = page.props.flash as { error?: string } | undefined;
+    return flash?.error ?? null;
+});
 
 const form = useForm({
     email: '',
@@ -28,9 +35,13 @@ const submit = () => {
             {{ status }}
         </div>
 
+        <div v-if="flashError" class="mb-4 text-sm font-medium text-red-400">
+            {{ flashError }}
+        </div>
+
         <form @submit.prevent="submit" class="space-y-5">
             <div>
-                <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">Email</label>
+                <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">Электронная почта</label>
                 <input
                     id="email"
                     type="email"

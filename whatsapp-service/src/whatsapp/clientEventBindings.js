@@ -13,11 +13,56 @@ function isDuplicate(id) {
 }
 
 function attachRuntimeEvents(service) {
+  if (service.runtimeEventsBound) {
+    return;
+  }
+  service.runtimeEventsBound = true;
+
   const client = service.client;
 
-  client.on(Events.MESSAGE_RECEIVED, async (message) => {
+  client.on(Events.INCOMING_CALL, async (call) => {
+    if (call?.fromMe) {
+      return;
+    }
+    try {
+      await call.reject();
+    } catch (err) {
+      console.error(`[${service.sessionName}] call reject error:`, err.message);
+    }
+    try {
+      await notifyLaravel('call_incoming', {
+        session: service.sessionName,
+        peerJid: call.from,
+        callId: call.id,
+        isVideo: Boolean(call.isVideo),
+        isGroup: Boolean(call.isGroup),
+        fromMe: Boolean(call.fromMe),
+      });
+    } catch (err) {
+      console.error(`[${service.sessionName}] call webhook notify error:`, err.message);
+    }
+  });
+
+  const onIncomingMessage = async (message) => {
     const serialized = message.id?._serialized;
-    if (!serialized || isDuplicate(serialized)) return;
+    // Техническая диагностика: чтобы понять, срабатывает ли обработчик вообще.
+    // Логируем ограниченно, чтобы не забить логи.
+    if (service._debugInboundMessageLogsCount === undefined) {
+      service._debugInboundMessageLogsCount = 0;
+    }
+    if (service._debugInboundMessageLogsCount < 5) {
+      service._debugInboundMessageLogsCount += 1;
+      // eslint-disable-next-line no-console
+      console.log(
+        `[${service.sessionName}] inbound event: serialized=${serialized ? String(serialized).slice(0, 18) : 'none'} fromMe=${Boolean(
+          message?.fromMe
+        )} isStatus=${Boolean(message?.isStatus)} type=${String(message?.type || '')}`
+      );
+    }
+    // Дедуп используем только если есть нормальный идентификатор.
+    // В некоторых ивентах/версиях у сообщения может не быть `_serialized`,
+    // тогда просто пропускаем дедуп, чтобы не потерять inbound.
+    if (serialized && isDuplicate(serialized)) return;
     if (message.fromMe || message.isStatus) return;
 
     try {
@@ -25,7 +70,12 @@ function attachRuntimeEvents(service) {
     } catch (err) {
       console.error(`[${service.sessionName}] inbound error:`, err.message);
     }
-  });
+  };
+
+  // whatsapp-web.js иногда эмитит разные ивенты для создания/получения сообщения.
+  // Поддерживаем оба, чтобы inbound-форварды в Laravel не “умирали”.
+  client.on(Events.MESSAGE_RECEIVED, onIncomingMessage);
+  client.on(Events.MESSAGE_CREATE, onIncomingMessage);
 
   client.on('message_ack', (message, ack) => {
     const ackMap = { 0: 'pending', 1: 'sent', 2: 'delivered', 3: 'read', 4: 'played' };
@@ -88,6 +138,17 @@ function attachEventBindings(service) {
     attachRuntimeEvents(service);
   });
 
+  client.on(Events.STATE_CHANGED, (state) => {
+    // Fallback for rare cases when READY is missed but client is already connected.
+    if (state === 'CONNECTED' && !service.isReady) {
+      console.log(`${tag} STATE_CHANGED -> CONNECTED (fallback ready)`);
+      service.isReady = true;
+      service.isInitializing = false;
+      service.qrCode = null;
+      attachRuntimeEvents(service);
+    }
+  });
+
   client.on(Events.AUTHENTICATED, () => {
     console.log(`${tag} authenticated`);
   });
@@ -109,4 +170,4 @@ function attachEventBindings(service) {
   });
 }
 
-module.exports = { attachEventBindings };
+module.exports = { attachEventBindings, attachRuntimeEvents };

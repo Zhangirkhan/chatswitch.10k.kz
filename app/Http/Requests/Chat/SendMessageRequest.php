@@ -22,7 +22,14 @@ final class SendMessageRequest extends FormRequest
     {
         return [
             'message' => ['required', 'string', 'max:4096'],
+            'display_message' => ['nullable', 'string', 'max:4096'],
             'quoted_message_id' => ['nullable', 'string', 'max:255'],
+            'mentions' => ['nullable', 'array', 'max:20'],
+            'mentions.*' => ['string', 'max:255'],
+            'mentions_meta' => ['nullable', 'array', 'max:20'],
+            'mentions_meta.*.id' => ['required_with:mentions_meta', 'string', 'max:255'],
+            'mentions_meta.*.number' => ['required_with:mentions_meta', 'string', 'max:32'],
+            'mentions_meta.*.label' => ['required_with:mentions_meta', 'string', 'max:120'],
         ];
     }
 }

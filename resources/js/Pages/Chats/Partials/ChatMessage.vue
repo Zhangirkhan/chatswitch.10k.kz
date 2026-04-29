@@ -8,6 +8,8 @@ import MessageStatus from './MessageStatus.vue';
 import { useToastStore } from '@/stores/toast';
 import type { Chat, Message, MessageMedia, MessageReaction } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { renderWaMarkup, stripWaMarkup } from '@/utils/waMarkup';
+import LinkPreview from '@/Components/LinkPreview.vue';
 
 const props = defineProps<{
     message: Message;
@@ -47,6 +49,7 @@ const hovered = ref(false);
 
 const isOutbound = computed(() => props.message.direction === 'outbound');
 const isInbound = computed(() => props.message.direction === 'inbound');
+const isSystemMessage = computed(() => props.message.direction === 'system');
 const quickReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 /** Контекстное меню + полоска реакций (компактно, под референс Telegram / WA). */
@@ -147,6 +150,13 @@ function isVideoMime(m: { mime_type?: string | null }): boolean {
     return mime(m).startsWith('video/');
 }
 
+function isGifLikeMedia(m: MessageMedia): boolean {
+    const mt = mime(m).toLowerCase();
+    const fn = (m.filename || '').toLowerCase();
+    const t = normalizedMessageType.value;
+    return t === 'gif' || mt === 'image/gif' || fn.endsWith('.gif');
+}
+
 const normalizedMessageType = computed(() => (props.message.type ?? '').toString().toLowerCase());
 
 const isVoiceMessageType = computed(
@@ -156,8 +166,14 @@ const isVoiceMessageType = computed(
         normalizedMessageType.value === 'audio',
 );
 
-/** Длительность голосового из метаданных (whatsapp-service → ChatService). */
-const voiceDurationLabel = computed((): string | null => {
+const VOICE_WAVE_BAR_COUNT = 34;
+
+const showVoiceFallback = computed(
+    () => isVoiceMessageType.value && mediaItems.value.length === 0,
+);
+
+/** Длительность из метаданных только для заглушки без файла. */
+const voiceFallbackDurationLabel = computed((): string | null => {
     const meta = props.message.metadata as { media?: { duration?: number } } | null | undefined;
     const sec = meta?.media?.duration;
     if (typeof sec !== 'number' || !Number.isFinite(sec) || sec < 0) {
@@ -168,9 +184,7 @@ const voiceDurationLabel = computed((): string | null => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 });
 
-const showVoiceFallback = computed(
-    () => isVoiceMessageType.value && mediaItems.value.length === 0,
-);
+const voiceWaveFallbackBars = computed(() => waveformBarHeights(props.message.id));
 
 const contactAvatarUrl = computed((): string | null => {
     const c = props.chat?.contact;
@@ -189,6 +203,90 @@ const operatorInitial = computed(() => {
     return n.charAt(0).toUpperCase();
 });
 
+type MentionMeta = { id: string; number: string; label: string };
+type BodySegment =
+    | { type: 'text'; text: string }
+    | { type: 'mention'; text: string; number: string; id: string; label: string };
+
+function mentionMetaList(): MentionMeta[] {
+    const meta = props.message.metadata as any;
+    const list = meta?.mentions;
+    if (!Array.isArray(list)) return [];
+    return list
+        .filter((x: any) => x && typeof x === 'object')
+        .map((x: any) => ({
+            id: String(x.id || '').trim(),
+            number: String(x.number || '').replace(/\D/g, '').trim(),
+            label: String(x.label || '').trim(),
+        }))
+        .filter((m: MentionMeta) => m.id !== '' && m.number !== '' && m.label !== '')
+        .slice(0, 20);
+}
+
+const bodySegments = computed<BodySegment[]>(() => {
+    const body = (props.message.body || '').toString();
+    if (!body) return [];
+    const mentions = mentionMetaList();
+    if (mentions.length === 0) return [{ type: 'text', text: body }];
+
+    // Replace occurrences sequentially in text using metadata order.
+    // This is robust against duplicate labels: we always match the next one.
+    let remaining = body;
+    const out: BodySegment[] = [];
+    for (const m of mentions) {
+        const needle = `@${m.label}`;
+        const idx = remaining.indexOf(needle);
+        if (idx < 0) {
+            continue;
+        }
+        const before = remaining.slice(0, idx);
+        if (before) out.push({ type: 'text', text: before });
+        out.push({ type: 'mention', text: needle, number: m.number, id: m.id, label: m.label });
+        remaining = remaining.slice(idx + needle.length);
+    }
+    if (remaining) out.push({ type: 'text', text: remaining });
+    return out.length ? out : [{ type: 'text', text: body }];
+});
+
+function openChatForMention(m: { number: string }) {
+    const phone = String(m.number || '').replace(/\D/g, '').trim();
+    const sessionId = props.chat?.whatsapp_session_id;
+    if (!phone || !sessionId) return;
+    router.post(route('chats.start'), { phone, whatsapp_session_id: sessionId }, { preserveScroll: true });
+}
+
+function renderSegmentHtml(text: string): string {
+    // Keep newlines: message bubble uses whitespace-pre-wrap for text nodes,
+    // but v-html needs explicit <br>.
+    return renderWaMarkup(text).replace(/\n/g, '<br>');
+}
+
+function extractFirstUrl(text: string): string | null {
+    const t = (text || '').trim();
+    if (!t) return null;
+    const m = t.match(/((?:https?:\/\/|www\.)[^\s<>"']+)/i);
+    if (!m) return null;
+    const raw = (m[1] || '').trim();
+    if (!raw) return null;
+    return raw.startsWith('http') ? raw : `https://${raw}`;
+}
+
+const linkPreviewUrl = computed(() => {
+    const body = stripWaMarkup(props.message.body).trim();
+    const url = extractFirstUrl(body);
+    if (!url) return null;
+
+    // Don't show preview for media-only messages or system types.
+    if (normalizedMessageType.value !== 'chat' && normalizedMessageType.value !== 'text') {
+        return null;
+    }
+    if (hasMediaAttachments.value) {
+        return null;
+    }
+
+    return url;
+});
+
 /** Псевдо-волна как в WhatsApp (высоты детерминированы от id сообщения). */
 function waveformBarHeights(seed: number): number[] {
     const out: number[] = [];
@@ -201,13 +299,142 @@ function waveformBarHeights(seed: number): number[] {
     return out;
 }
 
-const voiceWaveBars = computed(() => waveformBarHeights(props.message.id));
+/** Уникальная псевдо-волна на каждое вложение (не только на сообщение). */
+function voiceWaveSeed(mediaId: number): number {
+    return (props.message.id << 10) ^ mediaId;
+}
+
+function voiceWaveBarsForMedia(mediaId: number): number[] {
+    return waveformBarHeights(voiceWaveSeed(mediaId));
+}
 
 const voiceAudioRefs = new Map<number, HTMLAudioElement>();
 const playingVoiceMediaId = ref<number | null>(null);
+/** Голос «занят» (после старта до конца): играет или на паузе — для кнопки скорости и контекста */
+const voiceEngagedMediaId = ref<number | null>(null);
 /** 0..1 для позиции playhead по длине трека */
 const voiceProgressRatio = reactive<Record<number, number>>({});
 const voiceProgressCleanups = new Map<number, () => void>();
+/** Перетаскивание синей точки / скраб по волне */
+const voiceScrubbingMediaId = ref<number | null>(null);
+/** Скорость воспроизведения по id вложения (1 / 1.5 / 2) */
+const voicePlaybackRates = reactive<Record<number, number>>({});
+
+function voicePlaybackRate(mediaId: number): number {
+    const r = voicePlaybackRates[mediaId];
+    return r === 1.5 || r === 2 ? r : 1;
+}
+
+function setVoicePlaybackRate(mediaId: number, rate: 1 | 1.5 | 2): void {
+    voicePlaybackRates[mediaId] = rate;
+    const el = voiceAudioRefs.get(mediaId);
+    if (el) {
+        el.playbackRate = rate;
+    }
+}
+
+/** Один тап по скорости: 1× → 1.5× → 2× → 1× */
+function cycleVoicePlaybackRate(mediaId: number): void {
+    const cur = voicePlaybackRate(mediaId);
+    const next: 1 | 1.5 | 2 = cur === 1 ? 1.5 : cur === 1.5 ? 2 : 1;
+    setVoicePlaybackRate(mediaId, next);
+}
+
+function voicePlaybackRateButtonLabel(mediaId: number): string {
+    const r = voicePlaybackRate(mediaId);
+    if (r === 2) return '2x';
+    if (r === 1.5) return '1.5x';
+    return '1x';
+}
+
+function formatVoiceClockSeconds(sec: number): string {
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r.toString().padStart(2, '0')}`;
+}
+
+/** Нарастающее время воспроизведения (позиция), не оставшееся. */
+function voiceElapsedLabel(mediaId: number): string {
+    const el = voiceAudioRefs.get(mediaId);
+    const duration = el?.duration;
+    if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+        const raw = voiceProgressRatio[mediaId];
+        const ratio = typeof raw === 'number' && Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
+
+        return formatVoiceClockSeconds(ratio * duration);
+    }
+
+    return '0:00';
+}
+
+function voiceWaveBarClass(mediaId: number, barIndex: number): Record<string, boolean> {
+    /* «Живая» волна только во время воспроизведения; на паузе — ровная «мертвая» */
+    if (playingVoiceMediaId.value !== mediaId) {
+        return {};
+    }
+    const n = VOICE_WAVE_BAR_COUNT;
+    if (n <= 0) return {};
+    const raw = voiceProgressRatio[mediaId];
+    const ratio = typeof raw === 'number' && Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
+    if (ratio <= 0) return {};
+    const threshold = (barIndex + 1) / n;
+
+    return { 'wa-voice-bar--played': threshold <= ratio };
+}
+
+function seekVoiceFromClientX(mediaId: number, clientX: number, trackEl: HTMLElement): void {
+    const el = voiceAudioRefs.get(mediaId);
+    if (!el) return;
+    const rect = trackEl.getBoundingClientRect();
+    const pad = 4;
+    const usable = rect.width - pad * 2;
+    const x = clientX - rect.left - pad;
+    const ratio = usable > 0 ? Math.min(1, Math.max(0, x / usable)) : 0;
+    const d = el.duration;
+    if (Number.isFinite(d) && d > 0) {
+        el.currentTime = ratio * d;
+    }
+    voiceProgressRatio[mediaId] = ratio;
+}
+
+function onVoiceWavePointerDown(e: PointerEvent, mediaId: number): void {
+    if (props.selectionMode) return;
+    const track = e.currentTarget as HTMLElement | null;
+    const el = voiceAudioRefs.get(mediaId);
+    if (!track || !el || !Number.isFinite(el.duration) || el.duration <= 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+        track.setPointerCapture(e.pointerId);
+    } catch {
+        return;
+    }
+    voiceScrubbingMediaId.value = mediaId;
+    seekVoiceFromClientX(mediaId, e.clientX, track);
+
+    const onMove = (ev: PointerEvent): void => {
+        if (voiceScrubbingMediaId.value !== mediaId) return;
+        seekVoiceFromClientX(mediaId, ev.clientX, track);
+    };
+    const onUp = (ev: PointerEvent): void => {
+        try {
+            track.releasePointerCapture(ev.pointerId);
+        } catch {
+            /* ignore */
+        }
+        track.removeEventListener('pointermove', onMove);
+        track.removeEventListener('pointerup', onUp);
+        track.removeEventListener('pointercancel', onUp);
+        if (voiceScrubbingMediaId.value === mediaId) {
+            voiceScrubbingMediaId.value = null;
+        }
+        syncVoiceProgressFromAudio(mediaId, el);
+    };
+    track.addEventListener('pointermove', onMove);
+    track.addEventListener('pointerup', onUp);
+    track.addEventListener('pointercancel', onUp);
+}
 
 function voicePlayheadPositionStyle(mediaId: number): Record<string, string> {
     const r = voiceProgressRatio[mediaId];
@@ -220,6 +447,9 @@ function voicePlayheadPositionStyle(mediaId: number): Record<string, string> {
 }
 
 function syncVoiceProgressFromAudio(mediaId: number, el: HTMLAudioElement): void {
+    if (voiceScrubbingMediaId.value === mediaId) {
+        return;
+    }
     const d = el.duration;
     if (!Number.isFinite(d) || d <= 0) {
         voiceProgressRatio[mediaId] = 0;
@@ -336,7 +566,7 @@ const fullBleedVisualBubble = computed(
 );
 
 const fullBleedHasVideo = computed(
-    () => fullBleedVisualBubble.value && mediaItems.value.some((m) => isVideoMime(m)),
+    () => fullBleedVisualBubble.value && mediaItems.value.some((m) => isVideoMime(m) && !isGifLikeMedia(m)),
 );
 
 /** Шире обычного пузырька для визуальных вложений (как в мессенджерах на телефоне). */
@@ -345,10 +575,36 @@ const wideImageBubble = computed(
 );
 
 const imageLightboxMediaId = ref<number | null>(null);
+const gifVideoRefs = new Map<number, HTMLVideoElement>();
 
 const imageLightboxUrl = computed((): string =>
     imageLightboxMediaId.value != null ? mediaSrc(imageLightboxMediaId.value) : '',
 );
+
+function bindGifVideo(mediaId: number, el: unknown) {
+    if (el instanceof HTMLVideoElement) {
+        gifVideoRefs.set(mediaId, el);
+        return;
+    }
+    gifVideoRefs.delete(mediaId);
+}
+
+async function playGifPreview(mediaId: number): Promise<void> {
+    const el = gifVideoRefs.get(mediaId);
+    if (!el) return;
+    try {
+        await el.play();
+    } catch {
+        // ignore autoplay restrictions
+    }
+}
+
+function stopGifPreview(mediaId: number): void {
+    const el = gifVideoRefs.get(mediaId);
+    if (!el) return;
+    el.pause();
+    el.currentTime = 0;
+}
 
 function openImageLightbox(mediaId: number): void {
     if (props.selectionMode) {
@@ -370,8 +626,16 @@ function onVoiceEnded(mediaId: number) {
     if (playingVoiceMediaId.value === mediaId) {
         playingVoiceMediaId.value = null;
     }
+    if (voiceEngagedMediaId.value === mediaId) {
+        voiceEngagedMediaId.value = null;
+    }
     detachVoiceProgress(mediaId);
     voiceProgressRatio[mediaId] = 0;
+    delete voicePlaybackRates[mediaId];
+    const el = voiceAudioRefs.get(mediaId);
+    if (el) {
+        el.playbackRate = 1;
+    }
 }
 
 function toggleVoicePlay(mediaId: number) {
@@ -381,22 +645,34 @@ function toggleVoicePlay(mediaId: number) {
         el.pause();
         detachVoiceProgress(mediaId);
         playingVoiceMediaId.value = null;
+        voiceEngagedMediaId.value = mediaId;
         return;
     }
     voiceAudioRefs.forEach((a, id) => {
         if (id !== mediaId) {
             a.pause();
             detachVoiceProgress(id);
+            if (playingVoiceMediaId.value === id) {
+                playingVoiceMediaId.value = null;
+            }
+            if (voiceEngagedMediaId.value === id) {
+                voiceEngagedMediaId.value = null;
+            }
         }
     });
     el.onended = () => onVoiceEnded(mediaId);
+    el.playbackRate = voicePlaybackRate(mediaId);
     el.play()
         .then(() => {
             playingVoiceMediaId.value = mediaId;
+            voiceEngagedMediaId.value = mediaId;
             attachVoiceProgress(mediaId, el);
         })
         .catch(() => {
             playingVoiceMediaId.value = null;
+            if (voiceEngagedMediaId.value === mediaId) {
+                voiceEngagedMediaId.value = null;
+            }
             detachVoiceProgress(mediaId);
         });
 }
@@ -645,14 +921,60 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="group mb-2 flex" :class="isOutbound ? 'justify-end' : 'justify-start'">
+    <!-- Системные сообщения (лог назначений / отделов): не пузырь, а центрированная пилюля как в WhatsApp -->
+    <div
+        v-if="isSystemMessage"
+        class="mb-3 flex w-full justify-center px-2 sm:px-3"
+        :data-message-id="message.id"
+    >
+        <div class="flex max-w-full items-center justify-center gap-2">
+            <button
+                v-if="selectionMode"
+                type="button"
+                class="shrink-0 z-20 flex h-7 w-7 items-center justify-center rounded-full border"
+                :style="{
+                    background: selected ? 'var(--wa-accent)' : 'var(--wa-panel)',
+                    borderColor: selected ? 'transparent' : 'var(--wa-border-strong)',
+                    color: selected ? 'white' : 'var(--wa-text-secondary)',
+                }"
+                :title="selected ? 'Снять выбор' : 'Выбрать'"
+                @click.stop="emit('toggle-select', message.id)"
+            >
+                <svg v-if="selected" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M9 16.2l-3.5-3.5L4 14.2l5 5 12-12-1.4-1.4z" />
+                </svg>
+                <svg v-else class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path
+                        d="M12 2a10 10 0 1010 10A10.012 10.012 0 0012 2zm0 18a8 8 0 118-8 8.009 8.009 0 01-8 8z"
+                    />
+                </svg>
+            </button>
+            <div
+                class="wa-system-chat-msg min-w-0 max-w-[min(86%,28rem)] rounded-[8px] px-3 py-1 text-center text-[11.5px] leading-snug shadow-none"
+                :class="selected ? 'ring-2 ring-[var(--wa-accent)] ring-offset-1 ring-offset-[var(--wa-bg)]' : ''"
+                role="status"
+                :style="{
+                    background: 'var(--wa-system-chat-pill-bg)',
+                    color: 'var(--wa-system-chat-pill-text)',
+                }"
+                @click="onBubbleClick"
+                @contextmenu="onContextMenu"
+            >
+                <p class="m-0 whitespace-pre-wrap break-words text-center" style="word-break: break-word">
+                    {{ message.body }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div v-else class="group mb-2 flex" :class="isOutbound ? 'justify-end' : 'justify-start'">
         <div
-            class="relative rounded-lg text-[14.2px] leading-[19px] shadow-sm"
+            class="wa-msg-bubble relative w-fit min-w-0 text-[14.2px] leading-[19px]"
             :data-message-id="message.id"
             :class="[
                 wideImageBubble ? 'max-w-[min(94%,36rem)]' : 'max-w-[72%]',
-                fullBleedVisualBubble ? 'overflow-hidden px-0 py-0' : 'px-2.5 py-1.5',
-                isOutbound ? 'rounded-tr-none wa-msg-bubble-out' : 'rounded-tl-none wa-msg-bubble-in',
+                fullBleedVisualBubble ? 'px-0 py-0' : 'px-2 py-1',
+                isOutbound ? 'wa-msg-bubble-out' : 'wa-msg-bubble-in',
                 selected ? 'wa-msg-selected' : '',
             ]"
             :style="{
@@ -715,6 +1037,17 @@ onBeforeUnmount(() => {
                 </svg>
             </button>
 
+            <div
+                v-if="message.is_forwarded"
+                class="mb-1 inline-flex items-center gap-1 text-[11px] font-medium opacity-80"
+                :style="{ color: 'var(--wa-text-secondary)' }"
+            >
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M14 7l5 5-5 5v-3H5v-4h9V7z" />
+                </svg>
+                <span>Переслано</span>
+            </div>
+
             <!-- Quoted / reply preview -->
             <button
                 v-if="hasQuoted"
@@ -734,7 +1067,7 @@ onBeforeUnmount(() => {
 
             <p
                 v-if="showMessageBody"
-                class="mb-1 whitespace-pre-wrap break-words pr-14"
+                class="wa-msg-text mb-0.5 whitespace-pre-wrap break-words"
                 style="word-break: break-word;"
             >
                 <span
@@ -744,12 +1077,27 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
-                {{ message.body }}
+                <template v-for="(seg, i) in bodySegments" :key="i">
+                    <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>
+                    <button
+                        v-else
+                        type="button"
+                        class="wa-mention-link"
+                        @click.stop="openChatForMention(seg)"
+                        :title="`Открыть чат: ${seg.text}`"
+                    >
+                        {{ seg.text }}
+                    </button>
+                </template>
             </p>
+
+            <div v-if="linkPreviewUrl" class="mb-1 min-w-[14rem]">
+                <LinkPreview :url="linkPreviewUrl" />
+            </div>
 
             <div
                 v-if="showVoiceFallback"
-                class="wa-voice-shell mb-1 min-w-[220px] max-w-[min(100%,320px)] pr-14"
+                class="wa-voice-shell mb-1 min-w-[220px] max-w-[min(100%,320px)]"
             >
                 <div class="wa-voice-row">
                     <div v-if="isOutbound" class="wa-voice-avatar-wrap" :title="operatorDisplayName">
@@ -767,21 +1115,23 @@ onBeforeUnmount(() => {
                             <path d="M8 5v14l11-7z" />
                         </svg>
                     </span>
-                    <div class="wa-voice-wave-area">
-                        <div class="wa-voice-wave-track">
-                            <div class="wa-voice-wave" aria-hidden="true">
-                                <span
-                                    v-for="(h, i) in voiceWaveBars"
-                                    :key="i"
-                                    class="wa-voice-bar wa-voice-bar--muted"
-                                    :style="{ height: h + 'px' }"
-                                />
+                    <div class="wa-voice-wave-column">
+                        <div class="wa-voice-wave-area">
+                            <div class="wa-voice-wave-track">
+                                <div class="wa-voice-wave" aria-hidden="true">
+                                    <span
+                                        v-for="(h, i) in voiceWaveFallbackBars"
+                                        :key="i"
+                                        class="wa-voice-bar wa-voice-bar--muted"
+                                        :style="{ height: h + 'px' }"
+                                    />
+                                </div>
+                                <span class="wa-voice-playhead" aria-hidden="true" style="left: 4px; top: 50%; transform: translate(-50%, -50%)" />
                             </div>
-                            <span class="wa-voice-playhead" aria-hidden="true" style="left: 4px; top: 50%; transform: translate(-50%, -50%)" />
                         </div>
+                        <span v-if="voiceFallbackDurationLabel" class="wa-voice-time wa-voice-time-below">{{ voiceFallbackDurationLabel }}</span>
+                        <span v-else class="wa-voice-time wa-voice-time-below wa-voice-time--dim">—</span>
                     </div>
-                    <span v-if="voiceDurationLabel" class="wa-voice-time">{{ voiceDurationLabel }}</span>
-                    <span v-else class="wa-voice-time wa-voice-time--dim">—</span>
                     <div v-if="isInbound" class="wa-voice-avatar-wrap" :title="(message.sender_name || '').trim() || ''">
                         <img
                             v-if="contactAvatarUrl"
@@ -807,7 +1157,17 @@ onBeforeUnmount(() => {
             <div
                 v-if="mediaItems.length"
                 class="mb-1"
-                :class="fullBleedVisualBubble ? 'relative space-y-0.5' : 'space-y-2 pr-14'"
+                :class="
+                    fullBleedVisualBubble
+                        ? [
+                              'relative',
+                              'space-y-0.5',
+                              'overflow-hidden',
+                              'rounded-lg',
+                              isOutbound ? 'rounded-tr-none' : 'rounded-tl-none',
+                          ]
+                        : 'space-y-2'
+                "
             >
                 <template v-for="m in mediaItems" :key="m.id">
                     <button
@@ -843,14 +1203,26 @@ onBeforeUnmount(() => {
                         />
                         <div class="wa-voice-row">
                             <div v-if="isOutbound" class="wa-voice-avatar-wrap" :title="operatorDisplayName">
-                                <div class="wa-voice-avatar wa-voice-avatar--op">{{ operatorInitial }}</div>
-                                <span class="wa-voice-avatar-mic" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" class="wa-voice-avatar-mic-svg">
-                                        <path
-                                            d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
-                                        />
-                                    </svg>
-                                </span>
+                                <div v-if="voiceEngagedMediaId === m.id" class="wa-voice-speed-cluster">
+                                    <button
+                                        type="button"
+                                        class="wa-voice-speed-btn wa-voice-speed-btn--active"
+                                        title="Скорость: нажмите, чтобы переключить 1x → 1.5x → 2x"
+                                        @click.stop="cycleVoicePlaybackRate(m.id)"
+                                    >
+                                        {{ voicePlaybackRateButtonLabel(m.id) }}
+                                    </button>
+                                </div>
+                                <template v-else>
+                                    <div class="wa-voice-avatar wa-voice-avatar--op">{{ operatorInitial }}</div>
+                                    <span class="wa-voice-avatar-mic" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" class="wa-voice-avatar-mic-svg">
+                                            <path
+                                                d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
+                                            />
+                                        </svg>
+                                    </span>
+                                </template>
                             </div>
                             <button
                                 type="button"
@@ -870,40 +1242,78 @@ onBeforeUnmount(() => {
                                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                                 </svg>
                             </button>
-                            <div class="wa-voice-wave-area">
-                                <div class="wa-voice-wave-track">
-                                    <div class="wa-voice-wave" aria-hidden="true">
-                                        <span
-                                            v-for="(h, i) in voiceWaveBars"
-                                            :key="i"
-                                            class="wa-voice-bar"
-                                            :style="{ height: h + 'px' }"
-                                        />
+                            <div class="wa-voice-wave-column">
+                                <div class="wa-voice-wave-area">
+                                    <div class="wa-voice-wave-track" @pointerdown="(ev) => onVoiceWavePointerDown(ev, m.id)">
+                                        <div
+                                            class="wa-voice-wave"
+                                            :class="{ 'wa-voice-wave--alive': playingVoiceMediaId === m.id }"
+                                            aria-hidden="true"
+                                        >
+                                            <span
+                                                v-for="(h, i) in voiceWaveBarsForMedia(m.id)"
+                                                :key="i"
+                                                class="wa-voice-bar"
+                                                :class="voiceWaveBarClass(m.id, i)"
+                                                :style="{ height: h + 'px' }"
+                                            />
+                                        </div>
+                                        <span class="wa-voice-playhead" aria-hidden="true" :style="voicePlayheadPositionStyle(m.id)" />
                                     </div>
-                                    <span class="wa-voice-playhead" aria-hidden="true" :style="voicePlayheadPositionStyle(m.id)" />
                                 </div>
+                                <span class="wa-voice-time wa-voice-time-below">{{ voiceElapsedLabel(m.id) }}</span>
                             </div>
-                            <span v-if="voiceDurationLabel" class="wa-voice-time">{{ voiceDurationLabel }}</span>
-                            <span v-else class="wa-voice-time wa-voice-time--dim">0:00</span>
                             <div v-if="isInbound" class="wa-voice-avatar-wrap" :title="(message.sender_name || '').trim() || ''">
-                                <img
-                                    v-if="contactAvatarUrl"
-                                    :src="contactAvatarUrl"
-                                    alt=""
-                                    class="wa-voice-avatar wa-voice-avatar--img"
-                                />
-                                <div v-else class="wa-voice-avatar wa-voice-avatar--in">
-                                    {{ (message.sender_name || '?').charAt(0).toUpperCase() }}
+                                <div v-if="voiceEngagedMediaId === m.id" class="wa-voice-speed-cluster">
+                                    <button
+                                        type="button"
+                                        class="wa-voice-speed-btn wa-voice-speed-btn--active"
+                                        title="Скорость: нажмите, чтобы переключить 1x → 1.5x → 2x"
+                                        @click.stop="cycleVoicePlaybackRate(m.id)"
+                                    >
+                                        {{ voicePlaybackRateButtonLabel(m.id) }}
+                                    </button>
                                 </div>
-                                <span class="wa-voice-avatar-mic wa-voice-avatar-mic--in" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="currentColor" class="wa-voice-avatar-mic-svg">
-                                        <path
-                                            d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
-                                        />
-                                    </svg>
-                                </span>
+                                <template v-else>
+                                    <img
+                                        v-if="contactAvatarUrl"
+                                        :src="contactAvatarUrl"
+                                        alt=""
+                                        class="wa-voice-avatar wa-voice-avatar--img"
+                                    />
+                                    <div v-else class="wa-voice-avatar wa-voice-avatar--in">
+                                        {{ (message.sender_name || '?').charAt(0).toUpperCase() }}
+                                    </div>
+                                    <span class="wa-voice-avatar-mic wa-voice-avatar-mic--in" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" class="wa-voice-avatar-mic-svg">
+                                            <path
+                                                d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"
+                                            />
+                                        </svg>
+                                    </span>
+                                </template>
                             </div>
                         </div>
+                    </div>
+                    <div v-else-if="isGifLikeMedia(m)" class="relative">
+                        <video
+                            :ref="(el) => bindGifVideo(m.id, el)"
+                            :src="mediaSrc(m.id)"
+                            class="block w-full max-h-64 object-cover"
+                            :class="fullBleedVisualBubble ? '' : 'rounded-md'"
+                            muted
+                            loop
+                            playsinline
+                            preload="metadata"
+                            @mouseenter="playGifPreview(m.id)"
+                            @mouseleave="stopGifPreview(m.id)"
+                        />
+                        <span
+                            class="pointer-events-none absolute left-2 top-2 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                            :style="{ background: 'rgba(0,0,0,0.5)', color: '#fff' }"
+                        >
+                            GIF
+                        </span>
                     </div>
                     <video
                         v-else-if="isVideoMime(m)"
@@ -1148,6 +1558,54 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.wa-msg-bubble {
+    border-radius: 7.5px;
+    box-shadow: 0 1px 0.5px var(--wa-bubble-tail-shadow);
+    overflow: visible;
+    width: fit-content;
+    max-width: min(72%, 42rem);
+}
+
+.wa-msg-text {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.wa-msg-text::after {
+    content: "";
+    display: inline-block;
+    width: 3.7rem;
+}
+
+.wa-msg-bubble::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 9px;
+    height: 13px;
+    background: inherit;
+    pointer-events: none;
+}
+
+.wa-msg-bubble-in {
+    border-top-left-radius: 0;
+}
+
+.wa-msg-bubble-in::before {
+    left: -8px;
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+}
+
+.wa-msg-bubble-out {
+    border-top-right-radius: 0;
+}
+
+.wa-msg-bubble-out::before {
+    right: -8px;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
 .msg-hover-menu-btn {
     position: absolute;
     top: 6px;

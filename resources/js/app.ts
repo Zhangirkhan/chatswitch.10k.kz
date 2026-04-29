@@ -16,6 +16,19 @@ import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 /** После деплоя браузер может держать старый entry и 404 на чанке страницы — Vite кидает vite:preloadError. */
+/** 419: сессия/CSRF истекли — полная перезагрузка даёт новые cookie и meta. */
+document.addEventListener(
+    'inertia:invalid',
+    (event: Event) => {
+        const e = event as CustomEvent<{ response?: { status?: number } }>;
+        if (e.detail?.response?.status === 419) {
+            e.preventDefault();
+            window.location.reload();
+        }
+    },
+    { passive: false },
+);
+
 window.addEventListener('vite:preloadError', (event: Event) => {
     event.preventDefault();
     const key = 'chatswitch.vite_preload_reload_at';

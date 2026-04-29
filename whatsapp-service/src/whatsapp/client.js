@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { Client } = require('whatsapp-web.js');
 const { buildClientOptions, AUTH_DIR } = require('./clientConfig');
-const { attachEventBindings } = require('./clientEventBindings');
+const { attachEventBindings, attachRuntimeEvents } = require('./clientEventBindings');
 const { runExclusive } = require('./sessionMutex');
+const { releaseStaleChromiumProfileLocks } = require('./sessionProfileCleanup');
 
 class WhatsAppClient {
   constructor(sessionName) {
@@ -13,10 +15,32 @@ class WhatsAppClient {
     this.isReady = false;
     this.isInitializing = false;
     this.lastError = null;
+    this.runtimeEventsBound = false;
   }
 
   async initialize() {
     return runExclusive(this.sessionName, async () => {
+      // If transport is already connected, avoid recreating the puppeteer/browser.
+      // Re-initialization for a session whose browser is still alive can throw:
+      // "The browser is already running for <userDataDir>"
+      // which stops the session from becoming ready.
+      if (this.client) {
+        const state = await this.getState();
+        const browserConnected = this.browserConnected();
+        if (browserConnected && state === 'CONNECTED') {
+          if (!this.isReady) {
+            console.log(
+              `[${this.sessionName}] CONNECTED without READY (existing client)`
+            );
+            this.isReady = true;
+            this.isInitializing = false;
+            this.qrCode = null;
+            attachRuntimeEvents(this);
+          }
+          return;
+        }
+      }
+
       if (this.isReady) {
         const state = await this.getState();
         if (this.browserConnected() && state === 'CONNECTED') {
@@ -43,9 +67,31 @@ class WhatsAppClient {
           await this.safeDestroyCurrentClient();
         }
 
+        // Если у нас нет живого `this.client`, но Chromium под этим `userDataDir` уже висит,
+        // то `whatsapp-web.js` упадёт с "The browser is already running".
+        // Почистим возможные stale lock'и до запуска нового клиента.
+        if (!this.client) {
+          try {
+            await releaseStaleChromiumProfileLocks(AUTH_DIR, this.sessionName);
+          } catch (_) {
+            // best-effort: очистка не должна ломать инициализацию
+          }
+        }
+
         this.client = new Client(buildClientOptions(this.sessionName));
         attachEventBindings(this);
         await this.client.initialize();
+
+        // Fallback: some WA Web builds may not emit READY reliably.
+        // If transport is already connected, mark session ready and bind runtime events.
+        const state = await this.getState();
+        if (state === 'CONNECTED' && !this.isReady) {
+          console.log(`[${this.sessionName}] CONNECTED without READY (initialize fallback)`);
+          this.isReady = true;
+          this.isInitializing = false;
+          this.qrCode = null;
+          attachRuntimeEvents(this);
+        }
       } catch (err) {
         this.lastError = err.message;
         this.isReady = false;
@@ -161,7 +207,23 @@ class WhatsAppClient {
     } catch (err) {
       console.error(`[${this.sessionName}] destroy error:`, err.message);
     } finally {
+      // whatsapp-web.js should close Chromium, but in practice we sometimes still
+      // get "The browser is already running for ...session-XXX" on the next
+      // initialize(). Force-kill any remaining chrome processes for our
+      // userDataDir so the next initialize can start cleanly.
+      try {
+        const userDataDir = path.join(AUTH_DIR, `session-${this.sessionName}`);
+        execSync(`pkill -f "user-data-dir=${userDataDir}" || true`);
+        execSync(`pkill -f "${userDataDir}" || true`);
+      } catch (e) {
+        // ignore: best-effort cleanup
+      }
+
+      // Give Chrome time to actually exit before we attempt to re-launch.
+      await new Promise((r) => setTimeout(r, 500));
+
       this.client = null;
+      this.runtimeEventsBound = false;
     }
   }
 }

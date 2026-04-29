@@ -15,6 +15,9 @@ const upload = multer({
   limits: { fileSize: 80 * 1024 * 1024 },
 });
 
+let debugSendMentionCount = 0;
+let debugSendMentionReqCount = 0;
+
 function authMiddleware(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const expected = process.env.LARAVEL_API_TOKEN || process.env.WHATSAPP_SERVICE_TOKEN;
@@ -137,9 +140,30 @@ router.post('/send-message', async (req, res) => {
   if (!service) return;
 
   const { to, quotedMessageId } = req.body;
+  const mentions = Array.isArray(req.body?.mentions) ? req.body.mentions : [];
   const raw = req.body.message;
   const message =
     typeof raw === 'string' ? raw : raw === undefined || raw === null ? '' : String(raw);
+
+  if (debugSendMentionReqCount < 30) {
+    debugSendMentionReqCount += 1;
+    console.log(
+      `[send-message][dbg] req=${debugSendMentionReqCount} to=${to} mentionsN=${mentions.length} msgHasAt=${message.includes('@')} bodyPreview=${String(
+        message || '',
+      )
+        .slice(0, 60)
+        .replace(/\s+/g, ' ')}`,
+    );
+  }
+
+  if (Array.isArray(mentions) && mentions.length > 0 && debugSendMentionCount < 30) {
+    debugSendMentionCount += 1;
+    console.log(
+      `[send-message][mentions] n=${mentions.length} firstIds=${mentions
+        .slice(0, 5)
+        .join(',')}`,
+    );
+  }
 
   if (!to || typeof to !== 'string' || !String(to).trim()) {
     return res.status(422).json({ success: false, error: 'to is required' });
@@ -151,6 +175,9 @@ router.post('/send-message', async (req, res) => {
   try {
     const options = {};
     if (quotedMessageId) options.quotedMessageId = quotedMessageId;
+    if (Array.isArray(mentions) && mentions.length > 0) {
+      options.mentions = mentions.filter((m) => typeof m === 'string' && m.trim() !== '');
+    }
     const sent = await service.client.sendMessage(to, message, options);
 
     return res.json({
@@ -162,6 +189,54 @@ router.post('/send-message', async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
+router.post('/forward-message', async (req, res) => {
+  const service = getReadyClient(req, res)
+  if (!service) return
+
+  const { to, sourceMessageId } = req.body
+  if (!to || typeof to !== 'string' || !String(to).trim()) {
+    return res.status(422).json({ success: false, error: 'to is required' })
+  }
+  if (!sourceMessageId || typeof sourceMessageId !== 'string') {
+    return res.status(422).json({ success: false, error: 'sourceMessageId is required' })
+  }
+
+  try {
+    let source = await service.client.getMessageById(sourceMessageId)
+    if (!source) {
+      const chatId = chatIdFromSerializedMessageId(sourceMessageId)
+      if (chatId) {
+        const chat = await service.client.getChatById(chatId)
+        if (chat) {
+          const limits = [50, 120, 200]
+          for (const limit of limits) {
+            try {
+              await chat.fetchMessages({ limit })
+            } catch (_) {
+              // ignore and continue with next attempt
+            }
+            source = await service.client.getMessageById(sourceMessageId)
+            if (source) break
+          }
+        }
+      }
+    }
+
+    if (!source) {
+      return res.status(404).json({ success: false, error: 'Source message not found in WhatsApp cache' })
+    }
+
+    const sent = await source.forward(to)
+    return res.json({
+      success: true,
+      messageId: sent && sent.id ? sent.id._serialized : null,
+      timestamp: sent && sent.timestamp ? sent.timestamp : null,
+    })
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message })
+  }
+})
 
 router.post('/react-message', async (req, res) => {
   const service = getReadyClient(req, res);

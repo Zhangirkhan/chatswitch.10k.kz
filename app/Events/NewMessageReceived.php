@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\Chat;
-use App\Models\ChatAssignment;
 use App\Models\Message;
-use App\Models\User;
+use App\Support\ChatBroadcastAudience;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -29,59 +28,14 @@ final class NewMessageReceived implements ShouldBroadcastNow
     {
         $channels = [new PrivateChannel("chat.{$this->chatId}")];
 
-        foreach ($this->userIdsWithAccess() as $userId) {
-            $channels[] = new PrivateChannel("chats.list.{$userId}");
+        $chat = Chat::find($this->chatId);
+        if ($chat) {
+            foreach (ChatBroadcastAudience::userIdsWithAccessToChat($chat) as $userId) {
+                $channels[] = new PrivateChannel("chats.list.{$userId}");
+            }
         }
 
         return $channels;
-    }
-
-    /** @return list<int> */
-    private function userIdsWithAccess(): array
-    {
-        $chat = Chat::find($this->chatId);
-        if (! $chat) {
-            return [];
-        }
-
-        $admins = User::role('administrator')->pluck('id')->all();
-        $assigned = ChatAssignment::where('chat_id', $chat->id)->pluck('user_id')->all();
-
-        // Отделы, имеющие отношение к чату: прикреплённые pill'ом + отделы назначенных сотрудников.
-        $chatDepartmentIds = $chat->departments()->pluck('departments.id')->all();
-        $assignedDepartmentIds = [];
-        if (! empty($assigned)) {
-            $assignedDepartmentIds = User::whereIn('id', $assigned)
-                ->whereNotNull('department_id')
-                ->pluck('department_id')
-                ->unique()
-                ->all();
-        }
-
-        // Руководители всех этих отделов получают уведомления — они супервизоры.
-        $supervisorDepartmentIds = array_values(array_unique(array_merge($chatDepartmentIds, $assignedDepartmentIds)));
-        $managerIds = [];
-        if (! empty($supervisorDepartmentIds)) {
-            $managerIds = User::role('manager')
-                ->whereIn('department_id', $supervisorDepartmentIds)
-                ->pluck('id')
-                ->all();
-        }
-
-        // Рядовые сотрудники отдела — только если чат «в общем пуле» (никому не назначен).
-        $departmentMemberIds = [];
-        if (! empty($chatDepartmentIds) && empty($assigned)) {
-            $departmentMemberIds = User::whereIn('department_id', $chatDepartmentIds)
-                ->pluck('id')
-                ->all();
-        }
-
-        return array_values(array_unique(array_merge(
-            $admins,
-            $assigned,
-            $managerIds,
-            $departmentMemberIds,
-        )));
     }
 
     public function broadcastAs(): string
@@ -92,7 +46,14 @@ final class NewMessageReceived implements ShouldBroadcastNow
     /** @return array<string, mixed> */
     public function broadcastWith(): array
     {
+        $chat = Chat::query()->with(['contact', 'whatsappSession'])->find($this->chatId);
+        $desktop = null;
+        if ($chat !== null) {
+            $desktop = ChatBroadcastAudience::payloadForNewMessage($chat, $this->message);
+        }
+
         return [
+            'desktop' => $desktop,
             'message' => [
                 'id' => $this->message->id,
                 'chat_id' => $this->message->chat_id,

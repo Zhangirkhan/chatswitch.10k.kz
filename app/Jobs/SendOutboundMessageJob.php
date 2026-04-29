@@ -67,6 +67,7 @@ final class SendOutboundMessageJob implements ShouldQueue
         $to = (string) $chat->whatsapp_chat_id;
 
         $result = match ($this->payloadType) {
+            'forward' => $this->sendForward($whatsapp, $sessionName, $to),
             'text' => $this->sendText($whatsapp, $sessionName, $to),
             'media' => $this->sendMedia($whatsapp, $message, $sessionName, $to),
             'poll' => $this->sendPoll($whatsapp, $sessionName, $to),
@@ -92,15 +93,22 @@ final class SendOutboundMessageJob implements ShouldQueue
 
         $waId = (string) ($result['messageId'] ?? '');
         if ($waId === '') {
-            $this->markFailed($message, 'WhatsApp вернул пустой идентификатор сообщения.');
+            if ($this->payloadType === 'forward') {
+                // wwebjs message.forward() может вернуть boolean без id, но пересылка фактически доставляется.
+                $message->forceFill([
+                    'ack' => 'sent',
+                ])->save();
+            } else {
+                $this->markFailed($message, 'WhatsApp вернул пустой идентификатор сообщения.');
 
-            return;
+                return;
+            }
+        } else {
+            $message->forceFill([
+                'whatsapp_message_id' => $waId,
+                'ack' => 'sent',
+            ])->save();
         }
-
-        $message->forceFill([
-            'whatsapp_message_id' => $waId,
-            'ack' => 'sent',
-        ])->save();
 
         broadcast(new MessageAckUpdated($message->chat_id, $message->id, 'sent'));
 
@@ -124,8 +132,37 @@ final class SendOutboundMessageJob implements ShouldQueue
         }
         $quotedRaw = $this->payload['quoted_message_id'] ?? null;
         $quotedId = is_string($quotedRaw) && $quotedRaw !== '' ? $quotedRaw : null;
+        $mentionsRaw = $this->payload['mentions'] ?? [];
+        $mentions = is_array($mentionsRaw)
+            ? array_values(array_filter(array_map(
+                static fn ($m) => is_string($m) ? $m : null,
+                $mentionsRaw,
+            )))
+            : [];
 
-        return $whatsapp->sendMessage($sessionName, $to, $body, $quotedId);
+        try {
+            Log::info('wa.sendText mentions debug', [
+                'message_id' => $this->messageId,
+                'to' => $to,
+                'mentions_n' => count($mentions),
+                'mentions_first' => array_slice($mentions, 0, 3),
+            ]);
+        } catch (\Throwable $e) {
+            // ignore logging failures
+        }
+
+        return $whatsapp->sendMessage($sessionName, $to, $body, $quotedId, $mentions);
+    }
+
+    /** @return array<string, mixed> */
+    private function sendForward(WhatsappService $whatsapp, string $sessionName, string $to): array
+    {
+        $sourceId = trim((string) ($this->payload['source_whatsapp_message_id'] ?? ''));
+        if ($sourceId === '') {
+            return ['success' => false, 'error' => 'Не указан source_whatsapp_message_id для пересылки.'];
+        }
+
+        return $whatsapp->forwardMessage($sessionName, $to, $sourceId);
     }
 
     /** @return array<string, mixed> */
