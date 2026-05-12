@@ -162,11 +162,97 @@ final class AiAssistantTest extends TestCase
         ]);
 
         $built = app(PromptBuilder::class)->build($chat, $user, 'Ответь клиенту');
-        $prompt = collect($built['messages'])->pluck('content')->implode("\n");
+        $conversationContext = $built['messages'][1]['content'];
+        $continuityContext = $built['messages'][2]['content'];
 
-        $this->assertStringContainsString('Какие размеры есть?', $prompt);
-        $this->assertStringNotContainsString('Ошибочный старый AI ответ', $prompt);
-        $this->assertStringContainsString('Старые ответы в истории могли быть ошибочными', $prompt);
+        $this->assertStringContainsString('Какие размеры есть?', $conversationContext);
+        $this->assertStringNotContainsString('Ошибочный старый AI ответ', $conversationContext);
+        $this->assertStringContainsString('Ошибочный старый AI ответ', $continuityContext);
+        $this->assertStringContainsString('Используй только чтобы не повторяться', $continuityContext);
+        $this->assertStringContainsString('Старые ответы в истории могли быть ошибочными', $built['messages'][0]['content']);
+    }
+
+    public function test_prompt_builder_includes_recent_ai_replies_only_for_continuity(): void
+    {
+        $company = Company::create(['name' => 'Company']);
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'Тапочки стоят 1 000 ₸, размеры 35-44.',
+            'sent_by_user_id' => $user->id,
+            'metadata' => ['ai' => ['generated' => true]],
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $built = app(PromptBuilder::class)->build($chat, $user, '2 пары 40 размера');
+
+        $this->assertStringNotContainsString('Тапочки стоят 1 000 ₸', $built['messages'][1]['content']);
+        $this->assertStringContainsString('Тапочки стоят 1 000 ₸', $built['messages'][2]['content']);
+        $this->assertStringContainsString('Не повторяй уже сказанные клиенту', $built['messages'][0]['content']);
+        $this->assertStringContainsString('факты бери из базы знаний', $built['messages'][0]['content']);
+    }
+
+    public function test_prompt_builder_includes_recent_manual_responder_style_examples(): void
+    {
+        $company = Company::create(['name' => 'Company']);
+        $responder = User::factory()->create(['company_id' => $company->id, 'name' => 'Serik']);
+        $otherUser = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'че там братан',
+            'sent_by_user_id' => $responder->id,
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'AI-шаблон: Здравствуйте, спасибо за интерес.',
+            'sent_by_user_id' => $responder->id,
+            'metadata' => ['ai' => ['generated' => true]],
+            'ack' => 'delivered',
+            'message_timestamp' => now()->addMinute(),
+        ]);
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'чужой стиль не брать',
+            'sent_by_user_id' => $otherUser->id,
+            'ack' => 'delivered',
+            'message_timestamp' => now()->addMinutes(2),
+        ]);
+
+        $built = app(PromptBuilder::class)->build($chat, $responder, 'как дела');
+        $prompt = $built['messages'][0]['content'];
+
+        $this->assertStringContainsString('главный источник стиля', $prompt);
+        $this->assertStringContainsString('че там братан', $prompt);
+        $this->assertStringContainsString('Не используй шаблонные AI-фразы', $prompt);
+        $this->assertStringNotContainsString('AI-шаблон', $prompt);
+        $this->assertStringNotContainsString('чужой стиль не брать', $prompt);
     }
 
     public function test_assigned_employee_can_enable_ai_for_chat(): void
