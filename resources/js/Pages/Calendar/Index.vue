@@ -32,7 +32,7 @@ interface CalEvent {
     recurrence_instance?: boolean;
 }
 
-const page = usePage<{ assignableUsers?: CalUserRef[] }>();
+const page = usePage<any>();
 const assignableUsers = computed<CalUserRef[]>(() => page.props.assignableUsers ?? []);
 
 // ─── State ───────────────────────────────────────────────────────────────────
