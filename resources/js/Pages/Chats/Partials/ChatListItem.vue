@@ -43,6 +43,8 @@ const showAssigneePill = computed(
     () => showAssigneeBadges.value && assigneeNames.value.length > 0,
 );
 
+const showAiPill = computed(() => props.chat.ai_enabled === true);
+
 const menuOpen = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
@@ -360,7 +362,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                         class="text-sm text-[var(--wa-text-secondary)] truncate min-w-0"
                     />
                     <div
-                        v-if="getSessionLabel(chat) || showAssigneePill"
+                        v-if="getSessionLabel(chat) || showAssigneePill || showAiPill"
                         class="flex max-w-full min-w-0 flex-col items-start gap-1"
                     >
                         <span
@@ -377,6 +379,13 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                             :title="assigneePillTitle"
                         >
                             {{ assigneePillLabel }}
+                        </span>
+                        <span
+                            v-if="showAiPill"
+                            class="text-[10px] px-1.5 py-0.5 rounded font-semibold ai-pill leading-none"
+                            title="AI-ассистент включён в этом чате"
+                        >
+                            AI
                         </span>
                     </div>
                 </div>
@@ -540,6 +549,12 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+.ai-pill {
+    background: color-mix(in srgb, #8b5cf6 18%, transparent);
+    color: #c4b5fd;
+    border: 1px solid color-mix(in srgb, #8b5cf6 38%, transparent);
+    letter-spacing: 0.04em;
 }
 
 .bottom-meta {
