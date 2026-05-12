@@ -51,6 +51,7 @@ final class AiAssistantTest extends TestCase
             'company_id' => $company->id,
             'name' => 'Included product',
             'price' => 12500,
+            'attributes' => ['цвет' => 'белый', 'размер' => '35-44'],
             'include_in_prompt' => true,
             'is_active' => true,
         ]);
@@ -64,6 +65,7 @@ final class AiAssistantTest extends TestCase
             'company_id' => $company->id,
             'name' => 'Included service',
             'price' => 5000,
+            'conditions' => ['предоплата' => 'не требуется'],
             'include_in_prompt' => true,
             'is_active' => true,
         ]);
@@ -88,6 +90,9 @@ final class AiAssistantTest extends TestCase
         $this->assertStringContainsString('Included service', $prompt);
         $this->assertStringContainsString('12 500 ₸', $prompt);
         $this->assertStringContainsString('5 000 ₸', $prompt);
+        $this->assertStringContainsString('размер: 35-44', $prompt);
+        $this->assertStringContainsString('предоплата: не требуется', $prompt);
+        $this->assertStringContainsString('Никогда не используй рубли', $prompt);
         $this->assertStringContainsString('Working hours', $prompt);
         $this->assertStringNotContainsString('Excluded product', $prompt);
         $this->assertStringNotContainsString('Other company product', $prompt);
@@ -195,7 +200,7 @@ final class AiAssistantTest extends TestCase
         Http::fake([
             'https://api.openai.com/v1/chat/completions' => Http::response([
                 'choices' => [
-                    ['message' => ['content' => 'Здравствуйте, помогу с вопросом.']],
+                    ['message' => ['content' => 'Здравствуйте, цена составляет 1000 рублей.']],
                 ],
             ]),
         ]);
@@ -239,6 +244,8 @@ final class AiAssistantTest extends TestCase
             ->first();
 
         $this->assertNotNull($message);
+        $this->assertStringContainsString('1000 ₸', (string) $message->body);
+        $this->assertStringNotContainsString('руб', mb_strtolower((string) $message->body));
         $this->assertTrue((bool) data_get($message->metadata, 'ai.generated'));
         $this->assertSame($message->id, AiResponseLog::query()->where('trigger_message_id', $trigger->id)->value('message_id'));
     }

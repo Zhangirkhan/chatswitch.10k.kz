@@ -69,6 +69,7 @@ final class PromptBuilder
 3. Не выдумывай цены, сроки, наличие, правила и обещания. Если данных недостаточно — вежливо попроси уточнить или предложи передать вопрос сотруднику.
 4. Ответ должен быть готовым сообщением клиенту без Markdown-заголовков и без служебной подписи сотрудника.
 5. Сохраняй тон сотрудника, но приоритет — точность, безопасность и понятность.
+6. Все цены называй только в казахстанских тенге: используй "₸" или слово "тенге". Никогда не используй рубли, доллары или другую валюту, если она не указана явно в базе знаний.
 
 {$knowledgeBlock}
 
@@ -90,14 +91,16 @@ PROMPT;
         foreach ($data['products'] as $product) {
             $price = $product->price !== null ? ' Цена: '.$this->formatTenge($product->price).'.' : '';
             $sku = $product->sku ? " SKU: {$product->sku}." : '';
-            $lines[] = "- {$product->name}.{$sku}{$price} ".trim((string) $product->description);
+            $attributes = $this->detailsBlock('Характеристики', $product->attributes);
+            $lines[] = trim("- {$product->name}.{$sku}{$price} ".trim((string) $product->description).' '.$attributes);
         }
 
         $lines[] = 'Услуги:';
         foreach ($data['services'] as $service) {
             $duration = $service->duration_minutes !== null ? " Длительность: {$service->duration_minutes} мин." : '';
             $price = $service->price !== null ? ' Цена: '.$this->formatTenge($service->price).'.' : '';
-            $lines[] = "- {$service->name}.{$duration}{$price} ".trim((string) $service->description);
+            $conditions = $this->detailsBlock('Условия', $service->conditions);
+            $lines[] = trim("- {$service->name}.{$duration}{$price} ".trim((string) $service->description).' '.$conditions);
         }
 
         $fullContext = implode("\n", $lines);
@@ -161,6 +164,35 @@ PROMPT;
         $formatted = number_format($amount, (float) $amount === floor($amount) ? 0 : 2, ',', ' ');
 
         return "{$formatted} ₸";
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $details
+     */
+    private function detailsBlock(string $label, ?array $details): string
+    {
+        if ($details === null || $details === []) {
+            return '';
+        }
+
+        $pairs = collect($details)
+            ->map(function (mixed $value, string $key): ?string {
+                if ($value === null || $value === '') {
+                    return null;
+                }
+
+                if (is_array($value)) {
+                    $value = implode(', ', array_map(static fn (mixed $item): string => (string) $item, $value));
+                } elseif (is_bool($value)) {
+                    $value = $value ? 'да' : 'нет';
+                }
+
+                return "{$key}: {$value}";
+            })
+            ->filter()
+            ->implode('; ');
+
+        return $pairs !== '' ? "{$label}: {$pairs}." : '';
     }
 
     private function formatMessage(Message $message): string

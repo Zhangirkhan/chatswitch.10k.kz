@@ -27,6 +27,7 @@ final class AiReplyGenerator
         $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id);
         $reply = trim($this->openAi->chat($built['messages'], 0.35, 700));
         $reply = $this->sanitizeReply($reply);
+        $reply = $this->normalizeCurrency($reply);
         $this->assertSafeReply($reply);
 
         $log?->forceFill([
@@ -50,6 +51,11 @@ final class AiReplyGenerator
         $reply = trim($reply, " \t\n\r\0\x0B\"'");
 
         return Str::limit($reply, 4000, '...');
+    }
+
+    private function normalizeCurrency(string $reply): string
+    {
+        return preg_replace('/\b(?:руб(?:\.|лей|ля|ль|ли|лях|лями)?|₽)\b/iu', '₸', $reply) ?: $reply;
     }
 
     private function assertSafeReply(string $reply): void
