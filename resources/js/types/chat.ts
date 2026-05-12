@@ -61,6 +61,7 @@ export interface Chat {
     whatsapp_chat_id: string;
     /** Может быть null, если сессию удалили (FK SET NULL), пока чат ещё в UI. */
     whatsapp_session_id: number | null;
+    company_id?: number | null;
     contact_id: number | null;
     contact?: Contact | null;
     whatsapp_session?: WhatsappSession;
@@ -89,6 +90,11 @@ export interface Chat {
     last_message_direction: 'inbound' | 'outbound' | null;
     latest_message?: ChatLastMessagePreview | null;
     community_id: number | null;
+    ai_enabled?: boolean;
+    ai_mode?: 'draft' | 'auto';
+    ai_responder_user_id?: number | null;
+    ai_responder?: { id: number; name: string } | null;
+    can_manage_ai?: boolean;
     created_at?: string;
 }
 

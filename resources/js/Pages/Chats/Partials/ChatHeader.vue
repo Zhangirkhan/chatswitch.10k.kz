@@ -8,6 +8,13 @@ import { formatPhone } from '@/utils/phone';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 
 type MenuPos = { top: number; right: number };
+type AiStatus = {
+    id: number;
+    mode: string;
+    status: string;
+    error: string | null;
+    updated_at: string | null;
+};
 
 /**
  * Считаем координаты выпадашки относительно viewport, чтобы Teleport в body
@@ -27,6 +34,7 @@ const props = defineProps<{
     typingUsers: Map<number, string>;
     departments?: Department[];
     assignableUsers?: AssignableUser[];
+    aiStatus?: AiStatus | null;
 }>();
 
 const page = usePage<any>();
@@ -69,6 +77,7 @@ const departmentHistory = ref<Array<{ id: number; body: string; at: string | nul
 const currentDepartmentsHistory = ref<Array<{ id: number; name: string }>>([]);
 const departmentSearchQuery = ref('');
 const scheduledMessagesOpen = ref(false);
+const archivingChat = ref(false);
 let saveDepartmentsTimer: number | null = null;
 let saveDepartmentsQueued = false;
 
@@ -197,6 +206,31 @@ async function saveDepartments(closeAfterSave = true) {
 const assignableUsersList = computed<AssignableUser[]>(() => props.assignableUsers ?? []);
 const isAdministrator = computed(() => (page.props.auth?.user?.roles ?? []).includes('administrator'));
 const isManager = computed(() => (page.props.auth?.user?.roles ?? []).includes('manager'));
+const aiSaving = ref(false);
+const canManageAi = computed(() => props.chat.can_manage_ai === true);
+const aiEnabled = computed(() => props.chat.ai_enabled === true);
+const aiMode = computed(() => props.chat.ai_mode || 'auto');
+const aiResponderName = computed(() => {
+    const id = props.chat.ai_responder_user_id;
+    if (id == null) {
+        return 'не выбран';
+    }
+
+    return assignableUsersList.value.find((user) => user.id === id)?.name
+        || props.chat.ai_responder?.name
+        || `#${id}`;
+});
+const aiStatusLabel = computed(() => {
+    const status = props.aiStatus?.status;
+    if (!status) {
+        return 'AI ещё не отвечал';
+    }
+    if (status === 'sent') return 'последний ответ отправлен';
+    if (status === 'generating') return 'AI готовит ответ';
+    if (status === 'blocked') return 'ответ заблокирован проверкой';
+    if (status === 'failed') return 'ошибка AI';
+    return status;
+});
 
 /** У руководителя — как раньше; у админа кнопка видна всегда, но без отделов у чата неактивна. */
 const showAssignUsersBlock = computed(() => {
@@ -257,6 +291,59 @@ function roleLabel(roles: string[]): string {
     if (roles.includes('manager')) return 'Руководитель';
     if (roles.includes('employee')) return 'Сотрудник';
     return '';
+}
+
+async function toggleAi(): Promise<void> {
+    if (!canManageAi.value || aiSaving.value) {
+        return;
+    }
+
+    aiSaving.value = true;
+    try {
+        await axios.patch(route('chats.ai.update', props.chat.id), {
+            ai_enabled: !aiEnabled.value,
+            ai_mode: !aiEnabled.value ? 'auto' : (props.chat.ai_mode || 'auto'),
+            ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
+            company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
+        });
+        router.reload({ only: ['chat'] });
+    } catch (e: any) {
+        alert(e?.response?.data?.message || 'Не удалось переключить AI.');
+    } finally {
+        aiSaving.value = false;
+    }
+}
+
+async function updateAiSettings(payload: Record<string, unknown>): Promise<void> {
+    if (!canManageAi.value || aiSaving.value) {
+        return;
+    }
+
+    aiSaving.value = true;
+    try {
+        await axios.patch(route('chats.ai.update', props.chat.id), {
+            ai_enabled: aiEnabled.value,
+            ai_mode: aiMode.value,
+            ai_responder_user_id: props.chat.ai_responder_user_id || null,
+            company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
+            ...payload,
+        });
+        router.reload({ only: ['chat', 'aiStatus'] });
+    } catch (e: any) {
+        alert(e?.response?.data?.message || 'Не удалось обновить настройки AI.');
+    } finally {
+        aiSaving.value = false;
+    }
+}
+
+function onAiModeChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value === 'draft' ? 'draft' : 'auto';
+    void updateAiSettings({ ai_mode: value });
+}
+
+function onAiResponderChange(event: Event): void {
+    const value = Number((event.target as HTMLSelectElement).value);
+    void updateAiSettings({ ai_responder_user_id: Number.isFinite(value) && value > 0 ? value : null });
 }
 
 /** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
@@ -499,6 +586,23 @@ function closeChatWindow() {
     router.visit(route('chats.index'));
 }
 
+/** Закрыть просмотр чата: в архив (если ещё не там) и переход к списку архива. */
+async function archiveAndCloseChat(): Promise<void> {
+    closeMenu();
+    if (archivingChat.value) return;
+    archivingChat.value = true;
+    try {
+        if (!props.chat.is_archived) {
+            await axios.post(route('chats.archive', props.chat.id));
+        }
+        await router.visit(route('chats.archived'));
+    } catch {
+        alert('Не удалось отправить чат в архив.');
+    } finally {
+        archivingChat.value = false;
+    }
+}
+
 function notImplemented(name: string) {
     closeMenu();
     alert(`«${name}» — функция скоро будет доступна.`);
@@ -538,7 +642,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 
 <template>
     <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative">
-        <Link :href="route('chats.index')" class="md:hidden text-[var(--wa-icon)]">
+        <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -724,6 +828,57 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </button>
+
+            <button
+                v-if="canManageAi"
+                type="button"
+                class="label-pill label-pill-ai-toggle"
+                :class="{ 'label-pill-ai-toggle-on': aiEnabled }"
+                :title="aiEnabled ? 'Отключить AI-автоответы' : 'Включить AI-ассистента в чате'"
+                :disabled="aiSaving"
+                @click="toggleAi"
+            >
+                {{ aiEnabled ? 'AI включен' : 'AI выкл' }}
+            </button>
+
+            <div v-if="canManageAi && aiEnabled" class="ai-settings-inline">
+                <select
+                    class="ai-settings-select"
+                    :value="aiMode"
+                    :disabled="aiSaving"
+                    title="Режим AI"
+                    @change="onAiModeChange"
+                >
+                    <option value="auto">Автоответ</option>
+                    <option value="draft">Черновик</option>
+                </select>
+                <select
+                    class="ai-settings-select"
+                    :value="chat.ai_responder_user_id || ''"
+                    :disabled="aiSaving"
+                    title="AI отвечает от имени"
+                    @change="onAiResponderChange"
+                >
+                    <option value="">Автовыбор</option>
+                    <option
+                        v-for="user in selectedUsers.length ? selectedUsers : assignableUsersList"
+                        :key="user.id"
+                        :value="user.id"
+                    >
+                        {{ user.name }}
+                    </option>
+                </select>
+                <span
+                    class="ai-status-chip"
+                    :class="{
+                        'ai-status-chip-error': aiStatus?.status === 'failed' || aiStatus?.status === 'blocked',
+                        'ai-status-chip-active': aiStatus?.status === 'generating',
+                    }"
+                    :title="aiStatus?.error || `Ответчик: ${aiResponderName}`"
+                >
+                    {{ aiStatusLabel }}
+                </span>
+            </div>
 
             <button
                 type="button"
@@ -914,26 +1069,40 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 </div>
             </div>
 
-            <button type="button" class="wa-header-btn" title="Поиск" @click="openSearch">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-            </button>
-
-            <div class="relative">
-                <button
-                    ref="menuBtnRef"
-                    class="wa-header-btn"
-                    title="Меню"
-                    @click="toggleMenu"
-                    type="button"
-                >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <circle cx="12" cy="5" r="2"/>
-                        <circle cx="12" cy="12" r="2"/>
-                        <circle cx="12" cy="19" r="2"/>
+            <div class="flex items-center gap-1 shrink-0">
+                <button type="button" class="wa-header-btn shrink-0" title="Поиск" @click="openSearch">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </button>
+
+                <button
+                    type="button"
+                    class="wa-header-btn wa-header-btn-archive shrink-0"
+                    title="Закрыть чат и отправить в архив"
+                    :disabled="archivingChat"
+                    :aria-busy="archivingChat"
+                    @click="archiveAndCloseChat"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
+                <div class="relative shrink-0">
+                    <button
+                        ref="menuBtnRef"
+                        class="wa-header-btn"
+                        title="Меню"
+                        @click="toggleMenu"
+                        type="button"
+                    >
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="5" r="2"/>
+                            <circle cx="12" cy="12" r="2"/>
+                            <circle cx="12" cy="19" r="2"/>
+                        </svg>
+                    </button>
 
                 <Teleport to="body">
                     <div
@@ -979,6 +1148,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     </button>
                     </div>
                 </Teleport>
+                </div>
             </div>
         </div>
 
@@ -1404,6 +1574,17 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 .wa-header-btn:hover {
     background-color: var(--wa-rail-btn-hover);
 }
+.wa-header-btn:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.wa-header-btn-archive {
+    color: var(--wa-danger);
+}
+.wa-header-btn-archive:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--wa-danger) 18%, transparent);
+    color: var(--wa-danger);
+}
 .label-pill {
     display: inline-flex;
     align-items: center;
@@ -1487,6 +1668,64 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 .label-pill-ai-text {
     letter-spacing: 0.04em;
     font-size: 0.75rem;
+}
+
+.label-pill-ai-toggle {
+    color: var(--wa-text-secondary);
+    border-color: var(--wa-border-strong);
+    background-color: var(--wa-panel);
+    padding-inline: 0.75rem;
+    max-width: none;
+    font-weight: 600;
+}
+.label-pill-ai-toggle-on {
+    color: #fff;
+    border-color: transparent;
+    background-color: var(--wa-green);
+}
+
+.ai-settings-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.ai-settings-select {
+    height: 2rem;
+    max-width: 9.5rem;
+    border-radius: 9999px;
+    border: 1px solid var(--wa-border-strong);
+    background-color: var(--wa-panel);
+    color: var(--wa-text-primary);
+    font-size: 0.75rem;
+    padding: 0 1.7rem 0 0.65rem;
+}
+
+.ai-status-chip {
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 9999px;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    background: rgba(59, 130, 246, 0.08);
+    color: #2563eb;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.35rem 0.55rem;
+}
+
+.ai-status-chip-active {
+    border-color: rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.12);
+    color: #b45309;
+}
+
+.ai-status-chip-error {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
 }
 
 /* Иконочный вариант пилла: квадратная кнопка только с иконкой (+ опц. бейдж счётчика). */

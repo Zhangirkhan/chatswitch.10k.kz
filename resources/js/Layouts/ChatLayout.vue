@@ -18,11 +18,11 @@ defineProps<{
                 :selected-chat-id="selectedChatId"
                 :search="search"
                 class="shrink-0"
-                :class="{ 'hidden md:flex': selectedChatId }"
+                :class="{ 'hidden sm:flex': selectedChatId }"
             />
             <div
                 class="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--wa-border)]"
-                :class="{ 'hidden md:flex': !selectedChatId }"
+                :class="{ 'hidden sm:flex': !selectedChatId }"
             >
                 <slot />
             </div>

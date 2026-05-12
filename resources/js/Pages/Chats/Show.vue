@@ -19,6 +19,13 @@ const props = defineProps<{
     chats: Paginated<Chat>;
     departments?: Department[];
     assignableUsers?: AssignableUser[];
+    aiStatus?: {
+        id: number;
+        mode: string;
+        status: string;
+        error: string | null;
+        updated_at: string | null;
+    } | null;
 }>();
 
 const { show: showToast } = useToastStore();
@@ -461,6 +468,7 @@ function cleanupEcho() {
                     :typing-users="typingUsers"
                     :departments="departments"
                     :assignable-users="assignableUsers"
+                    :ai-status="aiStatus"
                     @toggle-search="toggleSearch"
                     @show-contact-info="toggleContactInfo"
                     @open-ai="openAiPanel"

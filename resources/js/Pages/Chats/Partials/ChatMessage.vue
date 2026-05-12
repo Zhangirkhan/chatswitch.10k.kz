@@ -92,6 +92,12 @@ async function toggleTranslation(): Promise<void> {
 }
 const roles = computed<string[]>(() => page.props.auth?.user?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
+const isInternalUser = computed(() => roles.value.some((role) => ['administrator', 'manager', 'employee'].includes(role)));
+const isAiGenerated = computed(() => {
+    const meta = props.message.metadata as { ai?: { generated?: boolean } } | null | undefined;
+
+    return isInternalUser.value && props.message.direction === 'outbound' && meta?.ai?.generated === true;
+});
 
 const pickerOpen = ref(false);
 const fullPickerOpen = ref(false);
@@ -1190,6 +1196,9 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
+                <span v-if="isAiGenerated" class="ai-message-badge">
+                    {{ operatorDisplayName }} (AI)
+                </span>
                 <div class="wa-contact-card-main">
                     <div class="wa-contact-avatar">
                         <img
@@ -1243,6 +1252,9 @@ onBeforeUnmount(() => {
                     :style="{ color: 'var(--wa-accent)' }"
                 >
                     {{ groupSenderLabel }}
+                </span>
+                <span v-if="isAiGenerated" class="ai-message-badge">
+                    {{ operatorDisplayName }} (AI)
                 </span>
                 <template v-for="(seg, i) in bodySegments" :key="i">
                     <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>
@@ -1809,6 +1821,14 @@ onBeforeUnmount(() => {
 }
 .translate-error { color: var(--wa-danger, #ef4444); }
 .translate-text { margin: 0; font-size: 0.85rem; }
+
+.ai-message-badge {
+    color: var(--wa-accent);
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 2px;
+}
 
 .wa-msg-bubble {
     border-radius: 7.5px;

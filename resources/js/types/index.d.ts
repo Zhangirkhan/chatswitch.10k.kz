@@ -6,6 +6,8 @@ export interface User {
     phone?: string | null;
     phones?: string[];
     department_id: number | null;
+    company_id?: number | null;
+    company?: { id: number; name: string } | null;
     department_ids?: number[];
     is_active: boolean;
     roles: string[];
@@ -64,6 +66,7 @@ export interface Chat {
     whatsapp_chat_id: string;
     whatsapp_session_id: number | null;
     contact_id: number | null;
+    company_id?: number | null;
     chat_name: string | null;
     is_group: boolean;
     last_message_text: string | null;
@@ -87,6 +90,11 @@ export interface Chat {
     is_muted: boolean;
     muted_until: string | null;
     is_favorite: boolean;
+    ai_enabled?: boolean;
+    ai_mode?: 'draft' | 'auto';
+    ai_responder_user_id?: number | null;
+    ai_responder?: { id: number; name: string } | null;
+    can_manage_ai?: boolean;
     contact: Contact | null;
     whatsapp_session: WhatsappSession | null;
     assignments: ChatAssignment[];
