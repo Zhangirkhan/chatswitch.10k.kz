@@ -1,0 +1,13 @@
+---
+description: Keep commits small, ordered, and clearly named
+alwaysApply: true
+---
+
+# Commit Discipline
+
+When asked to commit work:
+
+- Split unrelated changes into separate commits in implementation order.
+- Use clear commit messages that describe the purpose of each change.
+- Do not commit runtime caches, logs, credentials, session state, or other sensitive/generated files.
+- Before committing, inspect staged changes and keep each commit focused.
