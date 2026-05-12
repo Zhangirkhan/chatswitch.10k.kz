@@ -19,6 +19,7 @@ final class Chat extends Model
         'whatsapp_chat_id',
         'whatsapp_session_id',
         'contact_id',
+        'company_id',
         'community_id',
         'chat_name',
         'is_group',
@@ -32,6 +33,9 @@ final class Chat extends Model
         'is_muted',
         'muted_until',
         'is_favorite',
+        'ai_enabled',
+        'ai_mode',
+        'ai_responder_user_id',
     ];
 
     protected function casts(): array
@@ -42,6 +46,7 @@ final class Chat extends Model
             'is_pinned' => 'boolean',
             'is_muted' => 'boolean',
             'is_favorite' => 'boolean',
+            'ai_enabled' => 'boolean',
             'last_message_at' => 'datetime',
             'muted_until' => 'datetime',
         ];
@@ -55,6 +60,16 @@ final class Chat extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function aiResponder(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ai_responder_user_id');
     }
 
     public function community(): BelongsTo

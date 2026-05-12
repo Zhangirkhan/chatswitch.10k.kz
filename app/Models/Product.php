@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+final class Product extends Model
+{
+    protected $fillable = [
+        'company_id',
+        'name',
+        'sku',
+        'description',
+        'price',
+        'attributes',
+        'is_active',
+        'include_in_prompt',
+        'sort_order',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'price' => 'decimal:2',
+            'attributes' => 'array',
+            'is_active' => 'boolean',
+            'include_in_prompt' => 'boolean',
+            'sort_order' => 'integer',
+        ];
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+}

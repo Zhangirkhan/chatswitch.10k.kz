@@ -25,6 +25,7 @@ final class User extends Authenticatable
         'email',
         'password',
         'department_id',
+        'company_id',
         'is_active',
     ];
 
@@ -56,6 +57,11 @@ final class User extends Authenticatable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     /**
@@ -131,5 +137,13 @@ final class User extends Authenticatable
     {
         return $this->belongsToMany(WhatsappSession::class, 'user_whatsapp_session')
             ->withTimestamps();
+    }
+
+    /**
+     * Инвалидирует все Personal Access Token (Sanctum), например после смены пароля.
+     */
+    public function revokeAllPersonalAccessTokens(): void
+    {
+        $this->tokens()->delete();
     }
 }
