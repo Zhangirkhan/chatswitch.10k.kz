@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
+import PwaInstallBanner from '@/Components/PwaInstallBanner.vue';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
 import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
+import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
+import { useToastStore } from '@/stores/toast';
 
 const page = usePage<any>();
 const user = computed(() => page.props.auth.user);
@@ -16,8 +19,64 @@ useChatsListDesktopNotifications(
     () => userId.value,
     () => userId.value,
 );
-const unreadChatsCount = computed<number>(() => Number(page.props.unreadChatsCount || 0));
+
+// Живой счётчик непрочитанных — инициализируется из Inertia-пропов,
+// затем обновляется через WebSocket в ChatSidebar без перезагрузки страницы.
+const liveUnread = useLiveUnreadCount();
+const unreadChatsCount = computed<number>(() => {
+    // Если ChatSidebar ещё не проинициализировал синглтон — берём из Inertia-пропов
+    if (!liveUnread.initialized()) {
+        return Number(page.props.unreadChatsCount || 0);
+    }
+    return liveUnread.count.value;
+});
+
+// Синхронизируем синглтон когда Inertia обновляет пропы (навигация, reload)
+watch(
+    () => page.props.unreadChatsCount as number | undefined,
+    (n) => { liveUnread.set(Number(n || 0)); },
+    { immediate: true },
+);
+
 useUnreadFavicon(() => unreadChatsCount.value);
+
+// ─── In-app message toasts ─────────────────────────────────────────────────
+// Показываем тост при входящем сообщении, когда пользователь НЕ смотрит на этот чат.
+// ChatSidebar подписывается на тот же Echo-канал — дублирования нет, т.к. тост
+// показывается только для inbound сообщений не в текущем открытом чате.
+const { show: showToast } = useToastStore();
+let inAppEchoChannel: any = null;
+
+function setupInAppEcho(): void {
+    const Echo = (window as any).Echo;
+    const uid = userId.value;
+    if (!Echo || !uid) return;
+    try {
+        inAppEchoChannel = Echo.private(`chats.list.${uid}`);
+        inAppEchoChannel.listen('.message.received', (e: any) => {
+            const msg = e.message;
+            const desktop = e.desktop;
+            if (!msg?.chat_id || !desktop) return;
+            // Только входящие от клиентов
+            if (msg.direction !== 'inbound') return;
+            // Не показываем тост если пользователь уже смотрит на этот чат
+            const currentUrl = window.location.pathname;
+            if (currentUrl.includes(`/chats/${msg.chat_id}`)) return;
+
+            showToast({
+                type: 'message',
+                title: desktop.title || 'Новое сообщение',
+                message: desktop.body || 'Клиент написал',
+                iconUrl: desktop.icon || null,
+                chatId: msg.chat_id,
+                duration: 7000,
+            });
+        });
+    } catch {
+        inAppEchoChannel = null;
+    }
+}
+
 const whatsappSessions = ref<WhatsappSession[]>([]);
 let whatsappStatusChannel: any = null;
 
@@ -78,17 +137,47 @@ function onWhatsappStatusChanged(raw: unknown): void {
 
 onMounted(() => {
     const Echo = (window as any).Echo;
-    if (!Echo || !canSubscribeToWhatsappStatus.value) return;
 
-    try {
-        whatsappStatusChannel = Echo.private('whatsapp-status');
-        whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
-    } catch {
-        whatsappStatusChannel = null;
+    if (Echo) {
+        setupInAppEcho();
+        if (canSubscribeToWhatsappStatus.value) {
+            try {
+                whatsappStatusChannel = Echo.private('whatsapp-status');
+                whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
+            } catch {
+                whatsappStatusChannel = null;
+            }
+        }
+    } else {
+        // Ждём инициализации Echo (Reverb может загружаться асинхронно)
+        let waited = 0;
+        const iv = setInterval(() => {
+            waited += 300;
+            if ((window as any).Echo) {
+                clearInterval(iv);
+                setupInAppEcho();
+                if (canSubscribeToWhatsappStatus.value) {
+                    try {
+                        whatsappStatusChannel = (window as any).Echo.private('whatsapp-status');
+                        whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
+                    } catch {
+                        whatsappStatusChannel = null;
+                    }
+                }
+            } else if (waited >= 15_000) {
+                clearInterval(iv);
+            }
+        }, 300);
     }
 });
 
 onUnmounted(() => {
+    try {
+        if (inAppEchoChannel && (window as any).Echo && userId.value) {
+            try { (window as any).Echo.leave(`chats.list.${userId.value}`); } catch { /* ignore */ }
+        }
+        inAppEchoChannel = null;
+    } catch { /* ignore */ }
     try {
         whatsappStatusChannel?.stopListening('.status.changed', onWhatsappStatusChanged);
     } catch {
@@ -124,14 +213,29 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('contacts.index')"
-                    :href="route('contacts.index')"
+                    v-if="route().has('analytics.dialogs')"
+                    :href="route('analytics.dialogs')"
                     class="wa-rail-btn"
-                    :class="{ active: route().current('contacts.*') }"
-                    title="Контакты"
+                    :class="{ active: route().current('analytics.*') }"
+                    title="Аналитика диалогов"
                 >
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" />
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 16l4-8 4 5 4-10" />
+                    </svg>
+                </Link>
+
+                <Link
+                    v-if="route().has('calendar.index') && page.props.modules?.calendar"
+                    :href="route('calendar.index')"
+                    class="wa-rail-btn"
+                    :class="{ active: route().current('calendar.*') }"
+                    title="Календарь"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <line x1="16" y1="2" x2="16" y2="6" stroke-linecap="round"/>
+                        <line x1="8" y1="2" x2="8" y2="6" stroke-linecap="round"/>
+                        <line x1="3" y1="10" x2="21" y2="10" stroke-linecap="round"/>
                     </svg>
                 </Link>
 
@@ -177,6 +281,7 @@ onUnmounted(() => {
         </div>
 
         <ToastContainer />
+        <PwaInstallBanner />
     </div>
 </template>
 
@@ -208,7 +313,7 @@ onUnmounted(() => {
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #fff;
+    color: var(--wa-text);
     background: var(--wa-rail-btn-hover);
     font-size: 0.75rem;
     font-weight: 600;

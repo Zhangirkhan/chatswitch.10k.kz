@@ -3,8 +3,10 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
+import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
+import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import axios from 'axios';
 
 type ScopeKey = 'active' | 'archived';
@@ -26,6 +28,7 @@ const props = withDefaults(
 const page = usePage<any>();
 const archivedCount = computed<number>(() => Number(page.props.archivedCount || 0));
 const user = computed(() => page.props.auth?.user);
+const liveUnread = useLiveUnreadCount();
 const currentUserId = computed<number | null>(() => user.value?.id ?? null);
 const roles = computed<string[]>(() => user.value?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
@@ -36,6 +39,147 @@ const OWNERSHIP_KEY = 'chatswitch.chats.ownership';
 const SEGMENT_KEY = 'chatswitch.chats.segment';
 const searchQuery = ref(props.search || '');
 const searchFocused = ref(false);
+
+// ─── Live chat list (реальное время) ─────────────────────────────────────────
+const localChats = ref<Chat[]>([...props.chats.data]);
+const loadingMore = ref(false);
+const loadedUntilPage = ref(props.chats.current_page);
+
+const lastPage = computed(() => props.chats.last_page);
+const hasMoreChats = computed(() => loadedUntilPage.value < lastPage.value);
+
+watch(
+    () => props.chats,
+    (p) => {
+        localChats.value = [...p.data];
+        loadedUntilPage.value = p.current_page;
+    },
+);
+
+// Sync live singleton when Inertia refreshes the unread count prop
+watch(
+    () => page.props.unreadChatsCount as number | undefined,
+    (n) => {
+        if (typeof n === 'number') liveUnread.set(n);
+    },
+);
+
+function applyIncomingMessage(chatId: number, msg: {
+    body?: string | null;
+    direction?: 'inbound' | 'outbound' | null;
+    created_at?: string | null;
+    message_timestamp?: string | null;
+}): void {
+    const idx = localChats.value.findIndex((c) => c.id === chatId);
+    if (idx < 0) {
+        // Неизвестный чат — подгрузим список
+        router.reload({ only: ['chats', 'unreadChatsCount'] });
+        return;
+    }
+
+    const chat = { ...localChats.value[idx]! };
+    chat.last_message_text = msg.body ?? chat.last_message_text;
+    chat.last_message_direction = (msg.direction as Chat['last_message_direction']) ?? chat.last_message_direction;
+    chat.last_message_at = msg.message_timestamp ?? msg.created_at ?? chat.last_message_at;
+
+    const isActiveChatId = props.selectedChatId === chatId;
+
+    if (!isActiveChatId && msg.direction === 'inbound') {
+        chat.unread_count = (chat.unread_count || 0) + 1;
+        liveUnread.increment();
+    }
+
+    // Сдвигаем чат на верх (если не закреплён)
+    const updated = localChats.value.filter((c) => c.id !== chatId);
+    if (chat.is_pinned) {
+        // Закреплённые остаются на своих местах — просто обновляем данные
+        updated.splice(idx, 0, chat);
+    } else {
+        // Вставляем после последнего закреплённого
+        const lastPinnedIdx = updated.reduce((last, c, i) => (c.is_pinned ? i : last), -1);
+        updated.splice(lastPinnedIdx + 1, 0, chat);
+    }
+    localChats.value = updated;
+}
+
+async function onChatListScroll(e: Event): Promise<void> {
+    const el = e.target as HTMLElement;
+    if (!hasMoreChats.value || loadingMore.value) {
+        return;
+    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight > 140) {
+        return;
+    }
+    loadingMore.value = true;
+    try {
+        const next = loadedUntilPage.value + 1;
+        const { data: payload } = await axios.get<{
+            data: Chat[];
+            current_page: number;
+            last_page: number;
+        }>(route('chats.feed'), {
+            params: {
+                page: next,
+                search: props.search || undefined,
+                archived: props.scope === 'archived' ? 1 : 0,
+            },
+        });
+        const seen = new Set(localChats.value.map((c) => c.id));
+        for (const row of payload.data) {
+            if (!seen.has(row.id)) {
+                seen.add(row.id);
+                localChats.value.push(row);
+            }
+        }
+        loadedUntilPage.value = payload.current_page;
+    } catch {
+        /* offline / 419 */
+    } finally {
+        loadingMore.value = false;
+    }
+}
+
+// ─── Echo subscription ────────────────────────────────────────────────────────
+let listEchoChannel: any = null;
+
+function setupListEcho(): void {
+    const Echo = (window as any).Echo;
+    const uid = user.value?.id;
+    if (!Echo || !uid) return;
+
+    try {
+        listEchoChannel = Echo.private(`chats.list.${uid}`);
+
+        listEchoChannel.listen('.message.received', (e: any) => {
+            const msg = e.message;
+            if (!msg?.chat_id) return;
+            applyIncomingMessage(msg.chat_id, {
+                body: msg.body,
+                direction: msg.direction,
+                created_at: msg.created_at,
+                message_timestamp: msg.message_timestamp,
+            });
+        });
+
+        listEchoChannel.listen('.chats.notify', (e: any) => {
+            if (!e?.chat_id) return;
+            // Для назначений/звонков перезагружаем список
+            router.reload({ only: ['chats', 'unreadChatsCount'] });
+        });
+    } catch {
+        listEchoChannel = null;
+    }
+}
+
+function teardownListEcho(): void {
+    if (listEchoChannel && (window as any).Echo) {
+        const uid = user.value?.id;
+        if (uid) {
+            try { (window as any).Echo.leave(`chats.list.${uid}`); } catch { /* ignore */ }
+        }
+    }
+    listEchoChannel = null;
+}
 const activeSegment = ref<SegmentKey>('clients');
 const activeOwnership = ref<OwnershipKey>('all');
 const headerMenuOpen = ref(false);
@@ -44,8 +188,8 @@ const showNewChat = ref(false);
 // Dismissible info banners (remembered per-browser so they don't come back on reload)
 const NOTIF_BANNER_KEY = 'chatswitch.banner.notifications';
 const PROMO_BANNER_KEY = 'chatswitch.banner.promo';
-/** Пока скрыт баннер «Уведомления о сообщениях отключены» */
-const SHOW_NOTIFICATIONS_MUTED_BANNER = false;
+/** Баннер запроса разрешений на уведомления */
+const SHOW_NOTIFICATIONS_MUTED_BANNER = true;
 /** Пока скрыт промо-баннер (Facebook / Instagram) */
 const SHOW_PROMO_BANNER = false;
 const notifBannerOpen = ref(true);
@@ -53,7 +197,9 @@ const promoBannerOpen = ref(true);
 onMounted(() => {
     if (typeof window === 'undefined') return;
     if (SHOW_NOTIFICATIONS_MUTED_BANNER) {
-        notifBannerOpen.value = localStorage.getItem(NOTIF_BANNER_KEY) !== 'dismissed';
+        const dismissed = localStorage.getItem(NOTIF_BANNER_KEY) === 'dismissed';
+        const alreadyGranted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+        notifBannerOpen.value = !dismissed && !alreadyGranted;
     } else {
         notifBannerOpen.value = false;
     }
@@ -75,6 +221,27 @@ onMounted(() => {
 
 // On first mount, pull group chats for connected numbers so they appear in the list.
 onMounted(async () => {
+    // Инициализируем живой счётчик из Inertia-пропов (если ещё не был задан)
+    if (!liveUnread.initialized()) {
+        liveUnread.init(Number(page.props.unreadChatsCount || 0));
+    }
+
+    // Echo — подписываемся сразу или ждём инициализации
+    if ((window as any).Echo) {
+        setupListEcho();
+    } else {
+        let waited = 0;
+        const iv = setInterval(() => {
+            waited += 300;
+            if ((window as any).Echo) {
+                clearInterval(iv);
+                setupListEcho();
+            } else if (waited >= 15_000) {
+                clearInterval(iv);
+            }
+        }, 300);
+    }
+
     try {
         await axios.post(route('chats.sync-groups'));
         router.reload({ only: ['chats', 'unreadChatsCount'] });
@@ -97,6 +264,20 @@ watch(activeSegment, (val) => {
 function dismissNotifBanner() {
     notifBannerOpen.value = false;
     localStorage.setItem(NOTIF_BANNER_KEY, 'dismissed');
+}
+
+async function enableNotifications() {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'denied') {
+        alert('Браузер заблокировал уведомления. Снимите запрет в настройках сайта и перезагрузите страницу.');
+        return;
+    }
+    const result = await Notification.requestPermission();
+    if (result === 'granted') {
+        // Включаем флаг в localStorage (тот же ключ, что читает useChatsListDesktopNotifications)
+        try { localStorage.setItem('chatswitch.settings.notifications.enabled', 'true'); } catch { /**/ }
+        dismissNotifBanner();
+    }
 }
 function dismissPromoBanner() {
     promoBannerOpen.value = false;
@@ -123,12 +304,12 @@ function isAssignedToMe(chat: Chat): boolean {
 
 const ownershipFilteredChats = computed(() => {
     if (props.scope !== 'active' || !canFilterByOwnership.value) {
-        return props.chats.data;
+        return localChats.value;
     }
     if (activeOwnership.value === 'mine') {
-        return props.chats.data.filter(isAssignedToMe);
+        return localChats.value.filter(isAssignedToMe);
     }
-    return props.chats.data;
+    return localChats.value;
 });
 
 const filteredChats = computed(() => {
@@ -164,7 +345,7 @@ const clientsTotal = computed(() =>
 const staffTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.last_message_direction === 'outbound').length
 );
-const mineTotal = computed(() => props.chats.data.filter(isAssignedToMe).length);
+const mineTotal = computed(() => localChats.value.filter(isAssignedToMe).length);
 
 function setSegment(key: SegmentKey) {
     activeSegment.value = key;
@@ -212,6 +393,7 @@ const offNewGroup = onShortcut('new-group', () => {
     window.dispatchEvent(new CustomEvent('chatswitch:new-chat-mode', { detail: 'group' }));
 });
 onBeforeUnmount(() => {
+    teardownListEcho();
     offNextChat();
     offPrevChat();
     offNewChat();
@@ -392,6 +574,9 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
+        <!-- Section tabs: Клиенты / Организация -->
+        <SidebarSectionTabs active="clients" />
+
         <!-- Scope: Активные / Архив (стиль как «Все / Мои») -->
         <div class="px-3 pb-2 flex items-center gap-2 shrink-0">
             <Link
@@ -464,6 +649,22 @@ onBeforeUnmount(() => {
             </button>
         </div>
 
+        <div
+            v-if="scope === 'active' && activeSegment === 'staff' && filteredChats.length === 0 && ownershipFilteredChats.length > 0"
+            class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
+            :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
+        >
+            В разделе «Сотрудники» только чаты, где последнее сообщение от оператора.
+            <button
+                type="button"
+                class="font-semibold mt-1 block"
+                :style="{ color: 'var(--wa-accent)' }"
+                @click="setSegment('clients')"
+            >
+                Показать всех клиентов
+            </button>
+        </div>
+
         <!-- Notifications muted banner -->
         <div
             v-if="SHOW_NOTIFICATIONS_MUTED_BANNER && notifBannerOpen"
@@ -474,16 +675,17 @@ onBeforeUnmount(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15L4 17h5a3 3 0 006 0h5l-1.405-1.405M3 3l18 18M9 5.341V5a2 2 0 114 0v.341" />
                 </svg>
             </div>
-            <div class="flex-1 min-w-0">
-                <div class="text-[13px] text-[var(--wa-text)] truncate">Уведомления о сообщениях отключены.</div>
-                <button
-                    type="button"
-                    class="text-[13px] font-medium mt-0.5"
-                    :style="{ color: 'var(--wa-accent)' }"
-                >
-                    Включить
-                </button>
-            </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-[13px] text-[var(--wa-text)] truncate font-medium">Включите уведомления о новых сообщениях</div>
+                    <button
+                        type="button"
+                        class="text-[13px] font-semibold mt-0.5"
+                        :style="{ color: 'var(--wa-accent)' }"
+                        @click="enableNotifications"
+                    >
+                        Разрешить
+                    </button>
+                </div>
             <button
                 @click="dismissNotifBanner"
                 class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 hover:bg-[var(--wa-panel-hover)] text-[var(--wa-icon)]"
@@ -534,9 +736,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Chat list -->
-        <div class="flex-1 overflow-y-auto wa-scrollbar">
+        <div class="flex-1 overflow-y-auto wa-scrollbar" @scroll.passive="onChatListScroll">
             <div
-                v-if="filteredChats.length === 0"
+                v-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
                 class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
             >
                 <template v-if="scope === 'archived'">В архиве пока нет чатов</template>
@@ -548,6 +750,12 @@ onBeforeUnmount(() => {
                 :chat="chat"
                 :is-selected="chat.id === selectedChatId"
             />
+            <div
+                v-if="loadingMore"
+                class="py-3 text-center text-xs text-[var(--wa-text-secondary)]"
+            >
+                Загрузка…
+            </div>
         </div>
 
     </div>

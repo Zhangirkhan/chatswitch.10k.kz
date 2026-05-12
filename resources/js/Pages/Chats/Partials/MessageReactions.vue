@@ -41,9 +41,11 @@ const panelTitle = computed(() => {
 <template>
     <div v-if="grouped.length" class="mt-1">
         <div
-            class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs"
+            class="inline-flex items-center rounded-full border border-[var(--wa-border)] px-2 py-0.5 text-xs shadow-sm backdrop-blur-[2px]"
             :title="panelTitle"
-            :class="'border-zinc-300 bg-white/60 dark:border-zinc-700 dark:bg-zinc-800/60'"
+            :style="{
+                background: 'color-mix(in srgb, var(--wa-panel) 88%, transparent)',
+            }"
         >
             <span
                 v-if="totalCount > 1"

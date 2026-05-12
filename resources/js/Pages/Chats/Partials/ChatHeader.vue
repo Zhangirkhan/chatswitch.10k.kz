@@ -48,14 +48,12 @@ const employeeOwnDepartmentLabel = computed(() => {
 const emit = defineEmits<{
     (e: 'toggle-search'): void;
     (e: 'show-contact-info'): void;
+    (e: 'open-ai'): void;
 }>();
 
 const menuOpen = ref(false);
 const menuBtnRef = ref<HTMLButtonElement | null>(null);
 const menuPos = ref<MenuPos>({ top: 0, right: 0 });
-
-const muted = ref(false);
-const working = ref(false);
 
 const departmentsList = computed<Department[]>(() => props.departments ?? []);
 const departmentsMenuOpen = ref(false);
@@ -63,6 +61,12 @@ const departmentsBtnRef = ref<HTMLButtonElement | null>(null);
 const departmentsMenuPos = ref<MenuPos>({ top: 0, right: 0 });
 const selectedDepartmentIds = ref<number[]>([]);
 const savingDepartments = ref(false);
+const departmentModalOpen = ref(false);
+const departmentHistoryModalOpen = ref(false);
+const departmentHistoryLoading = ref(false);
+const departmentHistoryError = ref<string | null>(null);
+const departmentHistory = ref<Array<{ id: number; body: string; at: string | null }>>([]);
+const currentDepartmentsHistory = ref<Array<{ id: number; name: string }>>([]);
 const departmentSearchQuery = ref('');
 const scheduledMessagesOpen = ref(false);
 let saveDepartmentsTimer: number | null = null;
@@ -92,15 +96,6 @@ const filteredDepartments = computed<Department[]>(() => {
     return departmentsList.value.filter((d) => d.name.toLowerCase().includes(q));
 });
 
-const departmentsLabel = computed<string>(() => {
-    const count = selectedDepartmentIds.value.length;
-    if (count === 0) return 'Отделы';
-    if (count === 1) {
-        return selectedDepartments.value[0]?.name ?? 'Отдел';
-    }
-    return selectedDepartments.value.map((d) => d.name).join(', ');
-});
-
 function toggleDepartmentsMenu() {
     if (departmentsMenuOpen.value) {
         departmentsMenuOpen.value = false;
@@ -108,6 +103,43 @@ function toggleDepartmentsMenu() {
     }
     departmentsMenuPos.value = computeMenuPosition(departmentsBtnRef.value);
     departmentsMenuOpen.value = true;
+}
+
+async function openDepartmentModal() {
+    departmentsMenuOpen.value = false;
+    departmentModalOpen.value = true;
+    departmentSearchQuery.value = '';
+    await loadDepartmentHistory();
+}
+
+async function loadDepartmentHistory() {
+    departmentHistoryLoading.value = true;
+    departmentHistoryError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.departments.history', props.chat.id));
+        departmentHistory.value = data.history ?? [];
+        currentDepartmentsHistory.value = data.current ?? [];
+    } catch (e: any) {
+        departmentHistoryError.value = e?.response?.data?.message || e?.message || 'Не удалось загрузить историю отделов';
+    } finally {
+        departmentHistoryLoading.value = false;
+    }
+}
+
+function closeDepartmentModal() {
+    departmentModalOpen.value = false;
+    departmentSearchQuery.value = '';
+}
+
+async function openDepartmentHistoryModal() {
+    departmentHistoryModalOpen.value = true;
+    if (departmentHistory.value.length === 0 && currentDepartmentsHistory.value.length === 0) {
+        await loadDepartmentHistory();
+    }
+}
+
+function closeDepartmentHistoryModal() {
+    departmentHistoryModalOpen.value = false;
 }
 
 function closeDepartmentsMenu() {
@@ -145,6 +177,9 @@ async function saveDepartments(closeAfterSave = true) {
         await axios.post(route('chats.departments.sync', props.chat.id), {
             department_ids: selectedDepartmentIds.value,
         });
+        if (departmentModalOpen.value) {
+            await loadDepartmentHistory();
+        }
         router.reload({ only: ['chat', 'unreadChatsCount'] });
         if (closeAfterSave) {
             closeDepartmentsMenu();
@@ -190,6 +225,12 @@ const usersMenuPanelRef = ref<HTMLElement | null>(null);
 const overflowMenuPanelRef = ref<HTMLElement | null>(null);
 const selectedUserIds = ref<number[]>([]);
 const savingUsers = ref(false);
+const assignmentModalOpen = ref(false);
+const assignmentHistoryModalOpen = ref(false);
+const assignmentHistoryLoading = ref(false);
+const assignmentHistoryError = ref<string | null>(null);
+const assignmentHistory = ref<Array<{ id: number; body: string; at: string | null }>>([]);
+const currentAssignmentsHistory = ref<Array<{ id: number; user_id: number; user_name: string | null; assigned_by_name: string | null; assigned_at: string | null }>>([]);
 let saveUsersTimer: number | null = null;
 let saveUsersQueued = false;
 
@@ -261,11 +302,55 @@ function toggleUsersMenu() {
     usersMenuOpen.value = true;
 }
 
-function onAssignUsersButtonClick() {
+async function openAssignmentModal() {
     if (assignUsersDisabled.value) {
         return;
     }
-    toggleUsersMenu();
+    usersMenuOpen.value = false;
+    assignmentModalOpen.value = true;
+    userSearchQuery.value = '';
+    await loadAssignmentHistory();
+}
+
+async function loadAssignmentHistory() {
+    assignmentHistoryLoading.value = true;
+    assignmentHistoryError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.assign.history', props.chat.id));
+        assignmentHistory.value = data.history ?? [];
+        currentAssignmentsHistory.value = data.current ?? [];
+    } catch (e: any) {
+        assignmentHistoryError.value = e?.response?.data?.message || e?.message || 'Не удалось загрузить историю';
+    } finally {
+        assignmentHistoryLoading.value = false;
+    }
+}
+
+function closeAssignmentModal() {
+    assignmentModalOpen.value = false;
+    userSearchQuery.value = '';
+}
+
+async function openAssignmentHistoryModal() {
+    assignmentHistoryModalOpen.value = true;
+    if (assignmentHistory.value.length === 0 && currentAssignmentsHistory.value.length === 0) {
+        await loadAssignmentHistory();
+    }
+}
+
+function closeAssignmentHistoryModal() {
+    assignmentHistoryModalOpen.value = false;
+}
+
+function formatAssignmentTime(value: string | null): string {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function onAssignUsersButtonClick() {
+    void openAssignmentModal();
 }
 
 function closeUsersMenu() {
@@ -303,6 +388,9 @@ async function saveUsers(closeAfterSave = true) {
         await axios.post(route('chats.assign.sync', props.chat.id), {
             user_ids: selectedUserIds.value,
         });
+        if (assignmentModalOpen.value) {
+            await loadAssignmentHistory();
+        }
         router.reload({ only: ['chat', 'unreadChatsCount'] });
         if (closeAfterSave) {
             closeUsersMenu();
@@ -331,9 +419,19 @@ function toggleMenu() {
 
 function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+        if (assignmentHistoryModalOpen.value) {
+            closeAssignmentHistoryModal();
+            return;
+        }
+        if (departmentHistoryModalOpen.value) {
+            closeDepartmentHistoryModal();
+            return;
+        }
         closeMenu();
         closeDepartmentsMenu();
+        closeDepartmentModal();
         closeUsersMenu();
+        closeAssignmentModal();
         scheduledMessagesOpen.value = false;
     }
 }
@@ -386,30 +484,6 @@ onBeforeUnmount(() => {
     }
 });
 
-async function togglePin() {
-    closeMenu();
-    if (working.value) return;
-    working.value = true;
-    try {
-        await axios.post(route('chats.toggle-pin', props.chat.id));
-        router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
-    } finally {
-        working.value = false;
-    }
-}
-
-async function toggleArchive() {
-    closeMenu();
-    if (working.value) return;
-    working.value = true;
-    try {
-        await axios.post(route('chats.archive', props.chat.id));
-    } finally {
-        working.value = false;
-        router.visit(route('chats.index'));
-    }
-}
-
 function openSearch() {
     closeMenu();
     emit('toggle-search');
@@ -420,26 +494,9 @@ function openContactInfo() {
     emit('show-contact-info');
 }
 
-function toggleMute() {
-    closeMenu();
-    muted.value = !muted.value;
-}
-
 function closeChatWindow() {
     closeMenu();
     router.visit(route('chats.index'));
-}
-
-async function clearChat() {
-    closeMenu();
-    if (!confirm('Очистить всю историю этого чата? Это действие необратимо.')) return;
-    working.value = true;
-    try {
-        await axios.post(route('chats.clear', props.chat.id));
-        router.reload({ only: ['messages', 'chat', 'unreadChatsCount'] });
-    } finally {
-        working.value = false;
-    }
 }
 
 function notImplemented(name: string) {
@@ -462,10 +519,25 @@ function getTypingText(): string {
     if (names.length === 1) return `${names[0]} печатает...`;
     return `${names.join(', ')} печатают...`;
 }
+
+/**
+ * Подпись «через какой подключённый номер ведётся диалог».
+ * Берём номер WhatsApp-сессии чата + дружелюбное имя (display_name → wa_name).
+ * Возвращаем null, когда сессия отвязана (FK SET NULL): тогда строку не рисуем.
+ */
+const sessionLine = computed<{ phone: string; name: string } | null>(() => {
+    const session = props.chat.whatsapp_session;
+    if (!session) return null;
+    const digits = formatPhone(session.phone_number);
+    const phone = digits ? `+${digits}` : '';
+    const name = (session.display_name ?? '').trim() || (session.wa_name ?? '').trim();
+    if (!phone && !name) return null;
+    return { phone, name };
+});
 </script>
 
 <template>
-    <div class="h-[60px] bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative">
+    <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative">
         <Link :href="route('chats.index')" class="md:hidden text-[var(--wa-icon)]">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -496,6 +568,15 @@ function getTypingText(): string {
                     в сети
                 </template>
             </p>
+            <p
+                v-if="sessionLine"
+                class="text-[11px] leading-tight text-[var(--wa-text-secondary)] truncate opacity-80"
+                :title="`Чат ведётся через ваш номер ${sessionLine.phone}${sessionLine.name ? ` (${sessionLine.name})` : ''}`"
+            >
+                <span class="opacity-60">через</span>
+                <span v-if="sessionLine.phone" class="ml-1 font-medium tabular-nums">{{ sessionLine.phone }}</span>
+                <span v-if="sessionLine.name" class="ml-1">· {{ sessionLine.name }}</span>
+            </p>
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
@@ -514,12 +595,20 @@ function getTypingText(): string {
                     <button
                         ref="departmentsBtnRef"
                         type="button"
-                        class="label-pill label-pill-dept"
+                        class="label-pill label-pill-dept label-pill-icon"
                         :class="{ 'label-pill-dept-active': selectedDepartmentIds.length > 0 }"
-                        :title="selectedDepartmentIds.length ? selectedDepartments.map((d) => d.name).join(', ') : 'Прикрепить отделы к чату'"
-                        @click="toggleDepartmentsMenu"
+                        :title="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
+                        :aria-label="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
+                        @click="openDepartmentModal"
                     >
-                        <span class="truncate">{{ departmentsLabel }}</span>
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                        </svg>
+                        <span
+                            v-if="selectedDepartmentIds.length > 0"
+                            class="label-pill-badge"
+                            aria-hidden="true"
+                        >{{ selectedDepartmentIds.length }}</span>
                     </button>
 
                     <Teleport to="body">
@@ -626,14 +715,27 @@ function getTypingText(): string {
 
             <button
                 type="button"
-                class="label-pill label-pill-scheduled"
+                class="label-pill label-pill-scheduled label-pill-icon"
                 title="Отложенные сообщения"
+                aria-label="Отложенные сообщения"
                 @click="scheduledMessagesOpen = true"
             >
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span class="hidden lg:inline">Отложенные</span>
+            </button>
+
+            <button
+                type="button"
+                class="label-pill label-pill-ai"
+                title="AI-ассистент: подскажет ответ по этой переписке"
+                aria-label="Открыть AI-ассистента"
+                @click="emit('open-ai')"
+            >
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span class="label-pill-ai-text">AI</span>
             </button>
 
             <!-- Сотрудники: одна кнопка с аватарками; зелёная иерархия -->
@@ -670,13 +772,15 @@ function getTypingText(): string {
                             +{{ selectedUserIds.length - 3 }}
                         </div>
                     </div>
-                    <div
+                    <span
                         v-else
-                        class="staff-pill-avatar header-staff-avatar"
+                        class="staff-pill-icon"
                         aria-hidden="true"
                     >
-                        +
-                    </div>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a4.125 4.125 0 11-8.25 0 4.125 4.125 0 018.25 0zM2.25 19.125a8.25 8.25 0 0114.59-5.252" />
+                        </svg>
+                    </span>
                 </button>
 
                 <Teleport to="body">
@@ -867,62 +971,416 @@ function getTypingText(): string {
                         </svg>
                         Выбрать сообщения
                     </button>
-                    <button class="menu-item" @click="toggleMute" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path v-if="!muted" stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            <path v-else stroke-linecap="round" stroke-linejoin="round" d="M5.586 15L4 17h5a3 3 0 006 0h5l-1.405-1.405M3 3l18 18M9 5.341V5a2 2 0 114 0v.341" />
-                        </svg>
-                        {{ muted ? 'Включить звук' : 'Без звука' }}
-                    </button>
-                    <button class="menu-item" @click="togglePin" type="button">
-                        <svg class="menu-icon" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-                        </svg>
-                        {{ chat.is_pinned ? 'Убрать из избранного' : 'Добавить в избранное' }}
-                    </button>
-                    <button class="menu-item" @click="notImplemented('Добавить в список')" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h10M19 15v6m-3-3h6" />
-                        </svg>
-                        Добавить в список
-                    </button>
-                    <button class="menu-item" @click="toggleArchive" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
-                        </svg>
-                        {{ chat.is_archived ? 'Разархивировать' : 'Архивировать' }}
-                    </button>
                     <button class="menu-item" @click="closeChatWindow" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                         Закрыть окно чата
                     </button>
-
-                    <div class="my-1 h-px" :style="{ background: 'var(--wa-border)' }"></div>
-
-                    <button class="menu-item" @click="notImplemented('Пожаловаться')" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 2H21l-3 6 3 6h-8.5l-1-2H5a2 2 0 00-2 2z" />
-                        </svg>
-                        Пожаловаться
-                    </button>
-                    <button class="menu-item" @click="notImplemented('Заблокировать')" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                        </svg>
-                        Заблокировать
-                    </button>
-                    <button class="menu-item menu-item-danger" @click="clearChat" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4l16 16M4 20L20 4" />
-                        </svg>
-                        Очистить чат
-                    </button>
                     </div>
                 </Teleport>
             </div>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="departmentModalOpen"
+                class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/55 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Отделы чата"
+                @click.self="closeDepartmentModal"
+            >
+                <div
+                    class="w-full max-w-[560px] max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <div class="px-5 py-4 flex items-center justify-between border-b" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div>
+                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Отделы чата</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Выбор отделов и история изменений</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
+                            aria-label="Закрыть"
+                            @click="closeDepartmentModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+                        <section>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">Прикрепить отделы</h4>
+                                    <p class="text-xs text-[var(--wa-text-secondary)]">Изменения сохраняются автоматически.</p>
+                                </div>
+                                <span v-if="savingDepartments" class="text-xs text-[var(--wa-text-secondary)]">Сохранение…</span>
+                            </div>
+
+                            <label class="assign-searchbox mb-3">
+                                <svg class="w-5 h-5 shrink-0 opacity-55" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.1-5.15a6.25 6.25 0 11-12.5 0 6.25 6.25 0 0112.5 0z" />
+                                </svg>
+                                <input
+                                    v-model="departmentSearchQuery"
+                                    type="search"
+                                    autocomplete="off"
+                                    placeholder="Поиск отдела..."
+                                    class="assign-search"
+                                />
+                            </label>
+
+                            <div class="rounded-xl border overflow-hidden" :style="{ borderColor: 'var(--wa-border)' }">
+                                <button
+                                    v-for="d in filteredDepartments"
+                                    :key="d.id"
+                                    type="button"
+                                    class="assign-row"
+                                    :class="{ 'assign-row-dept-active': selectedDepartmentIds.includes(d.id) }"
+                                    @click="toggleDepartment(d.id)"
+                                >
+                                    <span class="assign-avatar assign-avatar-dept" aria-hidden="true">
+                                        {{ d.name?.charAt(0)?.toUpperCase() }}
+                                    </span>
+                                    <span class="flex-1 truncate text-left assign-name">{{ d.name }}</span>
+                                    <svg
+                                        v-if="selectedDepartmentIds.includes(d.id)"
+                                        class="assign-check assign-check-dept"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.8"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+                                <div
+                                    v-if="filteredDepartments.length === 0"
+                                    class="px-5 py-5 text-sm text-[var(--wa-text-secondary)]"
+                                >
+                                    {{ departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="border-t pt-4" :style="{ borderColor: 'var(--wa-border)' }">
+                            <button
+                                type="button"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition hover:bg-[var(--wa-panel-hover)]"
+                                :style="{ borderColor: 'var(--wa-border)' }"
+                                @click="openDepartmentHistoryModal"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-icon)' }">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-medium text-[var(--wa-text)]">История смен отделов</div>
+                                        <div class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял отделы этого чата</div>
+                                    </div>
+                                </div>
+                                <svg class="w-4 h-4 shrink-0 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- Department History Modal -->
+        <Teleport to="body">
+            <div
+                v-if="departmentHistoryModalOpen"
+                class="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="История смен отделов"
+                @click.self="closeDepartmentHistoryModal"
+            >
+                <div
+                    class="w-full max-w-[520px] max-h-[min(90vh,680px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <!-- Header -->
+                    <div class="px-5 py-4 flex items-center gap-3 border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
+                        <button
+                            type="button"
+                            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                            aria-label="Назад"
+                            @click="closeDepartmentHistoryModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-base font-semibold text-[var(--wa-text)]">История смен отделов</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял отделы этого чата</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                            :style="{ borderColor: 'var(--wa-border)' }"
+                            :disabled="departmentHistoryLoading"
+                            @click="loadDepartmentHistory"
+                        >
+                            Обновить
+                        </button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4">
+                        <div v-if="departmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
+                            Загрузка истории…
+                        </div>
+                        <div v-else-if="departmentHistoryError" class="py-4 text-sm text-[var(--wa-danger)]">
+                            {{ departmentHistoryError }}
+                        </div>
+                        <div v-else-if="departmentHistory.length === 0" class="space-y-3">
+                            <div class="rounded-xl border px-4 py-4 text-sm text-[var(--wa-text-secondary)]" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                                История смен отделов пока пустая. Новые изменения будут появляться здесь.
+                            </div>
+                            <div v-if="currentDepartmentsHistory.length" class="rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
+                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">Текущие отделы</div>
+                                <div class="flex flex-wrap gap-2">
+                                    <span
+                                        v-for="row in currentDepartmentsHistory"
+                                        :key="row.id"
+                                        class="assign-chip assign-chip-dept"
+                                    >
+                                        {{ row.name }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <ol v-else class="space-y-3">
+                            <li
+                                v-for="item in departmentHistory"
+                                :key="item.id"
+                                class="rounded-xl border px-4 py-3"
+                                :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
+                            >
+                                <div class="text-sm text-[var(--wa-text)] leading-relaxed">{{ item.body }}</div>
+                                <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">{{ formatAssignmentTime(item.at) }}</div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
+            <div
+                v-if="assignmentModalOpen"
+                class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/55 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Ответственные за чат"
+                @click.self="closeAssignmentModal"
+            >
+                <div
+                    class="w-full max-w-[560px] max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <div class="px-5 py-4 flex items-center justify-between border-b" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div>
+                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Ответственные</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Текущие ответственные и история смен</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
+                            aria-label="Закрыть"
+                            @click="closeAssignmentModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+                        <section>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <div>
+                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">Назначить сотрудников</h4>
+                                    <p class="text-xs text-[var(--wa-text-secondary)]">Изменения сохраняются автоматически.</p>
+                                </div>
+                                <span v-if="savingUsers" class="text-xs text-[var(--wa-text-secondary)]">Сохранение…</span>
+                            </div>
+
+                            <label class="assign-searchbox mb-3">
+                                <svg class="w-5 h-5 shrink-0 opacity-55" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.1-5.15a6.25 6.25 0 11-12.5 0 6.25 6.25 0 0112.5 0z" />
+                                </svg>
+                                <input
+                                    v-model="userSearchQuery"
+                                    type="search"
+                                    autocomplete="off"
+                                    placeholder="Поиск сотрудника..."
+                                    class="assign-search"
+                                />
+                            </label>
+
+                            <div class="rounded-xl border overflow-hidden" :style="{ borderColor: 'var(--wa-border)' }">
+                                <button
+                                    v-for="u in filteredAssignableUsers"
+                                    :key="u.id"
+                                    type="button"
+                                    class="assign-row"
+                                    :class="{ 'assign-row-staff-active': selectedUserIds.includes(u.id) }"
+                                    @click="toggleUser(u.id)"
+                                >
+                                    <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
+                                        {{ u.name?.charAt(0)?.toUpperCase() }}
+                                    </span>
+                                    <span class="flex-1 min-w-0 text-left">
+                                        <span class="block truncate assign-name">{{ u.name }}</span>
+                                        <span
+                                            v-if="assignableUserRoleLine(u)"
+                                            class="block truncate assign-role"
+                                            :style="{ color: 'var(--wa-text-secondary)' }"
+                                        >
+                                            {{ assignableUserRoleLine(u) }}
+                                        </span>
+                                    </span>
+                                    <svg
+                                        v-if="selectedUserIds.includes(u.id)"
+                                        class="assign-check assign-check-staff"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.8"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+                                <div
+                                    v-if="filteredAssignableUsers.length === 0"
+                                    class="px-5 py-5 text-sm text-[var(--wa-text-secondary)]"
+                                >
+                                    {{ userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для назначения' }}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="border-t pt-4" :style="{ borderColor: 'var(--wa-border)' }">
+                            <button
+                                type="button"
+                                class="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition hover:bg-[var(--wa-panel-hover)]"
+                                :style="{ borderColor: 'var(--wa-border)' }"
+                                @click="openAssignmentHistoryModal"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-icon)' }">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </span>
+                                    <div>
+                                        <div class="text-sm font-medium text-[var(--wa-text)]">История смен</div>
+                                        <div class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял ответственных</div>
+                                    </div>
+                                </div>
+                                <svg class="w-4 h-4 shrink-0 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- Assignment History Modal -->
+        <Teleport to="body">
+            <div
+                v-if="assignmentHistoryModalOpen"
+                class="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="История смен ответственных"
+                @click.self="closeAssignmentHistoryModal"
+            >
+                <div
+                    class="w-full max-w-[520px] max-h-[min(90vh,680px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <!-- Header -->
+                    <div class="px-5 py-4 flex items-center gap-3 border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
+                        <button
+                            type="button"
+                            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                            aria-label="Назад"
+                            @click="closeAssignmentHistoryModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-base font-semibold text-[var(--wa-text)]">История смен</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Кто был назначен или снят ответственным</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                            :style="{ borderColor: 'var(--wa-border)' }"
+                            :disabled="assignmentHistoryLoading"
+                            @click="loadAssignmentHistory"
+                        >
+                            Обновить
+                        </button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4">
+                        <div v-if="assignmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
+                            Загрузка истории…
+                        </div>
+                        <div v-else-if="assignmentHistoryError" class="py-4 text-sm text-[var(--wa-danger)]">
+                            {{ assignmentHistoryError }}
+                        </div>
+                        <div v-else-if="assignmentHistory.length === 0" class="space-y-3">
+                            <div class="rounded-xl border px-4 py-4 text-sm text-[var(--wa-text-secondary)]" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                                История смен пока пустая. Новые изменения ответственных будут появляться здесь.
+                            </div>
+                            <div v-if="currentAssignmentsHistory.length" class="rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
+                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">Текущие ответственные</div>
+                                <div v-for="row in currentAssignmentsHistory" :key="row.id" class="text-sm py-1 text-[var(--wa-text)]">
+                                    {{ row.user_name || ('#' + row.user_id) }}
+                                    <span class="text-xs text-[var(--wa-text-secondary)]">
+                                        · назначил {{ row.assigned_by_name || '—' }} · {{ formatAssignmentTime(row.assigned_at) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <ol v-else class="space-y-3">
+                            <li
+                                v-for="item in assignmentHistory"
+                                :key="item.id"
+                                class="rounded-xl border px-4 py-3"
+                                :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
+                            >
+                                <div class="text-sm text-[var(--wa-text)] leading-relaxed">{{ item.body }}</div>
+                                <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">{{ formatAssignmentTime(item.at) }}</div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
 
         <ScheduledMessagesModal
             :open="scheduledMessagesOpen"
@@ -973,20 +1431,20 @@ function getTypingText(): string {
     background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
 }
 
-/* Отделы — янтарь (иерархия: не зелёный «сотрудники») */
+/* Отделы — янтарь (иерархия: не зелёный «сотрудники»); цвет текста из темы */
 .label-pill-dept {
-    color: #fde68a;
+    color: var(--wa-header-pill-dept-text);
     border-color: color-mix(in srgb, #f59e0b 45%, var(--wa-border-strong));
     background-color: color-mix(in srgb, #f59e0b 10%, var(--wa-panel));
     padding-inline: 0.95rem;
     max-width: 14rem;
 }
 .label-pill-dept:hover:not(:disabled) {
-    background-color: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+    background-color: var(--wa-header-pill-dept-bg-hover);
     border-color: color-mix(in srgb, #f59e0b 55%, var(--wa-border-strong));
 }
 .label-pill-dept-active {
-    color: #fffbeb;
+    color: var(--wa-header-pill-dept-text-active);
     border-color: color-mix(in srgb, #f59e0b 70%, transparent);
     background-color: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
 }
@@ -1001,15 +1459,67 @@ function getTypingText(): string {
 }
 
 .label-pill-scheduled {
-    color: #bfdbfe;
+    color: var(--wa-header-pill-sched-text);
     border-color: color-mix(in srgb, #3b82f6 45%, var(--wa-border-strong));
     background-color: color-mix(in srgb, #3b82f6 10%, var(--wa-panel));
     max-width: none;
     padding-inline: 0.75rem;
 }
 .label-pill-scheduled:hover {
-    background-color: color-mix(in srgb, #3b82f6 16%, var(--wa-panel));
+    background-color: var(--wa-header-pill-sched-bg-hover);
     border-color: color-mix(in srgb, #3b82f6 60%, var(--wa-border-strong));
+}
+
+/* AI-ассистент — фиолетово-розовый акцент, чтобы кнопка выделялась среди отделов/отложенных. */
+.label-pill-ai {
+    color: #fff;
+    border-color: transparent;
+    background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+    padding-inline: 0.75rem;
+    max-width: none;
+    font-weight: 600;
+    box-shadow: 0 1px 0 0 color-mix(in srgb, #7c3aed 35%, transparent);
+}
+.label-pill-ai:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #be185d 100%);
+    border-color: transparent;
+}
+.label-pill-ai-text {
+    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+}
+
+/* Иконочный вариант пилла: квадратная кнопка только с иконкой (+ опц. бейдж счётчика). */
+.label-pill-icon {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    max-width: 2.15rem;
+    padding: 0;
+    gap: 0.2rem;
+    justify-content: center;
+}
+.label-pill-icon:has(.label-pill-badge) {
+    width: auto;
+    min-width: 2.15rem;
+    max-width: none;
+    padding-inline: 0.45rem;
+}
+.label-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    padding: 0 0.32rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--wa-text);
+    background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.label-pill-dept-active .label-pill-badge {
+    background: color-mix(in srgb, #f59e0b 28%, var(--wa-panel));
 }
 
 /* Сотрудники — зелень (как акцент WhatsApp) */
@@ -1056,6 +1566,16 @@ function getTypingText(): string {
     color: var(--wa-text-secondary);
     background: color-mix(in srgb, var(--wa-panel) 82%, var(--wa-accent) 18%);
     font-weight: 700;
+}
+
+/* Иконка «назначить сотрудника» — показывается, когда никого не назначено. */
+.staff-pill-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55rem;
+    height: 1.55rem;
+    color: var(--wa-accent);
 }
 
 .dept-checkbox-dept {

@@ -95,6 +95,43 @@ final class ChatAssignmentController extends Controller
         ]);
     }
 
+    public function history(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $history = $chat->messages()
+            ->where('direction', 'system')
+            ->where('body', 'like', 'Ответственные за чат обновлены:%')
+            ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get(['id', 'body', 'message_timestamp', 'created_at'])
+            ->map(fn ($message) => [
+                'id' => $message->id,
+                'body' => $message->body,
+                'at' => ($message->message_timestamp ?: $message->created_at)?->toIso8601String(),
+            ])
+            ->values();
+
+        $current = $chat->assignments()
+            ->with(['user:id,name,email', 'assignedByUser:id,name'])
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (ChatAssignment $assignment) => [
+                'id' => $assignment->id,
+                'user_id' => $assignment->user_id,
+                'user_name' => $assignment->user?->name,
+                'assigned_by_name' => $assignment->assignedByUser?->name,
+                'assigned_at' => $assignment->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'current' => $current,
+            'history' => $history,
+        ]);
+    }
+
     /**
      * @param  list<int|string>  $oldIds
      * @param  list<int|string>  $newIds

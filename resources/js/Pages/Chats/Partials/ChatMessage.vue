@@ -10,6 +10,7 @@ import type { Chat, Message, MessageMedia, MessageReaction } from '@/types';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { renderWaMarkup, stripWaMarkup } from '@/utils/waMarkup';
 import LinkPreview from '@/Components/LinkPreview.vue';
+import { useTranslationLang } from '@/composables/useTranslationLang';
 
 const props = defineProps<{
     message: Message;
@@ -34,6 +35,61 @@ const emit = defineEmits<{
 const page = usePage<any>();
 const { show: showToast } = useToastStore();
 const currentUserId = computed<number | undefined>(() => page.props.auth?.user?.id);
+
+// ─── Translation ─────────────────────────────────────────────────────────────
+const { lang: translateLang, currentOption: translateCurrent } = useTranslationLang();
+
+const translationText  = ref<string | null>(null);
+const translationLoading = ref(false);
+const translationError = ref(false);
+const translationVisible = ref(false);
+
+const TRANSLATION_CACHE_KEY = (msgId: number, lang: string) =>
+    `chatswitch.translation.${msgId}.${lang}`;
+
+function getCachedTranslation(msgId: number, lang: string): string | null {
+    try { return localStorage.getItem(TRANSLATION_CACHE_KEY(msgId, lang)); } catch { return null; }
+}
+
+function setCachedTranslation(msgId: number, lang: string, text: string): void {
+    try { localStorage.setItem(TRANSLATION_CACHE_KEY(msgId, lang), text); } catch { /* quota */ }
+}
+
+async function toggleTranslation(): Promise<void> {
+    const lang = translateLang.value;
+    if (lang === 'off') return;
+
+    // Already shown → hide
+    if (translationVisible.value) {
+        translationVisible.value = false;
+        return;
+    }
+
+    // Try cache first
+    const cached = getCachedTranslation(props.message.id, lang);
+    if (cached !== null) {
+        translationText.value = cached;
+        translationError.value = false;
+        translationVisible.value = true;
+        return;
+    }
+
+    translationLoading.value = true;
+    translationError.value = false;
+    translationVisible.value = true;
+
+    try {
+        const { data } = await axios.post(route('messages.translate', props.message.id), { lang });
+        const text = data.translation ?? '';
+        setCachedTranslation(props.message.id, lang, text);
+        translationText.value = text;
+    } catch {
+        translationError.value = true;
+        translationText.value = null;
+    } finally {
+        translationLoading.value = false;
+    }
+}
 const roles = computed<string[]>(() => page.props.auth?.user?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
 
@@ -1202,6 +1258,36 @@ onBeforeUnmount(() => {
                 </template>
             </p>
 
+            <!-- Кнопка перевода + блок с переводом -->
+            <div v-if="showMessageBody && translateLang !== 'off'" class="translate-wrap">
+                <button
+                    type="button"
+                    class="translate-btn"
+                    :class="{ 'translate-btn-active': translationVisible }"
+                    @click.stop="toggleTranslation"
+                    :disabled="translationLoading"
+                    :title="translationVisible ? 'Скрыть перевод' : `Перевести на ${translateCurrent().label}`"
+                >
+                    <svg class="translate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+                    </svg>
+                    <span v-if="!translationLoading">{{ translateCurrent().flag }} {{ translateCurrent().label }}</span>
+                    <span v-else class="translate-spinner">
+                        <svg class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" d="M21 12a9 9 0 11-9-9"/>
+                        </svg>
+                    </span>
+                </button>
+
+                <div v-if="translationVisible" class="translate-result">
+                    <div v-if="translationLoading" class="translate-loading">Переводим…</div>
+                    <div v-else-if="translationError" class="translate-error">Не удалось перевести</div>
+                    <p v-else-if="translationText" class="translate-text whitespace-pre-wrap break-words" style="word-break: break-word">
+                        {{ translationText }}
+                    </p>
+                </div>
+            </div>
+
             <div v-if="linkPreviewUrl" class="mb-1 min-w-[14rem]">
                 <LinkPreview :url="linkPreviewUrl" />
             </div>
@@ -1669,6 +1755,61 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* ── Translation ─────────────────────────────────────────────────────────── */
+.translate-wrap {
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+.translate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--wa-border-strong);
+    background: transparent;
+    color: var(--wa-text-secondary);
+    font-size: 0.68rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+    line-height: 1.5;
+}
+.translate-btn:hover:not(:disabled) {
+    color: var(--wa-text);
+    border-color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
+}
+.translate-btn.translate-btn-active {
+    color: var(--wa-accent);
+    border-color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
+}
+.translate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.translate-icon {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+}
+.translate-spinner { display: flex; align-items: center; }
+
+.translate-result {
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border-left: 3px solid var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-bubble-in));
+    font-size: 0.85rem;
+    color: var(--wa-text);
+}
+.translate-loading, .translate-error {
+    font-size: 0.78rem;
+    color: var(--wa-text-secondary);
+}
+.translate-error { color: var(--wa-danger, #ef4444); }
+.translate-text { margin: 0; font-size: 0.85rem; }
+
 .wa-msg-bubble {
     border-radius: 7.5px;
     box-shadow: 0 1px 0.5px var(--wa-bubble-tail-shadow);
@@ -1814,8 +1955,9 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    color: #b9c0c5;
-    background: rgba(0, 0, 0, 0.22);
+    /* Контраст относительно фона пузыря: в light исходящий — светло-зелёный, не тёмный */
+    color: color-mix(in srgb, var(--wa-bubble-text) 78%, var(--wa-accent) 22%);
+    background: color-mix(in srgb, var(--wa-bubble-text) 14%, transparent);
 }
 .wa-contact-avatar img {
     width: 100%;
@@ -1839,7 +1981,7 @@ onBeforeUnmount(() => {
 .wa-contact-phone {
     margin-top: 2px;
     font-size: 12px;
-    color: var(--wa-text-secondary);
+    color: color-mix(in srgb, var(--wa-bubble-text) 72%, transparent);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1849,15 +1991,15 @@ onBeforeUnmount(() => {
     width: 100%;
     margin: 0;
     padding: 10px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    color: #25d366;
+    border-top: 1px solid color-mix(in srgb, var(--wa-bubble-text) 14%, transparent);
+    color: var(--wa-accent);
     font-size: 13px;
     font-weight: 700;
     text-align: center;
     transition: background-color 0.12s ease;
 }
 .wa-contact-action:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--wa-bubble-text) 8%, transparent);
 }
 
 .wa-quick-reactions {

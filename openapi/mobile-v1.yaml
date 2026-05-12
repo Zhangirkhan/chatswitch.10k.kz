@@ -1,15 +1,21 @@
 openapi: 3.0.3
 info:
-  title: ChatSwitch Mobile API
+  title: ChatSwitch API
   version: "1.0.0"
   description: |
-    REST API v1 для мобильного клиента (Laravel Sanctum, Bearer-токен).
+    ## Мобильный REST API (`/api/v1/...`)
+    Bearer-токен Laravel Sanctum. Роли `administrator`, `manager`, `employee`.
 
-    **Доступ:** роли `administrator`, `manager`, `employee` (кроме `POST /auth/login`).
+    **Неактивный пользователь** (`is_active: false`): логин — HTTP 403; при уже выданном токене — 403.
 
-    **Неактивный пользователь** (`is_active: false`): логин — HTTP 403; при уже выданном токене — 403 на защищённых маршрутах.
+    **Лимиты:** `throttle:api`; неудачные логины — до 5 попыток по email+IP (429).
 
-    **Лимиты:** группа `throttle:api` (лимитер `api` в приложении); неудачные логины — до 5 попыток по ключу email+IP (429).
+    ---
+
+    ## Веб-эндпоинты (сессия, CSRF)
+    Маршруты для оператора браузера: AI-ассистент, воронки продаж, задачи по отделам.
+    Требуют cookie-сессии (`auth`) и заголовка `X-CSRF-TOKEN` / `X-Requested-With: XMLHttpRequest`.
+    Роль — через middleware `role:administrator` (там, где указано).
 
 servers:
   - url: /
@@ -22,6 +28,20 @@ tags:
     description: Отделы
   - name: Chats
     description: Чаты и сообщения
+  - name: AI-ассистент
+    description: |
+      AI-помощник оператора в окне диалога. Анализирует переписку чата и предлагает
+      формулировки ответов. Видит до 80 последних сообщений. Лимит — 30 req/min.
+      **Авторизация:** сессия (`auth`). Требует права `view` на чат.
+  - name: Воронки продаж
+    description: |
+      CRUD воронок и этапов, аналитика. Только роль `administrator` (кроме аналитики).
+      **Авторизация:** сессия (`auth`).
+  - name: Задачи
+    description: |
+      Посты-задачи внутри отделов. Статусы: `open`, `in_progress`, `done`.
+      Завершённые задачи (done) уходят в архив.
+      **Авторизация:** сессия (`auth`).
 
 paths:
   /api/v1/auth/login:
@@ -280,6 +300,443 @@ paths:
         "403":
           description: Нет view
 
+  # ──────────────────────────────────────────
+  # AI-ассистент оператора (веб, сессия)
+  # ──────────────────────────────────────────
+
+  /chats/{chat}/ai/chat:
+    post:
+      tags: [AI-ассистент]
+      summary: Запрос к AI-ассистенту
+      operationId: aiAssistantChat
+      description: |
+        Принимает текущий вопрос оператора и локальную историю диалога с AI.
+        Возвращает ответ AI на основе последних 80 сообщений чата.
+        Лимит — 30 запросов в минуту (`throttle:30,1`).
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatRequest"
+      responses:
+        "200":
+          description: Ответ AI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiChatResponse"
+        "403":
+          description: Нет права view на чат
+        "429":
+          description: Превышен лимит 30 req/min
+        "502":
+          description: OpenAI временно недоступен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          description: Непредвиденная ошибка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+
+  # ──────────────────────────────────────────
+  # Воронки продаж (веб, сессия, administrator)
+  # ──────────────────────────────────────────
+
+  /funnels:
+    get:
+      tags: [Воронки продаж]
+      summary: Список воронок (страница настроек)
+      operationId: funnelsIndex
+      description: Inertia-страница `Settings/Funnels`. Возвращает все воронки с этапами.
+      responses:
+        "200":
+          description: HTML-страница (Inertia)
+        "403":
+          description: Нет роли administrator
+    post:
+      tags: [Воронки продаж]
+      summary: Создать воронку
+      operationId: funnelsStore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FunnelRequest"
+      responses:
+        "200":
+          description: Созданная воронка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /funnels/{funnel}:
+    put:
+      tags: [Воронки продаж]
+      summary: Обновить воронку
+      operationId: funnelsUpdate
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FunnelRequest"
+      responses:
+        "200":
+          description: Обновлённая воронка
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Воронки продаж]
+      summary: Удалить воронку
+      operationId: funnelsDestroy
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+      responses:
+        "200":
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+
+  /funnels/{funnel}/stages:
+    post:
+      tags: [Воронки продаж]
+      summary: Добавить этап в воронку
+      operationId: funnelStagesStore
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FunnelStageRequest"
+      responses:
+        "200":
+          description: Воронка с новым этапом
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelStageResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /funnels/{funnel}/stages/{stage}:
+    put:
+      tags: [Воронки продаж]
+      summary: Обновить этап
+      operationId: funnelStagesUpdate
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+        - $ref: "#/components/parameters/StageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FunnelStageRequest"
+      responses:
+        "200":
+          description: Обновлённый этап
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelStageResponse"
+        "404":
+          description: Этап не принадлежит воронке
+    delete:
+      tags: [Воронки продаж]
+      summary: Удалить этап
+      operationId: funnelStagesDestroy
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+        - $ref: "#/components/parameters/StageId"
+      responses:
+        "200":
+          description: Воронка без удалённого этапа
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelResponse"
+        "404":
+          description: Этап не принадлежит воронке
+
+  /funnels/{funnel}/stages/reorder:
+    post:
+      tags: [Воронки продаж]
+      summary: Изменить порядок этапов (drag-and-drop)
+      operationId: funnelStagesReorder
+      parameters:
+        - $ref: "#/components/parameters/FunnelId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage_ids]
+              properties:
+                stage_ids:
+                  type: array
+                  minItems: 1
+                  description: ID этапов в новом порядке
+                  items: { type: integer }
+              example:
+                stage_ids: [3, 1, 2]
+      responses:
+        "200":
+          description: Воронка с этапами в новом порядке
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelResponse"
+
+  /analytics/funnels:
+    get:
+      tags: [Воронки продаж]
+      summary: Аналитика по воронкам
+      operationId: analyticssFunnels
+      description: |
+        Доступно ролям `administrator`, `manager`, `employee`.
+        Без фильтра — все отделы, доступные пользователю.
+      parameters:
+        - name: department_id
+          in: query
+          required: false
+          schema: { type: integer }
+          description: Фильтр по конкретному отделу
+      responses:
+        "200":
+          description: Сводка и список воронок
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunnelAnalyticsResponse"
+        "403":
+          description: Нет доступа к запрошенному отделу
+
+  # ──────────────────────────────────────────
+  # Задачи по отделам (веб, сессия)
+  # ──────────────────────────────────────────
+
+  /organization:
+    get:
+      tags: [Задачи]
+      summary: Главная организации — список отделов
+      operationId: organizationIndex
+      responses:
+        "200":
+          description: Inertia-страница `Organization/Index`
+
+  /organization/archive:
+    get:
+      tags: [Задачи]
+      summary: Архив завершённых задач
+      operationId: organizationArchive
+      description: Задачи со статусом `done`. Поиск по заголовку, отделу, автору.
+      responses:
+        "200":
+          description: Inertia-страница `Organization/Archive`
+
+  /organization/departments/{department}:
+    get:
+      tags: [Задачи]
+      summary: Задачи отдела
+      operationId: organizationDepartmentShow
+      description: |
+        Возвращает Inertia-страницу с активными задачами отдела (статусы `open`, `in_progress`).
+        Также передаёт `members` — список активных членов отдела для пикера ответственных.
+      parameters:
+        - $ref: "#/components/parameters/DepartmentId"
+      responses:
+        "200":
+          description: Активные задачи отдела (open + in_progress) + members для пикера
+        "403":
+          description: Пользователь не является членом отдела
+
+  /organization/departments/{department}/posts:
+    post:
+      tags: [Задачи]
+      summary: Создать задачу в отделе
+      operationId: organizationPostsStore
+      parameters:
+        - $ref: "#/components/parameters/DepartmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        "200":
+          description: Созданная задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResource"
+        "403":
+          description: Не является членом отдела
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /organization/posts/{post}:
+    get:
+      tags: [Задачи]
+      summary: Карточка задачи
+      operationId: organizationPostShow
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: Inertia-страница `Organization/Post` с комментариями и вложениями
+        "403":
+          description: Нет доступа к отделу
+    patch:
+      tags: [Задачи]
+      summary: Обновить задачу
+      operationId: organizationPostUpdate
+      description: |
+        Редактировать может автор задачи или `administrator`.
+        Смена статуса на `done` переводит задачу в архив.
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        "200":
+          description: Обновлённая задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResource"
+        "403":
+          description: Не автор и не administrator
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Задачи]
+      summary: Удалить задачу
+      operationId: organizationPostDestroy
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "403":
+          description: Не автор и не administrator
+
+  /organization/posts/{post}/comments:
+    post:
+      tags: [Задачи]
+      summary: Добавить комментарий к задаче
+      operationId: organizationCommentsStore
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  maxLength: 65535
+      responses:
+        "200":
+          description: Список комментариев задачи
+        "403":
+          description: Нет доступа к отделу
+
+  /organization/posts/{post}/comments/{comment}:
+    delete:
+      tags: [Задачи]
+      summary: Удалить комментарий
+      operationId: organizationCommentsDestroy
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+        - name: comment
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Успех
+        "403":
+          description: Не автор комментария и не administrator
+
+  /organization/posts/{post}/attachments:
+    post:
+      tags: [Задачи]
+      summary: Загрузить вложение к задаче
+      operationId: organizationAttachmentsStore
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Добавленное вложение
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentResource"
+        "403":
+          description: Нет доступа к отделу
+
+  /organization/posts/{post}/attachments/{attachment}:
+    delete:
+      tags: [Задачи]
+      summary: Удалить вложение
+      operationId: organizationAttachmentsDestroy
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+        - name: attachment
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Успех
+        "403":
+          description: Нет доступа
+
 components:
   securitySchemes:
     bearerAuth:
@@ -288,12 +745,52 @@ components:
       bearerFormat: Sanctum personal access token
       description: 'Заголовок Authorization: Bearer {token}'
 
+  responses:
+    ValidationError:
+      description: Ошибка валидации
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+
   parameters:
     ChatId:
       name: chat
       in: path
       required: true
       description: ID чата
+      schema:
+        type: integer
+
+    FunnelId:
+      name: funnel
+      in: path
+      required: true
+      description: ID воронки
+      schema:
+        type: integer
+
+    StageId:
+      name: stage
+      in: path
+      required: true
+      description: ID этапа воронки
+      schema:
+        type: integer
+
+    DepartmentId:
+      name: department
+      in: path
+      required: true
+      description: ID отдела
+      schema:
+        type: integer
+
+    PostId:
+      name: post
+      in: path
+      required: true
+      description: ID задачи
       schema:
         type: integer
 
@@ -494,3 +991,284 @@ components:
           additionalProperties:
             type: array
             items: { type: string }
+
+    # ── AI-ассистент ──────────────────────────
+
+    AiChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          maxLength: 4000
+          nullable: true
+          description: Вопрос оператора к AI. Если пусто — AI сам предложит ответ.
+        history:
+          type: array
+          maxItems: 40
+          nullable: true
+          description: Локальная история диалога оператора с AI (без system-сообщений).
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+                maxLength: 6000
+      example:
+        message: "Предложи ответ на последнее сообщение клиента"
+        history:
+          - role: user
+            content: "О чём этот диалог?"
+          - role: assistant
+            content: "Клиент интересуется доставкой товара..."
+
+    AiChatResponse:
+      type: object
+      required: [reply]
+      properties:
+        reply:
+          type: string
+          description: Ответ AI оператору
+
+    # ── Воронки продаж ────────────────────────
+
+    FunnelRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        color:
+          type: string
+          maxLength: 16
+          example: "#25d366"
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+      example:
+        name: "Основная воронка"
+        description: "Основной процесс продаж"
+        color: "#3b82f6"
+        is_active: true
+
+    FunnelStageRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        color:
+          type: string
+          maxLength: 16
+          nullable: true
+          example: "#f59e0b"
+        is_active:
+          type: boolean
+          default: true
+
+    FunnelStage:
+      type: object
+      properties:
+        id: { type: integer }
+        funnel_id: { type: integer }
+        name: { type: string }
+        color: { type: string, nullable: true }
+        position: { type: integer }
+        is_active: { type: boolean }
+
+    Funnel:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        color: { type: string }
+        is_active: { type: boolean }
+        position: { type: integer }
+        stages_count: { type: integer }
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelStage"
+
+    FunnelResponse:
+      type: object
+      required: [success, funnel]
+      properties:
+        success: { type: boolean }
+        funnel:
+          $ref: "#/components/schemas/Funnel"
+
+    FunnelStageResponse:
+      type: object
+      required: [success, funnel, stage]
+      properties:
+        success: { type: boolean }
+        funnel:
+          $ref: "#/components/schemas/Funnel"
+        stage:
+          $ref: "#/components/schemas/FunnelStage"
+
+    FunnelAnalyticsStageSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        color: { type: string, nullable: true }
+        is_active: { type: boolean }
+        selected:
+          type: boolean
+          description: Отмечен ли этап хотя бы одним из отделов в scope
+
+    FunnelAnalyticsDepartment:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+
+    FunnelAnalyticsRow:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        color: { type: string }
+        is_active: { type: boolean }
+        stages_count: { type: integer }
+        selected_stages_count: { type: integer }
+        coverage_percent:
+          type: number
+          format: float
+          nullable: true
+          description: "% этапов, отмеченных отделами"
+        departments_count: { type: integer }
+        departments:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelAnalyticsDepartment"
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelAnalyticsStageSummary"
+
+    FunnelAnalyticsResponse:
+      type: object
+      required: [summary, funnels]
+      properties:
+        summary:
+          type: object
+          properties:
+            total_funnels: { type: integer }
+            active_funnels: { type: integer }
+            connected_funnels: { type: integer }
+            total_stages: { type: integer }
+            selected_stages: { type: integer }
+            departments_in_scope: { type: integer }
+            stage_coverage_percent:
+              type: number
+              format: float
+              nullable: true
+        funnels:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelAnalyticsRow"
+
+    # ── Задачи (DepartmentPost) ───────────────
+
+    PostRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        body:
+          type: string
+          maxLength: 65535
+          nullable: true
+          description: Подробное описание задачи
+        status:
+          type: string
+          enum: [open, in_progress, done]
+          default: open
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Срок выполнения (ISO 8601)
+        assignee_ids:
+          type: array
+          nullable: true
+          description: |
+            ID ответственных пользователей. Допускаются только члены отдела.
+            Передайте пустой массив `[]` для снятия всех ответственных.
+            Если поле отсутствует — текущие ответственные не меняются (только при PATCH).
+          items:
+            type: integer
+      example:
+        title: "Подготовить коммерческое предложение"
+        body: "Описание задачи..."
+        status: "open"
+        due_at: "2026-05-20T18:00:00"
+        assignee_ids: [3, 7]
+
+    PostAuthor:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+
+    PostResource:
+      type: object
+      properties:
+        id: { type: integer }
+        department_id: { type: integer }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [open, in_progress, done]
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        author:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/PostAuthor"
+        assignees:
+          type: array
+          description: Список ответственных за задачу (только члены отдела)
+          items:
+            $ref: "#/components/schemas/PostAuthor"
+        comments_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentResource"
+
+    AttachmentResource:
+      type: object
+      properties:
+        id: { type: integer }
+        original_name: { type: string }
+        url: { type: string, format: uri }
+        mime_type: { type: string }
+        size:
+          type: integer
+          description: Размер в байтах
+        is_image: { type: boolean }
+        uploaded_by:
+          type: integer
+          description: ID пользователя, загрузившего файл

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\Chat;
+use App\Models\DepartmentPost;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,6 +45,9 @@ final class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        if ($user !== null) {
+            $user->loadMissing(['departments:id,name']);
+        }
 
         return [
             ...parent::share($request),
@@ -52,17 +57,44 @@ final class HandleInertiaRequests extends Middleware
                     [
                         'roles' => $user->getRoleNames(),
                         'department' => $user->department,
+                        'departments' => $user->departments
+                            ->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])
+                            ->values()
+                            ->all(),
                     ],
                 ) : null,
             ],
             'archivedCount' => fn () => $user ? $this->archivedChatsCount($user) : 0,
             'unreadChatsCount' => fn () => $user ? $this->unreadChatsCount($user) : 0,
+            'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
             'whatsappSessions' => fn () => $user ? $this->whatsappSessionsForUser($user) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            'modules' => fn () => [
+                'calendar' => SystemSetting::getValue('module_calendar', 'on') === 'on',
+            ],
         ];
+    }
+
+    private function orgOpenTasksCount(User $user): int
+    {
+        $query = DepartmentPost::query()
+            ->whereIn('status', [DepartmentPost::STATUS_OPEN, DepartmentPost::STATUS_IN_PROGRESS]);
+
+        if (! $user->hasRole('administrator')) {
+            $deptIds = $user->departmentIds();
+            if ($deptIds === []) {
+                return 0;
+            }
+            $query->whereHas(
+                'department',
+                fn (Builder $q) => $q->whereIn('departments.id', $deptIds),
+            );
+        }
+
+        return $query->count();
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -107,24 +139,31 @@ final class HandleInertiaRequests extends Middleware
             return $query;
         }
 
+        $userDeptIds = $user->departmentIds();
+
         if ($user->hasRole('manager')) {
-            $departmentUserIds = User::where('department_id', $user->department_id)->pluck('id');
-            $query->where(function (Builder $q) use ($departmentUserIds, $user): void {
+            $departmentUserIds = $userDeptIds === []
+                ? collect()
+                : User::query()
+                    ->whereHas('departments', static fn (Builder $q) => $q->whereIn('departments.id', $userDeptIds))
+                    ->pluck('id');
+
+            $query->where(function (Builder $q) use ($departmentUserIds, $userDeptIds): void {
                 $q->whereHas('assignments', fn (Builder $aq) => $aq->whereIn('user_id', $departmentUserIds));
-                if ($user->department_id !== null) {
-                    $q->orWhereHas('departments', fn (Builder $dq) => $dq->where('departments.id', $user->department_id));
+                if ($userDeptIds !== []) {
+                    $q->orWhereHas('departments', fn (Builder $dq) => $dq->whereIn('departments.id', $userDeptIds));
                 }
             });
 
             return $query;
         }
 
-        $query->where(function (Builder $q) use ($user): void {
+        $query->where(function (Builder $q) use ($user, $userDeptIds): void {
             $q->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id));
-            if ($user->department_id !== null) {
-                $q->orWhere(function (Builder $dq) use ($user): void {
+            if ($userDeptIds !== []) {
+                $q->orWhere(function (Builder $dq) use ($userDeptIds): void {
                     $dq->whereDoesntHave('assignments')
-                        ->whereHas('departments', fn (Builder $ddq) => $ddq->where('departments.id', $user->department_id));
+                        ->whereHas('departments', fn (Builder $ddq) => $ddq->whereIn('departments.id', $userDeptIds));
                 });
             }
         });

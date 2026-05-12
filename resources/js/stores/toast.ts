@@ -1,9 +1,18 @@
 import { reactive } from 'vue';
 
+export type ToastType = 'default' | 'message' | 'info' | 'warning';
+
 export interface Toast {
     id: number;
     message: string;
     duration: number;
+    type: ToastType;
+    /** For type='message': title shown above message body */
+    title?: string;
+    /** For type='message': navigates to this chat on click */
+    chatId?: number;
+    /** Optional avatar/icon URL */
+    iconUrl?: string | null;
     action?: {
         label: string;
         handler: () => void | Promise<void>;
@@ -14,6 +23,10 @@ export interface Toast {
 interface ShowToastOptions {
     message: string;
     duration?: number;
+    type?: ToastType;
+    title?: string;
+    chatId?: number;
+    iconUrl?: string | null;
     action?: {
         label: string;
         handler: () => void | Promise<void>;
@@ -47,6 +60,10 @@ export function useToastStore() {
             id,
             message: options.message,
             duration,
+            type: options.type ?? 'default',
+            title: options.title,
+            chatId: options.chatId,
+            iconUrl: options.iconUrl,
             action: options.action,
         };
 

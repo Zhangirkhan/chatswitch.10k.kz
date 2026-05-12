@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Contact extends Model
@@ -52,5 +53,12 @@ final class Contact extends Model
     public function chats(): HasMany
     {
         return $this->hasMany(Chat::class);
+    }
+
+    public function companies(): BelongsToMany
+    {
+        return $this->belongsToMany(Company::class)
+            ->withPivot('position')
+            ->withTimestamps();
     }
 }

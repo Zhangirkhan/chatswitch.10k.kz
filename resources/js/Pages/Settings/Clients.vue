@@ -24,24 +24,112 @@ type ClientItem = {
         chat_name: string | null;
         last_message_at: string | null;
     }>;
+    companies: ClientCompany[];
+};
+
+type ClientCompany = {
+    id: number;
+    name: string;
+    position: string | null;
+};
+
+type CompanyItem = {
+    id: number;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+    description: string | null;
+    clients_count: number;
+    clients: Array<{
+        id: number;
+        name: string;
+        phone_number: string | null;
+        position: string | null;
+    }>;
+};
+
+type CompanyOption = {
+    id: number;
+    name: string;
+};
+
+type PaginationPayload<T> = {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+};
+
+type ContactCardPayload = {
+    identity: {
+        display_name: string;
+        possible_names: string[];
+    };
+    activity: {
+        chats_count: number;
+        channels_count: number;
+        first_message_at: string | null;
+        last_message_at: string | null;
+        last_client_message: { body: string | null; at: string | null } | null;
+        messages: { total: number; inbound: number; outbound: number };
+        attachments: { media: number; documents: number; links: number };
+    };
 };
 
 const props = defineProps<{
     search: string;
-    clients: ClientItem[];
+    activeTab: 'clients' | 'companies';
+    clients: PaginationPayload<ClientItem>;
+    companies: PaginationPayload<CompanyItem>;
+    companyOptions: CompanyOption[];
 }>();
 const { show: showToast } = useToastStore();
 
 const search = ref(props.search || '');
-const clients = ref<ClientItem[]>([...props.clients]);
+const clients = ref<ClientItem[]>([...props.clients.data]);
+const companies = ref<CompanyItem[]>([...props.companies.data]);
+const companyOptions = ref<CompanyOption[]>([...props.companyOptions]);
+const activeTab = ref<'clients' | 'companies'>(props.activeTab || 'clients');
 const openClientId = ref<number | null>(null);
 const editingName = ref('');
 const saving = ref(false);
+const companySaving = ref(false);
+const clientCompaniesSaving = ref(false);
+const contactCard = ref<ContactCardPayload | null>(null);
+const contactCardLoading = ref(false);
+const contactCardError = ref<string | null>(null);
+const clientCompanyDraft = ref<Array<{ company_id: number; position: string }>>([]);
+const openedCompanyId = ref<number | 'new' | null>(null);
+const companyForm = ref({
+    name: '',
+    phone: '',
+    email: '',
+    website: '',
+    description: '',
+});
 
 watch(
     () => props.clients,
     (next) => {
-        clients.value = [...next];
+        clients.value = [...next.data];
+    },
+);
+
+watch(
+    () => props.companies,
+    (next) => {
+        companies.value = [...next.data];
+    },
+);
+
+watch(
+    () => props.companyOptions,
+    (next) => {
+        companyOptions.value = [...next];
     },
 );
 
@@ -49,8 +137,12 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 watch(search, (q) => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
-        router.get(route('settings.clients'), { search: q || undefined }, { preserveState: true, replace: true });
+        visitSettings({ search: q || undefined, clients_page: undefined, companies_page: undefined });
     }, 250);
+});
+
+watch(activeTab, (tab) => {
+    visitSettings({ tab, clients_page: undefined, companies_page: undefined });
 });
 
 function displayName(c: ClientItem): string {
@@ -80,17 +172,59 @@ function dateLabel(v: string | null): string {
     return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-const total = computed(() => clients.value.length);
+const total = computed(() => props.clients.total);
+const companiesTotal = computed(() => props.companies.total);
 const openedClient = computed(() => clients.value.find((c) => c.id === openClientId.value) || null);
+
+function visitSettings(overrides: Record<string, string | number | undefined>): void {
+    router.get(
+        route('settings.clients'),
+        {
+            search: search.value.trim() || undefined,
+            tab: activeTab.value,
+            clients_page: props.clients.current_page > 1 ? props.clients.current_page : undefined,
+            companies_page: props.companies.current_page > 1 ? props.companies.current_page : undefined,
+            ...overrides,
+        },
+        { preserveState: true, replace: true },
+    );
+}
 
 function openClient(c: ClientItem): void {
     openClientId.value = c.id;
     editingName.value = (c.name || '').trim();
+    clientCompanyDraft.value = (c.companies || []).map((company) => ({
+        company_id: company.id,
+        position: company.position || '',
+    }));
+    loadContactCard(c.id);
 }
 
 function closeClient(): void {
     openClientId.value = null;
     editingName.value = '';
+    clientCompanyDraft.value = [];
+    contactCard.value = null;
+    contactCardError.value = null;
+}
+
+async function loadContactCard(contactId: number): Promise<void> {
+    contactCardLoading.value = true;
+    contactCardError.value = null;
+    try {
+        const { data } = await axios.get(route('contacts.card', contactId));
+        contactCard.value = data as ContactCardPayload;
+    } catch (e: any) {
+        contactCard.value = null;
+        contactCardError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось загрузить карточку';
+    } finally {
+        contactCardLoading.value = false;
+    }
+}
+
+function shortText(text?: string | null): string {
+    const value = (text || '').trim();
+    return value !== '' ? value : '—';
 }
 
 async function saveClientName(): Promise<void> {
@@ -130,6 +264,126 @@ async function saveClientName(): Promise<void> {
         saving.value = false;
     }
 }
+
+const openedCompany = computed(() => {
+    if (openedCompanyId.value === null || openedCompanyId.value === 'new') return null;
+    return companies.value.find((company) => company.id === openedCompanyId.value) || null;
+});
+
+function isClientCompanySelected(companyId: number): boolean {
+    return clientCompanyDraft.value.some((row) => row.company_id === companyId);
+}
+
+function goToPage(kind: 'clients' | 'companies', page: number): void {
+    const meta = kind === 'clients' ? props.clients : props.companies;
+    if (page < 1 || page > meta.last_page || page === meta.current_page) return;
+
+    visitSettings({
+        tab: kind,
+        [kind === 'clients' ? 'clients_page' : 'companies_page']: page,
+    });
+}
+
+function clientCompanyPosition(companyId: number): string {
+    return clientCompanyDraft.value.find((row) => row.company_id === companyId)?.position || '';
+}
+
+function toggleClientCompany(companyId: number): void {
+    if (isClientCompanySelected(companyId)) {
+        clientCompanyDraft.value = clientCompanyDraft.value.filter((row) => row.company_id !== companyId);
+        return;
+    }
+
+    clientCompanyDraft.value = [...clientCompanyDraft.value, { company_id: companyId, position: '' }];
+}
+
+function setClientCompanyPosition(companyId: number, position: string): void {
+    clientCompanyDraft.value = clientCompanyDraft.value.map((row) =>
+        row.company_id === companyId ? { ...row, position } : row,
+    );
+}
+
+function setClientCompanyPositionFromEvent(companyId: number, event: Event): void {
+    const target = event.target;
+    setClientCompanyPosition(companyId, target instanceof HTMLInputElement ? target.value : '');
+}
+
+async function saveClientCompanies(): Promise<void> {
+    if (!openedClient.value || clientCompaniesSaving.value) return;
+    clientCompaniesSaving.value = true;
+    try {
+        const { data } = await axios.patch(route('settings.clients.companies.sync', openedClient.value.id), {
+            companies: clientCompanyDraft.value,
+        });
+        if (data?.success) {
+            router.reload({ only: ['clients', 'companies', 'companyOptions'] });
+            showToast({ message: 'Компании клиента обновлены' });
+        }
+    } catch (e: any) {
+        showToast({ message: e?.response?.data?.message || e?.message || 'Не удалось обновить компании клиента' });
+    } finally {
+        clientCompaniesSaving.value = false;
+    }
+}
+
+function openCompany(company?: CompanyItem): void {
+    if (company) {
+        openedCompanyId.value = company.id;
+        companyForm.value = {
+            name: company.name || '',
+            phone: company.phone || '',
+            email: company.email || '',
+            website: company.website || '',
+            description: company.description || '',
+        };
+        return;
+    }
+
+    openedCompanyId.value = 'new';
+    companyForm.value = {
+        name: '',
+        phone: '',
+        email: '',
+        website: '',
+        description: '',
+    };
+}
+
+function closeCompany(): void {
+    openedCompanyId.value = null;
+}
+
+async function saveCompany(): Promise<void> {
+    if (companySaving.value || !companyForm.value.name.trim()) return;
+    companySaving.value = true;
+    try {
+        const payload = { ...companyForm.value, name: companyForm.value.name.trim() };
+        if (openedCompanyId.value === 'new') {
+            await axios.post(route('settings.companies.store'), payload);
+            showToast({ message: 'Компания создана' });
+        } else if (openedCompanyId.value) {
+            await axios.put(route('settings.companies.update', openedCompanyId.value), payload);
+            showToast({ message: 'Компания обновлена' });
+        }
+        closeCompany();
+        router.reload({ only: ['clients', 'companies', 'companyOptions'] });
+    } catch (e: any) {
+        showToast({ message: e?.response?.data?.message || e?.message || 'Не удалось сохранить компанию' });
+    } finally {
+        companySaving.value = false;
+    }
+}
+
+async function deleteCompany(company: CompanyItem): Promise<void> {
+    if (!confirm(`Удалить компанию «${company.name}»? Связи с клиентами тоже будут удалены.`)) return;
+    try {
+        await axios.delete(route('settings.companies.destroy', company.id));
+        showToast({ message: 'Компания удалена' });
+        router.reload({ only: ['clients', 'companies', 'companyOptions'] });
+    } catch (e: any) {
+        showToast({ message: e?.response?.data?.message || e?.message || 'Не удалось удалить компанию' });
+    }
+}
 </script>
 
 <template>
@@ -137,20 +391,56 @@ async function saveClientName(): Promise<void> {
 
     <SettingsLayout title="Клиенты" subtitle="Список клиентов и их сведения">
         <div class="p-6">
-            <div class="mb-4 flex items-center justify-between gap-3">
-                <div class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                    Найдено: {{ total }}
+            <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded-full px-4 py-2 text-sm font-medium"
+                        :style="{
+                            background: activeTab === 'clients' ? 'var(--wa-accent)' : 'var(--wa-panel-header)',
+                            color: activeTab === 'clients' ? '#fff' : 'var(--wa-text)',
+                        }"
+                        @click="activeTab = 'clients'"
+                    >
+                        Клиенты · {{ total }}
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-full px-4 py-2 text-sm font-medium"
+                        :style="{
+                            background: activeTab === 'companies' ? 'var(--wa-accent)' : 'var(--wa-panel-header)',
+                            color: activeTab === 'companies' ? '#fff' : 'var(--wa-text)',
+                        }"
+                        @click="activeTab = 'companies'"
+                    >
+                        Компании · {{ companiesTotal }}
+                    </button>
                 </div>
-                <input
-                    v-model="search"
-                    type="text"
-                    placeholder="Поиск по имени, номеру, WhatsApp ID"
-                    class="w-full max-w-[360px] rounded-full border-0 px-4 py-2 text-sm focus:ring-0 focus:outline-none"
-                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
-                />
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <button
+                        v-if="activeTab === 'companies'"
+                        type="button"
+                        class="rounded-full px-4 py-2 text-sm font-semibold"
+                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                        @click="openCompany()"
+                    >
+                        + Компания
+                    </button>
+                    <input
+                        v-model="search"
+                        type="text"
+                        :placeholder="activeTab === 'clients' ? 'Поиск по имени, номеру, WhatsApp ID' : 'Поиск по компаниям'"
+                        class="w-full min-w-[260px] rounded-full border-0 px-4 py-2 text-sm focus:ring-0 focus:outline-none"
+                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    />
+                </div>
             </div>
 
-            <div class="space-y-3">
+            <div v-if="activeTab === 'clients'" class="space-y-3">
+                <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Показано {{ props.clients.from || 0 }}–{{ props.clients.to || 0 }} из {{ props.clients.total }}
+                </div>
+
                 <div
                     v-for="c in clients"
                     :key="c.id"
@@ -187,9 +477,6 @@ async function saveClientName(): Promise<void> {
                         <div :style="{ color: 'var(--wa-text-secondary)' }">
                             <span :style="{ color: 'var(--wa-text)' }">Сохранённое имя:</span> {{ c.name || '—' }}
                         </div>
-                        <div :style="{ color: 'var(--wa-text-secondary)' }">
-                            <span :style="{ color: 'var(--wa-text)' }">WhatsApp ник:</span> {{ c.push_name || '—' }}
-                        </div>
                         <div class="sm:col-span-2 truncate" :style="{ color: 'var(--wa-text-secondary)' }">
                             <span :style="{ color: 'var(--wa-text)' }">WhatsApp ID:</span> {{ waIdLabel(c) }}
                         </div>
@@ -225,10 +512,144 @@ async function saveClientName(): Promise<void> {
                         </div>
                     </div>
 
+                    <div v-if="c.companies.length" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div class="mb-1.5" :style="{ color: 'var(--wa-text-secondary)' }">Компании:</div>
+                        <div class="flex flex-wrap gap-2">
+                            <span
+                                v-for="company in c.companies"
+                                :key="`client-company-${c.id}-${company.id}`"
+                                class="rounded-full px-2.5 py-1"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                            >
+                                {{ company.name }}<span v-if="company.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ company.position }}</span>
+                            </span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div v-if="clients.length === 0" class="py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
                     Клиенты не найдены
+                </div>
+
+                <div v-if="props.clients.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
+                    <button
+                        type="button"
+                        class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :disabled="props.clients.current_page <= 1"
+                        @click="goToPage('clients', props.clients.current_page - 1)"
+                    >
+                        Назад
+                    </button>
+                    <div class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Страница {{ props.clients.current_page }} из {{ props.clients.last_page }}
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :disabled="props.clients.current_page >= props.clients.last_page"
+                        @click="goToPage('clients', props.clients.current_page + 1)"
+                    >
+                        Вперёд
+                    </button>
+                </div>
+            </div>
+
+            <div v-else class="space-y-3">
+                <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Показано {{ props.companies.from || 0 }}–{{ props.companies.to || 0 }} из {{ props.companies.total }}
+                </div>
+
+                <div
+                    v-for="company in companies"
+                    :key="company.id"
+                    class="rounded-2xl border p-4"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                >
+                    <div class="mb-3 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="truncate text-[15px] font-medium" :style="{ color: 'var(--wa-text)' }">
+                                {{ company.name }}
+                            </div>
+                            <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                                Клиентов: {{ company.clients_count }}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="rounded-lg px-3 py-1.5 text-xs hover:bg-[var(--wa-panel-hover)]"
+                                :style="{ color: 'var(--wa-text)' }"
+                                @click="openCompany(company)"
+                            >
+                                Изменить
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg px-3 py-1.5 text-xs"
+                                :style="{ color: 'var(--wa-danger)', background: 'color-mix(in srgb, var(--wa-danger) 10%, transparent)' }"
+                                @click="deleteCompany(company)"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
+                        <div><span :style="{ color: 'var(--wa-text)' }">Телефон:</span> {{ company.phone || '—' }}</div>
+                        <div><span :style="{ color: 'var(--wa-text)' }">Email:</span> {{ company.email || '—' }}</div>
+                        <div><span :style="{ color: 'var(--wa-text)' }">Сайт:</span> {{ company.website || '—' }}</div>
+                        <div><span :style="{ color: 'var(--wa-text)' }">Описание:</span> {{ company.description || '—' }}</div>
+                    </div>
+
+                    <div class="mt-3 border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиенты в компании:</div>
+                        <div v-if="company.clients.length" class="space-y-1.5">
+                            <div
+                                v-for="client in company.clients"
+                                :key="`company-client-${company.id}-${client.id}`"
+                                class="rounded-md px-2 py-1.5 text-xs"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                            >
+                                {{ client.name }}
+                                <span v-if="client.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ client.position }}</span>
+                                <span v-if="client.phone_number" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ formatPhone(client.phone_number) }}</span>
+                            </div>
+                        </div>
+                        <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }">
+                            В компании пока нет клиентов.
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="companies.length === 0" class="py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Компании не найдены
+                </div>
+
+                <div v-if="props.companies.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
+                    <button
+                        type="button"
+                        class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :disabled="props.companies.current_page <= 1"
+                        @click="goToPage('companies', props.companies.current_page - 1)"
+                    >
+                        Назад
+                    </button>
+                    <div class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Страница {{ props.companies.current_page }} из {{ props.companies.last_page }}
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :disabled="props.companies.current_page >= props.companies.last_page"
+                        @click="goToPage('companies', props.companies.current_page + 1)"
+                    >
+                        Вперёд
+                    </button>
                 </div>
             </div>
         </div>
@@ -262,11 +683,121 @@ async function saveClientName(): Promise<void> {
                         </div>
 
                         <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
-                            <div><span :style="{ color: 'var(--wa-text)' }">WhatsApp ник:</span> {{ openedClient.push_name || '—' }}</div>
                             <div><span :style="{ color: 'var(--wa-text)' }">Телефон:</span> {{ formatPhone(openedClient.phone_number) || '—' }}</div>
                             <div class="sm:col-span-2 truncate"><span :style="{ color: 'var(--wa-text)' }">WhatsApp ID:</span> {{ waIdLabel(openedClient) }}</div>
                             <div><span :style="{ color: 'var(--wa-text)' }">Последний чат:</span> {{ lastChatLabel(openedClient) }}</div>
                             <div><span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(openedClient.last_chat_at) }}</div>
+                        </div>
+
+                        <div class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                            <div class="mb-3 flex items-center justify-between gap-2">
+                                <div>
+                                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">Компании и должности</div>
+                                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиент может быть в нескольких компаниях или ни в одной.</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-3 py-1.5 text-xs"
+                                    :disabled="clientCompaniesSaving"
+                                    :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: clientCompaniesSaving ? 0.6 : 1 }"
+                                    @click="saveClientCompanies"
+                                >
+                                    Сохранить связи
+                                </button>
+                            </div>
+
+                            <div v-if="companyOptions.length" class="space-y-2">
+                                <div
+                                    v-for="company in companyOptions"
+                                    :key="`client-modal-company-${company.id}`"
+                                    class="rounded-lg border p-2"
+                                    :style="{ borderColor: isClientCompanySelected(company.id) ? 'var(--wa-accent)' : 'var(--wa-border)', background: 'var(--wa-panel)' }"
+                                >
+                                    <label class="flex items-center gap-2 text-sm" :style="{ color: 'var(--wa-text)' }">
+                                        <input
+                                            type="checkbox"
+                                            class="rounded"
+                                            :checked="isClientCompanySelected(company.id)"
+                                            @change="toggleClientCompany(company.id)"
+                                        />
+                                        <span class="font-medium">{{ company.name }}</span>
+                                    </label>
+                                    <input
+                                        v-if="isClientCompanySelected(company.id)"
+                                        :value="clientCompanyPosition(company.id)"
+                                        type="text"
+                                        class="mt-2 w-full rounded-lg border-0 px-3 py-2 text-xs focus:ring-0 focus:outline-none"
+                                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                        placeholder="Должность клиента в этой компании"
+                                        @input="setClientCompanyPositionFromEvent(company.id, $event)"
+                                    />
+                                </div>
+                            </div>
+                            <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }">
+                                Компаний пока нет. Создайте компанию во вкладке «Компании».
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                            <div class="mb-2 flex items-center justify-between gap-2">
+                                <div>
+                                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">Авто-карточка</div>
+                                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Собрано из диалогов клиента</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-2 py-1 text-xs hover:bg-[var(--wa-panel-hover)]"
+                                    :style="{ color: 'var(--wa-text)' }"
+                                    :disabled="contactCardLoading"
+                                    @click="loadContactCard(openedClient.id)"
+                                >
+                                    Обновить
+                                </button>
+                            </div>
+
+                            <div v-if="contactCardLoading" class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                                Загрузка…
+                            </div>
+                            <div v-else-if="contactCardError" class="text-xs" :style="{ color: 'var(--wa-danger)' }">
+                                {{ contactCardError }}
+                            </div>
+                            <div v-else-if="contactCard" class="space-y-3">
+                                <div class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
+                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Чатов</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.chats_count }}</div>
+                                    </div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
+                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Каналов</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.channels_count }}</div>
+                                    </div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
+                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Сообщений</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.messages.total }}</div>
+                                    </div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
+                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Вложения</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">
+                                            {{ contactCard.activity.attachments.media + contactCard.activity.attachments.documents + contactCard.activity.attachments.links }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
+                                    <div><span :style="{ color: 'var(--wa-text)' }">Первое сообщение:</span> {{ dateLabel(contactCard.activity.first_message_at) }}</div>
+                                    <div><span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(contactCard.activity.last_message_at) }}</div>
+                                    <div><span :style="{ color: 'var(--wa-text)' }">Сообщений клиента:</span> {{ contactCard.activity.messages.inbound }}</div>
+                                    <div><span :style="{ color: 'var(--wa-text)' }">Сообщений операторов:</span> {{ contactCard.activity.messages.outbound }}</div>
+                                </div>
+
+                                <div v-if="contactCard.activity.last_client_message" class="rounded-lg p-2 text-xs" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
+                                    <div :style="{ color: 'var(--wa-text-secondary)' }">Последняя реплика клиента</div>
+                                    <div class="mt-1" :style="{ color: 'var(--wa-text)' }">{{ shortText(contactCard.activity.last_client_message.body) }}</div>
+                                </div>
+                            </div>
+                            <div v-else class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                                Нет данных.
+                            </div>
                         </div>
 
                         <div v-if="openedClient.channels.length" class="border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
@@ -312,6 +843,115 @@ async function saveClientName(): Promise<void> {
                                 :disabled="saving"
                                 :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: saving ? 0.6 : 1 }"
                                 @click="saveClientName"
+                            >
+                                Сохранить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </teleport>
+
+        <teleport to="body">
+            <div
+                v-if="openedCompanyId !== null"
+                class="fixed inset-0 z-[460] flex items-center justify-center px-4"
+                :style="{ background: 'rgba(0,0,0,.45)' }"
+            >
+                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }">
+                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--wa-panel-header)' }">
+                        <div>
+                            <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                                {{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}
+                            </div>
+                            <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                                Компания может существовать без клиентов.
+                            </div>
+                        </div>
+                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="closeCompany">
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="p-5 space-y-4 text-sm">
+                        <div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Название компании</div>
+                            <input
+                                v-model="companyForm.name"
+                                type="text"
+                                class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                placeholder="Например, ТОО Ромашка"
+                            />
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                                <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Телефон</div>
+                                <input
+                                    v-model="companyForm.phone"
+                                    type="text"
+                                    class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
+                                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                />
+                            </div>
+                            <div>
+                                <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Email</div>
+                                <input
+                                    v-model="companyForm.email"
+                                    type="email"
+                                    class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
+                                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Сайт</div>
+                            <input
+                                v-model="companyForm.website"
+                                type="text"
+                                class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                placeholder="https://example.kz"
+                            />
+                        </div>
+
+                        <div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Описание</div>
+                            <textarea
+                                v-model="companyForm.description"
+                                rows="3"
+                                class="w-full resize-none rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
+                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                            ></textarea>
+                        </div>
+
+                        <div v-if="openedCompany && openedCompany.clients.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                            <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиенты компании</div>
+                            <div class="space-y-1.5">
+                                <div
+                                    v-for="client in openedCompany.clients"
+                                    :key="`opened-company-client-${client.id}`"
+                                    class="text-xs"
+                                    :style="{ color: 'var(--wa-text)' }"
+                                >
+                                    {{ client.name }}
+                                    <span v-if="client.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ client.position }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end gap-2">
+                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--wa-panel-hover)]" :style="{ color: 'var(--wa-text)' }" @click="closeCompany">
+                                Закрыть
+                            </button>
+                            <button
+                                type="button"
+                                class="px-4 py-2 rounded-xl"
+                                :disabled="companySaving || !companyForm.name.trim()"
+                                :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: companySaving || !companyForm.name.trim() ? 0.6 : 1 }"
+                                @click="saveCompany"
                             >
                                 Сохранить
                             </button>

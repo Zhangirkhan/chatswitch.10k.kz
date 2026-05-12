@@ -30,6 +30,7 @@ use App\Support\MediaType;
 use App\Support\OperatorSignature;
 use App\Support\PhoneFormatter;
 use App\Support\VCard;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,9 @@ use Inertia\Response;
 
 final class ChatController extends Controller
 {
+    /** Единый размер страницы списка чатов (Inertia + JSON feed для подгрузки). */
+    private const int CHAT_LIST_PER_PAGE = 100;
+
     public function __construct(
         private readonly ChatService $chatService,
         private readonly WhatsappService $whatsappService,
@@ -49,7 +53,7 @@ final class ChatController extends Controller
     {
         $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
             ->where('is_archived', false)
-            ->paginate(50);
+            ->paginate(self::CHAT_LIST_PER_PAGE);
 
         return Inertia::render('Chats/Index', [
             'chats' => $chats,
@@ -61,11 +65,37 @@ final class ChatController extends Controller
     {
         $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
             ->where('is_archived', true)
-            ->paginate(50);
+            ->paginate(self::CHAT_LIST_PER_PAGE);
 
         return Inertia::render('Chats/Archived', [
             'chats' => $chats,
             'search' => $request->input('search'),
+        ]);
+    }
+
+    /**
+     * Подгрузка следующих страниц списка чатов (бесконечная прокрутка в сайдбаре).
+     */
+    public function feed(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query('page', 1));
+        $archived = filter_var($request->query('archived', '0'), FILTER_VALIDATE_BOOLEAN);
+        $searchRaw = $request->query('search');
+        $search = is_string($searchRaw) ? trim($searchRaw) : null;
+        if ($search === '') {
+            $search = null;
+        }
+
+        $paginator = $this->chatService->getChatsForUser($request->user(), $search)
+            ->where('is_archived', $archived)
+            ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
         ]);
     }
 
@@ -101,8 +131,13 @@ final class ChatController extends Controller
             ->paginate(50);
 
         $allChats = $this->chatService->getChatsForUser($request->user())
-            ->where('is_archived', false)
-            ->paginate(50);
+            ->where(function (Builder $q) use ($chat): void {
+                $q->where('is_archived', false);
+                if ($chat->is_archived) {
+                    $q->orWhere('id', $chat->id);
+                }
+            })
+            ->paginate(self::CHAT_LIST_PER_PAGE);
 
         // «Единая клиентская база»: все чаты того же клиента (contact), включая разные WA-номера.
         // Нужен, чтобы в панели контакта показывать: с этим человеком общались с WA #1 и WA #2.
@@ -140,6 +175,39 @@ final class ChatController extends Controller
         return response()->json([
             'success' => true,
             'departments' => $chat->departments()->get(['departments.id', 'departments.name']),
+        ]);
+    }
+
+    public function departmentHistory(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('syncDepartments', $chat);
+
+        $history = $chat->messages()
+            ->where('direction', 'system')
+            ->where('body', 'like', 'Отделы чата обновлены:%')
+            ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get(['id', 'body', 'message_timestamp', 'created_at'])
+            ->map(fn (Message $message) => [
+                'id' => $message->id,
+                'body' => $message->body,
+                'at' => ($message->message_timestamp ?: $message->created_at)?->toIso8601String(),
+            ])
+            ->values();
+
+        $current = $chat->departments()
+            ->orderBy('departments.name')
+            ->get(['departments.id', 'departments.name'])
+            ->map(fn (Department $department) => [
+                'id' => $department->id,
+                'name' => $department->name,
+            ])
+            ->values();
+
+        return response()->json([
+            'current' => $current,
+            'history' => $history,
         ]);
     }
 
@@ -710,6 +778,101 @@ final class ChatController extends Controller
         return response()->json(['messages' => $messages]);
     }
 
+    public function mediaLinksDocuments(Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $messages = $chat->messages()
+            ->with('media')
+            ->where(function ($query): void {
+                $query->whereHas('media')
+                    ->orWhere('body', 'regexp', 'https?://|www\\.');
+            })
+            ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+            ->orderByDesc('id')
+            ->get(['id', 'chat_id', 'direction', 'type', 'body', 'sender_name', 'message_timestamp', 'created_at']);
+
+        $media = [];
+        $documents = [];
+        $links = [];
+
+        foreach ($messages as $message) {
+            $messageTime = optional($message->message_timestamp ?: $message->created_at)->toIso8601String();
+
+            foreach ($message->media as $item) {
+                $mime = strtolower((string) $item->mime_type);
+                $row = [
+                    'id' => $item->id,
+                    'message_id' => $message->id,
+                    'mime_type' => $item->mime_type,
+                    'filename' => $item->filename,
+                    'file_size' => $item->file_size,
+                    'url' => route('media.show', $item->id),
+                    'download_url' => route('media.show', ['media' => $item->id, 'download' => 1]),
+                    'message_at' => $messageTime,
+                    'direction' => $message->direction,
+                ];
+
+                if (str_starts_with($mime, 'image/') || str_starts_with($mime, 'video/')) {
+                    $media[] = $row;
+
+                    continue;
+                }
+
+                $documents[] = $row;
+            }
+
+            foreach ($this->extractLinks((string) $message->body) as $url) {
+                $links[] = [
+                    'id' => $message->id.'-'.md5($url),
+                    'message_id' => $message->id,
+                    'url' => $url,
+                    'host' => parse_url($url, PHP_URL_HOST) ?: $url,
+                    'title' => $url,
+                    'message_at' => $messageTime,
+                    'direction' => $message->direction,
+                ];
+            }
+        }
+
+        return response()->json([
+            'media' => $media,
+            'links' => $links,
+            'documents' => $documents,
+            'counts' => [
+                'media' => count($media),
+                'links' => count($links),
+                'documents' => count($documents),
+                'total' => count($media) + count($links) + count($documents),
+            ],
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractLinks(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        preg_match_all('~\\b(?:https?://|www\\.)[^\\s<>()]+~iu', $text, $matches);
+        $urls = [];
+
+        foreach ($matches[0] ?? [] as $raw) {
+            $url = rtrim((string) $raw, ".,!?;:)]}\n\r\t");
+            if (str_starts_with($url, 'www.')) {
+                $url = 'https://'.$url;
+            }
+            if ($url !== '' && ! in_array($url, $urls, true)) {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
     public function uploadFile(UploadFileRequest $request, Chat $chat): JsonResponse
     {
         $file = $request->file('file');
@@ -880,7 +1043,7 @@ final class ChatController extends Controller
 
         $query = User::query()
             ->where('is_active', true)
-            ->with(['roles:id,name', 'department:id,name'])
+            ->with(['roles:id,name', 'department:id,name', 'departments:id,name'])
             ->orderBy('name');
 
         /** @var list<int>|null Отделы чата для сортировки списка у администратора (сверху — из отделов чата). */
@@ -895,7 +1058,11 @@ final class ChatController extends Controller
                 : $chat->departments()->pluck('departments.id')->all();
             $adminChatDepartmentIds = array_values(array_map(intval(...), $rawDeptIds));
         } elseif ($user->hasRole('manager')) {
-            $query->where('department_id', $user->department_id);
+            $managerDeptIds = $user->departmentIds();
+            if ($managerDeptIds === []) {
+                return collect();
+            }
+            $query->whereHas('departments', static fn ($q) => $q->whereIn('departments.id', $managerDeptIds));
         } else {
             return collect();
         }
@@ -904,8 +1071,8 @@ final class ChatController extends Controller
 
         if ($adminChatDepartmentIds !== null) {
             $users = $users->sortBy(function (User $u) use ($adminChatDepartmentIds): array {
-                $uid = $u->department_id !== null ? (int) $u->department_id : null;
-                $inChatDept = $uid !== null && in_array($uid, $adminChatDepartmentIds, true);
+                $userDeptIds = $u->departments->pluck('id')->map(fn ($v) => (int) $v)->all();
+                $inChatDept = array_intersect($userDeptIds, $adminChatDepartmentIds) !== [];
 
                 return [$inChatDept ? 0 : 1, mb_strtolower($u->name)];
             })->values();
@@ -918,6 +1085,8 @@ final class ChatController extends Controller
                 'email' => $u->email,
                 'department_id' => $u->department_id,
                 'department_name' => $u->department?->name,
+                'department_ids' => $u->departments->pluck('id')->map(fn ($v) => (int) $v)->all(),
+                'department_names' => $u->departments->pluck('name')->all(),
                 'roles' => $u->roles->pluck('name')->all(),
             ])
             ->values();

@@ -114,18 +114,18 @@ watch(
     overflow: hidden;
     text-decoration: none;
     color: inherit;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: var(--wa-link-preview-surface);
+    border: 1px solid var(--wa-link-preview-border);
 }
 
 .wa-link-preview:hover {
-    background: rgba(255, 255, 255, 0.075);
+    background: var(--wa-link-preview-surface-hover);
 }
 
 .wa-link-preview-imgwrap {
     width: 154px;
     flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--wa-link-preview-img-bg);
 }
 .wa-link-preview-imgwrap img {
     width: 100%;
@@ -187,7 +187,7 @@ watch(
 .wa-link-preview-skel-img {
     width: 154px;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--wa-link-preview-skel);
 }
 .wa-link-preview-skel-lines {
     flex: 1;
@@ -199,7 +199,7 @@ watch(
 .wa-link-preview-skel-line {
     height: 10px;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.10);
+    background: var(--wa-link-preview-skel);
 }
 .wa-link-preview-skel-line--w1 { width: 52%; }
 .wa-link-preview-skel-line--w2 { width: 88%; }

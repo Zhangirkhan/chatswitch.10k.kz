@@ -533,7 +533,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
 /* Плашка закреплённых (отличается от зелёной плашки WhatsApp-сессии). */
 .assignee-pill {
     background: color-mix(in srgb, var(--wa-accent) 18%, transparent);
-    color: #b6f7df;
+    color: var(--wa-assignee-pill-fg);
     border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, transparent);
 }
 .assignee-pill-expanded {

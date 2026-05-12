@@ -3,17 +3,20 @@ import SectionHeader from './SectionHeader.vue';
 import SettingRow from './SettingRow.vue';
 import { useTheme, type Theme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
+import { useTranslationLang, TRANSLATION_LANG_OPTIONS, type TranslationLang } from '@/composables/useTranslationLang';
 import { wallpaperPreview } from '@/config/wallpapers';
 import { computed, ref } from 'vue';
 
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
+const { lang: translateLang, currentOption: translateCurrent } = useTranslationLang();
 
 const themeLabel = computed(() => (theme.value === 'dark' ? 'Тёмный режим' : 'Дневной режим'));
 const wallpaperLabel = computed(() => getCurrent().label);
 
 const themePickerOpen = ref(false);
 const wallpaperPickerOpen = ref(false);
+const translatePickerOpen = ref(false);
 
 function pickTheme(t: Theme) {
     setTheme(t);
@@ -47,6 +50,13 @@ function previewStyle(id: string): string {
                 title="Обои"
                 :subtitle="wallpaperLabel"
                 @click="wallpaperPickerOpen = true"
+            />
+
+            <div class="group-title">Перевод сообщений</div>
+            <SettingRow
+                title="Язык перевода"
+                :subtitle="`${translateCurrent().flag} ${translateCurrent().label}`"
+                @click="translatePickerOpen = true"
             />
         </div>
 
@@ -88,6 +98,51 @@ function previewStyle(id: string): string {
                         :style="{ background: 'var(--wa-accent)' }"
                     >
                         OK
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Translation language picker modal -->
+        <div
+            v-if="translatePickerOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            @click.self="translatePickerOpen = false"
+        >
+            <div class="w-[380px] max-w-[90vw] rounded-xl p-6 shadow-2xl" :style="{ background: 'var(--wa-panel)' }">
+                <h3 class="text-[17px] text-[var(--wa-text)] mb-1">Язык перевода сообщений</h3>
+                <p class="text-xs text-[var(--wa-text-secondary)] mb-4">
+                    Под каждым сообщением появится кнопка «Перевести».<br>
+                    Стандартно — русский и казахский.
+                </p>
+                <div class="space-y-1">
+                    <label
+                        v-for="opt in TRANSLATION_LANG_OPTIONS"
+                        :key="opt.value"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-[var(--wa-panel-hover)] transition"
+                    >
+                        <input
+                            type="radio"
+                            name="translate_lang"
+                            :value="opt.value"
+                            v-model="translateLang"
+                            class="accent-[var(--wa-accent)]"
+                        />
+                        <span class="text-lg leading-none">{{ opt.flag }}</span>
+                        <span class="text-[15px] text-[var(--wa-text)]">{{ opt.label }}</span>
+                        <span v-if="opt.value === 'ru' || opt.value === 'kk'" class="ml-auto text-[11px] px-1.5 py-0.5 rounded" :style="{ background: 'var(--wa-accent)', color: 'var(--wa-unread-text, #0b0d0e)' }">
+                            по умолчанию
+                        </span>
+                    </label>
+                </div>
+                <div class="flex justify-end mt-5">
+                    <button
+                        type="button"
+                        @click="translatePickerOpen = false"
+                        class="px-6 py-2 rounded-full text-white text-sm font-medium"
+                        :style="{ background: 'var(--wa-accent)' }"
+                    >
+                        Готово
                     </button>
                 </div>
             </div>

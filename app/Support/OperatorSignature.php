@@ -59,6 +59,27 @@ final class OperatorSignature
     }
 
     /**
+     * Снять подпись оператора с текста. Используется для аналитики/AI-промптов,
+     * где «настоящий» ответ оператора важнее служебной плашки `*Имя (Роль)*`.
+     * Если строка не похожа на нашу подпись — возвращаем исходный текст без изменений.
+     */
+    public static function strip(string $text): string
+    {
+        $trimmed = ltrim($text);
+        if ($trimmed === '') {
+            return $text;
+        }
+
+        // Подпись всегда первая строка вида `*...*` без переносов внутри звёздочек,
+        // далее перевод строки и тело сообщения.
+        if (! preg_match('/^\*[^*\n]+\*\R?/u', $trimmed, $match)) {
+            return $text;
+        }
+
+        return mb_substr($trimmed, mb_strlen($match[0]));
+    }
+
+    /**
      * Построить только строку подписи без переноса и без текста:
      * `*Имя (Должность)*`.
      */
@@ -94,5 +115,4 @@ final class OperatorSignature
 
         return self::ROLE_TITLES[strtolower($role)] ?? ucfirst($role);
     }
-
 }

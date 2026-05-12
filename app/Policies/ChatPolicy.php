@@ -19,33 +19,30 @@ final class ChatPolicy
             return true;
         }
 
-        $userInChatDepartment = $user->department_id !== null
-            && $chat->departments()->where('departments.id', $user->department_id)->exists();
+        // Множественное членство в отделах: пользователь может состоять в нескольких,
+        // и доступ к чату открывается, если ХОТЬ ОДИН его отдел прикреплён к чату.
+        $userDeptIds = $user->departmentIds();
+        $userInChatDepartment = $userDeptIds !== []
+            && $chat->departments()->whereIn('departments.id', $userDeptIds)->exists();
 
-        // Руководитель видит всё, что относится к его отделу: и чаты своих сотрудников,
-        // и чаты с прикреплённым его отделом (независимо от того, кто назначен).
         if ($user->hasRole('manager')) {
             if ($userInChatDepartment) {
                 return true;
             }
 
-            if ($user->department_id !== null) {
-                $departmentUserIds = User::query()
-                    ->where('department_id', $user->department_id)
-                    ->pluck('id');
-
-                return $chat->assignments()
-                    ->whereIn('user_id', $departmentUserIds)
-                    ->exists();
+            if ($userDeptIds === []) {
+                return false;
             }
 
-            return false;
+            $departmentUserIds = User::query()
+                ->whereHas('departments', static fn ($q) => $q->whereIn('departments.id', $userDeptIds))
+                ->pluck('id');
+
+            return $chat->assignments()
+                ->whereIn('user_id', $departmentUserIds)
+                ->exists();
         }
 
-        // Рядовой сотрудник:
-        //  1) если он лично назначен — видит (он ответственный);
-        //  2) иначе — видит только чаты своего отдела без назначенных (общий пул);
-        //  3) как только чат кто-то взял — из его списка исчезает.
         if ($chat->assignments()->where('user_id', $user->id)->exists()) {
             return true;
         }

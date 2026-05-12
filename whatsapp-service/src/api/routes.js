@@ -68,10 +68,8 @@ router.get('/sessions', (_req, res) => {
 router.post('/sessions/:name/initialize', async (req, res) => {
   const service = getOrCreateClient(req.params.name);
 
-  if (service.isReady) {
-    return res.json({ success: true, message: 'Already connected' });
-  }
-
+  // `initialize()` contains the real stale-browser check. Do not short-circuit
+  // on `isReady`: a detached Puppeteer browser can leave the session marked ready.
   service.initialize().catch((err) =>
     console.error(`[${req.params.name}] init error:`, err.message)
   );
@@ -102,6 +100,16 @@ router.get('/sessions/:name/qr', async (req, res) => {
 router.get('/sessions/:name/status', (req, res) => {
   const service = getOrCreateClient(req.params.name);
 
+  let profile = null;
+  if (service.isReady && service.client?.info) {
+    const info = service.client.info;
+    profile = {
+      phone: info.wid?.user || null,
+      name: info.pushname || null,
+      platform: info.platform || null,
+    };
+  }
+
   res.json({
     success: true,
     sessionName: req.params.name,
@@ -109,6 +117,7 @@ router.get('/sessions/:name/status', (req, res) => {
     isInitializing: service.isInitializing,
     hasQR: Boolean(service.qrCode),
     lastError: service.lastError,
+    profile,
   });
 });
 

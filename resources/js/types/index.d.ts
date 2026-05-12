@@ -6,9 +6,11 @@ export interface User {
     phone?: string | null;
     phones?: string[];
     department_id: number | null;
+    department_ids?: number[];
     is_active: boolean;
     roles: string[];
     department: Department | null;
+    departments?: Department[];
     whatsapp_sessions?: WhatsappSession[];
     whatsapp_session_ids?: number[];
 }
@@ -17,6 +19,7 @@ export interface Department {
     id: number;
     name: string;
     description: string | null;
+    parent_id?: number | null;
     is_active: boolean;
     users_count?: number;
 }

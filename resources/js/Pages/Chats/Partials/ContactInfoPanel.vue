@@ -28,8 +28,48 @@ const editName = ref('');
 const savingContact = ref(false);
 const saveError = ref<string | null>(null);
 
+type ContactCardPayload = {
+    identity: {
+        display_name: string;
+        saved_name: string | null;
+        push_name: string | null;
+        phone_number: string | null;
+        whatsapp_ids: string[];
+        profile_picture_url: string | null;
+        is_business: boolean;
+        possible_names: string[];
+    };
+    activity: {
+        chats_count: number;
+        channels_count: number;
+        first_message_at: string | null;
+        last_message_at: string | null;
+        last_client_message: { id: number; body: string | null; sender_name: string | null; at: string | null } | null;
+        last_operator_message: { id: number; body: string | null; sender_name: string | null; at: string | null } | null;
+        messages: { total: number; inbound: number; outbound: number };
+        attachments: { media: number; documents: number; links: number };
+    };
+    channels: Array<{
+        chat_id: number;
+        session_label: string;
+        session_phone: string | null;
+        session_status: string | null;
+        chat_name: string | null;
+        last_message_text: string | null;
+        last_message_at: string | null;
+        unread_count: number;
+        is_archived: boolean;
+        open_url: string;
+    }>;
+};
+
+const contactCard = ref<ContactCardPayload | null>(null);
+const contactCardLoading = ref(false);
+const contactCardError = ref<string | null>(null);
+
 const displayName = computed(() =>
-    props.chat.chat_name
+    contactCard.value?.identity.display_name
+        || props.chat.chat_name
         || props.chat.contact?.name
         || props.chat.contact?.push_name
         || formatPhone(props.chat.contact?.phone_number)
@@ -40,6 +80,29 @@ const displayName = computed(() =>
 const phoneLabel = computed(() => (isGroup.value ? '' : formatPhone(props.chat.contact?.phone_number)));
 
 const firstInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
+
+async function loadContactCard() {
+    if (!props.chat.contact_id) {
+        contactCard.value = null;
+        return;
+    }
+    contactCardLoading.value = true;
+    contactCardError.value = null;
+    try {
+        const { data } = await axios.get(route('contacts.card', props.chat.contact_id));
+        contactCard.value = data as ContactCardPayload;
+    } catch (e: any) {
+        contactCard.value = null;
+        contactCardError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось загрузить карточку контакта';
+    } finally {
+        contactCardLoading.value = false;
+    }
+}
+
+function shortMessagePreview(message: ContactCardPayload['activity']['last_client_message']): string {
+    const text = stripWaMarkup((message?.body || '').trim());
+    return text !== '' ? text : '—';
+}
 
 /** Диалоги того же контакта на других WA-сессиях (исключая текущий чат). */
 const otherSessionChats = computed<Chat[]>(() =>
@@ -60,6 +123,103 @@ const mediaCount = computed(() => {
     const list = props.messages || [];
     return list.filter((m: any) => m?.media || (m as any)?.media_id || m.type === 'image' || m.type === 'video' || m.type === 'document').length;
 });
+
+type ChatSharedMedia = {
+    id: number;
+    message_id: number;
+    mime_type: string;
+    filename: string | null;
+    file_size: number | null;
+    url: string;
+    download_url: string;
+    message_at: string | null;
+    direction: 'inbound' | 'outbound' | 'system';
+};
+
+type ChatSharedLink = {
+    id: string;
+    message_id: number;
+    url: string;
+    host: string;
+    title: string;
+    message_at: string | null;
+    direction: 'inbound' | 'outbound' | 'system';
+};
+
+type SharedPayload = {
+    media: ChatSharedMedia[];
+    links: ChatSharedLink[];
+    documents: ChatSharedMedia[];
+    counts: { media: number; links: number; documents: number; total: number };
+};
+
+const mediaBrowserOpen = ref(false);
+const sharedLoading = ref(false);
+const sharedError = ref<string | null>(null);
+const sharedTab = ref<'media' | 'links' | 'documents'>('media');
+const sharedPayload = ref<SharedPayload>({
+    media: [],
+    links: [],
+    documents: [],
+    counts: { media: 0, links: 0, documents: 0, total: 0 },
+});
+
+const sharedTotalCount = computed(() => sharedPayload.value.counts.total || mediaCount.value);
+
+async function openMediaBrowser() {
+    mediaBrowserOpen.value = true;
+    if (sharedPayload.value.counts.total > 0 || sharedLoading.value) {
+        return;
+    }
+    await loadSharedMedia();
+}
+
+function closeMediaBrowser() {
+    mediaBrowserOpen.value = false;
+}
+
+async function loadSharedMedia() {
+    sharedLoading.value = true;
+    sharedError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.media-links-documents', props.chat.id));
+        sharedPayload.value = data as SharedPayload;
+    } catch (e: any) {
+        sharedError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось загрузить медиа';
+    } finally {
+        sharedLoading.value = false;
+    }
+}
+
+function isImage(item: ChatSharedMedia): boolean {
+    return item.mime_type.toLowerCase().startsWith('image/');
+}
+
+function isVideo(item: ChatSharedMedia): boolean {
+    return item.mime_type.toLowerCase().startsWith('video/');
+}
+
+function formatFileSize(size?: number | null): string {
+    if (!size || size <= 0) return '';
+    if (size < 1024) return `${size} Б`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`;
+    return `${(size / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function formatSharedDate(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    return formatChatTime(dateStr);
+}
+
+function documentIconLabel(item: ChatSharedMedia): string {
+    const fn = (item.filename || '').toLowerCase();
+    const mt = item.mime_type.toLowerCase();
+    if (mt.includes('pdf') || fn.endsWith('.pdf')) return 'PDF';
+    if (mt.includes('word') || fn.endsWith('.doc') || fn.endsWith('.docx')) return 'DOC';
+    if (mt.includes('excel') || fn.endsWith('.xls') || fn.endsWith('.xlsx')) return 'XLS';
+    if (mt.startsWith('audio/')) return 'AUD';
+    return 'FILE';
+}
 
 type GroupParticipant = {
     id: string;
@@ -163,6 +323,18 @@ watch(
     () => {
         participants.value = [];
         participantsError.value = null;
+        mediaBrowserOpen.value = false;
+        sharedTab.value = 'media';
+        sharedPayload.value = {
+            media: [],
+            links: [],
+            documents: [],
+            counts: { media: 0, links: 0, documents: 0, total: 0 },
+        };
+        sharedError.value = null;
+        contactCard.value = null;
+        contactCardError.value = null;
+        loadContactCard();
         if (isGroup.value) loadParticipants();
     },
     { immediate: true },
@@ -172,6 +344,10 @@ function onEscape(e: KeyboardEvent) {
     if (e.key !== 'Escape') return;
     if (participantMenuOpen.value) {
         closeParticipantMenu();
+        return;
+    }
+    if (mediaBrowserOpen.value) {
+        closeMediaBrowser();
         return;
     }
     emit('close');
@@ -338,8 +514,155 @@ async function saveContactName() {
             </div>
         </teleport>
 
+        <!-- Media / links / documents browser -->
+        <div v-if="mediaBrowserOpen" class="flex-1 overflow-y-auto wa-scrollbar">
+            <div class="h-[60px] px-4 flex items-center gap-4 sticky top-0 z-10" :style="{ background: 'var(--wa-panel-header)' }">
+                <button
+                    type="button"
+                    class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                    title="Назад"
+                    @click="closeMediaBrowser"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <div class="min-w-0 flex-1">
+                    <div class="text-base truncate" :style="{ color: 'var(--wa-text)' }">Медиа, ссылки и документы</div>
+                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ sharedTotalCount }} элементов</div>
+                </div>
+            </div>
+
+            <div class="px-4 py-3">
+                <div class="grid grid-cols-3 gap-1 rounded-xl p-1" :style="{ background: 'var(--wa-panel-header)' }">
+                    <button
+                        type="button"
+                        class="shared-tab"
+                        :class="{ 'shared-tab-active': sharedTab === 'media' }"
+                        @click="sharedTab = 'media'"
+                    >
+                        Медиа {{ sharedPayload.counts.media || 0 }}
+                    </button>
+                    <button
+                        type="button"
+                        class="shared-tab"
+                        :class="{ 'shared-tab-active': sharedTab === 'links' }"
+                        @click="sharedTab = 'links'"
+                    >
+                        Ссылки {{ sharedPayload.counts.links || 0 }}
+                    </button>
+                    <button
+                        type="button"
+                        class="shared-tab"
+                        :class="{ 'shared-tab-active': sharedTab === 'documents' }"
+                        @click="sharedTab = 'documents'"
+                    >
+                        Документы {{ sharedPayload.counts.documents || 0 }}
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="sharedLoading" class="px-4 py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                Загрузка…
+            </div>
+            <div v-else-if="sharedError" class="px-4 py-6 text-sm" :style="{ color: 'var(--wa-danger)' }">
+                {{ sharedError }}
+                <button type="button" class="block mt-3 underline" @click="loadSharedMedia">Повторить</button>
+            </div>
+
+            <div v-else class="px-4 pb-6">
+                <div v-if="sharedTab === 'media'">
+                    <div v-if="sharedPayload.media.length === 0" class="shared-empty">
+                        В этом чате пока нет фото или видео.
+                    </div>
+                    <div v-else class="grid grid-cols-3 gap-1">
+                        <a
+                            v-for="item in sharedPayload.media"
+                            :key="item.id"
+                            :href="item.url"
+                            target="_blank"
+                            rel="noopener"
+                            class="shared-media-tile"
+                            :title="item.filename || item.mime_type"
+                        >
+                            <img
+                                v-if="isImage(item)"
+                                :src="item.url"
+                                class="w-full h-full object-cover"
+                                alt=""
+                            />
+                            <video
+                                v-else-if="isVideo(item)"
+                                :src="item.url"
+                                class="w-full h-full object-cover"
+                                muted
+                                preload="metadata"
+                            ></video>
+                            <div v-else class="shared-media-fallback">{{ documentIconLabel(item) }}</div>
+                            <span v-if="isVideo(item)" class="shared-media-play">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+
+                <div v-else-if="sharedTab === 'links'">
+                    <div v-if="sharedPayload.links.length === 0" class="shared-empty">
+                        В этом чате пока нет ссылок.
+                    </div>
+                    <div v-else class="space-y-2">
+                        <a
+                            v-for="item in sharedPayload.links"
+                            :key="item.id"
+                            :href="item.url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="shared-list-row"
+                        >
+                            <div class="shared-link-icon">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.657-5.657l1.414-1.414m2.829 2.829a4 4 0 010-5.657l1.414-1.414a4 4 0 015.657 5.657l-1.414 1.414" />
+                                </svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="shared-row-title truncate">{{ item.host }}</div>
+                                <div class="shared-row-subtitle truncate">{{ item.url }}</div>
+                                <div class="shared-row-date">{{ formatSharedDate(item.message_at) }}</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div v-else>
+                    <div v-if="sharedPayload.documents.length === 0" class="shared-empty">
+                        В этом чате пока нет документов.
+                    </div>
+                    <div v-else class="space-y-2">
+                        <a
+                            v-for="item in sharedPayload.documents"
+                            :key="item.id"
+                            :href="item.download_url"
+                            class="shared-list-row"
+                        >
+                            <div class="shared-doc-icon">{{ documentIconLabel(item) }}</div>
+                            <div class="min-w-0 flex-1">
+                                <div class="shared-row-title truncate">{{ item.filename || 'Документ' }}</div>
+                                <div class="shared-row-subtitle">
+                                    {{ item.mime_type }}<span v-if="formatFileSize(item.file_size)"> · {{ formatFileSize(item.file_size) }}</span>
+                                </div>
+                                <div class="shared-row-date">{{ formatSharedDate(item.message_at) }}</div>
+                            </div>
+                            <svg class="w-4 h-4 shrink-0" :style="{ color: 'var(--wa-text-secondary)' }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Scrollable content -->
-        <div class="flex-1 overflow-y-auto wa-scrollbar">
+        <div v-else class="flex-1 overflow-y-auto wa-scrollbar">
             <!-- Avatar header -->
             <div class="py-8 flex flex-col items-center px-6">
                 <div
@@ -368,6 +691,89 @@ async function saveContactName() {
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
                     {{ phoneLabel }}
+                </div>
+            </div>
+
+            <!-- Auto contact card -->
+            <div v-if="!isGroup" class="px-4 pb-4">
+                <div class="contact-card">
+                    <div class="contact-card__head">
+                        <div>
+                            <div class="contact-card__title">Карточка контакта</div>
+                            <div class="contact-card__subtitle">Автоматически собрано из диалогов</div>
+                        </div>
+                        <button
+                            type="button"
+                            class="contact-card__refresh"
+                            :disabled="contactCardLoading"
+                            title="Обновить"
+                            @click="loadContactCard"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v6h6M20 20v-6h-6M5 19A9 9 0 0019 5M19 5h-5M5 19h5" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div v-if="contactCardLoading" class="contact-card__muted">Загрузка карточки…</div>
+                    <div v-else-if="contactCardError" class="contact-card__error">{{ contactCardError }}</div>
+                    <div v-else-if="contactCard" class="space-y-3">
+                        <div class="contact-card__grid">
+                            <div>
+                                <div class="contact-card__label">Чатов</div>
+                                <div class="contact-card__value">{{ contactCard.activity.chats_count }}</div>
+                            </div>
+                            <div>
+                                <div class="contact-card__label">Каналов</div>
+                                <div class="contact-card__value">{{ contactCard.activity.channels_count }}</div>
+                            </div>
+                            <div>
+                                <div class="contact-card__label">Сообщений</div>
+                                <div class="contact-card__value">{{ contactCard.activity.messages.total }}</div>
+                            </div>
+                            <div>
+                                <div class="contact-card__label">Вложения</div>
+                                <div class="contact-card__value">
+                                    {{ contactCard.activity.attachments.media + contactCard.activity.attachments.documents + contactCard.activity.attachments.links }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="contact-card__facts">
+                            <div>
+                                <span>Первое сообщение:</span>
+                                {{ formatChatTime(contactCard.activity.first_message_at) || '—' }}
+                            </div>
+                            <div>
+                                <span>Последняя активность:</span>
+                                {{ formatChatTime(contactCard.activity.last_message_at) || '—' }}
+                            </div>
+                            <div>
+                                <span>От клиента:</span>
+                                {{ contactCard.activity.messages.inbound }}
+                            </div>
+                            <div>
+                                <span>От операторов:</span>
+                                {{ contactCard.activity.messages.outbound }}
+                            </div>
+                        </div>
+
+                        <div v-if="contactCard.activity.last_client_message" class="contact-card__last">
+                            <div class="contact-card__label">Последняя реплика клиента</div>
+                            <div class="contact-card__last-text">{{ shortMessagePreview(contactCard.activity.last_client_message) }}</div>
+                        </div>
+
+                        <div v-if="contactCard.identity.possible_names.length > 1" class="contact-card__chips">
+                            <span
+                                v-for="name in contactCard.identity.possible_names.slice(0, 5)"
+                                :key="name"
+                                class="contact-card__chip"
+                            >
+                                {{ name }}
+                            </span>
+                        </div>
+                    </div>
+                    <div v-else class="contact-card__muted">Нет данных для карточки.</div>
                 </div>
             </div>
 
@@ -480,13 +886,13 @@ async function saveContactName() {
 
             <!-- Info rows -->
             <div class="py-2">
-                <button class="info-row w-full" @click="notImplemented('Медиа, ссылки и документы')" type="button">
+                <button class="info-row w-full" @click="openMediaBrowser" type="button">
                     <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span class="info-label">Медиа, ссылки и документы</span>
                     <span class="info-meta">
-                        {{ mediaCount }}
+                        {{ sharedTotalCount }}
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
@@ -500,12 +906,6 @@ async function saveContactName() {
                     <span class="info-label">Избранные</span>
                 </button>
 
-                <button class="info-row w-full" @click="notImplemented('Настройки уведомлений')" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span class="info-label">Настройки уведомлений</span>
-                </button>
             </div>
 
             <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
@@ -529,34 +929,6 @@ async function saveContactName() {
                 </button>
             </div>
 
-            <div class="h-2" :style="{ background: 'var(--wa-bg)' }"></div>
-
-            <!-- Danger actions -->
-            <div class="py-2 pb-6">
-                <button class="info-row info-row-danger w-full" @click="clearChat" type="button" :disabled="working">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="9" />
-                        <line x1="7" y1="12" x2="17" y2="12" stroke-linecap="round" />
-                    </svg>
-                    <span class="info-label">Очистить чат</span>
-                </button>
-
-                <button class="info-row info-row-danger w-full" @click="notImplemented('Блокировка контакта')" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="9" />
-                        <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke-linecap="round" />
-                    </svg>
-                    <span class="info-label truncate">Заблокировать {{ displayName }}</span>
-                </button>
-
-                <button class="info-row info-row-danger w-full" @click="notImplemented('Жалоба')" type="button">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span class="info-label truncate">Пожаловаться на {{ displayName }}</span>
-                </button>
-
-            </div>
         </div>
     </aside>
 
@@ -710,6 +1082,202 @@ async function saveContactName() {
 }
 .info-row-danger:hover {
     background-color: rgba(239, 68, 68, 0.08);
+}
+.contact-card {
+    border-radius: 0.875rem;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    padding: 0.875rem;
+}
+.contact-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.contact-card__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--wa-text);
+}
+.contact-card__subtitle,
+.contact-card__muted {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+}
+.contact-card__refresh {
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--wa-text-secondary);
+}
+.contact-card__refresh:hover:not(:disabled) {
+    color: var(--wa-text);
+    background: var(--wa-panel-hover);
+}
+.contact-card__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+.contact-card__grid > div {
+    border-radius: 0.625rem;
+    background: var(--wa-panel);
+    border: 1px solid var(--wa-border);
+    padding: 0.5rem;
+}
+.contact-card__label {
+    font-size: 0.6875rem;
+    color: var(--wa-text-secondary);
+}
+.contact-card__value {
+    margin-top: 0.125rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--wa-text);
+}
+.contact-card__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--wa-text);
+}
+.contact-card__facts span {
+    color: var(--wa-text-secondary);
+}
+.contact-card__last {
+    border-radius: 0.625rem;
+    background: var(--wa-panel);
+    border: 1px solid var(--wa-border);
+    padding: 0.625rem;
+}
+.contact-card__last-text {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--wa-text);
+    line-height: 1.35;
+}
+.contact-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+.contact-card__chip {
+    border-radius: 9999px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6875rem;
+    background: var(--wa-panel);
+    border: 1px solid var(--wa-border);
+    color: var(--wa-text-secondary);
+}
+.contact-card__error {
+    font-size: 0.75rem;
+    color: var(--wa-danger);
+}
+.shared-tab {
+    border-radius: 0.625rem;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--wa-text-secondary);
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.shared-tab:hover,
+.shared-tab-active {
+    color: var(--wa-text);
+    background-color: var(--wa-selected);
+}
+.shared-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--wa-text-secondary);
+}
+.shared-media-tile {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    background: var(--wa-panel-header);
+    color: var(--wa-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+.shared-media-tile:hover {
+    filter: brightness(0.92);
+}
+.shared-media-fallback {
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.shared-media-play {
+    position: absolute;
+    inset: auto 0.35rem 0.35rem auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.55);
+}
+.shared-list-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.shared-list-row:hover {
+    background: var(--wa-panel-hover);
+    border-color: var(--wa-border-strong);
+}
+.shared-link-icon,
+.shared-doc-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-panel);
+    color: var(--wa-accent);
+    border: 1px solid var(--wa-border);
+}
+.shared-doc-icon {
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+.shared-row-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--wa-text);
+}
+.shared-row-subtitle {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+}
+.shared-row-date {
+    margin-top: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--wa-text-secondary);
 }
 .sibling-row {
     display: flex;

@@ -1813,11 +1813,14 @@ watch(anyOverlayOpen, (open) => {
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #b0b0b0;
+    color: var(--wa-icon);
     background: transparent;
     transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
 }
-.wa-input-btn:hover { background: rgba(255, 255, 255, 0.05); color: #ffffff; }
+.wa-input-btn:hover {
+    background: var(--wa-panel-hover);
+    color: var(--wa-text);
+}
 .wa-input-btn:active { transform: scale(0.96); }
 .wa-input-btn:disabled { opacity: 0.5; }
 .wa-input-btn-active { color: var(--wa-accent); }
@@ -1843,19 +1846,19 @@ watch(anyOverlayOpen, (open) => {
     padding: 10px 4px;
     border: 0;
     background: transparent;
-    color: #ffffff;
+    color: var(--wa-text);
     font-size: 15px;
     line-height: 22px;
     max-height: 120px;
     overflow-y: auto;
-    caret-color: #ffffff;
+    caret-color: var(--wa-accent);
     white-space: pre-wrap;
     word-break: break-word;
 }
 .wa-rich-editor:focus { outline: none; box-shadow: none; }
 .wa-rich-editor:empty:before {
     content: attr(data-placeholder);
-    color: #9aa0a6;
+    color: var(--wa-text-secondary);
 }
 
 .wa-mention-pill {
@@ -1865,7 +1868,7 @@ watch(anyOverlayOpen, (open) => {
     border-radius: 9999px;
     background: color-mix(in srgb, var(--wa-accent) 22%, transparent);
     border: 1px solid color-mix(in srgb, var(--wa-accent) 45%, transparent);
-    color: #eaf4ff;
+    color: var(--wa-text);
     font-size: 14px;
     line-height: 20px;
     user-select: none;
@@ -1875,10 +1878,10 @@ watch(anyOverlayOpen, (open) => {
     border-left: 3px solid var(--wa-accent);
     padding-left: 10px;
     margin: 6px 0;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--wa-text-secondary);
 }
 .wa-rich-editor pre {
-    background: rgba(0, 0, 0, 0.28);
+    background: color-mix(in srgb, var(--wa-text) 10%, transparent);
     padding: 8px 10px;
     border-radius: 10px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -1896,9 +1899,9 @@ watch(anyOverlayOpen, (open) => {
     gap: 6px;
     padding: 8px 10px;
     border-radius: 9999px;
-    background: rgba(23, 23, 23, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    background: var(--wa-formatbar-bg);
+    border: 1px solid var(--wa-formatbar-border);
+    box-shadow: var(--wa-formatbar-shadow);
     backdrop-filter: blur(10px);
 }
 .wa-fbtn {
@@ -1908,18 +1911,18 @@ watch(anyOverlayOpen, (open) => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--wa-formatbar-fg);
     transition: background-color 0.12s ease, transform 0.12s ease;
 }
-.wa-fbtn:hover { background: rgba(255, 255, 255, 0.08); }
+.wa-fbtn:hover { background: var(--wa-formatbar-btn-hover); }
 .wa-fbtn:active { transform: scale(0.96); }
 .wa-ficon { width: 18px; height: 18px; display: block; }
 .wa-fbtn-txt { font-size: 15px; line-height: 1; }
 .wa-fbtn-txt--bold { font-weight: 800; }
 .wa-fbtn-txt--italic { font-style: italic; }
 .wa-fbtn-txt--strike { text-decoration: line-through; }
-.wa-fsep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.12); margin: 0 2px; }
-.wa-fcount { margin-left: 6px; font-size: 12px; color: rgba(255, 255, 255, 0.6); min-width: 22px; text-align: right; }
+.wa-fsep { width: 1px; height: 18px; background: var(--wa-formatbar-sep); margin: 0 2px; }
+.wa-fcount { margin-left: 6px; font-size: 12px; color: var(--wa-formatbar-muted); min-width: 22px; text-align: right; }
 
 .attach-menu {
     animation: picker-pop 0.14s ease-out;
@@ -1966,8 +1969,8 @@ watch(anyOverlayOpen, (open) => {
     z-index: 100;
     display: flex;
     flex-direction: column;
-    background: rgba(0, 0, 0, 0.7);
-    color: #e9edef;
+    background: var(--wa-scrim-heavy);
+    color: var(--wa-text);
     outline: none;
 }
 
@@ -2007,13 +2010,13 @@ watch(anyOverlayOpen, (open) => {
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #e9edef;
+    color: var(--wa-text);
     background: transparent;
     flex-shrink: 0;
     transition: background-color 0.15s ease;
 }
 .att-tool-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--wa-panel-hover);
 }
 .att-tool-btn:disabled {
     opacity: 0.5;
@@ -2042,7 +2045,7 @@ watch(anyOverlayOpen, (open) => {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.35), transparent);
+    background: linear-gradient(to top, var(--wa-att-preview-bottom-fade), transparent);
 }
 
 .att-preview-caption-row {
@@ -2096,7 +2099,7 @@ watch(anyOverlayOpen, (open) => {
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
-    color: #fff;
+    color: var(--wa-accent-on);
     background: var(--wa-accent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     transition: background-color 0.15s ease, transform 0.08s ease;
@@ -2116,8 +2119,8 @@ watch(anyOverlayOpen, (open) => {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-top-color: #fff;
+    border: 2px solid color-mix(in srgb, var(--wa-accent-on) 35%, transparent);
+    border-top-color: var(--wa-accent-on);
     animation: att-spin 0.8s linear infinite;
 }
 @keyframes att-spin {
@@ -2157,15 +2160,15 @@ watch(anyOverlayOpen, (open) => {
     transform: translateY(-1px);
 }
 .att-preview-thumb-active {
-    border-color: #00a884;
+    border-color: var(--wa-accent);
 }
 .att-preview-thumb-add {
-    color: #e9edef;
-    background: rgba(255, 255, 255, 0.06);
-    border: 2px dashed rgba(255, 255, 255, 0.18);
+    color: var(--wa-att-thumb-add-fg);
+    background: var(--wa-att-thumb-add-bg);
+    border: 2px dashed var(--wa-att-thumb-add-border);
 }
 .att-preview-thumb-add:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--wa-att-thumb-add-bg-hover);
 }
 .att-preview-thumb:disabled {
     opacity: 0.5;
@@ -2177,7 +2180,7 @@ watch(anyOverlayOpen, (open) => {
     position: fixed;
     inset: 0;
     z-index: 110;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--wa-scrim-heavy);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2396,11 +2399,11 @@ watch(anyOverlayOpen, (open) => {
     background: var(--wa-panel-hover, rgba(255, 255, 255, 0.04));
 }
 .contact-btn-send {
-    background: #00a884;
-    color: #fff;
+    background: var(--wa-accent);
+    color: var(--wa-accent-on);
 }
 .contact-btn-send:hover:not(:disabled) {
-    background: #06cf9c;
+    background: var(--wa-accent-hover);
 }
 .contact-btn-send:disabled,
 .contact-btn-cancel:disabled {
@@ -2446,7 +2449,7 @@ watch(anyOverlayOpen, (open) => {
 }
 .poll-input:focus {
     outline: none;
-    box-shadow: 0 0 0 1px #00a884 inset;
+    box-shadow: 0 0 0 1px var(--wa-accent) inset;
 }
 .poll-input::placeholder {
     color: var(--wa-text-secondary, #9aa0a4);
@@ -2497,14 +2500,14 @@ watch(anyOverlayOpen, (open) => {
     margin-top: 4px;
     padding: 8px 12px;
     border-radius: 9999px;
-    color: #00a884;
-    background: rgba(0, 168, 132, 0.1);
+    color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 12%, transparent);
     font-size: 13px;
     font-weight: 500;
     transition: background-color 0.15s ease;
 }
 .poll-add-option:hover:not(:disabled) {
-    background: rgba(0, 168, 132, 0.18);
+    background: color-mix(in srgb, var(--wa-accent) 20%, transparent);
 }
 .poll-add-option:disabled {
     opacity: 0.5;
@@ -2524,7 +2527,7 @@ watch(anyOverlayOpen, (open) => {
 .poll-check input[type='checkbox'] {
     width: 16px;
     height: 16px;
-    accent-color: #00a884;
+    accent-color: var(--wa-accent);
     cursor: pointer;
 }
 .poll-check:has(input:disabled) {

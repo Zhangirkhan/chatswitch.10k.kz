@@ -141,38 +141,39 @@ final class ChatService
         if ($user->hasRole('administrator')) {
             // sees all chats
         } elseif ($user->hasRole('manager')) {
-            // Руководитель отдела видит всё, что относится к его отделу:
-            //  • чаты, назначенные любому сотруднику его отдела (супервизит своих);
-            //  • ИЛИ чаты, где его отдел прикреплён pill'ом — безусловно,
-            //    даже если ответственный из другого отдела (супервизит чаты отдела).
-            $departmentUserIds = User::where('department_id', $user->department_id)->pluck('id');
-            $query->where(function (Builder $q) use ($departmentUserIds, $user): void {
+            // Множественное членство: учитываем все отделы руководителя.
+            //  • чаты, назначенные любому сотруднику любого из его отделов;
+            //  • ИЛИ чаты, где прикреплён ХОТЬ ОДИН его отдел — независимо от назначения.
+            $userDeptIds = $user->departmentIds();
+            $departmentUserIds = $userDeptIds === []
+                ? collect()
+                : User::query()
+                    ->whereHas('departments', static fn (Builder $q) => $q->whereIn('departments.id', $userDeptIds))
+                    ->pluck('id');
+
+            $query->where(function (Builder $q) use ($departmentUserIds, $userDeptIds): void {
                 $q->whereHas('assignments', fn (Builder $aq) => $aq->whereIn('user_id', $departmentUserIds));
-                if ($user->department_id !== null) {
-                    $q->orWhereHas('departments', fn (Builder $dq) => $dq->where('departments.id', $user->department_id));
+                if ($userDeptIds !== []) {
+                    $q->orWhereHas('departments', fn (Builder $dq) => $dq->whereIn('departments.id', $userDeptIds));
                 }
             });
         } else {
             // Рядовой сотрудник видит:
-            //  • чаты, где он лично назначен — он за них отвечает;
-            //  • ИЛИ чаты без назначенных, где прикреплён его отдел — «общий пул», который любой из отдела может взять.
-            $query->where(function (Builder $q) use ($user): void {
+            //  • чаты, где он лично назначен;
+            //  • ИЛИ чаты без назначенных, где прикреплён ЛЮБОЙ из его отделов — «общий пул».
+            $userDeptIds = $user->departmentIds();
+            $query->where(function (Builder $q) use ($user, $userDeptIds): void {
                 $q->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id));
-                if ($user->department_id !== null) {
-                    $q->orWhere(function (Builder $dq) use ($user): void {
+                if ($userDeptIds !== []) {
+                    $q->orWhere(function (Builder $dq) use ($userDeptIds): void {
                         $dq->whereDoesntHave('assignments')
-                            ->whereHas('departments', fn (Builder $ddq) => $ddq->where('departments.id', $user->department_id));
+                            ->whereHas('departments', fn (Builder $ddq) => $ddq->whereIn('departments.id', $userDeptIds));
                     });
                 }
             });
         }
 
-        // Hide empty chats in the left sidebar by default.
-        // If user is searching, include empty chats so they can be found and opened.
         $search = is_string($search) ? trim($search) : null;
-        if ($search === null || $search === '') {
-            $query->whereHas('messages');
-        }
 
         if ($search) {
             $query->where(function (Builder $q) use ($search) {
@@ -229,21 +230,21 @@ final class ChatService
         $digits = preg_replace('/\D/', '', (string) ($contact->whatsapp_id ?: $contact->phone_number));
         $phoneDigits = $this->normalizePhoneDigits($contact->phone_number);
 
+        // Build whatsapp_chat_id candidates: both @c.us and @lid numeric variants.
+        $candidates = array_values(array_unique(array_filter([
+            $contact->whatsapp_id,
+            $contact->phone_number,
+            $digits,
+            $phoneDigits,
+            $digits ? "{$digits}@c.us" : null,
+            $phoneDigits ? "{$phoneDigits}@c.us" : null,
+        ])));
+
         $existing = Chat::query()
             ->where('whatsapp_session_id', $session->id)
             ->where('is_group', false)
-            ->where(function (Builder $q) use ($contact, $digits, $phoneDigits): void {
+            ->where(function (Builder $q) use ($contact, $candidates): void {
                 $q->where('contact_id', $contact->id);
-
-                $candidates = array_values(array_unique(array_filter([
-                    $contact->whatsapp_id,
-                    $contact->phone_number,
-                    $digits,
-                    $phoneDigits,
-                    $digits ? "{$digits}@c.us" : null,
-                    $phoneDigits ? "{$phoneDigits}@c.us" : null,
-                ])));
-
                 if ($candidates !== []) {
                     $q->orWhereIn('whatsapp_chat_id', $candidates);
                 }
@@ -251,6 +252,19 @@ final class ChatService
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->first();
+
+        // Fallback: find any chat on this session whose contact shares the same phone number.
+        // This handles the @lid ↔ @c.us mismatch: the @lid whatsapp_chat_id numeric part
+        // has nothing to do with the phone number, so the candidates list above won't cover it.
+        if ($existing === null && $phoneDigits !== null) {
+            $existing = Chat::query()
+                ->where('whatsapp_session_id', $session->id)
+                ->where('is_group', false)
+                ->whereHas('contact', fn (Builder $q) => $q->where('phone_number', $phoneDigits))
+                ->orderByDesc('last_message_at')
+                ->orderByDesc('id')
+                ->first();
+        }
 
         if ($existing !== null) {
             if (! $existing->contact_id) {
@@ -311,14 +325,31 @@ final class ChatService
     {
         $digits = preg_replace('/\D/', '', $phone);
 
-        return Contact::firstOrCreate(
-            ['whatsapp_id' => $digits],
-            [
-                'phone_number' => $digits,
-                'name' => $name,
-                'push_name' => $name,
-            ],
-        );
+        // 1. Prefer existing contact by phone_number (covers @lid contacts whose phone was extracted)
+        $existing = Contact::where('phone_number', $digits)
+            ->orderByDesc('id')
+            ->first();
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        // 2. Match by whatsapp_id variants (plain digits or @c.us)
+        $existing = Contact::where(function (Builder $q) use ($digits): void {
+            $q->where('whatsapp_id', $digits)
+                ->orWhere('whatsapp_id', "{$digits}@c.us");
+        })->orderByDesc('id')->first();
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        // 3. Create a new contact
+        return Contact::create([
+            'whatsapp_id' => $digits,
+            'phone_number' => $digits,
+            'name' => $name,
+            'push_name' => $name,
+        ]);
     }
 
     public function findOrCreateContact(array $data): Contact
@@ -588,6 +619,7 @@ final class ChatService
         $row = $assignments->first();
         if ($row !== null && (int) $row->user_id === (int) $user->id) {
             ChatAssignment::query()->whereKey($row->id)->delete();
+            $this->logAssignmentChange($chat, $user, [(int) $row->user_id], []);
         }
     }
 

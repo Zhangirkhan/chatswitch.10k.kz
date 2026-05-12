@@ -3,6 +3,18 @@ import './bootstrap';
 import { initTheme } from './composables/useTheme';
 import { initChatBackground } from './composables/useChatBackground';
 import { installKeyboardShortcuts } from './composables/useKeyboardShortcuts';
+import { registerSW } from 'virtual:pwa-register';
+
+/** Service Worker — авто-обновление каждые 60 мин без перезагрузки страницы. */
+registerSW({
+    onNeedRefresh() {
+        // Когда выходит новая версия SW — тихо применяем при следующем открытии
+    },
+    onOfflineReady() {
+        console.info('[PWA] Приложение готово к работе офлайн.');
+    },
+    immediate: true,
+});
 
 initTheme();
 initChatBackground();

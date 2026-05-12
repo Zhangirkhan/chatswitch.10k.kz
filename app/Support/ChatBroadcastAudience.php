@@ -4,18 +4,24 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Events\NewMessageReceived;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class ChatBroadcastAudience
 {
     /**
-     * Пользователи, которые должны получать события списка чатов и чат-канал
-     * (совпадает с логикой {@see NewMessageReceived}).
+     * Пользователи, которые должны получать события списка чатов и чат-канал.
+     *
+     * Логика уведомлений:
+     * • Если за чатом закреплены специалисты (ChatAssignment) →
+     *     уведомляем только их + их менеджеров + администраторов.
+     * • Если никто не закреплён →
+     *     уведомляем ВСЕХ сотрудников + администраторов
+     *     (пришёл новый клиент — хочет, чтобы кто-нибудь ответил).
      *
      * @return list<int>
      */
@@ -24,38 +30,36 @@ final class ChatBroadcastAudience
         $admins = User::role('administrator')->pluck('id')->all();
         $assigned = ChatAssignment::where('chat_id', $chat->id)->pluck('user_id')->all();
 
-        $chatDepartmentIds = $chat->departments()->pluck('departments.id')->all();
-        $assignedDepartmentIds = [];
         if ($assigned !== []) {
-            $assignedDepartmentIds = User::whereIn('id', $assigned)
-                ->whereNotNull('department_id')
+            // ── Есть назначенные специалисты ────────────────────────────────
+            // Уведомляем только их + менеджеров их отделов + администраторов.
+            $assignedDeptIds = DB::table('department_user')
+                ->whereIn('user_id', $assigned)
                 ->pluck('department_id')
+                ->map(fn ($v) => (int) $v)
                 ->unique()
+                ->values()
                 ->all();
+
+            $managerIds = [];
+            if ($assignedDeptIds !== []) {
+                $managerIds = User::role('manager')
+                    ->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $assignedDeptIds))
+                    ->pluck('id')
+                    ->all();
+            }
+
+            return array_values(array_unique(array_merge($admins, $assigned, $managerIds)));
         }
 
-        $supervisorDepartmentIds = array_values(array_unique(array_merge($chatDepartmentIds, $assignedDepartmentIds)));
-        $managerIds = [];
-        if ($supervisorDepartmentIds !== []) {
-            $managerIds = User::role('manager')
-                ->whereIn('department_id', $supervisorDepartmentIds)
-                ->pluck('id')
-                ->all();
-        }
+        // ── Никто не назначен → уведомляем всех сотрудников ────────────────
+        // Это стандартный входящий чат без ответственного — любой может взять его в работу.
+        $allEmployeeIds = User::whereDoesntHave(
+            'roles',
+            fn ($q) => $q->where('name', 'administrator'),
+        )->pluck('id')->all();
 
-        $departmentMemberIds = [];
-        if ($chatDepartmentIds !== [] && $assigned === []) {
-            $departmentMemberIds = User::whereIn('department_id', $chatDepartmentIds)
-                ->pluck('id')
-                ->all();
-        }
-
-        return array_values(array_unique(array_merge(
-            $admins,
-            $assigned,
-            $managerIds,
-            $departmentMemberIds,
-        )));
+        return array_values(array_unique(array_merge($admins, $allEmployeeIds)));
     }
 
     /**

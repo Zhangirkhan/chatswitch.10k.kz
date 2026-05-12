@@ -20,9 +20,18 @@ const editingId = ref<number | null>(null);
 const body = ref('');
 const scheduledAt = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const activeTab = ref<'create' | 'pending' | 'sent' | 'archive'>('create');
 
-const pendingItems = computed(() => items.value.filter((m) => m.status === 'pending' || m.status === 'failed'));
+const pendingItems = computed(() => items.value.filter((m) => m.status === 'pending' || m.status === 'sending'));
 const sentItems = computed(() => items.value.filter((m) => m.status === 'sent'));
+const archiveItems = computed(() => items.value.filter((m) => m.status === 'cancelled' || m.status === 'failed'));
+
+const tabs = computed(() => [
+    { id: 'create' as const, label: editingId.value ? 'Редактировать' : 'Создать', count: null },
+    { id: 'pending' as const, label: 'Ожидают', count: pendingItems.value.length },
+    { id: 'sent' as const, label: 'Отправленные', count: sentItems.value.length },
+    { id: 'archive' as const, label: 'Архив', count: archiveItems.value.length },
+]);
 
 function almatyDateTimeInput(date = new Date()): string {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -81,6 +90,7 @@ async function submit(): Promise<void> {
         }
         resetForm();
         await load();
+        activeTab.value = 'pending';
     } catch (e: any) {
         error.value = e?.response?.data?.message || 'Не удалось сохранить отложенное сообщение.';
     } finally {
@@ -93,6 +103,7 @@ function edit(item: ScheduledMessage): void {
     editingId.value = item.id;
     body.value = item.body || '';
     scheduledAt.value = item.scheduled_at || minScheduleValue();
+    activeTab.value = 'create';
     nextTick(() => textareaRef.value?.focus());
 }
 
@@ -126,6 +137,7 @@ watch(
     (open) => {
         if (!open) return;
         resetForm();
+        activeTab.value = 'create';
         load();
         nextTick(() => textareaRef.value?.focus());
     },
@@ -154,8 +166,24 @@ watch(
                         </div>
                     </div>
 
+                    <div class="sched-tabs" role="tablist" aria-label="Разделы отложенных сообщений">
+                        <button
+                            v-for="tab in tabs"
+                            :key="tab.id"
+                            type="button"
+                            class="sched-tab"
+                            :class="{ 'sched-tab-active': activeTab === tab.id }"
+                            role="tab"
+                            :aria-selected="activeTab === tab.id"
+                            @click="activeTab = tab.id"
+                        >
+                            <span>{{ tab.label }}</span>
+                            <span v-if="tab.count !== null" class="sched-tab-count">{{ tab.count }}</span>
+                        </button>
+                    </div>
+
                     <div class="sched-body wa-scrollbar">
-                        <form class="sched-form" @submit.prevent="submit">
+                        <form v-if="activeTab === 'create'" class="sched-form" @submit.prevent="submit">
                             <textarea
                                 ref="textareaRef"
                                 v-model="body"
@@ -197,7 +225,7 @@ watch(
 
                         <div v-if="error" class="sched-error">{{ error }}</div>
 
-                        <div class="sched-section">
+                        <div v-if="activeTab === 'pending'" class="sched-section sched-section-tab">
                             <div class="sched-section-title">
                                 Ожидают отправки
                                 <span v-if="loading">Загрузка...</span>
@@ -221,14 +249,44 @@ watch(
                             </div>
                         </div>
 
-                        <div v-if="sentItems.length > 0" class="sched-section">
-                            <div class="sched-section-title">Недавно отправленные</div>
+                        <div v-if="activeTab === 'sent'" class="sched-section sched-section-tab">
+                            <div class="sched-section-title">
+                                Недавно отправленные
+                                <span v-if="loading">Загрузка...</span>
+                            </div>
+                            <div v-if="!loading && sentItems.length === 0" class="sched-empty">
+                                Нет отправленных отложенных сообщений.
+                            </div>
                             <div v-for="item in sentItems.slice(0, 10)" :key="item.id" class="sched-card sched-card-sent">
                                 <div class="sched-card-top">
                                     <span class="sched-status">{{ statusLabel(item.status) }}</span>
                                     <span class="sched-time">{{ item.scheduled_at_label }}</span>
                                 </div>
                                 <div class="sched-card-text">{{ item.body }}</div>
+                            </div>
+                        </div>
+
+                        <div v-if="activeTab === 'archive'" class="sched-section sched-section-tab">
+                            <div class="sched-section-title">
+                                Отменённые и ошибки
+                                <span v-if="loading">Загрузка...</span>
+                            </div>
+                            <div v-if="!loading && archiveItems.length === 0" class="sched-empty">
+                                Нет отменённых сообщений и ошибок.
+                            </div>
+                            <div v-for="item in archiveItems" :key="item.id" class="sched-card" :class="{ 'sched-card-failed': item.status === 'failed' }">
+                                <div class="sched-card-top">
+                                    <span class="sched-status" :class="{ 'sched-status-error': item.status === 'failed' }">
+                                        {{ statusLabel(item.status) }}
+                                    </span>
+                                    <span class="sched-time">{{ item.scheduled_at_label }}</span>
+                                </div>
+                                <div class="sched-card-text">{{ item.body }}</div>
+                                <div v-if="item.error" class="sched-card-error">{{ item.error }}</div>
+                                <div v-if="item.status === 'failed'" class="sched-card-actions">
+                                    <button type="button" @click="edit(item)">Редактировать</button>
+                                    <button type="button" class="sched-danger" @click="cancel(item)">Отменить</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -247,7 +305,7 @@ watch(
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(0, 0, 0, 0.62);
+    background: var(--wa-scrim);
 }
 .sched-sheet {
     width: min(560px, 100%);
@@ -288,6 +346,48 @@ watch(
     margin: 2px 0 0;
     font-size: 12px;
     color: var(--wa-text-secondary);
+}
+.sched-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--wa-border);
+    overflow-x: auto;
+}
+.sched-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 9999px;
+    color: var(--wa-text-secondary);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+.sched-tab:hover {
+    color: var(--wa-text);
+    background: var(--wa-panel-hover);
+}
+.sched-tab-active {
+    color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 14%, transparent);
+}
+.sched-tab-count {
+    min-width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border-radius: 9999px;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--wa-text);
+    background: color-mix(in srgb, currentColor 14%, transparent);
 }
 .sched-body {
     flex: 1;
@@ -371,12 +471,15 @@ watch(
     margin-top: 10px;
     padding: 9px 10px;
     border-radius: 10px;
-    color: #ffd7dc;
-    background: rgba(239, 68, 68, 0.16);
+    color: var(--wa-sched-error-fg);
+    background: var(--wa-sched-error-bg);
     font-size: 13px;
 }
 .sched-section {
     margin-top: 16px;
+}
+.sched-section-tab {
+    margin-top: 0;
 }
 .sched-section-title {
     display: flex;
@@ -404,6 +507,9 @@ watch(
 }
 .sched-card + .sched-card { margin-top: 8px; }
 .sched-card-sent { opacity: 0.72; }
+.sched-card-failed {
+    border-color: color-mix(in srgb, var(--wa-sched-danger-fg) 38%, var(--wa-border));
+}
 .sched-card-top {
     display: flex;
     justify-content: space-between;
@@ -416,7 +522,7 @@ watch(
     color: var(--wa-accent);
     font-weight: 600;
 }
-.sched-status-error { color: #fca5a5; }
+.sched-status-error { color: var(--wa-sched-danger-fg); }
 .sched-time {
     font-variant-numeric: tabular-nums;
 }
@@ -439,8 +545,8 @@ watch(
     background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
 }
 .sched-card-actions .sched-danger {
-    color: #fca5a5;
-    background: rgba(239, 68, 68, 0.12);
+    color: var(--wa-sched-danger-fg);
+    background: var(--wa-sched-danger-bg);
 }
 .sched-fade-enter-active,
 .sched-fade-leave-active { transition: opacity 0.16s ease; }

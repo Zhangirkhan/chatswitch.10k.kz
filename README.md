@@ -80,6 +80,16 @@ chmod +x scripts/purge-chats-and-contacts.sh   # один раз
 
 Операция **необратима** — используйте `--dry-run` перед боевым запуском.
 
+## Документация
+
+| Файл | Описание |
+|------|----------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Общая архитектура, стек, карта компонентов, порты и пути |
+| [docs/WHATSAPP_MULTI_NUMBER_AND_IP.md](docs/WHATSAPP_MULTI_NUMBER_AND_IP.md) | Несколько номеров WhatsApp на одном IP |
+| [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md) | AI-ассистент оператора: настройка OpenAI, архитектура, права |
+| [docs/FUNNEL.md](docs/FUNNEL.md) | Воронки продаж: модели, маршруты, аналитика |
+| [docs/TASKS.md](docs/TASKS.md) | Задачи по отделам: статусы, комментарии, вложения, права |
+
 ## Прочие команды
 
 ```bash

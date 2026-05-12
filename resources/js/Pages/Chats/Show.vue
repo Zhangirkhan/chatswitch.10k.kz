@@ -6,6 +6,7 @@ import ChatInput from './Partials/ChatInput.vue';
 import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
 import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
+import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
@@ -23,6 +24,10 @@ const props = defineProps<{
 const { show: showToast } = useToastStore();
 
 const localMessages = ref<Message[]>([...props.messages.data].reverse());
+const localChats = ref<Paginated<Chat>>({
+    ...props.chats,
+    data: [...props.chats.data],
+});
 
 /** Чат после SET NULL на сессии может терять whatsapp_session_id, тогда берём из сообщений / relation. */
 const forwardWhatsappSessionId = computed((): number | null => {
@@ -116,6 +121,7 @@ const searchQuery = ref('');
 const contactInfoOpen = ref(false);
 const messageInfoOpen = ref(false);
 const messageInfoMessage = ref<Message | null>(null);
+const aiPanelOpen = ref(false);
 const replyTo = ref<Message | null>(null);
 const forwardOpen = ref(false);
 const forwardMessage = ref<Message | null>(null);
@@ -199,6 +205,17 @@ function toggleSearch() {
 
 function toggleContactInfo() {
     contactInfoOpen.value = !contactInfoOpen.value;
+    if (contactInfoOpen.value) aiPanelOpen.value = false;
+}
+
+function openAiPanel() {
+    aiPanelOpen.value = true;
+    contactInfoOpen.value = false;
+    messageInfoOpen.value = false;
+}
+
+function closeAiPanel() {
+    aiPanelOpen.value = false;
 }
 
 function openMessageInfo(msg: Message) {
@@ -291,6 +308,13 @@ watch(() => props.messages, (newVal) => {
     nextTick(scrollToBottom);
 });
 
+watch(() => props.chats, (newVal) => {
+    localChats.value = {
+        ...newVal,
+        data: [...newVal.data],
+    };
+});
+
 onMounted(() => {
     scrollToBottom();
     markAsRead();
@@ -312,11 +336,19 @@ function scrollToBottom() {
 }
 
 function markAsRead() {
-    if (props.chat.unread_count > 0) {
+    const localUnread = localChats.value.data.find((chat) => chat.id === props.chat.id)?.unread_count ?? 0;
+    if (props.chat.unread_count > 0 || localUnread > 0) {
+        localChats.value = {
+            ...localChats.value,
+            data: localChats.value.data.map((chat) =>
+                chat.id === props.chat.id ? { ...chat, unread_count: 0 } : chat
+            ),
+        };
+
         axios
             .post(route('chats.mark-read', props.chat.id))
             .then(() => {
-                router.reload({ only: ['unreadChatsCount', 'chat'] });
+                router.reload({ only: ['unreadChatsCount', 'chat', 'chats'] });
             })
             .catch(() => {});
     }
@@ -421,7 +453,7 @@ function cleanupEcho() {
 
 <template>
     <Head :title="chat.chat_name || 'Чат'" />
-    <ChatLayout :chats="chats" :selected-chat-id="chat.id">
+    <ChatLayout :chats="localChats" :selected-chat-id="chat.id">
         <div class="flex h-full w-full min-h-0">
             <div class="flex flex-col flex-1 min-w-0 min-h-0">
                 <ChatHeader
@@ -431,6 +463,7 @@ function cleanupEcho() {
                     :assignable-users="assignableUsers"
                     @toggle-search="toggleSearch"
                     @show-contact-info="toggleContactInfo"
+                    @open-ai="openAiPanel"
                 />
 
                 <!-- Inline message search -->
@@ -612,6 +645,13 @@ function cleanupEcho() {
                 v-if="messageInfoOpen && messageInfoMessage"
                 :message="messageInfoMessage"
                 @close="closeMessageInfo"
+            />
+
+            <AiAssistantPanel
+                v-if="aiPanelOpen"
+                :chat-id="chat.id"
+                :chat-name="chat.chat_name || chat.contact?.name || chat.contact?.push_name || null"
+                @close="closeAiPanel"
             />
 
             <ForwardMessageModal

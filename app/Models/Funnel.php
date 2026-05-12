@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * Воронка продаж — справочник «контейнер для этапов». Этапы создаются вручную
+ * через {@see FunnelStage}; порядок задаёт колонка `position` (asc).
+ */
+final class Funnel extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'description',
+        'color',
+        'is_active',
+        'position',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+            'position' => 'integer',
+        ];
+    }
+
+    /**
+     * Этапы воронки в порядке возрастания `position`. Сортировку держим на
+     * уровне relation, чтобы у фронта всегда был стабильный порядок.
+     *
+     * @return HasMany<FunnelStage>
+     */
+    public function stages(): HasMany
+    {
+        return $this->hasMany(FunnelStage::class)->orderBy('position');
+    }
+
+    /**
+     * Отделы, в которых эта воронка подключена (см. pivot `department_funnel`).
+     */
+    public function departments(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'department_funnel')
+            ->withTimestamps();
+    }
+}

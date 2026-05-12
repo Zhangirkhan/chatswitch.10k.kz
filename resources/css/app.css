@@ -80,6 +80,43 @@
     --msg-reaction-bar-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
     --msg-reaction-emoji-color: #f5f5f5;
     --msg-reaction-btn-hover: rgba(255, 200, 100, 0.18);
+
+    /* Modals, media preview, floating format bar */
+    --wa-scrim: rgba(0, 0, 0, 0.62);
+    --wa-scrim-heavy: rgba(0, 0, 0, 0.72);
+    --wa-formatbar-bg: rgba(23, 23, 23, 0.96);
+    --wa-formatbar-border: rgba(255, 255, 255, 0.08);
+    --wa-formatbar-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    --wa-formatbar-fg: rgba(255, 255, 255, 0.88);
+    --wa-formatbar-muted: rgba(255, 255, 255, 0.6);
+    --wa-formatbar-btn-hover: rgba(255, 255, 255, 0.08);
+    --wa-formatbar-sep: rgba(255, 255, 255, 0.12);
+    --wa-link-preview-surface: rgba(255, 255, 255, 0.06);
+    --wa-link-preview-surface-hover: rgba(255, 255, 255, 0.075);
+    --wa-link-preview-border: rgba(255, 255, 255, 0.1);
+    --wa-link-preview-img-bg: rgba(0, 0, 0, 0.25);
+    --wa-link-preview-skel: rgba(255, 255, 255, 0.1);
+    --wa-metric-warn: #fcd34d;
+    --wa-sched-error-fg: #ffd7dc;
+    --wa-sched-error-bg: rgba(239, 68, 68, 0.16);
+    --wa-sched-danger-fg: #fca5a5;
+    --wa-sched-danger-bg: rgba(239, 68, 68, 0.12);
+    --wa-att-preview-bottom-fade: rgba(0, 0, 0, 0.35);
+    --wa-att-thumb-add-border: rgba(255, 255, 255, 0.18);
+    --wa-att-thumb-add-bg: rgba(255, 255, 255, 0.06);
+    --wa-att-thumb-add-bg-hover: rgba(255, 255, 255, 0.12);
+    --wa-att-thumb-add-fg: rgba(233, 237, 239, 0.95);
+
+    /* Шапка чата: пилюли «Отделы» / «Отложенные» */
+    --wa-header-pill-dept-text: #fde68a;
+    --wa-header-pill-dept-text-active: #fffbeb;
+    --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+    --wa-header-pill-sched-text: #bfdbfe;
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, #3b82f6 16%, var(--wa-panel));
+    --wa-assignee-pill-fg: #b6f7df;
+
+    /* Внутренние «колодцы» списков/графиков (не использовать chat-parchment wa-bg) */
+    --wa-surface-inset: color-mix(in srgb, var(--wa-bg) 58%, var(--wa-panel) 42%);
 }
 
 /* Light */
@@ -136,7 +173,8 @@
     --wa-system-chat-pill-bg: rgba(255, 255, 255, 0.92);
     --wa-system-chat-pill-text: #667781;
     --wa-avatar-bg: #DFE5E7;
-    --wa-avatar-icon: #FFFFFF;
+    /* Тёмная силуэтная иконка — белый на светло-сером круге нечитаем */
+    --wa-avatar-icon: #54656F;
     --wa-danger: #E53935;
 
     /* Контекстное меню и реакции: белая плашка, читаемые тени и ховеры */
@@ -150,6 +188,40 @@
     --msg-reaction-bar-shadow: 0 6px 22px rgba(17, 27, 33, 0.1), 0 1px 3px rgba(17, 27, 33, 0.06);
     --msg-reaction-emoji-color: #111b21;
     --msg-reaction-btn-hover: rgba(0, 128, 105, 0.14);
+
+    --wa-scrim: rgba(17, 27, 33, 0.38);
+    --wa-scrim-heavy: rgba(17, 27, 33, 0.52);
+    --wa-formatbar-bg: rgba(255, 255, 255, 0.98);
+    --wa-formatbar-border: rgba(17, 27, 33, 0.1);
+    --wa-formatbar-shadow: 0 8px 28px rgba(17, 27, 33, 0.12);
+    --wa-formatbar-fg: #3b4a54;
+    --wa-formatbar-muted: rgba(17, 27, 33, 0.45);
+    --wa-formatbar-btn-hover: rgba(17, 27, 33, 0.06);
+    --wa-formatbar-sep: rgba(17, 27, 33, 0.12);
+    --wa-link-preview-surface: rgba(17, 27, 33, 0.05);
+    --wa-link-preview-surface-hover: rgba(17, 27, 33, 0.08);
+    --wa-link-preview-border: rgba(17, 27, 33, 0.1);
+    --wa-link-preview-img-bg: rgba(17, 27, 33, 0.06);
+    --wa-link-preview-skel: rgba(17, 27, 33, 0.08);
+    --wa-metric-warn: #b45309;
+    --wa-sched-error-fg: #991b1b;
+    --wa-sched-error-bg: rgba(239, 68, 68, 0.12);
+    --wa-sched-danger-fg: #b91c1c;
+    --wa-sched-danger-bg: rgba(239, 68, 68, 0.1);
+    --wa-att-preview-bottom-fade: rgba(255, 255, 255, 0.55);
+    --wa-att-thumb-add-border: rgba(17, 27, 33, 0.2);
+    --wa-att-thumb-add-bg: rgba(17, 27, 33, 0.04);
+    --wa-att-thumb-add-bg-hover: rgba(17, 27, 33, 0.08);
+    --wa-att-thumb-add-fg: var(--wa-text-secondary);
+
+    --wa-header-pill-dept-text: #92400e;
+    --wa-header-pill-dept-text-active: #78350f;
+    --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
+    --wa-header-pill-sched-text: #1e40af;
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, #3b82f6 18%, var(--wa-panel));
+    --wa-assignee-pill-fg: #0a5c4a;
+
+    --wa-surface-inset: #e8edf2;
 }
 
 html,

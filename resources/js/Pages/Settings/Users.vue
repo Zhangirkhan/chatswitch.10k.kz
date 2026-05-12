@@ -1,13 +1,31 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import type { User, Department, WhatsappSession } from '@/types';
 import { useToastStore } from '@/stores/toast';
 
+type PaginationPayload<T> = {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+};
+
+type UserFilters = {
+    search: string;
+    role: string;
+    department_id: number | null;
+    status: string;
+};
+
 const props = defineProps<{
-    users: User[];
+    users: PaginationPayload<User>;
+    filters: UserFilters;
     departments: Department[];
     whatsappSessions: WhatsappSession[];
     availableRoles: string[];
@@ -15,7 +33,13 @@ const props = defineProps<{
 
 const { show: showToast } = useToastStore();
 
-const local = ref<User[]>([...props.users]);
+const local = ref<User[]>([...props.users.data]);
+const filters = ref<UserFilters>({
+    search: props.filters.search || '',
+    role: props.filters.role || '',
+    department_id: props.filters.department_id || null,
+    status: props.filters.status || '',
+});
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const form = ref({
@@ -24,17 +48,87 @@ const form = ref({
     phone: '',
     password: '',
     role: 'employee',
-    department_id: null as number | null,
+    department_ids: [] as number[],
     is_active: true,
     whatsapp_session_ids: [] as number[],
 });
+
+/**
+ * Плоский список отделов с глубиной — для чек-листа в форме.
+ * Сортировка: рекурсивный обход от корней (parent_id == null) с сортировкой
+ * детей по name. Отделы-сироты (с битым parent_id) — в самом конце как корни.
+ */
+const departmentTree = computed(() => {
+    const byParent = new Map<number | null, Department[]>();
+    for (const d of props.departments) {
+        const key = d.parent_id ?? null;
+        const arr = byParent.get(key) ?? [];
+        arr.push(d);
+        byParent.set(key, arr);
+    }
+    for (const [, arr] of byParent) {
+        arr.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    }
+    const visited = new Set<number>();
+    const out: Array<{ dept: Department; depth: number }> = [];
+    const visit = (parentId: number | null, depth: number): void => {
+        for (const d of byParent.get(parentId) ?? []) {
+            if (visited.has(d.id)) continue;
+            visited.add(d.id);
+            out.push({ dept: d, depth });
+            visit(d.id, depth + 1);
+        }
+    };
+    visit(null, 0);
+    for (const d of props.departments) {
+        if (!visited.has(d.id)) {
+            visited.add(d.id);
+            out.push({ dept: d, depth: 0 });
+        }
+    }
+    return out;
+});
+
+function deptNameById(id: number): string {
+    const d = props.departments.find((x) => x.id === id);
+    return d ? d.name : `#${id}`;
+}
+
+function userDepartmentNames(user: User): string[] {
+    const ids = user.department_ids && user.department_ids.length
+        ? user.department_ids
+        : (user.department_id != null ? [user.department_id] : []);
+    return ids.map(deptNameById);
+}
 
 watch(
     () => props.users,
     (next) => {
         if (!showForm.value) {
-            local.value = [...next];
+            local.value = [...next.data];
         }
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.filters,
+    (next) => {
+        filters.value = {
+            search: next.search || '',
+            role: next.role || '',
+            department_id: next.department_id || null,
+            status: next.status || '',
+        };
+    },
+);
+
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+    filters,
+    () => {
+        if (filterTimer) clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => visitUsers({ page: undefined }), 250);
     },
     { deep: true },
 );
@@ -45,6 +139,35 @@ const roleLabels: Record<string, string> = {
     employee: 'Сотрудник',
 };
 
+function visitUsers(overrides: Record<string, string | number | null | undefined> = {}): void {
+    router.get(
+        route('settings.users'),
+        {
+            search: filters.value.search.trim() || undefined,
+            role: filters.value.role || undefined,
+            department_id: filters.value.department_id || undefined,
+            status: filters.value.status || undefined,
+            page: props.users.current_page > 1 ? props.users.current_page : undefined,
+            ...overrides,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function goToPage(page: number): void {
+    if (page < 1 || page > props.users.last_page || page === props.users.current_page) return;
+    visitUsers({ page });
+}
+
+function resetFilters(): void {
+    filters.value = {
+        search: '',
+        role: '',
+        department_id: null,
+        status: '',
+    };
+}
+
 function openAdd() {
     editingId.value = null;
     form.value = {
@@ -53,7 +176,7 @@ function openAdd() {
         phone: '',
         password: '',
         role: 'employee',
-        department_id: null,
+        department_ids: [],
         is_active: true,
         whatsapp_session_ids: [],
     };
@@ -63,17 +186,29 @@ function openAdd() {
 function openEdit(user: User) {
     editingId.value = user.id;
     const primaryPhone = (user.phone || user.phones?.[0] || '').trim();
+    const deptIds = user.department_ids && user.department_ids.length
+        ? [...user.department_ids]
+        : (user.department_id != null ? [user.department_id] : []);
     form.value = {
         name: user.name,
         email: user.email,
         phone: primaryPhone,
         password: '',
         role: user.roles?.[0] || 'employee',
-        department_id: user.department_id ?? null,
+        department_ids: deptIds,
         is_active: user.is_active,
         whatsapp_session_ids: [...(user.whatsapp_session_ids || [])],
     };
     showForm.value = true;
+}
+
+function toggleDepartment(id: number) {
+    const idx = form.value.department_ids.indexOf(id);
+    if (idx === -1) {
+        form.value.department_ids = [...form.value.department_ids, id];
+    } else {
+        form.value.department_ids = form.value.department_ids.filter((x) => x !== id);
+    }
 }
 
 function closeModal() {
@@ -110,11 +245,7 @@ function userPrimaryPhone(user: User): string {
 }
 
 function buildPayload(): Record<string, unknown> {
-    const dept = form.value.department_id;
-    const department_id =
-        dept === null || dept === undefined || (typeof dept === 'string' && dept === '')
-            ? null
-            : Number(dept);
+    const deptIds = [...new Set(form.value.department_ids.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0))];
 
     const phoneTrim = form.value.phone.trim();
     const payload: Record<string, unknown> = {
@@ -123,7 +254,7 @@ function buildPayload(): Record<string, unknown> {
         phone: phoneTrim !== '' ? phoneTrim : null,
         phones: phoneTrim !== '' ? [phoneTrim] : [],
         role: form.value.role,
-        department_id,
+        department_ids: deptIds,
         whatsapp_session_ids: form.value.whatsapp_session_ids,
     };
 
@@ -202,6 +333,48 @@ async function remove(user: User) {
                 Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
             </p>
 
+            <div
+                class="rounded-lg border p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_220px_160px_auto]"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+            >
+                <input
+                    v-model="filters.search"
+                    type="search"
+                    class="settings-input"
+                    placeholder="Поиск по имени, email, телефону, отделу, роли"
+                />
+                <select v-model="filters.role" class="settings-input">
+                    <option value="">Все роли</option>
+                    <option v-for="role in availableRoles" :key="role" :value="role">
+                        {{ roleLabels[role] || role }}
+                    </option>
+                </select>
+                <select v-model="filters.department_id" class="settings-input">
+                    <option :value="null">Все отделы</option>
+                    <option v-for="node in departmentTree" :key="node.dept.id" :value="node.dept.id">
+                        {{ `${'— '.repeat(node.depth)}${node.dept.name}` }}
+                    </option>
+                </select>
+                <select v-model="filters.status" class="settings-input">
+                    <option value="">Любой статус</option>
+                    <option value="active">Активные</option>
+                    <option value="inactive">Отключённые</option>
+                </select>
+                <button
+                    type="button"
+                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    @click="resetFilters"
+                >
+                    Сбросить
+                </button>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 text-xs text-[var(--wa-text-secondary)]">
+                <span>Показано {{ props.users.from || 0 }}–{{ props.users.to || 0 }} из {{ props.users.total }}</span>
+                <span>Страница {{ props.users.current_page }} из {{ props.users.last_page }}</span>
+            </div>
+
             <!-- Users table: действия сразу после имени, чтобы кнопки не уезжали за край экрана -->
             <div
                 class="rounded-lg border overflow-x-auto"
@@ -217,7 +390,7 @@ async function remove(user: User) {
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Email</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Телефон</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Роль</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Отдел</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Отделы</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">WhatsApp</th>
                             <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Статус</th>
                         </tr>
@@ -268,7 +441,19 @@ async function remove(user: User) {
                                     {{ roleLabels[user.roles?.[0]] || user.roles?.[0] || '—' }}
                                 </span>
                             </td>
-                            <td class="px-5 py-3 text-[var(--wa-text-secondary)]">{{ user.department?.name || '—' }}</td>
+                            <td class="px-5 py-3">
+                                <div v-if="userDepartmentNames(user).length > 0" class="flex flex-wrap gap-1">
+                                    <span
+                                        v-for="name in userDepartmentNames(user)"
+                                        :key="name"
+                                        class="text-xs px-2 py-0.5 rounded-full"
+                                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                    >
+                                        {{ name }}
+                                    </span>
+                                </div>
+                                <span v-else class="text-xs text-[var(--wa-text-secondary)]">—</span>
+                            </td>
                             <td class="px-5 py-3">
                                 <div
                                     v-if="user.whatsapp_sessions && user.whatsapp_sessions.length"
@@ -304,6 +489,30 @@ async function remove(user: User) {
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div v-if="props.users.last_page > 1" class="flex items-center justify-between gap-3">
+                <button
+                    type="button"
+                    class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :disabled="props.users.current_page <= 1"
+                    @click="goToPage(props.users.current_page - 1)"
+                >
+                    Назад
+                </button>
+                <div class="text-sm text-[var(--wa-text-secondary)]">
+                    {{ props.users.current_page }} / {{ props.users.last_page }}
+                </div>
+                <button
+                    type="button"
+                    class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :disabled="props.users.current_page >= props.users.last_page"
+                    @click="goToPage(props.users.current_page + 1)"
+                >
+                    Вперёд
+                </button>
             </div>
         </div>
 
@@ -367,14 +576,45 @@ async function remove(user: User) {
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
                                 </select>
                             </div>
-                            <div>
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отдел</label>
-                                <select v-model="form.department_id" class="settings-input">
-                                    <option :value="null">— Без отдела —</option>
-                                    <option v-for="d in departments" :key="d.id" :value="d.id">
-                                        {{ d.name }}{{ d.is_active === false ? ' (неактивен)' : '' }}
-                                    </option>
-                                </select>
+                        </div>
+
+                        <div class="pt-1">
+                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отделы</label>
+                            <p class="text-xs text-[var(--wa-text-secondary)] mb-2">
+                                Сотрудник может состоять в нескольких отделах одновременно — отметьте все нужные.
+                            </p>
+                            <div
+                                v-if="departmentTree.length === 0"
+                                class="text-xs text-[var(--wa-text-secondary)] italic"
+                            >
+                                Отделов пока нет. Создайте их в разделе «Отделы».
+                            </div>
+                            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto wa-scrollbar pr-1">
+                                <label
+                                    v-for="node in departmentTree"
+                                    :key="node.dept.id"
+                                    class="flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition hover:brightness-95"
+                                    :style="{
+                                        background: form.department_ids.includes(node.dept.id) ? 'var(--wa-selected)' : 'var(--wa-bg)',
+                                        borderColor: form.department_ids.includes(node.dept.id) ? 'var(--wa-accent)' : 'var(--wa-border-strong)',
+                                        paddingLeft: `${0.75 + node.depth * 1}rem`,
+                                    }"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="form.department_ids.includes(node.dept.id)"
+                                        class="w-4 h-4 rounded shrink-0"
+                                        @change="toggleDepartment(node.dept.id)"
+                                    />
+                                    <span class="text-sm text-[var(--wa-text)] truncate">
+                                        {{ node.dept.name }}<span
+                                            v-if="node.dept.is_active === false"
+                                            class="text-xs text-[var(--wa-text-secondary)]"
+                                        >
+                                            (неактивен)
+                                        </span>
+                                    </span>
+                                </label>
                             </div>
                         </div>
 
