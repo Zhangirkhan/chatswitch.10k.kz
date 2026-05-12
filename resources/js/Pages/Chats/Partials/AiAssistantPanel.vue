@@ -2,10 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
+import type { Message } from '@/types';
 
 const props = defineProps<{
     chatId: number;
     chatName?: string | null;
+    messages?: Message[];
 }>();
 
 const emit = defineEmits<{
@@ -23,8 +25,13 @@ const { show: showToast } = useToastStore();
 const turns = ref<AiTurn[]>([]);
 const draft = ref<string>('');
 const sending = ref<boolean>(false);
+const autoDraft = ref<string>('');
+const autoDraftLoading = ref<boolean>(false);
+const autoDraftError = ref<string | null>(null);
+const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
+let autoDraftTimer: number | null = null;
 
 /**
  * Локальная история переписки оператора с AI хранится в localStorage по chatId,
@@ -70,6 +77,13 @@ watch(() => props.chatId, loadFromStorage);
 
 const canSend = computed(() => !sending.value && draft.value.trim().length > 0);
 const isEmpty = computed(() => turns.value.length === 0);
+const clientMessages = computed(() =>
+    (props.messages ?? [])
+        .filter((message) => message.direction === 'inbound')
+        .slice(-6),
+);
+const latestClientMessage = computed(() => clientMessages.value.at(-1) ?? null);
+const hasClientMessages = computed(() => clientMessages.value.length > 0);
 
 const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
     {
@@ -128,6 +142,68 @@ async function send(prompt?: string): Promise<void> {
     }
 }
 
+function scheduleAutoDraft(): void {
+    const message = latestClientMessage.value;
+    if (!message?.id) {
+        autoDraft.value = '';
+        autoDraftMessageId.value = null;
+        autoDraftError.value = null;
+        return;
+    }
+
+    if (autoDraftMessageId.value === message.id && autoDraft.value.trim() !== '') {
+        return;
+    }
+
+    if (autoDraftTimer !== null) {
+        window.clearTimeout(autoDraftTimer);
+    }
+
+    autoDraftTimer = window.setTimeout(() => {
+        autoDraftTimer = null;
+        void generateAutoDraft(message);
+    }, 450);
+}
+
+async function generateAutoDraft(message = latestClientMessage.value): Promise<void> {
+    if (!message?.id || autoDraftLoading.value) {
+        return;
+    }
+
+    autoDraftLoading.value = true;
+    autoDraftError.value = null;
+    autoDraftMessageId.value = message.id;
+
+    try {
+        const body = normalizeMessageBody(message);
+        const prompt = body
+            ? `Клиент написал: "${body}". Подготовь один готовый черновик ответа клиенту в стиле операторов этого чата. Верни только текст ответа без пояснений.`
+            : 'Подготовь один готовый черновик ответа на последнее сообщение клиента в стиле операторов этого чата. Верни только текст ответа без пояснений.';
+
+        const res = await axios.post(route('chats.ai.chat', { chat: props.chatId }), {
+            message: prompt,
+            history: [],
+        });
+        const reply: string = String(res.data?.reply ?? '').trim();
+        if (reply === '') {
+            throw new Error('Пустой ответ');
+        }
+        autoDraft.value = reply;
+    } catch (e: any) {
+        autoDraft.value = '';
+        autoDraftError.value =
+            e?.response?.data?.message ||
+            e?.message ||
+            'Не удалось подготовить черновик.';
+    } finally {
+        autoDraftLoading.value = false;
+        if ((latestClientMessage.value?.id ?? null) !== autoDraftMessageId.value) {
+            scheduleAutoDraft();
+        }
+        await scrollToBottom();
+    }
+}
+
 function clearConversation(): void {
     if (turns.value.length === 0) return;
     if (!window.confirm('Очистить переписку с AI по этому чату?')) return;
@@ -147,6 +223,20 @@ function copyToClipboard(text: string): void {
     } catch {
         showToast({ message: 'Не удалось скопировать' });
     }
+}
+
+function normalizeMessageBody(message: Message): string {
+    const body = String(message.body ?? '').trim();
+    if (body !== '') {
+        return body;
+    }
+
+    const type = String(message.type ?? 'chat');
+    return type !== 'chat' ? `<сообщение типа "${type}" без текста>` : '';
+}
+
+function messageAuthor(message: Message): string {
+    return message.sender_name || message.sender_phone || 'Клиент';
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -181,12 +271,25 @@ function formatTime(ts: number): string {
 onMounted(() => {
     loadFromStorage();
     window.addEventListener('keydown', onEscape);
+    scheduleAutoDraft();
     void scrollToBottom();
     nextTick(() => textareaEl.value?.focus());
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('keydown', onEscape);
+    if (autoDraftTimer !== null) {
+        window.clearTimeout(autoDraftTimer);
+        autoDraftTimer = null;
+    }
+});
+
+watch(() => latestClientMessage.value?.id ?? null, scheduleAutoDraft);
+watch(() => props.chatId, () => {
+    autoDraft.value = '';
+    autoDraftError.value = null;
+    autoDraftMessageId.value = null;
+    scheduleAutoDraft();
 });
 </script>
 
@@ -237,6 +340,84 @@ onBeforeUnmount(() => {
             ref="listEl"
             class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-4 py-4 space-y-3"
         >
+            <section
+                class="rounded-xl border p-3 space-y-3"
+                :style="{
+                    background: 'color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel))',
+                    borderColor: 'color-mix(in srgb, var(--wa-accent) 25%, var(--wa-border))',
+                    color: 'var(--wa-text)',
+                }"
+            >
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide" :style="{ color: 'var(--wa-accent)' }">
+                            Live-черновик
+                        </p>
+                        <p class="text-[11px] opacity-70" :style="{ color: 'var(--wa-text-secondary)' }">
+                            Работает даже когда автоответы AI выключены
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="ai-quick-chip ai-quick-chip-sm"
+                        :disabled="autoDraftLoading || !latestClientMessage"
+                        @click="generateAutoDraft()"
+                    >
+                        Обновить
+                    </button>
+                </div>
+
+                <div v-if="hasClientMessages" class="space-y-2">
+                    <p class="text-[11px] font-medium opacity-70" :style="{ color: 'var(--wa-text-secondary)' }">
+                        Последние сообщения клиента
+                    </p>
+                    <div
+                        v-for="message in clientMessages"
+                        :key="message.id"
+                        class="rounded-lg px-3 py-2 text-[12.5px] leading-4"
+                        :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }"
+                    >
+                        <div class="mb-1 flex items-center justify-between gap-2 text-[10.5px] opacity-65">
+                            <span class="truncate">{{ messageAuthor(message) }}</span>
+                            <span>{{ formatTime(new Date(message.message_timestamp || message.created_at || Date.now()).getTime()) }}</span>
+                        </div>
+                        <div class="whitespace-pre-wrap break-words">
+                            {{ normalizeMessageBody(message) || 'Сообщение без текста' }}
+                        </div>
+                    </div>
+                </div>
+                <p v-else class="text-[12.5px] opacity-75" :style="{ color: 'var(--wa-text-secondary)' }">
+                    В этом чате пока нет входящих сообщений клиента.
+                </p>
+
+                <div
+                    class="rounded-lg px-3 py-2 text-[13px] leading-5"
+                    :style="{ background: 'var(--wa-bubble-in)', color: 'var(--wa-bubble-text)' }"
+                >
+                    <template v-if="autoDraftLoading">
+                        AI готовит черновик…
+                    </template>
+                    <template v-else-if="autoDraft">
+                        <div class="whitespace-pre-wrap break-words">{{ autoDraft }}</div>
+                        <div class="mt-2 flex justify-end">
+                            <button
+                                type="button"
+                                class="text-[11px] hover:underline"
+                                @click="copyToClipboard(autoDraft)"
+                            >
+                                Копировать черновик
+                            </button>
+                        </div>
+                    </template>
+                    <template v-else-if="autoDraftError">
+                        {{ autoDraftError }}
+                    </template>
+                    <template v-else>
+                        Черновик появится после сообщения клиента.
+                    </template>
+                </div>
+            </section>
+
             <div
                 v-if="isEmpty"
                 class="text-[13px] leading-relaxed rounded-lg p-3"

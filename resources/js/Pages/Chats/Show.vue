@@ -456,6 +456,7 @@ function cleanupEcho() {
         (window as any).Echo.leave(`chat.${props.chat.id}`);
     }
 }
+
 </script>
 
 <template>
@@ -659,6 +660,7 @@ function cleanupEcho() {
                 v-if="aiPanelOpen"
                 :chat-id="chat.id"
                 :chat-name="chat.chat_name || chat.contact?.name || chat.contact?.push_name || null"
+                :messages="localMessages"
                 @close="closeAiPanel"
             />
 
