@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\FunnelAnalyticsController;
 use App\Http\Controllers\ApiDocumentationController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
+use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommunityController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\FunnelController;
+use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MessageController;
@@ -80,6 +82,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
             ->middleware('throttle:30,1')
             ->name('chats.ai.chat');
+        Route::patch('/chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])->name('chats.ai.update');
 
         Route::post('/chats/{chat}/upload-file', [ChatController::class, 'uploadFile'])->name('chats.upload-file');
         Route::post('/chats/{chat}/send-contact', [ChatController::class, 'sendContact'])->name('chats.send-contact');
@@ -169,6 +172,19 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/companies', [CompanyController::class, 'store'])->name('settings.companies.store');
         Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('settings.companies.update');
         Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('settings.companies.destroy');
+
+        Route::get('/knowledge/products', [KnowledgeBaseController::class, 'products'])->name('settings.knowledge.products');
+        Route::post('/knowledge/products', [KnowledgeBaseController::class, 'storeProduct'])->name('settings.knowledge.products.store');
+        Route::put('/knowledge/products/{product}', [KnowledgeBaseController::class, 'updateProduct'])->name('settings.knowledge.products.update');
+        Route::delete('/knowledge/products/{product}', [KnowledgeBaseController::class, 'destroyProduct'])->name('settings.knowledge.products.destroy');
+        Route::get('/knowledge/services', [KnowledgeBaseController::class, 'services'])->name('settings.knowledge.services');
+        Route::post('/knowledge/services', [KnowledgeBaseController::class, 'storeService'])->name('settings.knowledge.services.store');
+        Route::put('/knowledge/services/{service}', [KnowledgeBaseController::class, 'updateService'])->name('settings.knowledge.services.update');
+        Route::delete('/knowledge/services/{service}', [KnowledgeBaseController::class, 'destroyService'])->name('settings.knowledge.services.destroy');
+        Route::get('/knowledge/rules', [KnowledgeBaseController::class, 'rules'])->name('settings.knowledge.rules');
+        Route::post('/knowledge/rules', [KnowledgeBaseController::class, 'storeRule'])->name('settings.knowledge.rules.store');
+        Route::put('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'updateRule'])->name('settings.knowledge.rules.update');
+        Route::delete('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'destroyRule'])->name('settings.knowledge.rules.destroy');
 
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');
