@@ -93,6 +93,7 @@ final class AiAssistantTest extends TestCase
         $this->assertStringContainsString('размер: 35-44', $prompt);
         $this->assertStringContainsString('предоплата: не требуется', $prompt);
         $this->assertStringContainsString('Никогда не используй рубли', $prompt);
+        $this->assertStringContainsString('называй цену вместе', $prompt);
         $this->assertStringContainsString('Working hours', $prompt);
         $this->assertStringNotContainsString('Excluded product', $prompt);
         $this->assertStringNotContainsString('Other company product', $prompt);
