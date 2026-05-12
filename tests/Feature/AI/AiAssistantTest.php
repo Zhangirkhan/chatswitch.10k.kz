@@ -129,6 +129,45 @@ final class AiAssistantTest extends TestCase
         $this->assertStringContainsString('full-history-message-45', $prompt);
     }
 
+    public function test_prompt_builder_excludes_previous_ai_replies_from_history(): void
+    {
+        $company = Company::create(['name' => 'Company']);
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Какие размеры есть?',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'Ошибочный старый AI ответ: размеров нет, цена 999 рублей.',
+            'sent_by_user_id' => $user->id,
+            'metadata' => ['ai' => ['generated' => true]],
+            'ack' => 'delivered',
+            'message_timestamp' => now()->addMinute(),
+        ]);
+
+        $built = app(PromptBuilder::class)->build($chat, $user, 'Ответь клиенту');
+        $prompt = collect($built['messages'])->pluck('content')->implode("\n");
+
+        $this->assertStringContainsString('Какие размеры есть?', $prompt);
+        $this->assertStringNotContainsString('Ошибочный старый AI ответ', $prompt);
+        $this->assertStringContainsString('Старые ответы в истории могли быть ошибочными', $prompt);
+    }
+
     public function test_assigned_employee_can_enable_ai_for_chat(): void
     {
         Bus::fake();
