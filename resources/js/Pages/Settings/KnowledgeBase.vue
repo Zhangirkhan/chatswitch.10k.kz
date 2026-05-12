@@ -147,7 +147,11 @@ function payload(): Record<string, unknown> {
     let jsonPayload: Record<string, unknown> | null = null;
     const trimmedJson = jsonText.value.trim();
     if (trimmedJson !== '' && trimmedJson !== '{}') {
-        jsonPayload = JSON.parse(trimmedJson);
+        try {
+            jsonPayload = JSON.parse(trimmedJson);
+        } catch {
+            throw new Error('Проверьте блок "Дополнительно": характеристики должны быть в формате JSON или оставьте {}.');
+        }
     }
 
     const base: Record<string, unknown> = {
@@ -203,7 +207,7 @@ async function save(): Promise<void> {
         showForm.value = false;
         showToast({ message: 'Запись сохранена', duration: 3000 });
     } catch (error: any) {
-        showToast({ message: error?.response?.data?.message || 'Не удалось сохранить запись', duration: 4000 });
+        showToast({ message: error?.response?.data?.message || error?.message || 'Не удалось сохранить запись', duration: 4000 });
     }
 }
 
@@ -247,6 +251,14 @@ function formatTenge(price: KnowledgeItem['price']): string {
 
     return `${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(value)} ₸`;
 }
+
+const jsonPlaceholder = computed(() => {
+    if (props.section === 'services') {
+        return '{\n  "место": "салон",\n  "предоплата": "не требуется"\n}';
+    }
+
+    return '{\n  "цвет": "черный",\n  "размер": "42",\n  "материал": "кожа"\n}';
+});
 </script>
 
 <template>
@@ -335,8 +347,9 @@ function formatTenge(price: KnowledgeItem['price']): string {
                     </label>
 
                     <label v-if="section === 'products'" class="field">
-                        <span>SKU</span>
-                        <input v-model="form.sku" type="text" />
+                        <span>Артикул <small>необязательно</small></span>
+                        <input v-model="form.sku" type="text" placeholder="Например: TAPKI-001" />
+                        <p class="field-help">Внутренний код товара. Если не используете артикулы, оставьте пустым.</p>
                     </label>
 
                     <label v-if="section === 'rules'" class="field">
@@ -359,21 +372,30 @@ function formatTenge(price: KnowledgeItem['price']): string {
                         <input v-model="form.duration_minutes" type="number" min="1" />
                     </label>
 
-                    <label v-if="section !== 'rules'" class="field">
-                        <span>Сортировка</span>
-                        <input v-model.number="form.sort_order" type="number" min="0" />
-                    </label>
-
                     <label class="field col-span-2">
                         <span>{{ section === 'rules' ? 'Содержание правила' : 'Описание' }}</span>
                         <textarea v-if="section === 'rules'" v-model="form.content" rows="5"></textarea>
                         <textarea v-else v-model="form.description" rows="5"></textarea>
                     </label>
 
-                    <label v-if="section !== 'rules'" class="field col-span-2">
-                        <span>{{ section === 'services' ? 'Условия JSON' : 'Атрибуты JSON' }}</span>
-                        <textarea v-model="jsonText" rows="4" spellcheck="false"></textarea>
-                    </label>
+                    <details v-if="section !== 'rules'" class="advanced col-span-2">
+                        <summary>Дополнительно</summary>
+                        <div class="advanced-body">
+                            <label class="field">
+                                <span>Сортировка</span>
+                                <input v-model.number="form.sort_order" type="number" min="0" />
+                                <p class="field-help">Чем меньше число, тем выше запись в списке. Обычно можно оставить 0.</p>
+                            </label>
+
+                            <label class="field">
+                                <span>{{ section === 'services' ? 'Условия' : 'Характеристики' }} <small>необязательно</small></span>
+                                <textarea v-model="jsonText" rows="5" spellcheck="false" :placeholder="jsonPlaceholder"></textarea>
+                                <p class="field-help">
+                                    Для обычного заполнения оставьте {}. Это поле нужно только для дополнительных деталей, которые AI должен учитывать.
+                                </p>
+                            </label>
+                        </div>
+                    </details>
 
                     <label class="check">
                         <input v-model="form.include_in_prompt" type="checkbox" />
@@ -436,6 +458,18 @@ function formatTenge(price: KnowledgeItem['price']): string {
     font-size: 13px;
 }
 
+.field small {
+    color: var(--wa-text-secondary);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.field-help {
+    color: var(--wa-text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -451,5 +485,25 @@ function formatTenge(price: KnowledgeItem['price']): string {
     color: var(--wa-text);
     display: flex;
     gap: 8px;
+}
+
+.advanced {
+    border: 1px solid var(--wa-border);
+    border-radius: 12px;
+    color: var(--wa-text);
+    padding: 10px 12px;
+}
+
+.advanced summary {
+    color: var(--wa-text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.advanced-body {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
 }
 </style>
