@@ -33,6 +33,13 @@ final class MessageTranslationController extends Controller
 
     public function translate(Request $request, Message $message): JsonResponse
     {
+        $message->loadMissing('chat');
+        if ($message->chat === null) {
+            abort(404);
+        }
+
+        $this->authorize('view', $message->chat);
+
         $validated = $request->validate([
             'lang' => ['required', 'string', 'in:'.implode(',', array_keys(self::SUPPORTED_LANGS))],
         ]);

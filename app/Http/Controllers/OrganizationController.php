@@ -9,6 +9,7 @@ use App\Models\DepartmentPost;
 use App\Models\DepartmentPostAttachment;
 use App\Models\DepartmentPostComment;
 use App\Models\User;
+use App\Support\OrganizationRichTextSanitizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -366,6 +367,9 @@ final class OrganizationController extends Controller
         ]);
 
         $data['body'] = $data['body'] ?? null;
+        if (is_string($data['body'])) {
+            $data['body'] = OrganizationRichTextSanitizer::sanitize($data['body']);
+        }
         $data['due_at'] = isset($data['due_at']) ? Carbon::parse($data['due_at']) : null;
 
         return $data;
@@ -401,7 +405,7 @@ final class OrganizationController extends Controller
             'id' => $post->id,
             'department_id' => $post->department_id,
             'title' => $post->title,
-            'body' => $post->body,
+            'body' => OrganizationRichTextSanitizer::sanitize($post->body),
             'status' => $post->status,
             'due_at' => $post->due_at?->toIso8601String(),
             'author' => $post->author ? [

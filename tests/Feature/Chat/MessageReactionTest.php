@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Chat;
 
 use App\Models\Chat;
+use App\Models\ChatAssignment;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\User;
@@ -38,6 +39,11 @@ final class MessageReactionTest extends TestCase
 
         $session = WhatsappSession::factory()->create(['session_name' => 'wa-test']);
         $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        ChatAssignment::create([
+            'chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
         $message = Message::query()->create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
@@ -81,6 +87,11 @@ final class MessageReactionTest extends TestCase
 
         $session = WhatsappSession::factory()->create(['session_name' => 'wa-test']);
         $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        ChatAssignment::create([
+            'chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
         $message = Message::query()->create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
@@ -112,6 +123,11 @@ final class MessageReactionTest extends TestCase
 
         $session = WhatsappSession::factory()->create(['session_name' => 'wa-test']);
         $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        ChatAssignment::create([
+            'chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
         $message = Message::query()->create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
@@ -141,6 +157,35 @@ final class MessageReactionTest extends TestCase
                 && $request['reaction'] === '';
         });
 
+        $this->assertDatabaseCount('message_reactions', 0);
+    }
+
+    public function test_employee_cannot_react_on_message_in_unassigned_chat(): void
+    {
+        Http::fake();
+
+        /** @var User $user */
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+
+        $session = WhatsappSession::factory()->create(['session_name' => 'wa-test']);
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        $message = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_message_id' => 'wamid.test-4',
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'hello',
+            'sender_phone' => '77011234567',
+            'sender_name' => 'Client',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson(route('messages.react', $message), ['emoji' => '👍'])
+            ->assertForbidden();
+
+        Http::assertNothingSent();
         $this->assertDatabaseCount('message_reactions', 0);
     }
 }

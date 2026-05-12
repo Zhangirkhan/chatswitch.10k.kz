@@ -23,7 +23,7 @@ final class LinkPreviewController extends Controller
             return response()->json(['success' => false, 'error' => 'Invalid url'], 422);
         }
 
-        $cacheKey = 'link_preview:' . sha1($normalized);
+        $cacheKey = 'link_preview:'.sha1($normalized);
 
         /** @var array<string, mixed> $cached */
         $cached = Cache::get($cacheKey, []);
@@ -44,7 +44,7 @@ final class LinkPreviewController extends Controller
             return null;
         }
         if (str_starts_with(strtolower($v), 'www.')) {
-            $v = 'https://' . $v;
+            $v = 'https://'.$v;
         }
 
         $parts = parse_url($v);
@@ -66,9 +66,51 @@ final class LinkPreviewController extends Controller
             if (filter_var($host, FILTER_VALIDATE_IP, $flags) === false) {
                 return null;
             }
+        } elseif (! $this->hostResolvesOnlyToPublicAddresses($host)) {
+            return null;
         }
 
         return $v;
+    }
+
+    /**
+     * Дополнение к проверке литерального IP: все A/AAAA записи хоста должны указывать
+     * на публичные адреса (снижает риск SSRF через «безопасный» hostname).
+     */
+    private function hostResolvesOnlyToPublicAddresses(string $host): bool
+    {
+        $ips = [];
+        $records = @dns_get_record($host, \DNS_A | \DNS_AAAA);
+        if (is_array($records)) {
+            foreach ($records as $record) {
+                if (isset($record['ip']) && is_string($record['ip'])) {
+                    $ips[] = $record['ip'];
+                }
+                if (isset($record['ipv6']) && is_string($record['ipv6'])) {
+                    $ips[] = $record['ipv6'];
+                }
+            }
+        }
+
+        if ($ips === []) {
+            $fallback = @gethostbynamel($host);
+            if (is_array($fallback)) {
+                $ips = $fallback;
+            }
+        }
+
+        if ($ips === []) {
+            return false;
+        }
+
+        $flags = \FILTER_FLAG_NO_PRIV_RANGE | \FILTER_FLAG_NO_RES_RANGE;
+        foreach ($ips as $ip) {
+            if (filter_var($ip, \FILTER_VALIDATE_IP, $flags) === false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @return array{success: bool, url: string, title: string|null, description: string|null, image: string|null, site_name: string|null} */
@@ -142,16 +184,21 @@ final class LinkPreviewController extends Controller
     {
         $out = [];
         libxml_use_internal_errors(true);
-        $doc = new \DOMDocument();
+        $doc = new \DOMDocument;
         $doc->loadHTML($html);
         $xpath = new \DOMXPath($doc);
 
         $getMeta = static function (string $q) use ($xpath): ?string {
             $nodes = $xpath->query($q);
-            if (! $nodes || $nodes->length === 0) return null;
+            if (! $nodes || $nodes->length === 0) {
+                return null;
+            }
             $node = $nodes->item(0);
-            if (! $node instanceof \DOMElement) return null;
+            if (! $node instanceof \DOMElement) {
+                return null;
+            }
             $v = trim((string) $node->getAttribute('content'));
+
             return $v !== '' ? $v : null;
         };
 
@@ -176,45 +223,58 @@ final class LinkPreviewController extends Controller
     private function resolveUrl(string $baseUrl, string $maybeRelative): ?string
     {
         $v = trim($maybeRelative);
-        if ($v === '') return null;
-        if (preg_match('~^https?://~i', $v)) return $v;
+        if ($v === '') {
+            return null;
+        }
+        if (preg_match('~^https?://~i', $v)) {
+            return $v;
+        }
         if (str_starts_with($v, '//')) {
             $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?: 'https';
-            return $scheme . ':' . $v;
+
+            return $scheme.':'.$v;
         }
 
         $base = parse_url($baseUrl);
-        if (! is_array($base)) return null;
+        if (! is_array($base)) {
+            return null;
+        }
         $scheme = $base['scheme'] ?? 'https';
         $host = $base['host'] ?? null;
-        if (! $host) return null;
+        if (! $host) {
+            return null;
+        }
 
-        $prefix = $scheme . '://' . $host;
+        $prefix = $scheme.'://'.$host;
         $port = $base['port'] ?? null;
         if (is_int($port)) {
-            $prefix .= ':' . $port;
+            $prefix .= ':'.$port;
         }
 
         if (str_starts_with($v, '/')) {
-            return $prefix . $v;
+            return $prefix.$v;
         }
 
         $path = (string) ($base['path'] ?? '/');
         $dir = str_contains($path, '/') ? rtrim(substr($path, 0, strrpos($path, '/') ?: 0), '/') : '';
         $dir = $dir !== '' ? $dir : '';
 
-        return $prefix . ($dir !== '' ? $dir . '/' : '/') . $v;
+        return $prefix.($dir !== '' ? $dir.'/' : '/').$v;
     }
 
     private function trimOrNull(?string $v, int $max): ?string
     {
-        if ($v === null) return null;
+        if ($v === null) {
+            return null;
+        }
         $t = trim(preg_replace('/\s+/u', ' ', $v) ?: '');
-        if ($t === '') return null;
+        if ($t === '') {
+            return null;
+        }
         if (mb_strlen($t) > $max) {
             $t = mb_substr($t, 0, $max);
         }
+
         return $t;
     }
 }
-

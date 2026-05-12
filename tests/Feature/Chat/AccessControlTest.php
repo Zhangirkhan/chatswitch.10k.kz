@@ -7,6 +7,7 @@ namespace Tests\Feature\Chat;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Department;
+use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,6 +95,38 @@ final class AccessControlTest extends TestCase
             ->postJson(route('chats.departments.sync', $chat), [
                 'department_ids' => [$dept->id],
             ])
+            ->assertForbidden();
+    }
+
+    public function test_employee_cannot_delete_message_in_chat_they_cannot_view(): void
+    {
+        $userA = User::factory()->create();
+        $userA->assignRole('employee');
+        $userB = User::factory()->create();
+        $userB->assignRole('employee');
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        ChatAssignment::create([
+            'chat_id' => $chat->id,
+            'user_id' => $userA->id,
+            'assigned_by' => $userA->id,
+        ]);
+
+        $message = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_message_id' => 'wamid.out-del-1',
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'hello',
+            'sent_by_user_id' => $userA->id,
+            'sender_name' => $userA->name,
+        ]);
+
+        $this->actingAs($userB)
+            ->deleteJson(route('messages.destroy', $message))
             ->assertForbidden();
     }
 }

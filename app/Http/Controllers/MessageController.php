@@ -30,6 +30,13 @@ final class MessageController extends Controller
 
     public function react(Request $request, Message $message, WhatsappService $whatsappService): JsonResponse
     {
+        $message->loadMissing('chat');
+        if ($message->chat === null) {
+            abort(404);
+        }
+
+        $this->authorize('view', $message->chat);
+
         $data = $request->validate([
             'emoji' => 'required|string|max:16',
         ]);
@@ -194,6 +201,13 @@ final class MessageController extends Controller
 
     public function destroy(Request $request, Message $message): JsonResponse
     {
+        $message->loadMissing('chat');
+        if ($message->chat === null) {
+            abort(404);
+        }
+
+        $this->authorize('view', $message->chat);
+
         $user = $request->user();
 
         if (! $user->hasRole('administrator')) {
