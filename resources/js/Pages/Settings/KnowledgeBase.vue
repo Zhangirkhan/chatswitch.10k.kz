@@ -42,7 +42,7 @@ const { show: showToast } = useToastStore();
 const localItems = ref<KnowledgeItem[]>([...props.items]);
 const editing = ref<KnowledgeItem | null>(null);
 const showForm = ref(false);
-const jsonText = ref('{}');
+const detailsText = ref('');
 const form = ref({
     company_id: (props.companies[0]?.id ?? null) as number | null,
     name: '',
@@ -114,7 +114,7 @@ function resetForm(): void {
         is_active: true,
         include_in_prompt: true,
     };
-    jsonText.value = '{}';
+    detailsText.value = '';
 }
 
 function openAdd(): void {
@@ -139,20 +139,12 @@ function openEdit(item: KnowledgeItem): void {
         is_active: item.is_active,
         include_in_prompt: item.include_in_prompt,
     };
-    jsonText.value = JSON.stringify(props.section === 'services' ? (item.conditions ?? {}) : (item.attributes ?? {}), null, 2);
+    detailsText.value = detailsObjectToText(props.section === 'services' ? (item.conditions ?? {}) : (item.attributes ?? {}));
     showForm.value = true;
 }
 
 function payload(): Record<string, unknown> {
-    let jsonPayload: Record<string, unknown> | null = null;
-    const trimmedJson = jsonText.value.trim();
-    if (trimmedJson !== '' && trimmedJson !== '{}') {
-        try {
-            jsonPayload = JSON.parse(trimmedJson);
-        } catch {
-            throw new Error('Проверьте блок "Дополнительно": характеристики должны быть в формате JSON или оставьте {}.');
-        }
-    }
+    const detailsPayload = detailsTextToObject(detailsText.value);
 
     const base: Record<string, unknown> = {
         company_id: form.value.company_id,
@@ -177,7 +169,7 @@ function payload(): Record<string, unknown> {
             name: form.value.name.trim(),
             description: form.value.description.trim() || null,
             duration_minutes: form.value.duration_minutes !== '' ? Number(form.value.duration_minutes) : null,
-            conditions: jsonPayload,
+            conditions: detailsPayload,
             sort_order: form.value.sort_order,
         };
     }
@@ -187,7 +179,7 @@ function payload(): Record<string, unknown> {
         name: form.value.name.trim(),
         sku: form.value.sku.trim() || null,
         description: form.value.description.trim() || null,
-        attributes: jsonPayload,
+        attributes: detailsPayload,
         sort_order: form.value.sort_order,
     };
 }
@@ -252,13 +244,77 @@ function formatTenge(price: KnowledgeItem['price']): string {
     return `${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(value)} ₸`;
 }
 
-const jsonPlaceholder = computed(() => {
+const detailsPlaceholder = computed(() => {
     if (props.section === 'services') {
-        return '{\n  "место": "салон",\n  "предоплата": "не требуется"\n}';
+        return 'место: салон\nпредоплата: не требуется\nограничение: только по записи';
     }
 
-    return '{\n  "цвет": "черный",\n  "размер": "42",\n  "материал": "кожа"\n}';
+    return 'цвет: черный\nразмер: 42\nматериал: кожа';
 });
+
+function detailsTextToObject(value: string): Record<string, unknown> | null {
+    const trimmed = value.trim();
+    if (trimmed === '' || trimmed === '{}') {
+        return null;
+    }
+
+    if (trimmed.startsWith('{')) {
+        try {
+            return JSON.parse(trimmed) as Record<string, unknown>;
+        } catch {
+            throw new Error('Проверьте блок "Дополнительно": JSON написан с ошибкой. Можно просто заполнить строками вида "цвет: черный".');
+        }
+    }
+
+    const result: Record<string, unknown> = {};
+    const notes: string[] = [];
+
+    trimmed
+        .split(/\r?\n/)
+        .map((line) => line.trim().replace(/^[-•]\s*/u, ''))
+        .filter(Boolean)
+        .forEach((line) => {
+            const match = /^([^:=—-]+)\s*[:=—-]\s*(.+)$/u.exec(line);
+            if (!match) {
+                notes.push(line);
+                return;
+            }
+
+            const key = match[1]?.trim();
+            const rawValue = match[2]?.trim();
+            if (!key || !rawValue) {
+                notes.push(line);
+                return;
+            }
+
+            result[key] = rawValue;
+        });
+
+    if (notes.length > 0) {
+        result['заметки'] = notes.length === 1 ? notes[0] : notes;
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+}
+
+function detailsObjectToText(value: Record<string, unknown> | null): string {
+    if (!value || Object.keys(value).length === 0) {
+        return '';
+    }
+
+    return Object.entries(value)
+        .map(([key, entry]) => {
+            if (Array.isArray(entry)) {
+                return `${key}: ${entry.join(', ')}`;
+            }
+            if (entry !== null && typeof entry === 'object') {
+                return `${key}: ${JSON.stringify(entry, null, 2)}`;
+            }
+
+            return `${key}: ${String(entry)}`;
+        })
+        .join('\n');
+}
 </script>
 
 <template>
@@ -348,7 +404,7 @@ const jsonPlaceholder = computed(() => {
 
                     <label v-if="section === 'products'" class="field">
                         <span>Артикул <small>необязательно</small></span>
-                        <input v-model="form.sku" type="text" placeholder="Например: TAPKI-001" />
+                        <input v-model="form.sku" type="text" placeholder="Например: ART-001" />
                         <p class="field-help">Внутренний код товара. Если не используете артикулы, оставьте пустым.</p>
                     </label>
 
@@ -389,9 +445,9 @@ const jsonPlaceholder = computed(() => {
 
                             <label class="field">
                                 <span>{{ section === 'services' ? 'Условия' : 'Характеристики' }} <small>необязательно</small></span>
-                                <textarea v-model="jsonText" rows="5" spellcheck="false" :placeholder="jsonPlaceholder"></textarea>
+                                <textarea v-model="detailsText" rows="5" spellcheck="false" :placeholder="detailsPlaceholder"></textarea>
                                 <p class="field-help">
-                                    Для обычного заполнения оставьте {}. Это поле нужно только для дополнительных деталей, которые AI должен учитывать.
+                                    Пишите обычным текстом по строкам. Например: "цвет: черный". Система сама сохранит это в правильном формате для AI.
                                 </p>
                             </label>
                         </div>
