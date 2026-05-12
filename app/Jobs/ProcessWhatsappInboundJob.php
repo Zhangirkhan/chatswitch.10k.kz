@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Events\NewMessageReceived;
+use App\Models\Message;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
 use Illuminate\Bus\Queueable;
@@ -40,7 +41,7 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
             return;
         }
 
-        DB::transaction(function () use ($chatService, $session): void {
+        $message = DB::transaction(function () use ($chatService, $session): Message {
             $chat = $chatService->findOrCreateChat($this->data, $session);
             $message = $chatService->storeInboundMessage($chat, $session, $this->data);
             $message->load([
@@ -53,7 +54,14 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
             ]);
 
             broadcast(new NewMessageReceived($message, $chat->id));
+
+            return $message;
         });
+
+        $message->loadMissing('chat');
+        if ($message->chat?->ai_enabled === true && $message->chat->ai_mode === 'auto') {
+            GenerateAiReplyJob::dispatch($message->chat_id, $message->id);
+        }
     }
 
     public function viaQueue(): string

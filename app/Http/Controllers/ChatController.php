@@ -15,6 +15,7 @@ use App\Http\Requests\Chat\SyncDepartmentsRequest;
 use App\Http\Requests\Chat\ToggleMuteRequest;
 use App\Http\Requests\Chat\UploadFileRequest;
 use App\Jobs\SendOutboundMessageJob;
+use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
@@ -108,6 +109,7 @@ final class ChatController extends Controller
             'whatsappSession',
             'assignments.user',
             'departments',
+            'aiResponder:id,name',
             'pinnedMessage' => function ($q) {
                 $q->select([
                     'id',
@@ -124,6 +126,7 @@ final class ChatController extends Controller
                 ]);
             },
         ]);
+        $chat->setAttribute('can_manage_ai', $request->user()->can('manageAi', $chat));
 
         $messages = $chat->messages()
             ->with(OutboundChatMessageDispatcher::messageWithRelations())
@@ -159,7 +162,34 @@ final class ChatController extends Controller
             'contactChats' => $contactChats,
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
+            'aiStatus' => $this->latestAiStatus($chat),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function latestAiStatus(Chat $chat): ?array
+    {
+        $log = AiResponseLog::query()
+            ->where('chat_id', $chat->id)
+            ->latest('id')
+            ->first(['id', 'mode', 'status', 'error', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
+
+        if ($log === null) {
+            return null;
+        }
+
+        return [
+            'id' => $log->id,
+            'mode' => $log->mode,
+            'status' => $log->status,
+            'error' => $log->error,
+            'message_id' => $log->message_id,
+            'trigger_message_id' => $log->trigger_message_id,
+            'created_at' => $log->created_at?->toIso8601String(),
+            'updated_at' => $log->updated_at?->toIso8601String(),
+        ];
     }
 
     public function syncDepartments(SyncDepartmentsRequest $request, Chat $chat): JsonResponse

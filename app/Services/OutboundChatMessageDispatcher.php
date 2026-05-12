@@ -41,7 +41,7 @@ final class OutboundChatMessageDispatcher
 
     /**
      * @param  array<string, mixed>  $input
-     *                         Keys: message, display_message?, quoted_message_id?, mentions?, mentions_meta?
+     *                         Keys: message, display_message?, quoted_message_id?, mentions?, mentions_meta?, metadata?
      */
     public function sendTextMessage(User $user, Chat $chat, array $input): Message
     {
@@ -140,6 +140,7 @@ final class OutboundChatMessageDispatcher
             $signedDisplayText,
             null,
             is_string($quotedMessageId) ? $quotedMessageId : null,
+            is_array($input['metadata'] ?? null) ? $input['metadata'] : null,
         );
 
         if ($mentionsMeta !== []) {

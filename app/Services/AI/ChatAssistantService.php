@@ -27,7 +27,11 @@ final class ChatAssistantService
 
     private const ASSISTANT_HISTORY_LIMIT = 20;
 
-    public function __construct(private readonly OpenAiChatService $openAi) {}
+    public function __construct(
+        private readonly OpenAiChatService $openAi,
+        private readonly OperatorCalendarContextBuilder $operatorCalendarContext,
+        private readonly PromptBuilder $promptBuilder,
+    ) {}
 
     /**
      * @param  array<int, array{role: 'user'|'assistant', content: string}>  $assistantHistory
@@ -36,9 +40,16 @@ final class ChatAssistantService
      */
     public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): string
     {
+        $knowledgePrompt = $this->promptBuilder->build(
+            $chat,
+            $operator,
+            $userPrompt !== '' ? $userPrompt : 'Подготовь черновик ответа клиенту.',
+        );
         $messages = [
             ['role' => 'system', 'content' => $this->buildSystemPrompt($chat, $operator)],
+            ...$knowledgePrompt['messages'],
             ['role' => 'system', 'content' => $this->buildConversationContext($chat)],
+            ['role' => 'system', 'content' => $this->operatorCalendarContext->buildContextBlock($operator)],
             ...$this->normalizeAssistantHistory($assistantHistory),
             ['role' => 'user', 'content' => $this->normalizeUserPrompt($userPrompt)],
         ];
@@ -66,8 +77,29 @@ final class ChatAssistantService
 6. Помни: оператор сейчас — {$operatorName}. Клиент — {$contactName}.
 7. Не выдавай служебную «шапку» оператора (вида "*Имя (Роль)*\n...") — операторы
    не пишут её сами, её добавляет система автоматически.
+{$this->calendarBehaviorInstructions()}
 
 Ты не отправляешь ничего клиенту самостоятельно. Твои сообщения видит только оператор.
+PROMPT;
+    }
+
+    private function calendarBehaviorInstructions(): string
+    {
+        if (! $this->operatorCalendarContext->isModuleEnabled()) {
+            return '';
+        }
+
+        return <<<'PROMPT'
+
+8. Модуль «Календарь» в организации включён. Когда в переписке уместны звонок, встреча,
+   дедлайн, «перезвонить в …», напоминание или фиксация договорённости — предложи оператору
+   оформить запись в календаре ChatSwitch: рабочий заголовок, дата и время (ориентируйся на
+   часовой пояс из блока «Календарь оператора» ниже), по желанию ответственного и краткое
+   описание. Сверяйся с тем же блоком: там прошедшие, текущие и предстоящие записи этого
+   оператора (с учётом прав видимости). Не предлагай слоты, которые пересекаются с уже
+   существующими событиями; если время занято — предложи альтернативу или отметь конфликт.
+   Если для календаря ничего не следует из диалога — не выдумывай события, можно не
+   поднимать тему.
 PROMPT;
     }
 

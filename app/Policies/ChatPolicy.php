@@ -59,6 +59,17 @@ final class ChatPolicy
         return $this->view($user, $chat);
     }
 
+    public function manageAi(User $user, Chat $chat): bool
+    {
+        if ($user->hasRole('administrator')) {
+            return true;
+        }
+
+        return $chat->assignments()
+            ->where('user_id', $user->id)
+            ->exists();
+    }
+
     public function manage(User $user, Chat $chat): bool
     {
         if ($user->hasRole('administrator')) {

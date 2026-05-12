@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Events\ChatsListNotify;
+use App\Jobs\AnalyzeEmployeeToneProfileJob;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
+use App\Models\Message;
+use App\Models\User;
 use App\Services\ChatService;
 use App\Support\ChatBroadcastAudience;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +37,7 @@ final class ChatAssignmentController extends Controller
         );
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);
 
@@ -52,6 +56,7 @@ final class ChatAssignmentController extends Controller
         $assignment->delete();
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);
 
@@ -86,6 +91,7 @@ final class ChatAssignmentController extends Controller
         }
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);
 
@@ -158,5 +164,59 @@ final class ChatAssignmentController extends Controller
             (bool) $chat->is_muted,
             $added,
         ));
+    }
+
+    /**
+     * @param  list<int|string>  $assignedUserIds
+     */
+    private function syncAiResponder(Chat $chat, array $assignedUserIds): void
+    {
+        if (! $chat->ai_enabled) {
+            return;
+        }
+
+        $assigned = array_values(array_unique(array_map(intval(...), $assignedUserIds)));
+        if ($assigned === []) {
+            $chat->forceFill(['ai_responder_user_id' => null])->save();
+
+            return;
+        }
+
+        if ($chat->ai_responder_user_id !== null && in_array((int) $chat->ai_responder_user_id, $assigned, true)) {
+            return;
+        }
+
+        $responderId = $this->preferredResponderId($chat, $assigned);
+        $chat->forceFill(['ai_responder_user_id' => $responderId])->save();
+
+        if ($responderId !== null && $chat->company_id !== null) {
+            AnalyzeEmployeeToneProfileJob::dispatch($responderId, (int) $chat->company_id, (int) $chat->id);
+        }
+    }
+
+    /**
+     * @param  list<int>  $assignedUserIds
+     */
+    private function preferredResponderId(Chat $chat, array $assignedUserIds): ?int
+    {
+        $lastOutboundAssignedId = Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'outbound')
+            ->whereIn('sent_by_user_id', $assignedUserIds)
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->value('sent_by_user_id');
+
+        if ($lastOutboundAssignedId !== null) {
+            return (int) $lastOutboundAssignedId;
+        }
+
+        $nonAdminId = User::query()
+            ->whereIn('id', $assignedUserIds)
+            ->whereDoesntHave('roles', fn ($query) => $query->where('name', 'administrator'))
+            ->orderBy('name')
+            ->value('id');
+
+        return $nonAdminId !== null ? (int) $nonAdminId : ($assignedUserIds[0] ?? null);
     }
 }

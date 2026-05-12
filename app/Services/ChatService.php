@@ -543,7 +543,10 @@ final class ChatService
         return $this->logSystemMessage($chat, $body);
     }
 
-    public function storeOutboundMessage(Chat $chat, WhatsappSession $session, User $user, string $body, ?string $waMessageId = null, ?string $quotedMessageId = null): Message
+    /**
+     * @param  array<string, mixed>|null  $metadata
+     */
+    public function storeOutboundMessage(Chat $chat, WhatsappSession $session, User $user, string $body, ?string $waMessageId = null, ?string $quotedMessageId = null, ?array $metadata = null): Message
     {
         $message = Message::create([
             'chat_id' => $chat->id,
@@ -552,6 +555,7 @@ final class ChatService
             'direction' => 'outbound',
             'type' => 'chat',
             'body' => $body,
+            'metadata' => $metadata,
             'sent_by_user_id' => $user->id,
             'sender_name' => $user->name,
             'quoted_message_id' => $quotedMessageId,
