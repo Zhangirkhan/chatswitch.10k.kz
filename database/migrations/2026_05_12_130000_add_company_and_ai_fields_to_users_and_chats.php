@@ -25,7 +25,7 @@ return new class extends Migration
                 ->constrained()
                 ->nullOnDelete();
             $table->boolean('ai_enabled')->default(false)->after('is_favorite');
-            $table->string('ai_mode', 20)->default('draft')->after('ai_enabled');
+            $table->string('ai_mode', 20)->default('auto')->after('ai_enabled');
             $table->foreignId('ai_responder_user_id')
                 ->nullable()
                 ->after('ai_mode')

@@ -209,7 +209,6 @@ const isManager = computed(() => (page.props.auth?.user?.roles ?? []).includes('
 const aiSaving = ref(false);
 const canManageAi = computed(() => props.chat.can_manage_ai === true);
 const aiEnabled = computed(() => props.chat.ai_enabled === true);
-const aiMode = computed(() => props.chat.ai_mode || 'auto');
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
@@ -302,11 +301,11 @@ async function toggleAi(): Promise<void> {
     try {
         await axios.patch(route('chats.ai.update', props.chat.id), {
             ai_enabled: !aiEnabled.value,
-            ai_mode: !aiEnabled.value ? 'auto' : (props.chat.ai_mode || 'auto'),
+            ai_mode: 'auto',
             ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
             company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
         });
-        router.reload({ only: ['chat'] });
+        router.reload({ only: ['chat', 'aiStatus'] });
     } catch (e: any) {
         alert(e?.response?.data?.message || 'Не удалось переключить AI.');
     } finally {
@@ -323,7 +322,7 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     try {
         await axios.patch(route('chats.ai.update', props.chat.id), {
             ai_enabled: aiEnabled.value,
-            ai_mode: aiMode.value,
+            ai_mode: 'auto',
             ai_responder_user_id: props.chat.ai_responder_user_id || null,
             company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
             ...payload,
@@ -334,11 +333,6 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     } finally {
         aiSaving.value = false;
     }
-}
-
-function onAiModeChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value === 'draft' ? 'draft' : 'auto';
-    void updateAiSettings({ ai_mode: value });
 }
 
 function onAiResponderChange(event: Event): void {
@@ -842,16 +836,6 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
             </button>
 
             <div v-if="canManageAi && aiEnabled" class="ai-settings-inline">
-                <select
-                    class="ai-settings-select"
-                    :value="aiMode"
-                    :disabled="aiSaving"
-                    title="Режим AI"
-                    @change="onAiModeChange"
-                >
-                    <option value="auto">Автоответ</option>
-                    <option value="draft">Черновик</option>
-                </select>
                 <select
                     class="ai-settings-select"
                     :value="chat.ai_responder_user_id || ''"

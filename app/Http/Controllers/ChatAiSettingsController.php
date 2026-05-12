@@ -23,7 +23,7 @@ final class ChatAiSettingsController extends Controller
 
         $validated = $request->validate([
             'ai_enabled' => ['required', 'boolean'],
-            'ai_mode' => ['nullable', Rule::in(['draft', 'auto'])],
+            'ai_mode' => ['nullable', Rule::in(['auto'])],
             'ai_responder_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
         ]);
@@ -36,7 +36,7 @@ final class ChatAiSettingsController extends Controller
 
         $chat->forceFill([
             'ai_enabled' => $aiEnabled,
-            'ai_mode' => (string) ($validated['ai_mode'] ?? ($aiEnabled ? 'auto' : ($chat->ai_mode ?: 'draft'))),
+            'ai_mode' => 'auto',
             'ai_responder_user_id' => $responder?->id,
             'company_id' => $companyId,
         ])->save();
@@ -45,7 +45,7 @@ final class ChatAiSettingsController extends Controller
             AnalyzeEmployeeToneProfileJob::dispatch($responder->id, $companyId, $chat->id);
         }
 
-        if ($chat->ai_enabled && $chat->ai_mode === 'auto') {
+        if ($chat->ai_enabled) {
             $this->dispatchReplyForLatestUnansweredInbound($chat);
         }
 

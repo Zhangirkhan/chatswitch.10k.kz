@@ -59,7 +59,7 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
         });
 
         $message->loadMissing('chat');
-        if ($message->chat?->ai_enabled === true && $message->chat->ai_mode === 'auto') {
+        if ($message->chat?->ai_enabled === true) {
             GenerateAiReplyJob::dispatch($message->chat_id, $message->id);
         }
     }

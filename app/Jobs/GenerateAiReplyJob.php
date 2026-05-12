@@ -33,7 +33,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         $chat = Chat::query()->with('aiResponder')->whereKey($this->chatId)->first();
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
-        if ($chat === null || $trigger === null || ! $chat->ai_enabled || $chat->ai_mode !== 'auto') {
+        if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
             return;
         }
 

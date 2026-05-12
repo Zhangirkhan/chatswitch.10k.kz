@@ -173,6 +173,7 @@ final class ChatController extends Controller
     {
         $log = AiResponseLog::query()
             ->where('chat_id', $chat->id)
+            ->where('mode', 'auto')
             ->latest('id')
             ->first(['id', 'mode', 'status', 'error', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
 

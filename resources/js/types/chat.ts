@@ -91,7 +91,7 @@ export interface Chat {
     latest_message?: ChatLastMessagePreview | null;
     community_id: number | null;
     ai_enabled?: boolean;
-    ai_mode?: 'draft' | 'auto';
+    ai_mode?: 'auto';
     ai_responder_user_id?: number | null;
     ai_responder?: { id: number; name: string } | null;
     can_manage_ai?: boolean;
