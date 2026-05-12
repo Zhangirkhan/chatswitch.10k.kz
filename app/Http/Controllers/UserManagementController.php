@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
+use App\Models\Company;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
@@ -26,7 +27,7 @@ final class UserManagementController extends Controller
         $departmentId = $request->integer('department_id') ?: null;
 
         $query = User::query()
-            ->with(['roles', 'department', 'departments', 'whatsappSessions'])
+            ->with(['roles', 'department', 'departments', 'whatsappSessions', 'company'])
             ->withCount('chatAssignments')
             ->orderBy('name');
 
@@ -80,6 +81,7 @@ final class UserManagementController extends Controller
                 'status' => in_array($status, ['active', 'inactive'], true) ? $status : '',
             ],
             'departments' => $departments,
+            'companies' => Company::query()->orderBy('name')->get(['id', 'name']),
             'whatsappSessions' => $whatsappSessions,
             'availableRoles' => ['administrator', 'manager', 'employee'],
         ]);
@@ -112,6 +114,7 @@ final class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $phonesList[0] ?? null,
             'phones' => $phonesList !== [] ? $phonesList : null,
+            'company_id' => $validated['company_id'] ?? null,
             'password' => $validated['password'],
             'is_active' => true,
         ]);
@@ -134,11 +137,17 @@ final class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $phonesList[0] ?? null,
             'phones' => $phonesList !== [] ? $phonesList : null,
+            'company_id' => $validated['company_id'] ?? null,
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ]);
 
         if (! empty($validated['password'])) {
             $user->update(['password' => $validated['password']]);
+            $user->revokeAllPersonalAccessTokens();
+        }
+
+        if (array_key_exists('is_active', $validated) && $validated['is_active'] === false) {
+            $user->revokeAllPersonalAccessTokens();
         }
 
         $user->syncRoles([$validated['role']]);
@@ -194,6 +203,8 @@ final class UserManagementController extends Controller
             'phones' => array_values($phones),
             'is_active' => (bool) $user->is_active,
             'department_id' => $user->department_id,
+            'company_id' => $user->company_id,
+            'company' => $user->company,
             'department' => $user->department,
             'department_ids' => $user->relationLoaded('departments')
                 ? $user->departments->pluck('id')->map(fn ($v) => (int) $v)->all()

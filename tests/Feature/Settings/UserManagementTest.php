@@ -54,4 +54,49 @@ final class UserManagementTest extends TestCase
         $this->assertTrue($user->hasRole('employee'));
         $this->assertSame(1, $user->whatsappSessions()->where('whatsapp_sessions.id', $session->id)->count());
     }
+
+    public function test_admin_password_change_revokes_target_personal_access_tokens(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $target = User::factory()->create(['email' => 'bob@example.test']);
+        $target->assignRole('employee');
+        $target->createToken('mobile');
+
+        $this->assertSame(1, $target->tokens()->count());
+
+        $this->actingAs($admin)->putJson(route('settings.users.update', $target), [
+            'name' => $target->name,
+            'email' => $target->email,
+            'password' => 'new-secret-999',
+            'role' => 'employee',
+            'is_active' => true,
+            'whatsapp_session_ids' => [],
+        ])->assertOk();
+
+        $this->assertSame(0, $target->fresh()->tokens()->count());
+    }
+
+    public function test_admin_deactivating_user_revokes_personal_access_tokens(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $target = User::factory()->create(['email' => 'carol@example.test']);
+        $target->assignRole('employee');
+        $target->createToken('mobile');
+
+        $this->assertSame(1, $target->tokens()->count());
+
+        $this->actingAs($admin)->putJson(route('settings.users.update', $target), [
+            'name' => $target->name,
+            'email' => $target->email,
+            'role' => 'employee',
+            'is_active' => false,
+            'whatsapp_session_ids' => [],
+        ])->assertOk();
+
+        $this->assertSame(0, $target->fresh()->tokens()->count());
+    }
 }

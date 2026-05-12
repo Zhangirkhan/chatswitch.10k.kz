@@ -24,6 +24,7 @@ final class StoreUserRequest extends FormRequest
             'phones.*' => ['nullable', 'string', 'max:40'],
             'password' => ['required', 'string', 'min:6'],
             'role' => ['required', 'string', 'in:administrator,manager,employee'],
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['integer', 'exists:departments,id'],

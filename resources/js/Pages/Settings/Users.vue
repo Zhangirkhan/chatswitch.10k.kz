@@ -23,10 +23,16 @@ type UserFilters = {
     status: string;
 };
 
+type CompanyOption = {
+    id: number;
+    name: string;
+};
+
 const props = defineProps<{
     users: PaginationPayload<User>;
     filters: UserFilters;
     departments: Department[];
+    companies: CompanyOption[];
     whatsappSessions: WhatsappSession[];
     availableRoles: string[];
 }>();
@@ -48,6 +54,7 @@ const form = ref({
     phone: '',
     password: '',
     role: 'employee',
+    company_id: null as number | null,
     department_ids: [] as number[],
     is_active: true,
     whatsapp_session_ids: [] as number[],
@@ -176,6 +183,7 @@ function openAdd() {
         phone: '',
         password: '',
         role: 'employee',
+        company_id: props.companies[0]?.id ?? null,
         department_ids: [],
         is_active: true,
         whatsapp_session_ids: [],
@@ -195,6 +203,7 @@ function openEdit(user: User) {
         phone: primaryPhone,
         password: '',
         role: user.roles?.[0] || 'employee',
+        company_id: user.company_id ?? null,
         department_ids: deptIds,
         is_active: user.is_active,
         whatsapp_session_ids: [...(user.whatsapp_session_ids || [])],
@@ -254,6 +263,7 @@ function buildPayload(): Record<string, unknown> {
         phone: phoneTrim !== '' ? phoneTrim : null,
         phones: phoneTrim !== '' ? [phoneTrim] : [],
         role: form.value.role,
+        company_id: form.value.company_id,
         department_ids: deptIds,
         whatsapp_session_ids: form.value.whatsapp_session_ids,
     };
@@ -574,6 +584,15 @@ async function remove(user: User) {
                                 <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
                                 <select v-model="form.role" class="settings-input">
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Компания</label>
+                                <select v-model="form.company_id" class="settings-input">
+                                    <option :value="null">Не выбрана</option>
+                                    <option v-for="company in companies" :key="company.id" :value="company.id">
+                                        {{ company.name }}
+                                    </option>
                                 </select>
                             </div>
                         </div>
