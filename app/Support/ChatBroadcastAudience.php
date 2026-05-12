@@ -126,9 +126,14 @@ final class ChatBroadcastAudience
 
         $icon = self::absoluteIconUrl($chat->contact?->profile_picture_url);
 
-        $sender = self::senderLabel($message);
         $preview = self::messagePreview($message);
-        $body = $sender !== '' ? $sender.': '.$preview : $preview;
+        // Push: заголовок — имя чата/клиента, текст — само сообщение (для входящих от клиента).
+        if ($message->direction === 'inbound') {
+            $body = $preview;
+        } else {
+            $sender = self::senderLabel($message);
+            $body = $sender !== '' ? $sender.': '.$preview : $preview;
+        }
 
         return [
             'title' => self::chatDisplayName($chat),

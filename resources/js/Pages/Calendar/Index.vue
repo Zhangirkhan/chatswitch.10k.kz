@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
@@ -8,9 +8,19 @@ import axios from 'axios';
 
 type Recurrence = 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
 type ViewMode   = 'month' | 'week';
+type ListFilter = 'all' | 'mine' | 'assigned_to_me';
+
+interface CalUserRef {
+    id: number;
+    name: string;
+}
 
 interface CalEvent {
     id: number;
+    user_id: number;
+    owner: CalUserRef | null;
+    assignee_user_id: number | null;
+    assignee: CalUserRef | null;
     title: string;
     description: string | null;
     color: string;
@@ -22,6 +32,9 @@ interface CalEvent {
     recurrence_instance?: boolean;
 }
 
+const page = usePage<{ assignableUsers?: CalUserRef[] }>();
+const assignableUsers = computed<CalUserRef[]>(() => page.props.assignableUsers ?? []);
+
 // ─── State ───────────────────────────────────────────────────────────────────
 
 const view      = ref<ViewMode>('month');
@@ -29,6 +42,10 @@ const today     = new Date();
 const cursor    = ref(new Date(today.getFullYear(), today.getMonth(), 1));
 const events    = ref<CalEvent[]>([]);
 const loading   = ref(false);
+
+const listFilter = ref<ListFilter>('all');
+const filterAuthorId = ref('');
+const filterAssigneeId = ref('');
 
 // ─── Modal form ──────────────────────────────────────────────────────────────
 
@@ -48,6 +65,7 @@ const form = ref({
     all_day: false,
     recurrence: '' as Recurrence | '',
     recurrence_ends_at: '',
+    assignee_user_id: '' as string,
 });
 
 function emptyForm(date?: Date) {
@@ -70,6 +88,7 @@ function emptyForm(date?: Date) {
         all_day: false,
         recurrence: '' as Recurrence | '',
         recurrence_ends_at: '',
+        assignee_user_id: '',
     };
 }
 
@@ -96,6 +115,7 @@ function openEdit(ev: CalEvent) {
         all_day: ev.all_day,
         recurrence: ev.recurrence ?? '',
         recurrence_ends_at: ev.recurrence_ends_at ?? '',
+        assignee_user_id: ev.assignee_user_id != null ? String(ev.assignee_user_id) : '',
     };
     formError.value = null;
     showModal.value = true;
@@ -115,6 +135,7 @@ async function saveEvent() {
         ...form.value,
         recurrence: form.value.recurrence || null,
         recurrence_ends_at: form.value.recurrence_ends_at || null,
+        assignee_user_id: form.value.assignee_user_id === '' ? null : Number(form.value.assignee_user_id),
     };
 
     try {
@@ -316,9 +337,20 @@ const rangeEnd = computed<string>(() => {
 async function loadEvents() {
     loading.value = true;
     try {
-        const { data } = await axios.get(route('calendar.events'), {
-            params: { start: rangeStart.value, end: rangeEnd.value },
-        });
+        const params: Record<string, string> = {
+            start: rangeStart.value,
+            end: rangeEnd.value,
+        };
+        if (listFilter.value !== 'all') {
+            params.filter = listFilter.value;
+        }
+        if (filterAuthorId.value) {
+            params.author_id = filterAuthorId.value;
+        }
+        if (filterAssigneeId.value) {
+            params.assignee_id = filterAssigneeId.value;
+        }
+        const { data } = await axios.get(route('calendar.events'), { params });
         events.value = data;
     } catch {
         //
@@ -328,6 +360,7 @@ async function loadEvents() {
 }
 
 watch([rangeStart, rangeEnd], loadEvents);
+watch([listFilter, filterAuthorId, filterAssigneeId], loadEvents);
 onMounted(loadEvents);
 
 // Switch view: set cursor to week containing today (or current month start)
@@ -389,6 +422,31 @@ const recurrenceLabels: Record<string, string> = {
                 </div>
             </div>
 
+            <div class="cal-filters">
+                <label class="cal-filter">
+                    <span class="cal-filter-label">Обзор</span>
+                    <select v-model="listFilter" class="cal-filter-select">
+                        <option value="all">Все доступные</option>
+                        <option value="mine">Мои записи</option>
+                        <option value="assigned_to_me">Я ответственный</option>
+                    </select>
+                </label>
+                <label class="cal-filter">
+                    <span class="cal-filter-label">Автор</span>
+                    <select v-model="filterAuthorId" class="cal-filter-select">
+                        <option value="">Все авторы</option>
+                        <option v-for="u in assignableUsers" :key="'af-' + u.id" :value="String(u.id)">{{ u.name }}</option>
+                    </select>
+                </label>
+                <label class="cal-filter">
+                    <span class="cal-filter-label">Ответственный</span>
+                    <select v-model="filterAssigneeId" class="cal-filter-select">
+                        <option value="">Все</option>
+                        <option v-for="u in assignableUsers" :key="'gf-' + u.id" :value="String(u.id)">{{ u.name }}</option>
+                    </select>
+                </label>
+            </div>
+
             <!-- ── Month view ────────────────────────────────────────── -->
             <div v-if="view === 'month'" class="cal-month">
                 <!-- Day headers -->
@@ -420,6 +478,7 @@ const recurrenceLabels: Record<string, string> = {
                                 <span class="cal-event-dot" :style="{ background: ev.color }"></span>
                                 <span class="cal-event-chip-title">
                                     <template v-if="!ev.all_day">{{ formatTime(ev.starts_at) }} </template>{{ ev.title }}
+                                    <span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
                                 </span>
                                 <svg v-if="ev.recurrence" class="w-2.5 h-2.5 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -459,7 +518,7 @@ const recurrenceLabels: Record<string, string> = {
                             class="cal-allday-chip"
                             :style="{ background: ev.color + '33', borderColor: ev.color, color: ev.color }"
                             @click.stop="openEdit(ev)"
-                        >{{ ev.title }}</div>
+                        >{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
                     </div>
                 </div>
 
@@ -492,7 +551,7 @@ const recurrenceLabels: Record<string, string> = {
                                     :style="{ ...eventStyle(ev, h), background: ev.color + '33', borderColor: ev.color, color: ev.color }"
                                     @click.stop="openEdit(ev)"
                                 >
-                                    <div class="cal-week-event-title">{{ ev.title }}</div>
+                                    <div class="cal-week-event-title">{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
                                     <div class="cal-week-event-time">{{ formatTime(ev.starts_at) }}–{{ formatTime(ev.ends_at) }}</div>
                                 </div>
                             </div>
@@ -517,6 +576,14 @@ const recurrenceLabels: Record<string, string> = {
                         <label class="form-row">
                             <span>Название</span>
                             <input v-model="form.title" type="text" maxlength="255" placeholder="Название записи" autofocus />
+                        </label>
+
+                        <label class="form-row">
+                            <span>Ответственный</span>
+                            <select v-model="form.assignee_user_id" class="cal-filter-select w-full">
+                                <option value="">Не назначен</option>
+                                <option v-for="u in assignableUsers" :key="'as-' + u.id" :value="String(u.id)">{{ u.name }}</option>
+                            </select>
                         </label>
 
                         <!-- Color -->
@@ -703,6 +770,45 @@ const recurrenceLabels: Record<string, string> = {
     transition: filter 0.12s;
 }
 .cal-add-btn:hover { filter: brightness(1.08); }
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+.cal-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.85rem 1rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--wa-border);
+    background: var(--wa-panel);
+    flex-shrink: 0;
+}
+.cal-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 140px;
+    flex: 0 1 auto;
+}
+.cal-filter-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--wa-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.cal-filter-select {
+    font-size: 0.82rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-panel-header);
+    color: var(--wa-text);
+    min-width: 160px;
+}
+.cal-event-assignee {
+    font-weight: 500;
+    opacity: 0.88;
+}
 
 /* ── Month view ─────────────────────────────────────────────────────────── */
 .cal-month {

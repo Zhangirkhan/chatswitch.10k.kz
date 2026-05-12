@@ -53,6 +53,11 @@ export function useToastStore() {
     }
 
     function show(options: ShowToastOptions): number {
+        // Входящие сообщения показываем только через Notification API, не тостом.
+        if (options.type === 'message') {
+            return -1;
+        }
+
         const id = nextId++;
         const duration = options.duration ?? 4000;
 

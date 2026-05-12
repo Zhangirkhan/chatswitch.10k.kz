@@ -16,8 +16,8 @@ function readNotificationsEnabled(): boolean {
 }
 
 /**
- * Не показывать баннер, пока пользователь явно смотрит на эту вкладку (фокус ввода в документе).
- * Иначе: другая вкладка, свёрнутое окно, другое приложение в фокусе — можно показать.
+ * Не показывать служебные уведомления (звонок, назначение), пока вкладка в фокусе —
+ * чтобы не дублировать UI внутри приложения.
  */
 function shouldShowWhenNotInForeground(): boolean {
     if (typeof document === 'undefined') return false;
@@ -30,9 +30,13 @@ function shouldShowWhenNotInForeground(): boolean {
     return false;
 }
 
-function defaultIconUrl(): string {
+function defaultAppIconUrl(): string {
     if (typeof window === 'undefined') return '';
-    return new URL('/favicon.ico', window.location.origin).href;
+    return new URL('/images/chatswitch-notification.svg', window.location.origin).href;
+}
+
+function isLikelyHttpUrl(value: string): boolean {
+    return value.startsWith('https://') || value.startsWith('http://') || value.startsWith('data:');
 }
 
 type DesktopPayload = {
@@ -58,9 +62,12 @@ type ChatsNotifyPayload = {
 };
 
 /**
- * Системные уведомления по Echo на `chats.list.{userId}`.
- * Нужны: включённый пункт в профиле, разрешение браузера, вкладка не на переднем плане.
- * Несколько сообщений в одном чату схлопываются за счёт одного `tag` на чат.
+ * Браузерные уведомления (Notification API) по Echo на `chats.list.{userId}`.
+ * Нужны: включённый флаг в профиле / баннере и разрешение браузера.
+ *
+ * Входящие сообщения: показываем, если пользователь не на странице этого чата
+ * (как раньше с тостом), в том числе когда открыт список /chats.
+ * Звонки/назначения: только когда вкладка не на переднем плане.
  */
 export function useChatsListDesktopNotifications(
     getUserId: () => number | null | undefined,
@@ -85,14 +92,20 @@ export function useChatsListDesktopNotifications(
         const sentBy = e.message?.sent_by_user_id;
         if (currentUserId !== null && sentBy === currentUserId) return;
 
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        if (path.includes(`/chats/${d.chat_id}`)) {
+            return;
+        }
+
         fireNotification({
             chat_id: d.chat_id,
             title: d.title,
             body: d.body,
-            icon: d.icon,
+            contactImageUrl: d.icon,
             is_muted: d.is_muted,
             tag: `chatswitch-msg-${d.chat_id}`,
             renotify: true,
+            skipVisibilityCheck: true,
         });
     };
 
@@ -108,10 +121,11 @@ export function useChatsListDesktopNotifications(
             chat_id: e.chat_id,
             title: e.title,
             body: e.body,
-            icon: (e.icon as string | null | undefined) ?? null,
+            contactImageUrl: (e.icon as string | null | undefined) ?? null,
             is_muted: e.is_muted,
             tag,
             renotify: true,
+            skipVisibilityCheck: false,
         });
     };
 
@@ -119,21 +133,29 @@ export function useChatsListDesktopNotifications(
         chat_id: number;
         title: string;
         body: string;
-        icon: string | null;
+        contactImageUrl: string | null;
         is_muted: boolean;
         tag: string;
         renotify?: boolean;
+        skipVisibilityCheck: boolean;
     }): void {
         if (!readNotificationsEnabled()) return;
         if (typeof Notification === 'undefined') return;
         if (Notification.permission !== 'granted') return;
-        if (!shouldShowWhenNotInForeground()) return;
+        if (!opts.skipVisibilityCheck && !shouldShowWhenNotInForeground()) return;
         if (opts.is_muted) return;
 
         try {
+            const appIcon = defaultAppIconUrl();
+            const image =
+                opts.contactImageUrl && isLikelyHttpUrl(opts.contactImageUrl)
+                    ? opts.contactImageUrl
+                    : undefined;
+
             const notificationOptions: NotificationOptions & { renotify?: boolean } = {
                 body: opts.body.slice(0, 500),
-                icon: opts.icon || defaultIconUrl(),
+                icon: appIcon,
+                ...(image ? { image } : {}),
                 tag: opts.tag,
                 renotify: opts.renotify ?? false,
             };

@@ -9,7 +9,6 @@ import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
 import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
-import { useToastStore } from '@/stores/toast';
 
 const page = usePage<any>();
 const user = computed(() => page.props.auth.user);
@@ -39,43 +38,6 @@ watch(
 );
 
 useUnreadFavicon(() => unreadChatsCount.value);
-
-// ─── In-app message toasts ─────────────────────────────────────────────────
-// Показываем тост при входящем сообщении, когда пользователь НЕ смотрит на этот чат.
-// ChatSidebar подписывается на тот же Echo-канал — дублирования нет, т.к. тост
-// показывается только для inbound сообщений не в текущем открытом чате.
-const { show: showToast } = useToastStore();
-let inAppEchoChannel: any = null;
-
-function setupInAppEcho(): void {
-    const Echo = (window as any).Echo;
-    const uid = userId.value;
-    if (!Echo || !uid) return;
-    try {
-        inAppEchoChannel = Echo.private(`chats.list.${uid}`);
-        inAppEchoChannel.listen('.message.received', (e: any) => {
-            const msg = e.message;
-            const desktop = e.desktop;
-            if (!msg?.chat_id || !desktop) return;
-            // Только входящие от клиентов
-            if (msg.direction !== 'inbound') return;
-            // Не показываем тост если пользователь уже смотрит на этот чат
-            const currentUrl = window.location.pathname;
-            if (currentUrl.includes(`/chats/${msg.chat_id}`)) return;
-
-            showToast({
-                type: 'message',
-                title: desktop.title || 'Новое сообщение',
-                message: desktop.body || 'Клиент написал',
-                iconUrl: desktop.icon || null,
-                chatId: msg.chat_id,
-                duration: 7000,
-            });
-        });
-    } catch {
-        inAppEchoChannel = null;
-    }
-}
 
 const whatsappSessions = ref<WhatsappSession[]>([]);
 let whatsappStatusChannel: any = null;
@@ -139,7 +101,6 @@ onMounted(() => {
     const Echo = (window as any).Echo;
 
     if (Echo) {
-        setupInAppEcho();
         if (canSubscribeToWhatsappStatus.value) {
             try {
                 whatsappStatusChannel = Echo.private('whatsapp-status');
@@ -155,7 +116,6 @@ onMounted(() => {
             waited += 300;
             if ((window as any).Echo) {
                 clearInterval(iv);
-                setupInAppEcho();
                 if (canSubscribeToWhatsappStatus.value) {
                     try {
                         whatsappStatusChannel = (window as any).Echo.private('whatsapp-status');
@@ -172,12 +132,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    try {
-        if (inAppEchoChannel && (window as any).Echo && userId.value) {
-            try { (window as any).Echo.leave(`chats.list.${userId.value}`); } catch { /* ignore */ }
-        }
-        inAppEchoChannel = null;
-    } catch { /* ignore */ }
     try {
         whatsappStatusChannel?.stopListening('.status.changed', onWhatsappStatusChanged);
     } catch {
