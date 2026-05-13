@@ -168,7 +168,6 @@ async function send(prompt?: string): Promise<void> {
     } catch (e: any) {
         const msg: string =
             e?.response?.data?.message ||
-            e?.message ||
             'Не удалось получить ответ AI.';
         turns.value.push({ role: 'assistant', content: `⚠ ${msg}`, ts: Date.now() });
         showToast({ message: msg });
@@ -230,7 +229,6 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
         autoDraft.value = '';
         autoDraftError.value =
             e?.response?.data?.message ||
-            e?.message ||
             'Не удалось подготовить черновик.';
     } finally {
         autoDraftLoading.value = false;
