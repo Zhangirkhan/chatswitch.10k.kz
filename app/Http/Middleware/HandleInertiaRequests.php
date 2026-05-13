@@ -55,7 +55,8 @@ final class HandleInertiaRequests extends Middleware
                 'user' => $user ? array_merge(
                     $user->toArray(),
                     [
-                        'roles' => $user->getRoleNames(),
+                        'roles' => $user->getRoleNames()->values()->all(),
+                        'can_pick_ai_responder' => $user->hasAnyRole(['administrator', 'manager']),
                         'department' => $user->department,
                         'departments' => $user->departments
                             ->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])

@@ -206,9 +206,19 @@ async function saveDepartments(closeAfterSave = true) {
 const assignableUsersList = computed<AssignableUser[]>(() => props.assignableUsers ?? []);
 const isAdministrator = computed(() => (page.props.auth?.user?.roles ?? []).includes('administrator'));
 const isManager = computed(() => (page.props.auth?.user?.roles ?? []).includes('manager'));
-const aiSaving = ref(false);
+
+/** Селект ответчика AI — только админ/руководитель (источник правды: Laravel, см. auth.user.can_pick_ai_responder). */
+const showAiResponderSelect = computed(() => {
+    const u = page.props.auth?.user;
+    if (u && typeof u.can_pick_ai_responder === 'boolean') {
+        return u.can_pick_ai_responder;
+    }
+    return isAdministrator.value || isManager.value;
+});
+
 const canManageAi = computed(() => props.chat.can_manage_ai === true);
 const aiEnabled = computed(() => props.chat.ai_enabled === true);
+const aiSaving = ref(false);
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
@@ -635,7 +645,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 </script>
 
 <template>
-    <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative">
+    <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative overflow-hidden">
         <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -677,7 +687,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
             </p>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="chat-header-toolbar flex flex-nowrap items-center gap-2 min-w-0 shrink">
             <!-- Отделы: сотрудник только видит свой; админ/руководитель — выбор -->
             <div class="relative">
                 <div
@@ -811,32 +821,23 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 </template>
             </div>
 
-            <button
-                type="button"
-                class="label-pill label-pill-scheduled label-pill-icon"
-                title="Отложенные сообщения"
-                aria-label="Отложенные сообщения"
-                @click="scheduledMessagesOpen = true"
-            >
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </button>
+            <div class="header-action-group header-ai-group" :class="{ 'header-ai-group-on': aiEnabled }">
+                <button
+                    v-if="canManageAi"
+                    type="button"
+                    class="header-ai-toggle"
+                    :class="{ 'header-ai-toggle-on': aiEnabled }"
+                    :title="aiEnabled ? 'Нажмите, чтобы выключить AI-автоответы' : 'Нажмите, чтобы включить AI-автоответы'"
+                    :aria-label="aiEnabled ? 'Выключить AI-автоответы' : 'Включить AI-автоответы'"
+                    :disabled="aiSaving"
+                    @click="toggleAi"
+                >
+                    <span class="ai-state-dot" :class="{ 'ai-state-dot-on': aiEnabled }"></span>
+                    <span class="header-ai-toggle-text">{{ aiEnabled ? 'AI включен' : 'AI выключен' }}</span>
+                </button>
 
-            <button
-                v-if="canManageAi"
-                type="button"
-                class="label-pill label-pill-ai-toggle"
-                :class="{ 'label-pill-ai-toggle-on': aiEnabled }"
-                :title="aiEnabled ? 'Отключить AI-автоответы' : 'Включить AI-ассистента в чате'"
-                :disabled="aiSaving"
-                @click="toggleAi"
-            >
-                {{ aiEnabled ? 'AI включен' : 'AI выкл' }}
-            </button>
-
-            <div v-if="canManageAi && aiEnabled" class="ai-settings-inline">
                 <select
+                    v-if="canManageAi && aiEnabled && showAiResponderSelect"
                     class="ai-settings-select"
                     :value="chat.ai_responder_user_id || ''"
                     :disabled="aiSaving"
@@ -852,30 +853,20 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                         {{ user.name }}
                     </option>
                 </select>
-                <span
-                    class="ai-status-chip"
-                    :class="{
-                        'ai-status-chip-error': aiStatus?.status === 'failed' || aiStatus?.status === 'blocked',
-                        'ai-status-chip-active': aiStatus?.status === 'generating',
-                    }"
-                    :title="aiStatus?.error || `Ответчик: ${aiResponderName}`"
-                >
-                    {{ aiStatusLabel }}
-                </span>
-            </div>
 
-            <button
-                type="button"
-                class="label-pill label-pill-ai"
-                title="AI-ассистент: подскажет ответ по этой переписке"
-                aria-label="Открыть AI-ассистента"
-                @click="emit('open-ai')"
-            >
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <span class="label-pill-ai-text">AI</span>
-            </button>
+                <button
+                    type="button"
+                    class="header-ai-assistant-btn"
+                    :title="aiStatus?.error || `AI-ассистент. ${aiStatusLabel}. Ответчик: ${aiResponderName}`"
+                    aria-label="Открыть AI-ассистента"
+                    @click="emit('open-ai')"
+                >
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span class="label-pill-ai-text">AI</span>
+                </button>
+            </div>
 
             <!-- Сотрудники: одна кнопка с аватарками; зелёная иерархия -->
             <div v-if="showAssignUsersBlock" class="relative">
@@ -1060,23 +1051,10 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     </svg>
                 </button>
 
-                <button
-                    type="button"
-                    class="wa-header-btn wa-header-btn-archive shrink-0"
-                    title="Закрыть чат и отправить в архив"
-                    :disabled="archivingChat"
-                    :aria-busy="archivingChat"
-                    @click="archiveAndCloseChat"
-                >
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-
                 <div class="relative shrink-0">
                     <button
                         ref="menuBtnRef"
-                        class="wa-header-btn"
+                        class="wa-header-btn shrink-0"
                         title="Меню"
                         @click="toggleMenu"
                         type="button"
@@ -1118,11 +1096,28 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                         </svg>
                         Поиск
                     </button>
+                    <button class="menu-item" @click="scheduledMessagesOpen = true; closeMenu()" type="button">
+                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Отложенные сообщения
+                    </button>
                     <button class="menu-item" @click="notImplemented('Выбрать сообщения')" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         Выбрать сообщения
+                    </button>
+                    <button
+                        class="menu-item menu-item-danger"
+                        :disabled="archivingChat"
+                        @click="archiveAndCloseChat"
+                        type="button"
+                    >
+                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Закрыть чат и в архив
                     </button>
                     <button class="menu-item" @click="closeChatWindow" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1545,6 +1540,15 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 </template>
 
 <style scoped>
+/* Правая панель действий: компактные группы вместо россыпи равнозначных кнопок. */
+.chat-header-toolbar {
+    overflow: hidden;
+}
+
+.chat-header-toolbar > * {
+    flex-shrink: 0;
+}
+
 .wa-header-btn {
     width: 2.5rem;
     height: 2.5rem;
@@ -1635,81 +1639,111 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
     border-color: color-mix(in srgb, #3b82f6 60%, var(--wa-border-strong));
 }
 
-/* AI-ассистент — фиолетово-розовый акцент, чтобы кнопка выделялась среди отделов/отложенных. */
-.label-pill-ai {
-    color: #fff;
-    border-color: transparent;
-    background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
-    padding-inline: 0.75rem;
-    max-width: none;
-    font-weight: 600;
-    box-shadow: 0 1px 0 0 color-mix(in srgb, #7c3aed 35%, transparent);
-}
-.label-pill-ai:hover {
-    background: linear-gradient(135deg, #6d28d9 0%, #be185d 100%);
-    border-color: transparent;
-}
-.label-pill-ai-text {
-    letter-spacing: 0.04em;
-    font-size: 0.75rem;
-}
-
-.label-pill-ai-toggle {
-    color: var(--wa-text-secondary);
-    border-color: var(--wa-border-strong);
-    background-color: var(--wa-panel);
-    padding-inline: 0.75rem;
-    max-width: none;
-    font-weight: 600;
-}
-.label-pill-ai-toggle-on {
-    color: #fff;
-    border-color: transparent;
-    background-color: var(--wa-green);
-}
-
-.ai-settings-inline {
+.header-action-group {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
+    height: 2.35rem;
+    border: 1px solid var(--wa-border-strong);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--wa-panel) 88%, var(--wa-bg) 12%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    overflow: hidden;
+}
+
+.header-ai-group {
+    gap: 0;
+}
+
+.header-ai-group-on {
+    border-color: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
+}
+
+.header-ai-toggle,
+.header-ai-assistant-btn {
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
+    border: 0;
+    background: transparent;
+    white-space: nowrap;
+}
+
+.header-ai-toggle {
+    min-width: 7rem;
+    padding: 0 0.82rem;
+    color: var(--wa-text-secondary);
+    font-size: 0.78rem;
+    font-weight: 650;
+}
+
+.header-ai-toggle-on {
+    color: var(--wa-text);
+}
+
+.header-ai-toggle:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-panel-hover) 78%, transparent);
+}
+
+.header-ai-toggle:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.header-ai-toggle-text {
+    max-width: 7.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-state-dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    border-radius: 9999px;
+    background: var(--wa-text-muted);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-text-muted) 14%, transparent);
+}
+
+.ai-state-dot-on {
+    background: var(--wa-green);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-green) 18%, transparent);
+}
+
+.header-ai-assistant-btn {
+    min-width: 3.95rem;
+    padding: 0 0.78rem;
+    color: #fff;
+    background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+    font-weight: 700;
+}
+
+.header-ai-assistant-btn:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #be185d 100%);
+}
+
+.label-pill-ai-text {
+    letter-spacing: 0.04em;
+    font-size: 0.74rem;
 }
 
 .ai-settings-select {
-    height: 2rem;
-    max-width: 9.5rem;
-    border-radius: 9999px;
-    border: 1px solid var(--wa-border-strong);
-    background-color: var(--wa-panel);
-    color: var(--wa-text-primary);
+    height: 100%;
+    max-width: 8.6rem;
+    min-width: 6.5rem;
+    border: 0;
+    border-left: 1px solid var(--wa-border);
+    border-radius: 0;
+    background-color: color-mix(in srgb, var(--wa-panel) 78%, var(--wa-bg) 22%);
+    color: var(--wa-text);
     font-size: 0.75rem;
-    padding: 0 1.7rem 0 0.65rem;
-}
-
-.ai-status-chip {
-    max-width: 11rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    border-radius: 9999px;
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    background: rgba(59, 130, 246, 0.08);
-    color: #2563eb;
-    font-size: 0.72rem;
     font-weight: 600;
-    padding: 0.35rem 0.55rem;
+    padding: 0 1.45rem 0 0.65rem;
+    outline: none;
 }
 
-.ai-status-chip-active {
-    border-color: rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: #b45309;
-}
-
-.ai-status-chip-error {
-    border-color: rgba(239, 68, 68, 0.35);
-    background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
+.ai-settings-select:disabled {
+    opacity: 0.62;
 }
 
 /* Иконочный вариант пилла: квадратная кнопка только с иконкой (+ опц. бейдж счётчика). */

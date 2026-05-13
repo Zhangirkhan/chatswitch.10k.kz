@@ -11,6 +11,8 @@ export interface User {
     department_ids?: number[];
     is_active: boolean;
     roles: string[];
+    /** Кто может выбирать «AI отвечает от имени» в шапке чата (сервер: administrator | manager). */
+    can_pick_ai_responder?: boolean;
     department: Department | null;
     departments?: Department[];
     whatsapp_sessions?: WhatsappSession[];

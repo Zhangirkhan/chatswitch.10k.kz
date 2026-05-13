@@ -428,7 +428,7 @@ async function saveContactName() {
     >
         <!-- Header -->
         <div
-            class="h-[60px] px-4 flex items-center gap-5 shrink-0"
+            class="h-[60px] px-4 flex items-center gap-5 shrink-0 min-w-0 isolate"
             :style="{ background: 'var(--wa-panel-header)' }"
         >
             <button
@@ -441,7 +441,7 @@ async function saveContactName() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
-            <h2 class="text-base flex-1" :style="{ color: 'var(--wa-text)' }">
+            <h2 class="text-base flex-1 min-w-0 truncate font-medium" :style="{ color: 'var(--wa-text)' }">
                 Данные контакта
             </h2>
             <button
