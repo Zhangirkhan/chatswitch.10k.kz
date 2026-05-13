@@ -162,14 +162,14 @@ final class ChatController extends Controller
             'contactChats' => $contactChats,
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
-            'aiStatus' => $this->latestAiStatus($chat),
+            'aiStatus' => $this->latestAiStatus($chat, $request->user()),
         ]);
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function latestAiStatus(Chat $chat): ?array
+    private function latestAiStatus(Chat $chat, ?User $viewer): ?array
     {
         $log = AiResponseLog::query()
             ->where('chat_id', $chat->id)
@@ -181,16 +181,81 @@ final class ChatController extends Controller
             return null;
         }
 
+        $status = (string) $log->status;
+        $error = is_string($log->error) ? $log->error : null;
+        $isAdministrator = $viewer?->hasRole('administrator') === true;
+
         return [
             'id' => $log->id,
             'mode' => $log->mode,
-            'status' => $log->status,
-            'error' => $log->error,
+            'status' => $status,
+            'label' => $this->aiStatusLabel($status),
+            'message' => $this->aiStatusMessage($status, $error),
+            'hint' => $this->aiStatusHint($status),
+            'technical_error' => $isAdministrator ? $error : null,
             'message_id' => $log->message_id,
             'trigger_message_id' => $log->trigger_message_id,
             'created_at' => $log->created_at?->toIso8601String(),
             'updated_at' => $log->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function aiStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'AI в очереди',
+            'generating' => 'AI готовит ответ',
+            'sent' => 'AI ответил',
+            'blocked' => 'AI остановлен проверкой',
+            'failed' => 'AI недоступен',
+            default => 'AI статус: '.$status,
+        };
+    }
+
+    private function aiStatusMessage(string $status, ?string $error): string
+    {
+        return match ($status) {
+            'pending' => 'AI получил задачу и скоро начнёт готовить ответ.',
+            'generating' => 'AI сейчас готовит автоответ клиенту.',
+            'sent' => 'Последний автоответ AI успешно отправлен клиенту.',
+            'blocked' => 'AI подготовил ответ, но он был остановлен проверкой безопасности.',
+            'failed' => $this->safeAiErrorMessage($error),
+            default => 'AI обновил статус обработки.',
+        };
+    }
+
+    private function aiStatusHint(string $status): ?string
+    {
+        return match ($status) {
+            'pending', 'generating' => 'Можно дождаться ответа или написать клиенту вручную.',
+            'sent' => 'Проверьте сообщение в истории чата, если нужно убедиться в формулировке.',
+            'blocked' => 'Ответьте вручную или уточните базу знаний, если AI не должен блокироваться в таком сценарии.',
+            'failed' => 'Ответьте вручную и передайте ошибку администратору, если она повторяется.',
+            default => null,
+        };
+    }
+
+    private function safeAiErrorMessage(?string $error): string
+    {
+        $error = trim((string) $error);
+        if ($error === '') {
+            return 'AI не смог подготовить ответ. Попробуйте ещё раз или ответьте вручную.';
+        }
+
+        $lower = mb_strtolower($error);
+        if (str_contains($lower, 'sqlstate') || str_contains($lower, 'base table') || str_contains($lower, 'table')) {
+            return 'AI временно недоступен. Администратору нужно проверить настройки базы данных и миграции.';
+        }
+
+        if (str_contains($lower, 'openai') || str_contains($lower, 'api') || str_contains($lower, 'timeout')) {
+            return 'AI-сервис временно недоступен. Попробуйте ещё раз позже или ответьте вручную.';
+        }
+
+        if (str_contains($lower, 'safety')) {
+            return 'AI остановил ответ из-за проверки безопасности. Ответьте клиенту вручную.';
+        }
+
+        return 'AI не смог подготовить ответ. Попробуйте ещё раз или ответьте вручную.';
     }
 
     public function syncDepartments(SyncDepartmentsRequest $request, Chat $chat): JsonResponse

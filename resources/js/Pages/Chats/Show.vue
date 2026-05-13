@@ -23,7 +23,10 @@ const props = defineProps<{
         id: number;
         mode: string;
         status: string;
-        error: string | null;
+        label: string;
+        message: string;
+        hint: string | null;
+        technical_error: string | null;
         updated_at: string | null;
     } | null;
 }>();

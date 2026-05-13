@@ -12,7 +12,10 @@ type AiStatus = {
     id: number;
     mode: string;
     status: string;
-    error: string | null;
+    label: string;
+    message: string;
+    hint: string | null;
+    technical_error: string | null;
     updated_at: string | null;
 };
 
@@ -230,15 +233,36 @@ const aiResponderName = computed(() => {
         || `#${id}`;
 });
 const aiStatusLabel = computed(() => {
-    const status = props.aiStatus?.status;
-    if (!status) {
+    if (!props.aiStatus) {
         return 'AI ещё не отвечал';
     }
-    if (status === 'sent') return 'последний ответ отправлен';
-    if (status === 'generating') return 'AI готовит ответ';
-    if (status === 'blocked') return 'ответ заблокирован проверкой';
-    if (status === 'failed') return 'ошибка AI';
-    return status;
+    return props.aiStatus.label || props.aiStatus.status;
+});
+
+const aiModeLabel = computed(() => (aiEnabled.value ? 'AI авто' : 'AI выключен'));
+
+const aiAssistantButtonText = computed(() => {
+    const status = props.aiStatus?.status;
+    if (status === 'failed') return 'AI ошибка';
+    if (status === 'generating' || status === 'pending') return 'AI думает';
+    if (status === 'blocked') return 'AI стоп';
+    return 'AI';
+});
+
+const aiStatusTitle = computed(() => {
+    const lines = [
+        `AI-ассистент: ${aiStatusLabel.value}.`,
+        props.aiStatus?.message,
+        props.aiStatus?.hint,
+        `Режим: ${aiModeLabel.value}.`,
+        `Ответчик: ${aiResponderName.value}.`,
+    ].filter(Boolean);
+
+    if (isAdministrator.value && props.aiStatus?.technical_error) {
+        lines.push(`Технически: ${props.aiStatus.technical_error}`);
+    }
+
+    return lines.join('\n');
 });
 
 /** У руководителя — как раньше; у админа кнопка видна всегда, но без отделов у чата неактивна. */
@@ -827,13 +851,13 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     type="button"
                     class="header-ai-toggle"
                     :class="{ 'header-ai-toggle-on': aiEnabled }"
-                    :title="aiEnabled ? 'Нажмите, чтобы выключить AI-автоответы' : 'Нажмите, чтобы включить AI-автоответы'"
+                    :title="aiEnabled ? 'AI сам отвечает на новые сообщения клиента. Нажмите, чтобы выключить.' : 'AI не отвечает автоматически. Нажмите, чтобы включить автоответы.'"
                     :aria-label="aiEnabled ? 'Выключить AI-автоответы' : 'Включить AI-автоответы'"
                     :disabled="aiSaving"
                     @click="toggleAi"
                 >
                     <span class="ai-state-dot" :class="{ 'ai-state-dot-on': aiEnabled }"></span>
-                    <span class="header-ai-toggle-text">{{ aiEnabled ? 'AI включен' : 'AI выключен' }}</span>
+                    <span class="header-ai-toggle-text">{{ aiModeLabel }}</span>
                 </button>
 
                 <select
@@ -857,14 +881,18 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 <button
                     type="button"
                     class="header-ai-assistant-btn"
-                    :title="aiStatus?.error || `AI-ассистент. ${aiStatusLabel}. Ответчик: ${aiResponderName}`"
+                    :class="{
+                        'header-ai-assistant-btn-error': aiStatus?.status === 'failed',
+                        'header-ai-assistant-btn-busy': aiStatus?.status === 'generating' || aiStatus?.status === 'pending',
+                    }"
+                    :title="aiStatusTitle"
                     aria-label="Открыть AI-ассистента"
                     @click="emit('open-ai')"
                 >
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <span class="label-pill-ai-text">AI</span>
+                    <span class="label-pill-ai-text">{{ aiAssistantButtonText }}</span>
                 </button>
             </div>
 
@@ -1720,6 +1748,22 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 
 .header-ai-assistant-btn:hover {
     background: linear-gradient(135deg, #6d28d9 0%, #be185d 100%);
+}
+
+.header-ai-assistant-btn-error {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.header-ai-assistant-btn-error:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+}
+
+.header-ai-assistant-btn-busy {
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+}
+
+.header-ai-assistant-btn-busy:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
 }
 
 .label-pill-ai-text {
