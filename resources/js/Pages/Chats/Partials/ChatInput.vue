@@ -22,6 +22,8 @@ const emit = defineEmits<{
 const messageText = ref('');
 const isSending = ref(false);
 const editorRef = ref<HTMLDivElement | null>(null);
+const aiActionLoading = ref<string | null>(null);
+const aiActionError = ref<string | null>(null);
 
 // Formatting toolbar (like WhatsApp Web)
 const formatBarOpen = ref(false);
@@ -38,6 +40,16 @@ const showAttach = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout>;
 
 const hasText = computed(() => messageText.value.trim().length > 0);
+const aiActionBusy = computed(() => aiActionLoading.value !== null);
+
+type AiInputAction = 'reply' | 'improve' | 'shorter' | 'polite';
+
+const aiInputActions: ReadonlyArray<{ key: AiInputAction; label: string; requiresText: boolean }> = [
+    { key: 'reply', label: 'AI ответить', requiresText: false },
+    { key: 'improve', label: 'AI улучшить текст', requiresText: true },
+    { key: 'shorter', label: 'AI сделать короче', requiresText: true },
+    { key: 'polite', label: 'AI сделать вежливее', requiresText: true },
+];
 
 type GroupParticipant = {
     id: string;
@@ -384,6 +396,58 @@ watch(
     },
     { immediate: true },
 );
+
+function aiPromptFor(action: AiInputAction): string {
+    const currentText = messageText.value.trim();
+
+    if (action === 'reply') {
+        return 'Подготовь один готовый ответ клиенту по текущему чату. Пиши от лица оператора, без объяснений и без вариантов.';
+    }
+
+    if (action === 'shorter') {
+        return `Сделай этот текст короче, сохрани смысл и дружелюбный тон. Верни только готовый текст:\n\n${currentText}`;
+    }
+
+    if (action === 'polite') {
+        return `Сделай этот текст более вежливым и спокойным, без лишней официальности. Верни только готовый текст:\n\n${currentText}`;
+    }
+
+    return `Улучши этот ответ оператору: исправь формулировку, сохрани смысл, сделай текст ясным и естественным. Верни только готовый текст:\n\n${currentText}`;
+}
+
+async function runAiInputAction(action: AiInputAction): Promise<void> {
+    if (aiActionBusy.value) {
+        return;
+    }
+
+    const config = aiInputActions.find((item) => item.key === action);
+    if (config?.requiresText && !hasText.value) {
+        aiActionError.value = 'Сначала напишите текст, который нужно улучшить.';
+        return;
+    }
+
+    aiActionLoading.value = action;
+    aiActionError.value = null;
+
+    try {
+        const { data } = await axios.post(route('chats.ai.chat', props.chatId), {
+            message: aiPromptFor(action),
+            history: [],
+        });
+        const reply = String(data?.reply ?? '').trim();
+        if (reply === '') {
+            aiActionError.value = 'AI вернул пустой ответ. Попробуйте ещё раз.';
+            return;
+        }
+
+        setEditorPlainText(reply);
+        editorRef.value?.focus();
+    } catch (e: any) {
+        aiActionError.value = e?.response?.data?.message || 'Не удалось выполнить AI-действие.';
+    } finally {
+        aiActionLoading.value = null;
+    }
+}
 
 function replyPreviewText(msg: Message): string {
     if (msg.body) return msg.body;
@@ -1170,6 +1234,24 @@ watch(anyOverlayOpen, (open) => {
             </div>
         </div>
 
+        <div v-if="!recording" class="wa-ai-input-actions">
+            <button
+                v-for="action in aiInputActions"
+                :key="action.key"
+                type="button"
+                class="wa-ai-input-chip"
+                :disabled="aiActionBusy || (action.requiresText && !hasText)"
+                :title="action.requiresText && !hasText ? 'Сначала напишите текст в поле ввода' : action.label"
+                @click="runAiInputAction(action.key)"
+            >
+                <span v-if="aiActionLoading === action.key" class="wa-ai-dot" aria-hidden="true"></span>
+                {{ aiActionLoading === action.key ? 'AI думает' : action.label }}
+            </button>
+            <span v-if="aiActionError" class="wa-ai-input-error">
+                {{ aiActionError }}
+            </span>
+        </div>
+
         <!-- Main input bar -->
         <div class="wa-input-bar">
             <!-- Recording state -->
@@ -1793,6 +1875,57 @@ watch(anyOverlayOpen, (open) => {
 
 
 <style scoped>
+.wa-ai-input-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0 14px -4px;
+}
+
+.wa-ai-input-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, var(--wa-border));
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--wa-accent) 9%, var(--wa-panel));
+    color: var(--wa-text);
+    font-size: 12px;
+    line-height: 1;
+    transition: background-color 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.wa-ai-input-chip:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+}
+
+.wa-ai-input-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.52;
+}
+
+.wa-ai-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--wa-accent);
+    animation: ai-input-pulse 0.9s ease-in-out infinite;
+}
+
+.wa-ai-input-error {
+    color: #ef4444;
+    font-size: 12px;
+}
+
+@keyframes ai-input-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1); }
+}
+
 .wa-input-bar {
     display: flex;
     align-items: center;
