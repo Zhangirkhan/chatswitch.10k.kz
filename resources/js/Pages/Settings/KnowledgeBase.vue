@@ -69,33 +69,237 @@ watch(
 
 const meta = computed(() => ({
     products: {
-        title: 'База знаний: товары',
+        title: 'Товары',
         subtitle: 'Каталог товаров, которые AI может учитывать в промпте',
         addLabel: 'Добавить товар',
         route: 'settings.knowledge.products',
         store: 'settings.knowledge.products.store',
         update: 'settings.knowledge.products.update',
         destroy: 'settings.knowledge.products.destroy',
+        bulkPrompt: 'settings.knowledge.products.bulk-prompt',
     },
     services: {
-        title: 'База знаний: услуги',
+        title: 'Услуги',
         subtitle: 'Услуги, длительность, цены и условия',
         addLabel: 'Добавить услугу',
         route: 'settings.knowledge.services',
         store: 'settings.knowledge.services.store',
         update: 'settings.knowledge.services.update',
         destroy: 'settings.knowledge.services.destroy',
+        bulkPrompt: 'settings.knowledge.services.bulk-prompt',
     },
     rules: {
-        title: 'База знаний: правила ответа',
-        subtitle: 'Часы работы, ограничения, тон и политика AI',
+        title: 'База знаний',
+        subtitle: 'Правила ответа: часы работы, ограничения, тон и политика AI',
         addLabel: 'Добавить правило',
         route: 'settings.knowledge.rules',
         store: 'settings.knowledge.rules.store',
         update: 'settings.knowledge.rules.update',
         destroy: 'settings.knowledge.rules.destroy',
+        bulkPrompt: 'settings.knowledge.rules.bulk-prompt',
     },
 }[props.section]));
+
+type PreviewCounts = {
+    rules: number;
+    products: number;
+    services: number;
+};
+
+const previewCompanyId = ref<number | null>(props.companies[0]?.id ?? null);
+const previewOpen = ref(false);
+const previewLoading = ref(false);
+const previewText = ref('');
+const previewTruncated = ref(false);
+const previewCounts = ref<PreviewCounts | null>(null);
+const previewHint = ref('');
+const testQuestion = ref('');
+const testQuestionResult = ref('');
+
+const selectedIds = ref<number[]>([]);
+
+watch(
+    () => props.companies,
+    (companies) => {
+        if (previewCompanyId.value == null && companies[0]) {
+            previewCompanyId.value = companies[0].id;
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    () => localItems.value.map((i) => i.id).join(','),
+    () => {
+        const allowed = new Set(localItems.value.map((i) => i.id));
+        selectedIds.value = selectedIds.value.filter((id) => allowed.has(id));
+    },
+);
+
+const allSelected = computed(
+    () => localItems.value.length > 0 && localItems.value.every((i) => selectedIds.value.includes(i.id)),
+);
+
+const emptyCrossLinks = computed((): { label: string; href: string }[] => {
+    if (props.section === 'products') {
+        return [
+            { label: 'Услуги', href: route('settings.knowledge.services') },
+            { label: 'Правила ответа', href: route('settings.knowledge.rules') },
+        ];
+    }
+    if (props.section === 'services') {
+        return [
+            { label: 'Товары', href: route('settings.knowledge.products') },
+            { label: 'Правила ответа', href: route('settings.knowledge.rules') },
+        ];
+    }
+
+    return [
+        { label: 'Товары', href: route('settings.knowledge.products') },
+        { label: 'Услуги', href: route('settings.knowledge.services') },
+    ];
+});
+
+const promptReadyItems = computed(() => localItems.value.filter((item) => item.is_active && item.include_in_prompt));
+const readinessChecks = computed(() => [
+    {
+        label: 'Есть компания',
+        ok: props.companies.length > 0,
+        hint: props.companies.length > 0 ? 'Можно собирать контекст по компании.' : 'Создайте компанию или назначьте записи компании.',
+    },
+    {
+        label: 'Есть активные записи в промпте',
+        ok: promptReadyItems.value.length > 0,
+        hint: promptReadyItems.value.length > 0 ? `В промпт попадёт записей: ${promptReadyItems.value.length}.` : 'Включите хотя бы одну активную запись в промпт.',
+    },
+    {
+        label: 'Предпросмотр доступен',
+        ok: previewCompanyId.value !== null,
+        hint: previewCompanyId.value !== null ? 'Можно проверить, что увидит AI.' : 'Выберите компанию для предпросмотра.',
+    },
+]);
+const dataWarnings = computed(() => {
+    const warnings: string[] = [];
+    if (localItems.value.length === 0) {
+        warnings.push('В разделе пока нет записей.');
+    }
+    if (localItems.value.some((item) => item.is_active && !item.include_in_prompt)) {
+        warnings.push('Есть активные записи, которые не попадают в AI-промпт.');
+    }
+    if (props.section === 'rules' && localItems.value.some((item) => !String(item.content ?? '').trim())) {
+        warnings.push('У части правил не заполнен текст правила.');
+    }
+    if (props.section !== 'rules' && localItems.value.some((item) => !String(item.description ?? '').trim())) {
+        warnings.push('У части записей не заполнено описание, AI может отвечать слишком общо.');
+    }
+    if (props.section !== 'rules' && localItems.value.some((item) => item.price === null || item.price === undefined || item.price === '')) {
+        warnings.push('У части товаров/услуг нет цены. Если цену нельзя называть, укажите это в описании.');
+    }
+
+    return warnings;
+});
+
+function toggleSelectAll(): void {
+    if (localItems.value.length === 0) {
+        return;
+    }
+    if (allSelected.value) {
+        selectedIds.value = [];
+        return;
+    }
+    selectedIds.value = localItems.value.map((i) => i.id);
+}
+
+function toggleRowSelection(id: number): void {
+    const set = new Set(selectedIds.value);
+    if (set.has(id)) {
+        set.delete(id);
+    } else {
+        set.add(id);
+    }
+    selectedIds.value = Array.from(set);
+}
+
+function clearSelection(): void {
+    selectedIds.value = [];
+}
+
+async function loadPreview(): Promise<void> {
+    if (previewCompanyId.value == null) {
+        showToast({ message: 'Выберите компанию', duration: 3000 });
+        return;
+    }
+    previewLoading.value = true;
+    try {
+        const { data } = await axios.get(route('settings.knowledge.prompt-preview'), {
+            params: { company_id: previewCompanyId.value },
+        });
+        previewText.value = String(data.text ?? '');
+        previewTruncated.value = Boolean(data.truncated);
+        previewCounts.value = data.counts as PreviewCounts;
+        previewHint.value = String(data.hint ?? '');
+        previewOpen.value = true;
+    } catch (error: any) {
+        showToast({
+            message: error?.response?.data?.message || error?.message || 'Не удалось загрузить предпросмотр',
+            duration: 4000,
+        });
+    } finally {
+        previewLoading.value = false;
+    }
+}
+
+function closePreview(): void {
+    previewOpen.value = false;
+}
+
+async function runTestQuestion(): Promise<void> {
+    const question = testQuestion.value.trim();
+    if (question === '') {
+        testQuestionResult.value = 'Введите вопрос, который клиент может задать AI.';
+        return;
+    }
+
+    if (previewText.value.trim() === '') {
+        await loadPreview();
+    }
+
+    const context = previewText.value.toLowerCase();
+    const keywords = question
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((word) => word.length >= 4);
+    const matched = keywords.filter((word) => context.includes(word));
+
+    if (matched.length > 0) {
+        testQuestionResult.value = `В контексте AI найдены совпадения: ${matched.slice(0, 5).join(', ')}. Проверьте предпросмотр перед сохранением.`;
+        return;
+    }
+
+    testQuestionResult.value = 'В текущем AI-контексте нет явных совпадений по вопросу. Добавьте товар, услугу или правило с нужными формулировками.';
+}
+
+async function bulkSetPrompt(include: boolean): Promise<void> {
+    if (selectedIds.value.length === 0) {
+        return;
+    }
+    try {
+        const { data } = await axios.post(route(meta.value.bulkPrompt), {
+            ids: selectedIds.value,
+            include_in_prompt: include,
+        });
+        const items = data.items as KnowledgeItem[];
+        const map = new Map(items.map((item) => [item.id, item]));
+        localItems.value = localItems.value.map((row) => map.get(row.id) ?? row);
+        showToast({ message: 'Колонка «В промпте» обновлена', duration: 3000 });
+        selectedIds.value = [];
+    } catch (error: any) {
+        showToast({
+            message: error?.response?.data?.message || error?.message || 'Не удалось обновить записи',
+            duration: 4000,
+        });
+    }
+}
 
 function resetForm(): void {
     editing.value = null;
@@ -328,16 +532,107 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
         </template>
 
         <div class="p-6 space-y-4">
-            <div class="flex gap-2">
-                <Link :href="route('settings.knowledge.products')" class="tab" :class="{ active: section === 'products' }">Товары</Link>
-                <Link :href="route('settings.knowledge.services')" class="tab" :class="{ active: section === 'services' }">Услуги</Link>
-                <Link :href="route('settings.knowledge.rules')" class="tab" :class="{ active: section === 'rules' }">Правила ответа</Link>
+            <div class="kb-toolbar flex flex-col gap-3 rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="field kb-toolbar-field">
+                        <span>Компания для предпросмотра</span>
+                        <select v-model.number="previewCompanyId">
+                            <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        class="px-4 py-2 rounded-lg border border-[var(--wa-border)] text-sm text-[var(--wa-text)]"
+                        :disabled="previewCompanyId == null || previewLoading"
+                        @click="loadPreview"
+                    >
+                        {{ previewLoading ? 'Загрузка…' : 'Предпросмотр для AI' }}
+                    </button>
+                </div>
+                <div v-if="selectedIds.length > 0" class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm text-[var(--wa-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
+                    <button type="button" class="px-3 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="bulkSetPrompt(true)">В промпте: да</button>
+                    <button type="button" class="px-3 py-2 rounded-lg border border-[var(--wa-border)] text-sm" @click="bulkSetPrompt(false)">В промпте: нет</button>
+                    <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
+                </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)]">
+            <div class="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+                <section class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">Готовность AI</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Быстрая проверка, увидит ли AI полезные данные.</p>
+                        </div>
+                        <span class="rounded-full px-2.5 py-1 text-xs" :class="readinessChecks.every((check) => check.ok) ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'">
+                            {{ readinessChecks.every((check) => check.ok) ? 'Готово' : 'Нужно внимание' }}
+                        </span>
+                    </div>
+                    <div class="space-y-2">
+                        <div v-for="check in readinessChecks" :key="check.label" class="flex gap-2 rounded-lg bg-[var(--wa-bg)] px-3 py-2">
+                            <span class="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full" :class="check.ok ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                            <div>
+                                <p class="text-sm text-[var(--wa-text)]">{{ check.label }}</p>
+                                <p class="text-xs text-[var(--wa-text-secondary)]">{{ check.hint }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="dataWarnings.length > 0" class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
+                        <p class="mb-2 text-xs font-semibold text-amber-700">Предупреждения по данным</p>
+                        <ul class="space-y-1 text-xs text-[var(--wa-text)]">
+                            <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
+                    <h3 class="text-sm font-semibold text-[var(--wa-text)]">Тестовый вопрос</h3>
+                    <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                        Проверьте, есть ли в AI-контексте данные для типичного вопроса клиента.
+                    </p>
+                    <div class="mt-3 flex gap-2">
+                        <input
+                            v-model="testQuestion"
+                            class="flex-1 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            type="text"
+                            placeholder="Например: сколько стоит доставка?"
+                            @keydown.enter.prevent="runTestQuestion"
+                        />
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[var(--wa-border)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            :disabled="previewCompanyId == null || previewLoading"
+                            @click="runTestQuestion"
+                        >
+                            Проверить
+                        </button>
+                    </div>
+                    <p v-if="testQuestionResult" class="mt-3 rounded-lg bg-[var(--wa-bg)] px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
+                        {{ testQuestionResult }}
+                    </p>
+                </section>
+            </div>
+
+            <div v-if="localItems.length === 0" class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] px-6 py-10 text-center">
+                <p class="text-[15px] text-[var(--wa-text)]">Пока нет записей в этом разделе.</p>
+                <p class="mx-auto mt-2 max-w-xl text-sm text-[var(--wa-text-secondary)]">
+                    Добавьте данные: в промпт попадают только активные записи с включённым «В промпте» — их можно посмотреть кнопкой «Предпросмотр для AI».
+                </p>
+                <div class="mt-6 flex flex-wrap justify-center gap-3">
+                    <button type="button" class="px-4 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="openAdd">{{ meta.addLabel }}</button>
+                </div>
+                <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
+                    <Link v-for="link in emptyCrossLinks" :key="link.href" :href="link.href" class="link-btn">{{ link.label }}</Link>
+                </div>
+            </div>
+
+            <div v-else class="overflow-hidden rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)]">
                 <table class="w-full text-sm">
                     <thead class="text-left text-[var(--wa-text-secondary)] border-b border-[var(--wa-border)]">
                         <tr>
+                            <th class="w-10 px-3 py-3">
+                                <input type="checkbox" class="kb-checkbox" :checked="allSelected" @click.prevent="toggleSelectAll" />
+                            </th>
                             <th class="px-4 py-3">Название</th>
                             <th class="px-4 py-3">Компания</th>
                             <th class="px-4 py-3">Цена, ₸</th>
@@ -348,9 +643,17 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
                     </thead>
                     <tbody>
                         <tr v-for="item in localItems" :key="item.id" class="border-b border-[var(--wa-border)] last:border-0">
+                            <td class="px-3 py-3 align-top">
+                                <input
+                                    type="checkbox"
+                                    class="kb-checkbox"
+                                    :checked="selectedIds.includes(item.id)"
+                                    @click.prevent="toggleRowSelection(item.id)"
+                                />
+                            </td>
                             <td class="px-4 py-3 text-[var(--wa-text)]">
                                 <div class="font-medium">{{ itemTitle(item) }}</div>
-                                <div class="text-xs text-[var(--wa-text-secondary)] truncate max-w-[520px]">
+                                <div class="max-w-[520px] truncate text-xs text-[var(--wa-text-secondary)]">
                                     {{ item.description || item.content || item.sku || '—' }}
                                 </div>
                             </td>
@@ -362,18 +665,32 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
                                 </button>
                             </td>
                             <td class="px-4 py-3 text-[var(--wa-text-secondary)]">{{ item.is_active ? 'Активна' : 'Отключена' }}</td>
-                            <td class="px-4 py-3 text-right space-x-2">
+                            <td class="space-x-2 px-4 py-3 text-right">
                                 <button type="button" class="link-btn" @click="openEdit(item)">Изменить</button>
                                 <button type="button" class="link-btn danger" @click="destroyItem(item)">Удалить</button>
                             </td>
                         </tr>
-                        <tr v-if="localItems.length === 0">
-                            <td colspan="6" class="px-4 py-10 text-center text-[var(--wa-text-secondary)]">
-                                Пока нет записей.
-                            </td>
-                        </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div v-if="previewOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @click.self="closePreview">
+            <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-[var(--wa-panel)] shadow-xl">
+                <div class="flex shrink-0 items-center justify-between border-b border-[var(--wa-border)] px-5 py-4">
+                    <div>
+                        <h3 class="text-lg text-[var(--wa-text)]">Предпросмотр блока для AI</h3>
+                        <p v-if="previewCounts" class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                            Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
+                            <span v-if="previewTruncated"> · показ обрезан для экрана</span>
+                        </p>
+                    </div>
+                    <button type="button" class="text-[var(--wa-text-secondary)]" @click="closePreview">Закрыть</button>
+                </div>
+                <p v-if="previewHint" class="border-b border-[var(--wa-border)] px-5 py-2 text-xs text-[var(--wa-text-secondary)]">{{ previewHint }}</p>
+                <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
+                    <pre class="kb-pre">{{ previewText }}</pre>
+                </div>
             </div>
         </div>
 
@@ -473,19 +790,6 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
 </template>
 
 <style scoped>
-.tab {
-    border: 1px solid var(--wa-border);
-    border-radius: 999px;
-    color: var(--wa-text-secondary);
-    padding: 8px 14px;
-}
-
-.tab.active {
-    background: var(--wa-green);
-    border-color: var(--wa-green);
-    color: white;
-}
-
 .link-btn {
     color: var(--wa-green);
 }
@@ -534,6 +838,25 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
     border-radius: 10px;
     color: var(--wa-text);
     padding: 10px 12px;
+}
+
+.kb-toolbar-field {
+    max-width: 280px;
+    min-width: 200px;
+}
+
+.kb-pre {
+    color: var(--wa-text);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.kb-checkbox {
+    accent-color: var(--wa-green);
+    height: 16px;
+    width: 16px;
 }
 
 .check {

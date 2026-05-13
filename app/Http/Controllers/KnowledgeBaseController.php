@@ -9,13 +9,20 @@ use App\Models\Company;
 use App\Models\KnowledgeRule;
 use App\Models\Product;
 use App\Models\Service;
+use App\Services\AI\KnowledgeContextTextFormatter;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class KnowledgeBaseController extends Controller
 {
+    public function __construct(
+        private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
+    ) {}
+
     public function products(): Response
     {
         return $this->render('products');
@@ -92,6 +99,96 @@ final class KnowledgeBaseController extends Controller
         $rule->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function promptPreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+        ]);
+
+        $companyId = (int) $validated['company_id'];
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId);
+        $full = implode("\n", $lines);
+        $displayMax = 45000;
+        $truncated = mb_strlen($full) > $displayMax;
+        $text = $truncated
+            ? mb_substr($full, 0, $displayMax)."\n\n… (показ обрезан до {$displayMax} символов; в запросе к модели действует отдельный лимит, при большом объёме возможна суммаризация.)"
+            : $full;
+
+        return response()->json([
+            'text' => $text,
+            'truncated' => $truncated,
+            'counts' => $this->knowledgeTextFormatter->promptEntryCounts($companyId),
+            'hint' => 'Учитываются только активные записи с включённым «В промпте».',
+        ]);
+    }
+
+    public function bulkProductsPrompt(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer', 'distinct', 'exists:products,id'],
+            'include_in_prompt' => ['required', 'boolean'],
+        ]);
+
+        Product::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        return $this->bulkPromptResponse(
+            Product::query()
+                ->whereIn('id', $data['ids'])
+                ->with('company:id,name')
+                ->orderBy('id')
+                ->get(),
+        );
+    }
+
+    public function bulkServicesPrompt(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer', 'distinct', 'exists:services,id'],
+            'include_in_prompt' => ['required', 'boolean'],
+        ]);
+
+        Service::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        return $this->bulkPromptResponse(
+            Service::query()
+                ->whereIn('id', $data['ids'])
+                ->with('company:id,name')
+                ->orderBy('id')
+                ->get(),
+        );
+    }
+
+    public function bulkRulesPrompt(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer', 'distinct', 'exists:knowledge_rules,id'],
+            'include_in_prompt' => ['required', 'boolean'],
+        ]);
+
+        KnowledgeRule::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        return $this->bulkPromptResponse(
+            KnowledgeRule::query()
+                ->whereIn('id', $data['ids'])
+                ->with('company:id,name')
+                ->orderBy('id')
+                ->get(),
+        );
+    }
+
+    /**
+     * @param  EloquentCollection<int, Model>  $models
+     */
+    private function bulkPromptResponse(EloquentCollection $models): JsonResponse
+    {
+        $items = $models->map(fn (Model $item) => $this->transform($item))->values()->all();
+
+        return response()->json(['success' => true, 'items' => $items]);
     }
 
     private function render(string $section): Response

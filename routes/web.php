@@ -173,16 +173,20 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('settings.companies.update');
         Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('settings.companies.destroy');
 
+        Route::get('/knowledge/prompt-preview', [KnowledgeBaseController::class, 'promptPreview'])->name('settings.knowledge.prompt-preview');
         Route::get('/knowledge/products', [KnowledgeBaseController::class, 'products'])->name('settings.knowledge.products');
         Route::post('/knowledge/products', [KnowledgeBaseController::class, 'storeProduct'])->name('settings.knowledge.products.store');
+        Route::post('/knowledge/products/bulk-prompt', [KnowledgeBaseController::class, 'bulkProductsPrompt'])->name('settings.knowledge.products.bulk-prompt');
         Route::put('/knowledge/products/{product}', [KnowledgeBaseController::class, 'updateProduct'])->name('settings.knowledge.products.update');
         Route::delete('/knowledge/products/{product}', [KnowledgeBaseController::class, 'destroyProduct'])->name('settings.knowledge.products.destroy');
         Route::get('/knowledge/services', [KnowledgeBaseController::class, 'services'])->name('settings.knowledge.services');
         Route::post('/knowledge/services', [KnowledgeBaseController::class, 'storeService'])->name('settings.knowledge.services.store');
+        Route::post('/knowledge/services/bulk-prompt', [KnowledgeBaseController::class, 'bulkServicesPrompt'])->name('settings.knowledge.services.bulk-prompt');
         Route::put('/knowledge/services/{service}', [KnowledgeBaseController::class, 'updateService'])->name('settings.knowledge.services.update');
         Route::delete('/knowledge/services/{service}', [KnowledgeBaseController::class, 'destroyService'])->name('settings.knowledge.services.destroy');
         Route::get('/knowledge/rules', [KnowledgeBaseController::class, 'rules'])->name('settings.knowledge.rules');
         Route::post('/knowledge/rules', [KnowledgeBaseController::class, 'storeRule'])->name('settings.knowledge.rules.store');
+        Route::post('/knowledge/rules/bulk-prompt', [KnowledgeBaseController::class, 'bulkRulesPrompt'])->name('settings.knowledge.rules.bulk-prompt');
         Route::put('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'updateRule'])->name('settings.knowledge.rules.update');
         Route::delete('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'destroyRule'])->name('settings.knowledge.rules.destroy');
 

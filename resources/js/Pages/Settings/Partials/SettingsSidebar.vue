@@ -70,10 +70,24 @@ const adminItems: AdminItem[] = [
     },
     {
         kind: 'admin',
-        label: 'База знаний',
-        description: 'Товары, услуги, правила AI',
-        icon: 'knowledge',
+        label: 'Товары',
+        description: 'Каталог товаров',
+        icon: 'products',
         routeName: 'settings.knowledge.products',
+    },
+    {
+        kind: 'admin',
+        label: 'Услуги',
+        description: 'Цены и условия услуг',
+        icon: 'services',
+        routeName: 'settings.knowledge.services',
+    },
+    {
+        kind: 'admin',
+        label: 'База знаний',
+        description: 'Правила ответа AI',
+        icon: 'knowledge',
+        routeName: 'settings.knowledge.rules',
     },
     {
         kind: 'admin',
@@ -190,6 +204,13 @@ function logout() {
                         </svg>
                         <svg v-else-if="item.icon === 'funnel'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 9v6l-4 2v-8L3 4z" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'products'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5l9-4 9 4-9 4-9-4z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5v9l9 4 9-4v-9M12 11.5v9" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'services'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M5 7h14M7 7l-3 6h6L7 7zM17 7l-3 6h6l-3-6z" />
                         </svg>
                         <svg v-else-if="item.icon === 'knowledge'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 004 21.5v-16z" />
