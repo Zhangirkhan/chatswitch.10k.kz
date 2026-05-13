@@ -93,7 +93,7 @@ export interface Chat {
     muted_until: string | null;
     is_favorite: boolean;
     ai_enabled?: boolean;
-    ai_mode?: 'auto';
+    ai_mode?: 'auto' | 'draft';
     ai_responder_user_id?: number | null;
     ai_responder?: { id: number; name: string } | null;
     can_manage_ai?: boolean;

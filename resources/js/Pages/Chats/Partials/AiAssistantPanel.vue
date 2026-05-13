@@ -16,6 +16,7 @@ type AiStatus = {
         products: number;
         services: number;
     } | null;
+    draft_reply: string | null;
     technical_error: string | null;
     updated_at: string | null;
 };
@@ -106,7 +107,7 @@ const aiStatusTone = computed(() => {
     if (props.aiStatus.status === 'failed') return 'error';
     if (props.aiStatus.status === 'blocked') return 'warning';
     if (props.aiStatus.status === 'generating' || props.aiStatus.status === 'pending') return 'busy';
-    if (props.aiStatus.status === 'sent') return 'success';
+    if (props.aiStatus.status === 'sent' || props.aiStatus.status === 'drafted') return 'success';
     return 'idle';
 });
 const aiStatusUpdatedAt = computed(() => {
@@ -402,6 +403,26 @@ watch(() => props.chatId, () => {
                 <p class="mt-2 rounded-lg px-2.5 py-1.5 text-[11.5px] opacity-80" :style="{ background: 'color-mix(in srgb, var(--wa-bg) 50%, transparent)' }">
                     {{ aiKnowledgeContextLabel }}
                 </p>
+
+                <div
+                    v-if="aiStatus?.draft_reply"
+                    class="mt-3 rounded-lg px-3 py-2 text-[13px] leading-5"
+                    :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }"
+                >
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+                        Системный AI-черновик
+                    </p>
+                    <div class="whitespace-pre-wrap break-words">{{ aiStatus.draft_reply }}</div>
+                    <div class="mt-2 flex justify-end">
+                        <button
+                            type="button"
+                            class="text-[11px] hover:underline"
+                            @click="copyToClipboard(aiStatus.draft_reply || '')"
+                        >
+                            Копировать черновик
+                        </button>
+                    </div>
+                </div>
 
                 <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">
                     <summary class="cursor-pointer font-medium">Технические детали для администратора</summary>

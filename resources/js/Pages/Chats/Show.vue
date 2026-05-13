@@ -31,6 +31,7 @@ const props = defineProps<{
             products: number;
             services: number;
         } | null;
+        draft_reply: string | null;
         technical_error: string | null;
         updated_at: string | null;
     } | null;
@@ -643,6 +644,7 @@ function cleanupEcho() {
                         :session-id="chat.whatsapp_session_id"
                         :reply-to="replyTo"
                         :is-group="chat.is_group"
+                        :suggested-draft="aiStatus?.draft_reply || null"
                         @message-sent="onMessageSent"
                         @cancel-reply="clearReply"
                     />

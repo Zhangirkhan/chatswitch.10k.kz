@@ -23,7 +23,7 @@ final class ChatAiSettingsController extends Controller
 
         $validated = $request->validate([
             'ai_enabled' => ['required', 'boolean'],
-            'ai_mode' => ['nullable', Rule::in(['auto'])],
+            'ai_mode' => ['nullable', Rule::in(['auto', 'draft'])],
             'ai_responder_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
         ]);
@@ -36,7 +36,7 @@ final class ChatAiSettingsController extends Controller
 
         $chat->forceFill([
             'ai_enabled' => $aiEnabled,
-            'ai_mode' => 'auto',
+            'ai_mode' => (string) ($validated['ai_mode'] ?? $chat->ai_mode ?? 'auto'),
             'ai_responder_user_id' => $responder?->id,
             'company_id' => $companyId,
         ])->save();
@@ -119,7 +119,8 @@ final class ChatAiSettingsController extends Controller
             return;
         }
 
-        if (AiResponseLog::query()->where('trigger_message_id', $latest->id)->where('mode', 'auto')->exists()) {
+        $mode = $chat->ai_mode === 'draft' ? 'draft' : 'auto';
+        if (AiResponseLog::query()->where('trigger_message_id', $latest->id)->where('mode', $mode)->exists()) {
             return;
         }
 

@@ -48,8 +48,9 @@ final class GenerateAiReplyJob implements ShouldQueue
             return;
         }
 
+        $mode = $chat->ai_mode === 'draft' ? 'draft' : 'auto';
         $log = AiResponseLog::firstOrCreate(
-            ['trigger_message_id' => $trigger->id, 'mode' => 'auto'],
+            ['trigger_message_id' => $trigger->id, 'mode' => $mode],
             [
                 'company_id' => $chat->company_id ?? $responder->company_id,
                 'chat_id' => $chat->id,
@@ -58,13 +59,28 @@ final class GenerateAiReplyJob implements ShouldQueue
             ],
         );
 
-        if ($log->message_id !== null || $log->status === 'sent') {
+        if ($log->message_id !== null || in_array($log->status, ['sent', 'drafted'], true)) {
             return;
         }
 
         try {
             $log->forceFill(['status' => 'generating', 'error' => null])->save();
             $generated = $generator->generate($chat, $responder, $trigger, $log);
+            if ($mode === 'draft') {
+                $log->forceFill([
+                    'status' => 'drafted',
+                    'prompt_hash' => $generated['prompt_hash'],
+                    'metadata' => [
+                        ...($log->metadata ?? []),
+                        ...($generated['metadata'] ?? []),
+                        'draft_reply' => $generated['reply'],
+                    ],
+                    'error' => null,
+                ])->save();
+
+                return;
+            }
+
             $message = $dispatcher->sendTextMessage($responder, $chat, [
                 'message' => $generated['reply'],
                 'display_message' => $generated['reply'],

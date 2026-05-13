@@ -176,9 +176,9 @@ final class ChatController extends Controller
     {
         $log = AiResponseLog::query()
             ->where('chat_id', $chat->id)
-            ->where('mode', 'auto')
+            ->whereIn('mode', ['auto', 'draft'])
             ->latest('id')
-            ->first(['id', 'mode', 'status', 'error', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
+            ->first(['id', 'mode', 'status', 'error', 'metadata', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
 
         if ($log === null) {
             return null;
@@ -196,6 +196,7 @@ final class ChatController extends Controller
             'message' => $this->aiStatusMessage($status, $error),
             'hint' => $this->aiStatusHint($status),
             'knowledge_context' => $this->aiKnowledgeContextCounts($chat, $viewer),
+            'draft_reply' => is_string(data_get($log->metadata, 'draft_reply')) ? data_get($log->metadata, 'draft_reply') : null,
             'technical_error' => $isAdministrator ? $error : null,
             'message_id' => $log->message_id,
             'trigger_message_id' => $log->trigger_message_id,
@@ -209,6 +210,7 @@ final class ChatController extends Controller
         return match ($status) {
             'pending' => 'AI в очереди',
             'generating' => 'AI готовит ответ',
+            'drafted' => 'AI подготовил черновик',
             'sent' => 'AI ответил',
             'blocked' => 'AI остановлен проверкой',
             'failed' => 'AI недоступен',
@@ -221,6 +223,7 @@ final class ChatController extends Controller
         return match ($status) {
             'pending' => 'AI получил задачу и скоро начнёт готовить ответ.',
             'generating' => 'AI сейчас готовит автоответ клиенту.',
+            'drafted' => 'AI подготовил черновик ответа. Проверьте его и отправьте вручную, если он подходит.',
             'sent' => 'Последний автоответ AI успешно отправлен клиенту.',
             'blocked' => 'AI подготовил ответ, но он был остановлен проверкой безопасности.',
             'failed' => $this->safeAiErrorMessage($error),
@@ -232,6 +235,7 @@ final class ChatController extends Controller
     {
         return match ($status) {
             'pending', 'generating' => 'Можно дождаться ответа или написать клиенту вручную.',
+            'drafted' => 'Черновик не отправлен клиенту автоматически.',
             'sent' => 'Проверьте сообщение в истории чата, если нужно убедиться в формулировке.',
             'blocked' => 'Ответьте вручную или уточните базу знаний, если AI не должен блокироваться в таком сценарии.',
             'failed' => 'Ответьте вручную и передайте ошибку администратору, если она повторяется.',

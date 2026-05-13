@@ -10,6 +10,7 @@ const props = defineProps<{
     sessionId?: number | null;
     replyTo?: Message | null;
     isGroup?: boolean;
+    suggestedDraft?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -367,6 +368,22 @@ function applyMention(p: GroupParticipant): void {
 watch(() => props.replyTo, (val) => {
     if (val) nextTick(() => editorRef.value?.focus());
 });
+
+watch(
+    () => props.suggestedDraft,
+    (draft) => {
+        const text = (draft ?? '').trim();
+        if (text === '' || messageText.value.trim() !== '') {
+            return;
+        }
+
+        nextTick(() => {
+            setEditorPlainText(text);
+            editorRef.value?.focus();
+        });
+    },
+    { immediate: true },
+);
 
 function replyPreviewText(msg: Message): string {
     if (msg.body) return msg.body;

@@ -20,6 +20,7 @@ type AiStatus = {
         products: number;
         services: number;
     } | null;
+    draft_reply: string | null;
     technical_error: string | null;
     updated_at: string | null;
 };
@@ -226,6 +227,7 @@ const showAiResponderSelect = computed(() => {
 
 const canManageAi = computed(() => props.chat.can_manage_ai === true);
 const aiEnabled = computed(() => props.chat.ai_enabled === true);
+const aiMode = computed<'auto' | 'draft'>(() => (props.chat.ai_mode === 'draft' ? 'draft' : 'auto'));
 const aiSaving = ref(false);
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
@@ -244,12 +246,19 @@ const aiStatusLabel = computed(() => {
     return props.aiStatus.label || props.aiStatus.status;
 });
 
-const aiModeLabel = computed(() => (aiEnabled.value ? 'AI авто' : 'AI выключен'));
+const aiModeLabel = computed(() => {
+    if (!aiEnabled.value) {
+        return 'AI выключен';
+    }
+
+    return aiMode.value === 'draft' ? 'AI черновик' : 'AI авто';
+});
 
 const aiAssistantButtonText = computed(() => {
     const status = props.aiStatus?.status;
     if (status === 'failed') return 'AI ошибка';
     if (status === 'generating' || status === 'pending') return 'AI думает';
+    if (status === 'drafted') return 'AI черновик';
     if (status === 'blocked') return 'AI стоп';
     return 'AI';
 });
@@ -340,7 +349,7 @@ async function toggleAi(): Promise<void> {
     try {
         await axios.patch(route('chats.ai.update', props.chat.id), {
             ai_enabled: !aiEnabled.value,
-            ai_mode: 'auto',
+            ai_mode: aiMode.value,
             ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
             company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
         });
@@ -361,7 +370,7 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     try {
         await axios.patch(route('chats.ai.update', props.chat.id), {
             ai_enabled: aiEnabled.value,
-            ai_mode: 'auto',
+            ai_mode: aiMode.value,
             ai_responder_user_id: props.chat.ai_responder_user_id || null,
             company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
             ...payload,
@@ -377,6 +386,11 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
 function onAiResponderChange(event: Event): void {
     const value = Number((event.target as HTMLSelectElement).value);
     void updateAiSettings({ ai_responder_user_id: Number.isFinite(value) && value > 0 ? value : null });
+}
+
+function onAiModeChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value === 'draft' ? 'draft' : 'auto';
+    void updateAiSettings({ ai_mode: value });
 }
 
 /** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
@@ -864,6 +878,18 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     <span class="ai-state-dot" :class="{ 'ai-state-dot-on': aiEnabled }"></span>
                     <span class="header-ai-toggle-text">{{ aiModeLabel }}</span>
                 </button>
+
+                <select
+                    v-if="canManageAi && aiEnabled"
+                    class="ai-settings-select"
+                    :value="aiMode"
+                    :disabled="aiSaving"
+                    title="Режим AI"
+                    @change="onAiModeChange"
+                >
+                    <option value="auto">Автоответ</option>
+                    <option value="draft">Черновик</option>
+                </select>
 
                 <select
                     v-if="canManageAi && aiEnabled && showAiResponderSelect"
