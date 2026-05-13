@@ -49,7 +49,8 @@ final class ChatAiAssistantController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'AI временно недоступен: '.$e->getMessage(),
+                'message' => $this->safeAiErrorMessage($e->getMessage()),
+                'technical_error' => $request->user()?->hasRole('administrator') === true ? $e->getMessage() : null,
             ], 502);
         } catch (Throwable $e) {
             Log::error('[ai-assistant] unexpected failure', [
@@ -66,5 +67,19 @@ final class ChatAiAssistantController extends Controller
         return response()->json([
             'reply' => $reply,
         ]);
+    }
+
+    private function safeAiErrorMessage(string $error): string
+    {
+        $lower = mb_strtolower($error);
+        if (str_contains($lower, 'sqlstate') || str_contains($lower, 'base table') || str_contains($lower, 'table')) {
+            return 'AI временно недоступен. Администратору нужно проверить настройки базы данных и миграции.';
+        }
+
+        if (str_contains($lower, 'openai') || str_contains($lower, 'api') || str_contains($lower, 'timeout')) {
+            return 'AI-сервис временно недоступен. Попробуйте ещё раз позже или ответьте вручную.';
+        }
+
+        return 'AI временно недоступен. Попробуйте ещё раз или ответьте вручную.';
     }
 }
