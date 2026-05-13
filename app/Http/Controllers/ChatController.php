@@ -20,8 +20,11 @@ use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
 use App\Models\Department;
+use App\Models\KnowledgeRule;
 use App\Models\Message;
 use App\Models\MessageMedia;
+use App\Models\Product;
+use App\Models\Service;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
@@ -192,6 +195,7 @@ final class ChatController extends Controller
             'label' => $this->aiStatusLabel($status),
             'message' => $this->aiStatusMessage($status, $error),
             'hint' => $this->aiStatusHint($status),
+            'knowledge_context' => $this->aiKnowledgeContextCounts($chat, $viewer),
             'technical_error' => $isAdministrator ? $error : null,
             'message_id' => $log->message_id,
             'trigger_message_id' => $log->trigger_message_id,
@@ -256,6 +260,35 @@ final class ChatController extends Controller
         }
 
         return 'AI не смог подготовить ответ. Попробуйте ещё раз или ответьте вручную.';
+    }
+
+    /**
+     * @return array{rules: int, products: int, services: int}|null
+     */
+    private function aiKnowledgeContextCounts(Chat $chat, ?User $viewer): ?array
+    {
+        $companyId = $chat->company_id ?? $viewer?->company_id;
+        if ($companyId === null) {
+            return null;
+        }
+
+        return [
+            'rules' => KnowledgeRule::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->where('include_in_prompt', true)
+                ->count(),
+            'products' => Product::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->where('include_in_prompt', true)
+                ->count(),
+            'services' => Service::query()
+                ->where('company_id', $companyId)
+                ->where('is_active', true)
+                ->where('include_in_prompt', true)
+                ->count(),
+        ];
     }
 
     public function syncDepartments(SyncDepartmentsRequest $request, Chat $chat): JsonResponse

@@ -11,6 +11,11 @@ type AiStatus = {
     label: string;
     message: string;
     hint: string | null;
+    knowledge_context: {
+        rules: number;
+        products: number;
+        services: number;
+    } | null;
     technical_error: string | null;
     updated_at: string | null;
 };
@@ -107,6 +112,14 @@ const aiStatusTone = computed(() => {
 const aiStatusUpdatedAt = computed(() => {
     if (!props.aiStatus?.updated_at) return null;
     return formatTime(new Date(props.aiStatus.updated_at).getTime());
+});
+const aiKnowledgeContextLabel = computed(() => {
+    const context = props.aiStatus?.knowledge_context;
+    if (!context) {
+        return 'База знаний: компания не определена';
+    }
+
+    return `База знаний: правил ${context.rules}, товаров ${context.products}, услуг ${context.services}`;
 });
 
 const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
@@ -387,6 +400,9 @@ watch(() => props.chatId, () => {
                 </p>
                 <p v-if="aiStatus?.hint" class="mt-1 text-[12px] leading-5 opacity-75">
                     {{ aiStatus.hint }}
+                </p>
+                <p class="mt-2 rounded-lg px-2.5 py-1.5 text-[11.5px] opacity-80" :style="{ background: 'color-mix(in srgb, var(--wa-bg) 50%, transparent)' }">
+                    {{ aiKnowledgeContextLabel }}
                 </p>
 
                 <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">

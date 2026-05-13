@@ -26,6 +26,11 @@ const props = defineProps<{
         label: string;
         message: string;
         hint: string | null;
+        knowledge_context: {
+            rules: number;
+            products: number;
+            services: number;
+        } | null;
         technical_error: string | null;
         updated_at: string | null;
     } | null;
