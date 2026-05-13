@@ -1196,7 +1196,7 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
-                <span v-if="isAiGenerated" class="ai-message-badge">
+                <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
                     {{ operatorDisplayName }} (AI)
                 </span>
                 <div class="wa-contact-card-main">
@@ -1253,7 +1253,7 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
-                <span v-if="isAiGenerated" class="ai-message-badge">
+                <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
                     {{ operatorDisplayName }} (AI)
                 </span>
                 <template v-for="(seg, i) in bodySegments" :key="i">
