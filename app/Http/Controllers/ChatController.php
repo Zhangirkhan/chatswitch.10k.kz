@@ -20,6 +20,7 @@ use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
 use App\Models\Department;
+use App\Models\EmployeeToneProfile;
 use App\Models\KnowledgeRule;
 use App\Models\Message;
 use App\Models\MessageMedia;
@@ -39,6 +40,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -174,11 +177,13 @@ final class ChatController extends Controller
      */
     private function latestAiStatus(Chat $chat, ?User $viewer): ?array
     {
-        $log = AiResponseLog::query()
+        $logs = AiResponseLog::query()
             ->where('chat_id', $chat->id)
             ->whereIn('mode', ['auto', 'draft'])
             ->latest('id')
-            ->first(['id', 'mode', 'status', 'error', 'metadata', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
+            ->limit(5)
+            ->get(['id', 'mode', 'status', 'error', 'metadata', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
+        $log = $logs->first();
 
         if ($log === null) {
             return null;
@@ -196,12 +201,27 @@ final class ChatController extends Controller
             'message' => $this->aiStatusMessage($status, $error),
             'hint' => $this->aiStatusHint($status),
             'knowledge_context' => $this->aiKnowledgeContextCounts($chat, $viewer),
+            'tone_source' => $this->aiToneSource($chat, $viewer),
             'draft_reply' => is_string(data_get($log->metadata, 'draft_reply')) ? data_get($log->metadata, 'draft_reply') : null,
             'technical_error' => $isAdministrator ? $error : null,
             'message_id' => $log->message_id,
             'trigger_message_id' => $log->trigger_message_id,
             'created_at' => $log->created_at?->toIso8601String(),
             'updated_at' => $log->updated_at?->toIso8601String(),
+            'history' => $logs
+                ->map(fn (AiResponseLog $item): array => [
+                    'id' => $item->id,
+                    'mode' => $item->mode,
+                    'status' => (string) $item->status,
+                    'label' => $this->aiStatusLabel((string) $item->status),
+                    'message' => $this->aiStatusMessage((string) $item->status, is_string($item->error) ? $item->error : null),
+                    'technical_error' => $isAdministrator && is_string($item->error) ? $item->error : null,
+                    'message_id' => $item->message_id,
+                    'trigger_message_id' => $item->trigger_message_id,
+                    'updated_at' => $item->updated_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -292,6 +312,61 @@ final class ChatController extends Controller
                 ->where('is_active', true)
                 ->where('include_in_prompt', true)
                 ->count(),
+        ];
+    }
+
+    /**
+     * @return array{source: string, label: string, hint: string}
+     */
+    private function aiToneSource(Chat $chat, ?User $viewer): array
+    {
+        $companyId = $chat->company_id ?? $viewer?->company_id;
+        if ($companyId === null) {
+            return [
+                'source' => 'none',
+                'label' => 'Тон: не собран',
+                'hint' => 'Компания чата не определена.',
+            ];
+        }
+
+        $responderId = $chat->ai_responder_user_id;
+        if ($responderId !== null) {
+            $employeeProfile = EmployeeToneProfile::query()
+                ->where('company_id', $companyId)
+                ->where('user_id', $responderId)
+                ->first(['summary', 'metadata']);
+
+            $hasEmployeeTone = $employeeProfile !== null
+                && trim((string) $employeeProfile->summary) !== ''
+                && (string) data_get($employeeProfile->metadata, 'source') !== 'fallback'
+                && (int) data_get($employeeProfile->metadata, 'samples_count', 0) > 0;
+
+            if ($hasEmployeeTone) {
+                return [
+                    'source' => 'employee',
+                    'label' => 'Тон: сотрудник',
+                    'hint' => 'AI использует личный профиль тона выбранного ответчика.',
+                ];
+            }
+        }
+
+        $companySummary = Schema::hasTable('company_tone_profiles')
+            ? DB::table('company_tone_profiles')
+                ->where('company_id', $companyId)
+                ->value('summary')
+            : null;
+        if (trim((string) $companySummary) !== '') {
+            return [
+                'source' => 'company',
+                'label' => 'Тон: компания',
+                'hint' => 'Личный тон сотрудника не собран, AI использует общий стиль компании.',
+            ];
+        }
+
+        return [
+            'source' => 'none',
+            'label' => 'Тон: не собран',
+            'hint' => 'AI использует нейтральный краткий стиль до накопления профиля тона.',
         ];
     }
 

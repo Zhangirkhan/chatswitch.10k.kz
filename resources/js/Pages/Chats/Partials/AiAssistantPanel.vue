@@ -16,9 +16,25 @@ type AiStatus = {
         products: number;
         services: number;
     } | null;
+    tone_source: {
+        source: string;
+        label: string;
+        hint: string;
+    } | null;
     draft_reply: string | null;
     technical_error: string | null;
     updated_at: string | null;
+    history?: Array<{
+        id: number;
+        mode: string;
+        status: string;
+        label: string;
+        message: string;
+        technical_error: string | null;
+        message_id: number | null;
+        trigger_message_id: number | null;
+        updated_at: string | null;
+    }>;
 };
 
 const props = defineProps<{
@@ -122,6 +138,8 @@ const aiKnowledgeContextLabel = computed(() => {
 
     return `База знаний: правил ${context.rules}, товаров ${context.products}, услуг ${context.services}`;
 });
+const aiToneSourceLabel = computed(() => props.aiStatus?.tone_source?.label || 'Тон: не собран');
+const aiStatusHistory = computed(() => props.aiStatus?.history ?? []);
 
 const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
     {
@@ -403,6 +421,13 @@ watch(() => props.chatId, () => {
                 <p class="mt-2 rounded-lg px-2.5 py-1.5 text-[11.5px] opacity-80" :style="{ background: 'color-mix(in srgb, var(--wa-bg) 50%, transparent)' }">
                     {{ aiKnowledgeContextLabel }}
                 </p>
+                <p
+                    class="mt-1 rounded-lg px-2.5 py-1.5 text-[11.5px] opacity-80"
+                    :title="aiStatus?.tone_source?.hint || ''"
+                    :style="{ background: 'color-mix(in srgb, var(--wa-bg) 50%, transparent)' }"
+                >
+                    {{ aiToneSourceLabel }}
+                </p>
 
                 <div
                     v-if="aiStatus?.draft_reply"
@@ -427,6 +452,35 @@ watch(() => props.chatId, () => {
                 <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">
                     <summary class="cursor-pointer font-medium">Технические детали для администратора</summary>
                     <pre class="mt-1 whitespace-pre-wrap break-words">{{ aiStatus.technical_error }}</pre>
+                </details>
+
+                <details v-if="aiStatusHistory.length > 1" class="mt-3 text-[11.5px] opacity-85">
+                    <summary class="cursor-pointer font-semibold">
+                        История AI-решений: {{ aiStatusHistory.length }}
+                    </summary>
+                    <div class="mt-2 space-y-2">
+                        <div
+                            v-for="item in aiStatusHistory"
+                            :key="item.id"
+                            class="rounded-lg px-2.5 py-2"
+                            :style="{ background: 'color-mix(in srgb, var(--wa-bg) 48%, transparent)' }"
+                        >
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="font-semibold">{{ item.label }}</span>
+                                <span v-if="item.updated_at" class="opacity-65">
+                                    {{ formatTime(new Date(item.updated_at).getTime()) }}
+                                </span>
+                            </div>
+                            <p class="mt-1 leading-4 opacity-80">{{ item.message }}</p>
+                            <p class="mt-1 opacity-60">
+                                Режим: {{ item.mode === 'draft' ? 'черновик' : 'автоответ' }}
+                            </p>
+                            <details v-if="item.technical_error" class="mt-1 opacity-80">
+                                <summary class="cursor-pointer">Технически</summary>
+                                <pre class="mt-1 whitespace-pre-wrap break-words">{{ item.technical_error }}</pre>
+                            </details>
+                        </div>
+                    </div>
                 </details>
             </section>
 

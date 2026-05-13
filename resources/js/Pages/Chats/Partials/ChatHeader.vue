@@ -20,6 +20,11 @@ type AiStatus = {
         products: number;
         services: number;
     } | null;
+    tone_source: {
+        source: string;
+        label: string;
+        hint: string;
+    } | null;
     draft_reply: string | null;
     technical_error: string | null;
     updated_at: string | null;
@@ -268,6 +273,7 @@ const aiStatusTitle = computed(() => {
         `AI-ассистент: ${aiStatusLabel.value}.`,
         props.aiStatus?.message,
         props.aiStatus?.hint,
+        props.aiStatus?.tone_source?.label,
         `Режим: ${aiModeLabel.value}.`,
         `Ответчик: ${aiResponderName.value}.`,
     ].filter(Boolean);

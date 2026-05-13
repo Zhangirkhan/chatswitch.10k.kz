@@ -31,9 +31,25 @@ const props = defineProps<{
             products: number;
             services: number;
         } | null;
+        tone_source: {
+            source: string;
+            label: string;
+            hint: string;
+        } | null;
         draft_reply: string | null;
         technical_error: string | null;
         updated_at: string | null;
+        history?: Array<{
+            id: number;
+            mode: string;
+            status: string;
+            label: string;
+            message: string;
+            technical_error: string | null;
+            message_id: number | null;
+            trigger_message_id: number | null;
+            updated_at: string | null;
+        }>;
     } | null;
 }>();
 
