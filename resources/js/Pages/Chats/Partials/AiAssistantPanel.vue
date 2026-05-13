@@ -4,10 +4,22 @@ import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 import type { Message } from '@/types';
 
+type AiStatus = {
+    id: number;
+    mode: string;
+    status: string;
+    label: string;
+    message: string;
+    hint: string | null;
+    technical_error: string | null;
+    updated_at: string | null;
+};
+
 const props = defineProps<{
     chatId: number;
     chatName?: string | null;
     messages?: Message[];
+    aiStatus?: AiStatus | null;
 }>();
 
 const emit = defineEmits<{
@@ -84,6 +96,18 @@ const clientMessages = computed(() =>
 );
 const latestClientMessage = computed(() => clientMessages.value.at(-1) ?? null);
 const hasClientMessages = computed(() => clientMessages.value.length > 0);
+const aiStatusTone = computed(() => {
+    if (!props.aiStatus) return 'idle';
+    if (props.aiStatus.status === 'failed') return 'error';
+    if (props.aiStatus.status === 'blocked') return 'warning';
+    if (props.aiStatus.status === 'generating' || props.aiStatus.status === 'pending') return 'busy';
+    if (props.aiStatus.status === 'sent') return 'success';
+    return 'idle';
+});
+const aiStatusUpdatedAt = computed(() => {
+    if (!props.aiStatus?.updated_at) return null;
+    return formatTime(new Date(props.aiStatus.updated_at).getTime());
+});
 
 const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
     {
@@ -341,6 +365,37 @@ watch(() => props.chatId, () => {
             class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-4 py-4 space-y-3"
         >
             <section
+                class="ai-status-card"
+                :class="`ai-status-card-${aiStatusTone}`"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide">
+                            Последнее решение AI
+                        </p>
+                        <p class="mt-1 text-sm font-semibold">
+                            {{ aiStatus?.label || 'AI ещё не отвечал автоматически' }}
+                        </p>
+                    </div>
+                    <span v-if="aiStatusUpdatedAt" class="shrink-0 text-[11px] opacity-70">
+                        {{ aiStatusUpdatedAt }}
+                    </span>
+                </div>
+
+                <p class="mt-2 text-[12.5px] leading-5 opacity-90">
+                    {{ aiStatus?.message || 'Когда AI обработает сообщение клиента, здесь появится причина и результат.' }}
+                </p>
+                <p v-if="aiStatus?.hint" class="mt-1 text-[12px] leading-5 opacity-75">
+                    {{ aiStatus.hint }}
+                </p>
+
+                <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">
+                    <summary class="cursor-pointer font-medium">Технические детали для администратора</summary>
+                    <pre class="mt-1 whitespace-pre-wrap break-words">{{ aiStatus.technical_error }}</pre>
+                </details>
+            </section>
+
+            <section
                 class="rounded-xl border p-3 space-y-3"
                 :style="{
                     background: 'color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel))',
@@ -546,6 +601,37 @@ watch(() => props.chatId, () => {
 </template>
 
 <style scoped>
+.ai-status-card {
+    border: 1px solid var(--wa-border);
+    border-radius: 0.9rem;
+    color: var(--wa-text);
+    padding: 0.75rem;
+}
+
+.ai-status-card-idle {
+    background: color-mix(in srgb, var(--wa-panel) 92%, var(--wa-bg) 8%);
+}
+
+.ai-status-card-success {
+    background: color-mix(in srgb, var(--wa-green) 10%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-green) 32%, var(--wa-border));
+}
+
+.ai-status-card-busy {
+    background: color-mix(in srgb, #2563eb 10%, var(--wa-panel));
+    border-color: color-mix(in srgb, #2563eb 32%, var(--wa-border));
+}
+
+.ai-status-card-warning {
+    background: color-mix(in srgb, #f59e0b 12%, var(--wa-panel));
+    border-color: color-mix(in srgb, #f59e0b 36%, var(--wa-border));
+}
+
+.ai-status-card-error {
+    background: color-mix(in srgb, var(--wa-danger) 11%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-danger) 34%, var(--wa-border));
+}
+
 .ai-quick-chip {
     font-size: 11.5px;
     line-height: 1;
