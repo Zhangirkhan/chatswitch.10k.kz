@@ -224,6 +224,177 @@ final class MessageController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function retry(Request $request, Message $message): JsonResponse
+    {
+        $message->loadMissing(['chat', 'whatsappSession', 'media']);
+        if ($message->chat === null) {
+            abort(404);
+        }
+
+        $this->authorize('view', $message->chat);
+
+        $user = $request->user();
+
+        if ($message->direction !== 'outbound') {
+            return response()->json(['success' => false, 'error' => 'Повторить можно только исходящие сообщения.'], 422);
+        }
+
+        if (! $user->hasRole('administrator') && (int) $message->sent_by_user_id !== (int) $user->id) {
+            abort(403);
+        }
+
+        if (! in_array($message->ack, ['pending', 'failed'], true)) {
+            return response()->json(['success' => false, 'error' => 'Сообщение уже доставлено или не требует повторной отправки.'], 422);
+        }
+
+        $session = $message->whatsappSession;
+        if ($session === null) {
+            return response()->json(['success' => false, 'error' => 'У сообщения нет сессии WhatsApp.'], 422);
+        }
+
+        abort_unless($user->can('use', $session), 403, 'Этот номер WhatsApp вам не назначен.');
+
+        $resolved = $this->buildRetryOutboundPayload($message);
+        if ($resolved === null) {
+            return response()->json(['success' => false, 'error' => 'Не удалось восстановить данные для повторной отправки.'], 422);
+        }
+
+        [$payloadType, $payload] = $resolved;
+
+        $message->forceFill([
+            'ack' => 'pending',
+            'whatsapp_message_id' => null,
+        ])->save();
+
+        SendOutboundMessageJob::dispatch($message->id, $payloadType, $payload);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Восстанавливает тип и payload для {@see SendOutboundMessageJob} по сохранённому сообщению.
+     *
+     * @return array{0: string, 1: array<string, mixed>}|null
+     */
+    private function buildRetryOutboundPayload(Message $message): ?array
+    {
+        $type = $message->type ?: 'chat';
+        $meta = is_array($message->metadata) ? $message->metadata : [];
+
+        if ($type === 'poll') {
+            $poll = $meta['poll'] ?? null;
+            if (! is_array($poll)) {
+                return null;
+            }
+            $question = trim((string) ($poll['question'] ?? ''));
+            $optionsRaw = $poll['options'] ?? [];
+            if ($question === '' || ! is_array($optionsRaw)) {
+                return null;
+            }
+            $options = array_values(array_filter(
+                array_map(static fn ($o) => trim((string) $o), $optionsRaw),
+                static fn (string $o) => $o !== '',
+            ));
+            if (count($options) < 2) {
+                return null;
+            }
+            $allowMultiple = (bool) ($poll['allow_multiple_answers'] ?? false);
+
+            return [
+                'poll',
+                [
+                    'question' => $question,
+                    'options' => $options,
+                    'allow_multiple' => $allowMultiple,
+                ],
+            ];
+        }
+
+        if ($type === 'contact') {
+            $contact = $meta['contact'] ?? null;
+            if (! is_array($contact)) {
+                return null;
+            }
+            $vcard = trim((string) ($contact['vcard'] ?? ''));
+            if ($vcard === '') {
+                return null;
+            }
+            $displayName = trim((string) ($contact['name'] ?? ''));
+
+            return [
+                'contact',
+                [
+                    'vcard' => $vcard,
+                    'display_name' => $displayName !== '' ? $displayName : null,
+                ],
+            ];
+        }
+
+        $forwardSource = trim((string) ($meta['forward_source_whatsapp_message_id'] ?? ''));
+        if ($forwardSource !== '') {
+            return ['forward', ['source_whatsapp_message_id' => $forwardSource]];
+        }
+
+        $message->loadMissing('media');
+        /** @var Collection<int, MessageMedia> $media */
+        $media = $message->media ?? collect();
+        if ($media->isNotEmpty()) {
+            $first = $media->first();
+            if ($first === null || trim((string) $first->disk_path) === '') {
+                return null;
+            }
+            $captionRaw = trim((string) ($message->body ?? ''));
+            $caption = $type === 'voice'
+                ? null
+                : ($captionRaw !== '' ? (string) $message->body : null);
+
+            return [
+                'media',
+                [
+                    'disk' => 'local',
+                    'path' => (string) $first->disk_path,
+                    'mimetype' => (string) ($first->mime_type ?: 'application/octet-stream'),
+                    'filename' => $first->filename,
+                    'caption' => $caption,
+                ],
+            ];
+        }
+
+        if ($message->is_forwarded && $type !== 'chat') {
+            return null;
+        }
+
+        $body = trim((string) ($message->body ?? ''));
+        if ($body === '') {
+            return null;
+        }
+
+        $quotedRaw = $message->quoted_message_id;
+        $quotedId = is_string($quotedRaw) && $quotedRaw !== '' ? $quotedRaw : null;
+
+        $mentions = [];
+        if (isset($meta['mentions']) && is_array($meta['mentions'])) {
+            foreach ($meta['mentions'] as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $id = isset($row['id']) ? trim((string) $row['id']) : '';
+                if ($id !== '') {
+                    $mentions[] = $id;
+                }
+            }
+        }
+
+        return [
+            'text',
+            [
+                'body' => (string) $message->body,
+                'quoted_message_id' => $quotedId,
+                'mentions' => $mentions,
+            ],
+        ];
+    }
+
     /**
      * Текст исходящего при пересылке: как у обычной отправки — с подписью оператора.
      * Пустой body (медиа без подписи и т.п.) даёт хотя бы подпись — иначе whatsapp-service
@@ -274,6 +445,8 @@ final class MessageController extends Controller
 
             $outboundBody = $this->forwardOutboundTextBody($user, $message);
 
+            $sourceWhatsappMessageId = trim((string) ($message->whatsapp_message_id ?? ''));
+
             $forward = Message::create([
                 'chat_id' => $chat->id,
                 'whatsapp_session_id' => $session->id,
@@ -281,6 +454,9 @@ final class MessageController extends Controller
                 'direction' => 'outbound',
                 'type' => $message->type ?: 'chat',
                 'body' => $outboundBody,
+                'metadata' => $sourceWhatsappMessageId !== ''
+                    ? ['forward_source_whatsapp_message_id' => $sourceWhatsappMessageId]
+                    : null,
                 'sent_by_user_id' => $user->id,
                 'sender_name' => $user->name,
                 'is_forwarded' => true,
@@ -289,7 +465,6 @@ final class MessageController extends Controller
                 'message_timestamp' => now(),
             ]);
 
-            $sourceWhatsappMessageId = trim((string) ($message->whatsapp_message_id ?? ''));
             $payloadType = $sourceWhatsappMessageId !== '' ? 'forward' : 'text';
             $payload = $sourceWhatsappMessageId !== ''
                 ? ['source_whatsapp_message_id' => $sourceWhatsappMessageId]
@@ -381,6 +556,8 @@ final class MessageController extends Controller
             foreach ($messages as $src) {
                 $outboundBody = $this->forwardOutboundTextBody($user, $src);
 
+                $sourceWhatsappMessageId = trim((string) ($src->whatsapp_message_id ?? ''));
+
                 $forward = Message::create([
                     'chat_id' => $chat->id,
                     'whatsapp_session_id' => $session->id,
@@ -388,6 +565,9 @@ final class MessageController extends Controller
                     'direction' => 'outbound',
                     'type' => $src->type ?: 'chat',
                     'body' => $outboundBody,
+                    'metadata' => $sourceWhatsappMessageId !== ''
+                        ? ['forward_source_whatsapp_message_id' => $sourceWhatsappMessageId]
+                        : null,
                     'sent_by_user_id' => $user->id,
                     'sender_name' => $user->name,
                     'is_forwarded' => true,
@@ -396,7 +576,6 @@ final class MessageController extends Controller
                     'message_timestamp' => now(),
                 ]);
 
-                $sourceWhatsappMessageId = trim((string) ($src->whatsapp_message_id ?? ''));
                 $payloadType = $sourceWhatsappMessageId !== '' ? 'forward' : 'text';
                 $payload = $sourceWhatsappMessageId !== ''
                     ? ['source_whatsapp_message_id' => $sourceWhatsappMessageId]
