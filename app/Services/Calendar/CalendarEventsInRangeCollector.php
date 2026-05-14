@@ -28,7 +28,7 @@ final class CalendarEventsInRangeCollector
         ?int $assigneeId = null,
     ): \Illuminate\Support\Collection {
         $query = VisibleCalendarEventsQuery::forUser($user)
-            ->with(['user:id,name', 'assignee:id,name'])
+            ->with(['user:id,name', 'assignee:id,name', 'chat:id,chat_name', 'contact:id,name,phone_number'])
             ->where(function ($q) use ($rangeStart, $rangeEnd): void {
                 $q->where(function ($q2) use ($rangeStart, $rangeEnd): void {
                     $q2->whereNull('recurrence')
@@ -86,7 +86,7 @@ final class CalendarEventsInRangeCollector
      */
     public function transformEvent(CalendarEvent $event): array
     {
-        $event->loadMissing(['user:id,name', 'assignee:id,name']);
+        $event->loadMissing(['user:id,name', 'assignee:id,name', 'chat:id,chat_name', 'contact:id,name,phone_number']);
 
         return [
             'id' => $event->id,
@@ -102,6 +102,14 @@ final class CalendarEventsInRangeCollector
             'all_day' => $event->all_day,
             'recurrence' => $event->recurrence,
             'recurrence_ends_at' => $event->recurrence_ends_at?->toDateString(),
+            'source' => $event->source,
+            'metadata' => $event->metadata,
+            'chat' => $event->chat ? ['id' => $event->chat->id, 'name' => $event->chat->chat_name] : null,
+            'contact' => $event->contact ? [
+                'id' => $event->contact->id,
+                'name' => $event->contact->name,
+                'phone_number' => $event->contact->phone_number,
+            ] : null,
         ];
     }
 

@@ -30,6 +30,9 @@ interface CalEvent {
     recurrence: Recurrence;
     recurrence_ends_at: string | null;
     recurrence_instance?: boolean;
+    source?: string | null;
+    chat?: { id: number; name: string | null } | null;
+    contact?: { id: number; name: string | null; phone_number: string | null } | null;
 }
 
 const page = usePage<any>();
@@ -53,6 +56,8 @@ const PALETTE = ['#25d366','#34d399','#22d3ee','#3b82f6','#6366f1','#8b5cf6','#e
 
 const showModal  = ref(false);
 const editingId  = ref<number | null>(null);
+/** Метаданные открытой записи (AI, чат, контакт) — только для подсказки в модалке. */
+const editingMeta = ref<{ source?: string | null; chat?: CalEvent['chat']; contact?: CalEvent['contact'] } | null>(null);
 const saving     = ref(false);
 const formError  = ref<string | null>(null);
 
@@ -94,6 +99,7 @@ function emptyForm(date?: Date) {
 
 function openCreate(date?: Date) {
     editingId.value = null;
+    editingMeta.value = null;
     form.value = emptyForm(date);
     formError.value = null;
     showModal.value = true;
@@ -101,6 +107,7 @@ function openCreate(date?: Date) {
 
 function openEdit(ev: CalEvent) {
     editingId.value = ev.recurrence_instance ? null : ev.id;
+    editingMeta.value = { source: ev.source ?? null, chat: ev.chat, contact: ev.contact };
     const toLocal = (iso: string) => {
         const d = new Date(iso);
         const pad = (n: number) => String(n).padStart(2, '0');
@@ -477,6 +484,7 @@ const recurrenceLabels: Record<string, string> = {
                             >
                                 <span class="cal-event-dot" :style="{ background: ev.color }"></span>
                                 <span class="cal-event-chip-title">
+                                    <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge" title="Запись из WhatsApp (AI)">AI</span>
                                     <template v-if="!ev.all_day">{{ formatTime(ev.starts_at) }} </template>{{ ev.title }}
                                     <span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
                                 </span>
@@ -518,7 +526,7 @@ const recurrenceLabels: Record<string, string> = {
                             class="cal-allday-chip"
                             :style="{ background: ev.color + '33', borderColor: ev.color, color: ev.color }"
                             @click.stop="openEdit(ev)"
-                        >{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
+                        ><span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" title="Запись из WhatsApp (AI)">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
                     </div>
                 </div>
 
@@ -551,7 +559,9 @@ const recurrenceLabels: Record<string, string> = {
                                     :style="{ ...eventStyle(ev, h), background: ev.color + '33', borderColor: ev.color, color: ev.color }"
                                     @click.stop="openEdit(ev)"
                                 >
-                                    <div class="cal-week-event-title">{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
+                                    <div class="cal-week-event-title">
+                                        <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" title="Запись из WhatsApp (AI)">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
+                                    </div>
                                     <div class="cal-week-event-time">{{ formatTime(ev.starts_at) }}–{{ formatTime(ev.ends_at) }}</div>
                                 </div>
                             </div>
@@ -571,6 +581,13 @@ const recurrenceLabels: Record<string, string> = {
                         <button class="cal-modal-close" @click="closeModal">×</button>
                     </div>
                     <form @submit.prevent="saveEvent" class="cal-modal-body">
+
+                        <div v-if="editingMeta?.source === 'ai_auto'" class="cal-ai-hint">
+                            <strong>Запись из чата (AI).</strong>
+                            <span v-if="editingMeta.contact"> Клиент: {{ editingMeta.contact.name || '—' }}<template v-if="editingMeta.contact.phone_number">, {{ editingMeta.contact.phone_number }}</template>.</span>
+                            <span v-else-if="editingMeta.chat?.name"> Чат: {{ editingMeta.chat.name }}.</span>
+                            Клиенту уйдёт напоминание в WhatsApp от имени ответственного сотрудника (по настройкам напоминаний).
+                        </div>
 
                         <!-- Title -->
                         <label class="form-row">
@@ -896,7 +913,29 @@ const recurrenceLabels: Record<string, string> = {
     border-radius: 50%;
     flex-shrink: 0;
 }
-.cal-event-chip-title { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.cal-event-chip-title { overflow: hidden; text-overflow: ellipsis; flex: 1; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.cal-ai-badge {
+    flex-shrink: 0;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--wa-accent) 35%, transparent);
+    color: var(--wa-text);
+    line-height: 1.1;
+}
+.cal-ai-badge-sm { font-size: 0.55rem; padding: 0 3px; }
+.cal-ai-hint {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--wa-text-secondary);
+    background: color-mix(in srgb, var(--wa-accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, transparent);
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+}
+.cal-ai-hint strong { color: var(--wa-text); font-weight: 600; }
 .cal-event-more {
     font-size: 0.65rem;
     color: var(--wa-text-secondary);
