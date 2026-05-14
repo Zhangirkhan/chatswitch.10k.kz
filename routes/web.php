@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AiInsightsController;
+use App\Http\Controllers\AiMessageFeedbackController;
 use App\Http\Controllers\Analytics\DialogAnalyticsPageController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
@@ -95,6 +97,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/messages/forward-bulk', [MessageController::class, 'forwardBulk'])->name('messages.forward-bulk');
         Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
         Route::post('/messages/{message}/translate', [MessageTranslationController::class, 'translate'])->name('messages.translate');
+        Route::post('/messages/{message}/ai-feedback', [AiMessageFeedbackController::class, 'store'])
+            ->middleware('throttle:60,1')
+            ->name('messages.ai-feedback');
 
         Route::get('/link-preview', LinkPreviewController::class)->name('link-preview');
 
@@ -187,7 +192,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('settings.companies.update');
         Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('settings.companies.destroy');
 
+        Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
         Route::get('/knowledge/prompt-preview', [KnowledgeBaseController::class, 'promptPreview'])->name('settings.knowledge.prompt-preview');
+        Route::get('/knowledge/audit', [KnowledgeBaseController::class, 'audit'])->name('settings.knowledge.audit');
         Route::get('/knowledge/products', [KnowledgeBaseController::class, 'products'])->name('settings.knowledge.products');
         Route::post('/knowledge/products', [KnowledgeBaseController::class, 'storeProduct'])->name('settings.knowledge.products.store');
         Route::post('/knowledge/products/bulk-prompt', [KnowledgeBaseController::class, 'bulkProductsPrompt'])->name('settings.knowledge.products.bulk-prompt');
