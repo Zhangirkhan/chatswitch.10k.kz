@@ -71,6 +71,9 @@ const forwardSending = ref(false);
 
 const replyToMessage = ref<TeamMsg | null>(null);
 
+const replyJumpNotice = ref('');
+let replyJumpNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+
 let echoChannel: any = null;
 let draftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let deliverFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -560,6 +563,50 @@ function replyDraftPreview(m: TeamMsg): string {
     return t ? t.slice(0, 120) : '…';
 }
 
+function showReplyJumpNotice(text: string): void {
+    replyJumpNotice.value = text;
+    if (replyJumpNoticeTimer) {
+        clearTimeout(replyJumpNoticeTimer);
+    }
+    replyJumpNoticeTimer = setTimeout(() => {
+        replyJumpNotice.value = '';
+        replyJumpNoticeTimer = null;
+    }, 3500);
+}
+
+async function scrollToQuotedParent(parentMessageId: number): Promise<void> {
+    if (parentMessageId < 1) {
+        return;
+    }
+    await nextTick();
+    const root = threadEl.value;
+    if (!root) {
+        return;
+    }
+    const el = root.querySelector(`[data-team-msg-id="${parentMessageId}"]`);
+    if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add(
+            'ring-2',
+            'ring-[var(--wa-accent)]',
+            'ring-offset-2',
+            'ring-offset-[var(--wa-bg)]',
+        );
+        setTimeout(() => {
+            el.classList.remove(
+                'ring-2',
+                'ring-[var(--wa-accent)]',
+                'ring-offset-2',
+                'ring-offset-[var(--wa-bg)]',
+            );
+        }, 1600);
+        return;
+    }
+    showReplyJumpNotice(
+        'Исходное сообщение не в загруженной части истории. Прокрутите вверх и подгрузите сообщения.',
+    );
+}
+
 async function loadMore() {
     const first = messages.value[0];
     if (!first || !hasMore.value || loading.value) return;
@@ -637,6 +684,8 @@ async function submitForward(targetConversationId: number) {
 onBeforeUnmount(() => {
     if (deliverFlushTimer) clearTimeout(deliverFlushTimer);
     deliverFlushTimer = null;
+    if (replyJumpNoticeTimer) clearTimeout(replyJumpNoticeTimer);
+    replyJumpNoticeTimer = null;
     if (draftPersistTimer) clearTimeout(draftPersistTimer);
     if (props.selectedConversationId) {
         persistDraft(props.selectedConversationId, draft.value);
@@ -669,6 +718,13 @@ onBeforeUnmount(() => {
                         Загрузка сообщений…
                     </div>
                     <div
+                        v-if="replyJumpNotice"
+                        class="mb-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel)] px-3 py-2 text-xs text-[var(--wa-text-secondary)]"
+                        role="status"
+                    >
+                        {{ replyJumpNotice }}
+                    </div>
+                    <div
                         v-for="m in messages"
                         :key="m.id"
                         :data-team-msg-id="m.id"
@@ -692,16 +748,19 @@ onBeforeUnmount(() => {
                                 {{ m.forward.quote_body }}
                             </div>
                         </div>
-                        <div
+                        <button
                             v-if="m.reply_to"
-                            class="mb-2 rounded border-l-2 border-[var(--wa-border)] bg-black/5 dark:bg-white/5 pl-2 py-1.5 pr-1 text-[0.75rem]"
+                            type="button"
+                            class="mb-2 w-full rounded border-l-2 border-[var(--wa-border)] bg-black/5 dark:bg-white/5 pl-2 py-1.5 pr-1 text-left text-[0.75rem] cursor-pointer transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+                            title="Перейти к сообщению"
+                            @click="scrollToQuotedParent(m.reply_to.id)"
                         >
                             <div class="text-[var(--wa-text-secondary)]">
                                 Ответ на
                                 <span class="font-medium text-[var(--wa-accent)]">{{ m.reply_to.sender_name }}</span>
                             </div>
                             <div v-if="m.reply_to.body_preview" class="mt-0.5 opacity-90 truncate">{{ m.reply_to.body_preview }}</div>
-                        </div>
+                        </button>
                         <div v-if="m.body" class="whitespace-pre-wrap break-words">
                             <template
                                 v-for="(seg, si) in teamMessageBodySegments(m.body, m.mentioned_users)"
