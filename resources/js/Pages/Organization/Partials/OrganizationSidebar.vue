@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import axios from 'axios';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
+import type { PageProps } from '@/types';
 
 export interface OrgDepartment {
     id: number;
@@ -20,6 +22,280 @@ const props = defineProps<{
     selectedDepartmentId?: number | null;
     archiveActive?: boolean;
 }>();
+
+const page = usePage<PageProps>();
+const teamChatActive = computed(
+    () => typeof page.url === 'string' && page.url.startsWith('/organization/chat'),
+);
+const showTeamMentionNotifPrompt = computed((): boolean => {
+    if (typeof window === 'undefined') return false;
+    return 'Notification' in window && Notification.permission !== 'granted';
+});
+const selectedConversationId = computed<number | null>(() => {
+    const v = page.props.selectedConversationId;
+    return typeof v === 'number' ? v : null;
+});
+const teamChatUnread = computed(() => Number(page.props.teamChatUnreadCount ?? 0));
+
+type TeamConvRow = {
+    id: number;
+    type: string;
+    title: string;
+    subtitle: string | null;
+    unread_count: number;
+    last_message_at: string | null;
+    last_message_preview: string | null;
+    is_pinned?: boolean;
+};
+
+type ContactRow = { id: number; name: string; email: string };
+
+const teamConversations = ref<TeamConvRow[]>([]);
+const contacts = ref<ContactRow[]>([]);
+const chatSidebarMode = ref<'chats' | 'contacts'>('chats');
+const conversationFilter = ref<'' | 'unread' | 'department' | 'direct'>('');
+const teamListLoading = ref(false);
+const contactSearch = ref('');
+
+type TeamSearchConvHit = {
+    id: number;
+    type: string;
+    title: string;
+    subtitle: string | null;
+    last_message_preview: string | null;
+};
+type TeamSearchMsgHit = {
+    id: number;
+    team_conversation_id: number;
+    conversation_title: string;
+    body_snippet: string;
+    created_at: string | null;
+    sender_name: string | null;
+};
+type TeamSearchColleagueHit = { id: number; name: string; email: string };
+
+const teamGlobalSearch = ref('');
+const teamGlobalSearchLoading = ref(false);
+const teamGlobalSearchConvHits = ref<TeamSearchConvHit[]>([]);
+const teamGlobalSearchMsgHits = ref<TeamSearchMsgHit[]>([]);
+const teamGlobalSearchColleagueHits = ref<TeamSearchColleagueHit[]>([]);
+let teamGlobalSearchTimer: ReturnType<typeof setTimeout> | null = null;
+const lastTeamSearchQuery = ref('');
+
+let contactSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let inboxEcho: any = null;
+
+async function loadTeamConversations() {
+    teamListLoading.value = true;
+    try {
+        const params: Record<string, string> = {};
+        if (conversationFilter.value) {
+            params.filter = conversationFilter.value;
+        }
+        const { data } = await axios.get(route('organization.team-chat.api.conversations'), { params });
+        teamConversations.value = data.conversations ?? [];
+    } catch {
+        teamConversations.value = [];
+    } finally {
+        teamListLoading.value = false;
+    }
+}
+
+function setConvFilter(f: '' | 'unread' | 'department' | 'direct') {
+    conversationFilter.value = f;
+    void loadTeamConversations();
+}
+
+function clearTeamGlobalSearch() {
+    teamGlobalSearch.value = '';
+    teamGlobalSearchConvHits.value = [];
+    teamGlobalSearchMsgHits.value = [];
+    teamGlobalSearchColleagueHits.value = [];
+    lastTeamSearchQuery.value = '';
+}
+
+function scheduleTeamGlobalSearch() {
+    if (teamGlobalSearchTimer) clearTimeout(teamGlobalSearchTimer);
+    teamGlobalSearchTimer = setTimeout(() => {
+        teamGlobalSearchTimer = null;
+        void runTeamGlobalSearch();
+    }, 320);
+}
+
+async function runTeamGlobalSearch() {
+    const q = teamGlobalSearch.value.trim();
+    if (q.length < 2) {
+        teamGlobalSearchConvHits.value = [];
+        teamGlobalSearchMsgHits.value = [];
+        teamGlobalSearchColleagueHits.value = [];
+        lastTeamSearchQuery.value = '';
+        teamGlobalSearchLoading.value = false;
+        return;
+    }
+    teamGlobalSearchLoading.value = true;
+    try {
+        const { data } = await axios.get(route('organization.team-chat.api.search'), { params: { q } });
+        teamGlobalSearchConvHits.value = (data.conversations ?? []) as TeamSearchConvHit[];
+        teamGlobalSearchMsgHits.value = (data.messages ?? []) as TeamSearchMsgHit[];
+        teamGlobalSearchColleagueHits.value = (data.colleagues ?? []) as TeamSearchColleagueHit[];
+    } catch {
+        teamGlobalSearchConvHits.value = [];
+        teamGlobalSearchMsgHits.value = [];
+        teamGlobalSearchColleagueHits.value = [];
+    } finally {
+        teamGlobalSearchLoading.value = false;
+        lastTeamSearchQuery.value = q;
+    }
+}
+
+function openTeamSearchMessage(convId: number, messageId: number) {
+    const path = route('organization.team-chat.show', convId);
+    const u = new URL(path, window.location.origin);
+    u.searchParams.set('highlight_message_id', String(messageId));
+    router.visit(u.pathname + u.search);
+}
+
+async function toggleTeamPin(c: TeamConvRow) {
+    try {
+        await axios.post(route('organization.team-chat.api.pin', c.id), {
+            pinned: !c.is_pinned,
+        });
+        await loadTeamConversations();
+    } catch {
+        /* ignore */
+    }
+}
+
+async function loadContacts() {
+    try {
+        const { data } = await axios.get(route('organization.team-chat.api.contacts'), {
+            params: { search: contactSearch.value.trim() || undefined },
+        });
+        contacts.value = data.contacts ?? [];
+    } catch {
+        contacts.value = [];
+    }
+}
+
+function scheduleContactSearch() {
+    if (contactSearchTimer) clearTimeout(contactSearchTimer);
+    contactSearchTimer = setTimeout(() => {
+        contactSearchTimer = null;
+        void loadContacts();
+    }, 200);
+}
+
+async function openContactDm(userId: number) {
+    try {
+        const { data } = await axios.post(route('organization.team-chat.api.direct'), { user_id: userId });
+        const id = data.conversation?.id;
+        if (id) {
+            chatSidebarMode.value = 'chats';
+            await loadTeamConversations();
+            router.visit(route('organization.team-chat.show', id));
+        }
+    } catch {
+        /* toast optional */
+    }
+}
+
+function notifyTeamMentionIfNeeded(e: any): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (document.visibilityState === 'visible') return;
+    const uid = page.props.auth?.user?.id;
+    if (uid == null) return;
+    const idsRaw = e?.message?.mentioned_user_ids;
+    if (!Array.isArray(idsRaw)) return;
+    const ids = idsRaw.map((x: unknown) => Number(x)).filter((n) => n > 0);
+    if (!ids.includes(Number(uid))) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const senderName = e?.message?.sender?.name ? String(e.message.sender.name) : 'Сотрудник';
+    const bodyRaw = typeof e?.message?.body === 'string' ? e.message.body : '';
+    const body = bodyRaw.trim() ? bodyRaw.slice(0, 140) : 'Вас упомянули во внутреннем чате.';
+    const convId = Number(e?.conversation_id);
+    const mid = Number(e?.message?.id);
+    const tag =
+        Number.isFinite(convId) && Number.isFinite(mid) && mid > 0 ? `team-mention-${convId}-${mid}` : undefined;
+    try {
+        new Notification(`${senderName} упомянул(а) вас`, { body, tag });
+    } catch {
+        /* ignore */
+    }
+}
+
+async function requestMentionBrowserNotifications(): Promise<void> {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    try {
+        await Notification.requestPermission();
+    } catch {
+        /* ignore */
+    }
+}
+
+function setupTeamInboxEcho() {
+    const Echo = (window as any).Echo;
+    const uid = page.props.auth?.user?.id;
+    if (!Echo || !uid) return;
+    teardownTeamInboxEcho();
+    inboxEcho = Echo.private(`team-inbox.${uid}`);
+    inboxEcho.listen('.team.message', (e: any) => {
+        void loadTeamConversations();
+        notifyTeamMentionIfNeeded(e);
+    });
+}
+
+function teardownTeamInboxEcho() {
+    const Echo = (window as any).Echo;
+    const uid = page.props.auth?.user?.id;
+    if (Echo && inboxEcho && uid) {
+        try {
+            Echo.leave(`team-inbox.${uid}`);
+        } catch {
+            /* ignore */
+        }
+    }
+    inboxEcho = null;
+}
+
+onMounted(() => {
+    if (teamChatActive.value) {
+        void loadTeamConversations();
+        void loadContacts();
+        setupTeamInboxEcho();
+    }
+});
+
+watch(teamChatActive, (on) => {
+    if (on) {
+        void loadTeamConversations();
+        void loadContacts();
+        setupTeamInboxEcho();
+    } else {
+        teardownTeamInboxEcho();
+    }
+});
+
+watch(chatSidebarMode, (m) => {
+    if (m === 'contacts') void loadContacts();
+});
+
+watch(contactSearch, () => {
+    if (chatSidebarMode.value === 'contacts') scheduleContactSearch();
+});
+
+watch(teamGlobalSearch, () => {
+    if (teamChatActive.value && chatSidebarMode.value === 'chats') {
+        scheduleTeamGlobalSearch();
+    }
+});
+
+watch([teamChatActive, chatSidebarMode], () => {
+    if (!teamChatActive.value || chatSidebarMode.value !== 'chats') {
+        clearTeamGlobalSearch();
+    }
+});
+
+onBeforeUnmount(() => teardownTeamInboxEcho());
 
 const totalArchived = computed<number>(() =>
     props.departments.reduce((sum, d) => sum + (d.archived_posts_count ?? 0), 0),
@@ -130,6 +406,28 @@ function clearSearch() {
                 </h1>
             </div>
 
+            <SidebarSectionTabs active="organization" />
+
+            <!-- Подраздел: задачи по отделам или чат сотрудников -->
+            <div class="org-subnav px-3 pb-2 flex gap-2 shrink-0">
+                <Link
+                    :href="route('organization.index')"
+                    class="org-subnav-link"
+                    :class="{ 'org-subnav-link-active': !teamChatActive }"
+                >
+                    Задачи
+                </Link>
+                <Link
+                    :href="route('organization.team-chat.index')"
+                    class="org-subnav-link"
+                    :class="{ 'org-subnav-link-active': teamChatActive }"
+                >
+                    Чат
+                    <span v-if="teamChatUnread > 0" class="org-subnav-badge">{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
+                </Link>
+            </div>
+
+            <template v-if="!teamChatActive">
             <!-- Search -->
             <div class="px-3 py-2 shrink-0">
                 <div class="relative rounded-full" :style="{ background: 'var(--wa-panel-header)' }">
@@ -160,8 +458,6 @@ function clearSearch() {
                     </button>
                 </div>
             </div>
-
-            <SidebarSectionTabs active="organization" />
 
             <!-- Departments list -->
             <div class="flex-1 overflow-y-auto wa-scrollbar">
@@ -222,6 +518,214 @@ function clearSearch() {
                     </span>
                 </Link>
             </div>
+            </template>
+
+            <template v-else>
+                <div class="px-3 pb-2 flex gap-2 shrink-0">
+                    <button
+                        type="button"
+                        class="org-mode-btn"
+                        :class="{ 'org-mode-btn-active': chatSidebarMode === 'chats' }"
+                        @click="chatSidebarMode = 'chats'"
+                    >
+                        Беседы
+                    </button>
+                    <button
+                        type="button"
+                        class="org-mode-btn"
+                        :class="{ 'org-mode-btn-active': chatSidebarMode === 'contacts' }"
+                        @click="chatSidebarMode = 'contacts'"
+                    >
+                        Сотрудники
+                    </button>
+                </div>
+                <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            type="button"
+                            class="org-filter-chip"
+                            :class="{ 'org-filter-chip-active': conversationFilter === '' }"
+                            @click="setConvFilter('')"
+                        >
+                            Все
+                        </button>
+                        <button
+                            type="button"
+                            class="org-filter-chip"
+                            :class="{ 'org-filter-chip-active': conversationFilter === 'unread' }"
+                            @click="setConvFilter('unread')"
+                        >
+                            Непрочит.
+                        </button>
+                        <button
+                            type="button"
+                            class="org-filter-chip"
+                            :class="{ 'org-filter-chip-active': conversationFilter === 'department' }"
+                            @click="setConvFilter('department')"
+                        >
+                            Отделы
+                        </button>
+                        <button
+                            type="button"
+                            class="org-filter-chip"
+                            :class="{ 'org-filter-chip-active': conversationFilter === 'direct' }"
+                            @click="setConvFilter('direct')"
+                        >
+                            Личные
+                        </button>
+                    </div>
+                    <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
+                        Группы отделов и личные сообщения
+                    </p>
+                    <button
+                        v-if="showTeamMentionNotifPrompt"
+                        type="button"
+                        class="mt-1.5 text-left text-[0.65rem] text-[var(--wa-accent)] underline decoration-dotted hover:opacity-90"
+                        @click="requestMentionBrowserNotifications"
+                    >
+                        Разрешить уведомления браузера при @упоминании (вкладка в фоне)
+                    </button>
+                    <div class="pt-1">
+                        <input
+                            v-model="teamGlobalSearch"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Поиск по чатам, сообщениям и людям…"
+                            class="w-full px-3 py-2 rounded-lg text-sm text-[var(--wa-text)] border border-[var(--wa-border)] bg-[var(--wa-panel-header)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
+                        />
+                        <div
+                            v-if="teamGlobalSearchLoading"
+                            class="text-xs text-[var(--wa-text-secondary)] mt-1.5"
+                        >Поиск…</div>
+                        <div
+                            v-else-if="teamGlobalSearch.trim().length >= 2 && (teamGlobalSearchConvHits.length || teamGlobalSearchMsgHits.length || teamGlobalSearchColleagueHits.length)"
+                            class="mt-2 max-h-48 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] text-left"
+                        >
+                            <div v-if="teamGlobalSearchColleagueHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)]">Люди</div>
+                            <button
+                                v-for="h in teamGlobalSearchColleagueHits"
+                                :key="'u-' + h.id"
+                                type="button"
+                                class="w-full text-left px-2 py-1.5 text-sm hover:bg-[var(--wa-selected)] border-b border-[var(--wa-border)]"
+                                @click="openContactDm(h.id)"
+                            >
+                                <span class="font-medium text-[var(--wa-text)]">{{ h.name }}</span>
+                                <span v-if="h.email" class="block text-xs text-[var(--wa-text-secondary)] truncate">{{ h.email }}</span>
+                            </button>
+                            <div v-if="teamGlobalSearchConvHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)] border-t border-[var(--wa-border)]">Беседы</div>
+                            <Link
+                                v-for="h in teamGlobalSearchConvHits"
+                                :key="'c-' + h.id"
+                                :href="route('organization.team-chat.show', h.id)"
+                                class="block px-2 py-1.5 text-sm hover:bg-[var(--wa-selected)] border-b border-[var(--wa-border)] last:border-b-0"
+                            >
+                                <span class="font-medium text-[var(--wa-text)]">{{ h.title }}</span>
+                                <span v-if="h.last_message_preview" class="block text-xs text-[var(--wa-text-secondary)] truncate">{{ h.last_message_preview }}</span>
+                            </Link>
+                            <div
+                                v-if="teamGlobalSearchMsgHits.length"
+                                :class="[
+                                    'px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)]',
+                                    teamGlobalSearchColleagueHits.length || teamGlobalSearchConvHits.length
+                                        ? 'border-t border-[var(--wa-border)]'
+                                        : '',
+                                ]"
+                            >Сообщения</div>
+                            <button
+                                v-for="h in teamGlobalSearchMsgHits"
+                                :key="'m-' + h.id"
+                                type="button"
+                                class="w-full text-left px-2 py-1.5 text-sm hover:bg-[var(--wa-selected)] border-b border-[var(--wa-border)] last:border-b-0"
+                                @click="openTeamSearchMessage(h.team_conversation_id, h.id)"
+                            >
+                                <span class="text-xs text-[var(--wa-accent)]">{{ h.conversation_title }}</span>
+                                <span class="block text-[var(--wa-text)] truncate">{{ h.body_snippet }}</span>
+                                <span v-if="h.sender_name" class="text-xs text-[var(--wa-text-secondary)]">{{ h.sender_name }}</span>
+                            </button>
+                        </div>
+                        <div
+                            v-else-if="teamGlobalSearch.trim() === lastTeamSearchQuery && lastTeamSearchQuery.length >= 2 && !teamGlobalSearchLoading && !teamGlobalSearchConvHits.length && !teamGlobalSearchMsgHits.length && !teamGlobalSearchColleagueHits.length"
+                            class="text-xs text-[var(--wa-text-secondary)] mt-1.5"
+                        >Ничего не найдено</div>
+                    </div>
+                </div>
+                <div v-else class="px-3 py-2 shrink-0">
+                    <input
+                        v-model="contactSearch"
+                        type="text"
+                        placeholder="Поиск сотрудника"
+                        class="w-full px-3 py-2 rounded-lg text-sm text-[var(--wa-text)] border border-[var(--wa-border)] bg-[var(--wa-panel-header)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
+                    />
+                </div>
+                <div class="flex-1 overflow-y-auto wa-scrollbar">
+                    <div v-if="chatSidebarMode === 'chats' && teamListLoading" class="py-8 text-center text-sm text-[var(--wa-text-secondary)]">
+                        Загрузка…
+                    </div>
+                    <template v-else-if="chatSidebarMode === 'chats'">
+                        <div
+                            v-for="c in teamConversations"
+                            :key="c.id"
+                            class="dept-item flex flex-row items-stretch gap-0 pr-0"
+                            :class="{ 'dept-item-selected': c.id === selectedConversationId }"
+                        >
+                            <Link
+                                :href="route('organization.team-chat.show', c.id)"
+                                class="flex flex-1 min-w-0 items-center gap-3 text-inherit no-underline min-h-[44px]"
+                            >
+                                <div class="dept-icon shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                        <path v-if="c.type === 'department'" stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path v-else stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="dept-name truncate flex items-center gap-1">
+                                        <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" title="Закреплено">📌</span>
+                                        <span class="truncate">{{ c.title }}</span>
+                                    </div>
+                                    <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
+                                    <div v-else-if="c.subtitle" class="dept-meta truncate">{{ c.subtitle }}</div>
+                                </div>
+                                <span v-if="c.unread_count > 0" class="dept-badge dept-badge-open shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
+                            </Link>
+                            <button
+                                type="button"
+                                class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
+                                :title="c.is_pinned ? 'Открепить' : 'Закрепить'"
+                                @click.prevent.stop="toggleTeamPin(c)"
+                            >
+                                <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
+                            </button>
+                        </div>
+                        <div v-if="!teamListLoading && teamConversations.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
+                            <span v-if="conversationFilter === 'unread'">Нет непрочитанных бесед.</span>
+                            <span v-else-if="conversationFilter === 'department'">Нет чатов отделов в списке.</span>
+                            <span v-else-if="conversationFilter === 'direct'">Нет личных бесед.</span>
+                            <span v-else>Нет бесед. Откройте «Сотрудники», чтобы написать коллеге.</span>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <button
+                            v-for="u in contacts"
+                            :key="u.id"
+                            type="button"
+                            class="dept-item w-full text-left border-0 bg-transparent"
+                            @click="openContactDm(u.id)"
+                        >
+                            <div class="dept-icon">
+                                <span class="text-sm font-semibold">{{ u.name.charAt(0).toUpperCase() }}</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="dept-name truncate">{{ u.name }}</div>
+                                <div class="dept-meta truncate">{{ u.email }}</div>
+                            </div>
+                        </button>
+                        <div v-if="contacts.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
+                            Нет сотрудников в компании или не задан company_id.
+                        </div>
+                    </template>
+                </div>
+            </template>
         </div>
     </div>
 </template>
@@ -301,5 +805,77 @@ function clearSearch() {
 .archive-badge {
     background: color-mix(in srgb, #22c55e 80%, transparent);
     color: #fff;
+}
+.org-subnav-link {
+    flex: 1;
+    text-align: center;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--wa-text-secondary);
+    text-decoration: none;
+    border-radius: 8px;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+}
+.org-subnav-link:hover {
+    background: var(--wa-panel-hover);
+    color: var(--wa-text);
+}
+.org-subnav-link-active {
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel-header));
+}
+.org-subnav-badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 0.32rem;
+    border-radius: 999px;
+    background: #8b5cf6;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.org-mode-btn {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    color: var(--wa-text-secondary);
+    cursor: pointer;
+}
+.org-mode-btn-active {
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+}
+.org-filter-chip {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.72rem;
+    border-radius: 999px;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    color: var(--wa-text-secondary);
+    cursor: pointer;
+    line-height: 1.2;
+}
+.org-filter-chip:hover {
+    color: var(--wa-text);
+    background: var(--wa-panel-hover);
+}
+.org-filter-chip-active {
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel-header));
 }
 </style>
