@@ -98,6 +98,36 @@ const isAiGenerated = computed(() => {
 
     return isInternalUser.value && props.message.direction === 'outbound' && meta?.ai?.generated === true;
 });
+const aiQualityModuleEnabled = computed<boolean>(() => Boolean(page.props.modules?.ai_quality ?? true));
+
+type AiFeedbackRating = 'good' | 'style' | 'facts' | 'long' | 'context';
+
+const aiFeedbackOptions: { id: AiFeedbackRating; label: string; title: string }[] = [
+    { id: 'good', label: 'Хорошо', title: 'AI-ответ подходит, правки не нужны' },
+    { id: 'style', label: 'Не тот тон', title: 'Ответ звучит не так: слишком сухо, грубо или не в стиле компании' },
+    { id: 'facts', label: 'Ошибка', title: 'В ответе есть неверная информация' },
+    { id: 'long', label: 'Длинно', title: 'Ответ слишком длинный, нужно короче' },
+    { id: 'context', label: 'Нет данных', title: 'AI не хватило информации из базы знаний' },
+];
+
+const aiFeedbackSubmitting = ref(false);
+const canShowAiFeedback = computed(() => showMessageBody.value && isAiGenerated.value && isInternalUser.value && aiQualityModuleEnabled.value);
+
+async function submitAiFeedback(rating: AiFeedbackRating): Promise<void> {
+    if (aiFeedbackSubmitting.value) {
+        return;
+    }
+    aiFeedbackSubmitting.value = true;
+    try {
+        await axios.post(route('messages.ai-feedback', props.message.id), { rating });
+        showToast({ message: 'Оценка сохранена', duration: 2500 });
+    } catch (e: any) {
+        const raw = e?.response?.data?.message ?? e?.message ?? 'Не удалось сохранить оценку';
+        showToast({ message: typeof raw === 'string' ? raw : 'Не удалось сохранить оценку', duration: 4000 });
+    } finally {
+        aiFeedbackSubmitting.value = false;
+    }
+}
 
 const pickerOpen = ref(false);
 const fullPickerOpen = ref(false);
@@ -112,12 +142,25 @@ const hovered = ref(false);
 const isOutbound = computed(() => props.message.direction === 'outbound');
 const isInbound = computed(() => props.message.direction === 'inbound');
 const isSystemMessage = computed(() => props.message.direction === 'system');
-const quickReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const defaultQuickReactionEmojis = ['👍', '❤️', '😂', '😮', '😢'];
+const quickReactionEmojis = computed<string[]>(() => {
+    const configured = page.props.quickReactions;
+    if (!Array.isArray(configured)) {
+        return defaultQuickReactionEmojis;
+    }
+
+    const emojis = configured
+        .filter((value): value is string => typeof value === 'string' && value.trim() !== '')
+        .map((value) => value.trim())
+        .slice(0, 5);
+
+    return emojis.length === 5 ? emojis : defaultQuickReactionEmojis;
+});
 
 /** Контекстное меню + полоска реакций (компактно, под референс Telegram / WA). */
 const MSG_MENU_WIDTH = 208;
-const MSG_MENU_HEIGHT_EST = 400;
-const QUICK_REACTION_BAR_W = 220;
+const MSG_MENU_HEIGHT_EST = computed(() => (canShowAiFeedback.value ? 560 : 400));
+const QUICK_REACTION_BAR_W = computed(() => (quickReactionEmojis.value.length + 1) * 24 + quickReactionEmojis.value.length * 2 + 16);
 const QUICK_REACTION_BAR_H = 32;
 const MENU_REACTION_GAP = 6;
 const showGroupSender = computed(() => !!props.isGroupChat && isInbound.value);
@@ -887,7 +930,7 @@ function placeReactionPanel(x: number, y: number, width: number, height: number,
 }
 
 function openQuickReactionsAt(x: number, y: number, bounds?: DOMRect) {
-    placeReactionPanel(x, y, QUICK_REACTION_BAR_W, QUICK_REACTION_BAR_H, bounds);
+    placeReactionPanel(x, y, QUICK_REACTION_BAR_W.value, QUICK_REACTION_BAR_H, bounds);
     pickerOpen.value = true;
     fullPickerOpen.value = false;
 }
@@ -922,7 +965,7 @@ function togglePickerFromTrigger(e: PointerEvent) {
         return;
     }
 
-    const PANEL_WIDTH = QUICK_REACTION_BAR_W;
+    const PANEL_WIDTH = QUICK_REACTION_BAR_W.value;
     const PANEL_HEIGHT = QUICK_REACTION_BAR_H;
     const triggerCenterX = rect.left + rect.width / 2;
     const x = triggerCenterX - PANEL_WIDTH / 2;
@@ -972,16 +1015,16 @@ function openMenuAt(x: number, y: number): void {
     if (menuLeft < 8) {
         menuLeft = 8;
     }
-    if (menuTop + MSG_MENU_HEIGHT_EST + 8 > vh) {
-        menuTop = Math.max(8, vh - MSG_MENU_HEIGHT_EST - 8);
+    if (menuTop + MSG_MENU_HEIGHT_EST.value + 8 > vh) {
+        menuTop = Math.max(8, vh - MSG_MENU_HEIGHT_EST.value - 8);
     }
 
     let barTop = menuTop - MENU_REACTION_GAP - QUICK_REACTION_BAR_H;
     if (barTop < 8) {
         const shift = 8 - barTop;
         menuTop += shift;
-        if (menuTop + MSG_MENU_HEIGHT_EST + 8 > vh) {
-            menuTop = Math.max(8, vh - MSG_MENU_HEIGHT_EST - 8);
+        if (menuTop + MSG_MENU_HEIGHT_EST.value + 8 > vh) {
+            menuTop = Math.max(8, vh - MSG_MENU_HEIGHT_EST.value - 8);
         }
         barTop = menuTop - MENU_REACTION_GAP - QUICK_REACTION_BAR_H;
     }
@@ -990,8 +1033,8 @@ function openMenuAt(x: number, y: number): void {
     menuY.value = menuTop;
 
     const barLeft = Math.min(
-        Math.max(8, menuLeft + MSG_MENU_WIDTH / 2 - QUICK_REACTION_BAR_W / 2),
-        vw - QUICK_REACTION_BAR_W - 8,
+        Math.max(8, menuLeft + MSG_MENU_WIDTH / 2 - QUICK_REACTION_BAR_W.value / 2),
+        vw - QUICK_REACTION_BAR_W.value - 8,
     );
     pickerX.value = barLeft;
     pickerY.value = Math.max(8, barTop);
@@ -1013,7 +1056,7 @@ function openMenuFromButton(e: MouseEvent) {
     let y = rect ? rect.bottom + 6 : e.clientY;
     if (x + MSG_MENU_WIDTH + 8 > vw) x = vw - MSG_MENU_WIDTH - 8;
     if (x < 8) x = 8;
-    if (y + MSG_MENU_HEIGHT_EST + 8 > vh) y = Math.max(8, vh - MSG_MENU_HEIGHT_EST - 8);
+    if (y + MSG_MENU_HEIGHT_EST.value + 8 > vh) y = Math.max(8, vh - MSG_MENU_HEIGHT_EST.value - 8);
     openMenuAt(x, y);
 }
 
@@ -1624,6 +1667,25 @@ onBeforeUnmount(() => {
                     Переслать
                 </button>
 
+                <template v-if="canShowAiFeedback">
+                    <div class="msg-menu-divider"></div>
+                    <div class="msg-menu-section-label">Оценить AI-ответ</div>
+                    <button
+                        v-for="opt in aiFeedbackOptions"
+                        :key="opt.id"
+                        class="msg-menu-item"
+                        type="button"
+                        :title="opt.title"
+                        :disabled="aiFeedbackSubmitting"
+                        @click="closeMenu(); submitAiFeedback(opt.id)"
+                    >
+                        <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 4.5l1.5 1.5 3.75-3.75M4.5 13.5l3 3 7.5-7.5M4.5 6.75h4.5M4.5 20.25h15" />
+                        </svg>
+                        {{ opt.label }}
+                    </button>
+                </template>
+
                 <button
                     v-if="canDelete"
                     class="msg-menu-item msg-menu-item-danger"
@@ -1940,6 +2002,15 @@ onBeforeUnmount(() => {
     height: 1px;
     margin: 0.1875rem 0.375rem;
     background: var(--msg-menu-divider);
+}
+.msg-menu-section-label {
+    padding: 0.25rem 0.625rem 0.1875rem;
+    color: var(--wa-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    text-transform: uppercase;
 }
 .msg-menu-item-danger {
     color: var(--wa-danger);

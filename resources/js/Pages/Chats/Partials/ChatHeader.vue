@@ -124,12 +124,18 @@ function toggleDepartmentsMenu() {
         departmentsMenuOpen.value = false;
         return;
     }
+    closeMenu();
+    closeUsersMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     departmentsMenuPos.value = computeMenuPosition(departmentsBtnRef.value);
     departmentsMenuOpen.value = true;
 }
 
 async function openDepartmentModal() {
     departmentsMenuOpen.value = false;
+    closeAiModeMenu();
+    closeAiResponderMenu();
     departmentModalOpen.value = true;
     departmentSearchQuery.value = '';
     await loadDepartmentHistory();
@@ -234,6 +240,16 @@ const canManageAi = computed(() => props.chat.can_manage_ai === true);
 const aiEnabled = computed(() => props.chat.ai_enabled === true);
 const aiMode = computed<'auto' | 'draft'>(() => (props.chat.ai_mode === 'draft' ? 'draft' : 'auto'));
 const aiSaving = ref(false);
+
+const aiModeMenuOpen = ref(false);
+const aiModeBtnRef = ref<HTMLButtonElement | null>(null);
+const aiModeMenuPos = ref<MenuPos>({ top: 0, right: 0 });
+
+const aiResponderMenuOpen = ref(false);
+const aiResponderBtnRef = ref<HTMLButtonElement | null>(null);
+const aiResponderMenuPos = ref<MenuPos>({ top: 0, right: 0 });
+const aiResponderSearchQuery = ref('');
+
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
@@ -266,6 +282,22 @@ const aiAssistantButtonText = computed(() => {
     if (status === 'drafted') return 'AI черновик';
     if (status === 'blocked') return 'AI стоп';
     return 'AI';
+});
+
+const aiModePickerLabel = computed(() => (aiMode.value === 'draft' ? 'Черновик' : 'Автоответ'));
+
+const aiResponderMenuButtonLabel = computed(() => {
+    const id = props.chat.ai_responder_user_id;
+    if (id == null) {
+        return 'Авто';
+    }
+
+    const name = assignableUsersList.value.find((user) => user.id === id)?.name
+        || props.chat.ai_responder?.name
+        || `#${id}`;
+    const max = 11;
+
+    return name.length > max ? `${name.slice(0, max)}…` : name;
 });
 
 const aiStatusTitle = computed(() => {
@@ -310,6 +342,8 @@ const usersMenuPos = ref<MenuPos>({ top: 0, right: 0 });
 const departmentsMenuPanelRef = ref<HTMLElement | null>(null);
 const usersMenuPanelRef = ref<HTMLElement | null>(null);
 const overflowMenuPanelRef = ref<HTMLElement | null>(null);
+const aiModeMenuPanelRef = ref<HTMLElement | null>(null);
+const aiResponderMenuPanelRef = ref<HTMLElement | null>(null);
 const selectedUserIds = ref<number[]>([]);
 const savingUsers = ref(false);
 const assignmentModalOpen = ref(false);
@@ -332,6 +366,10 @@ const selectedUsers = computed<AssignableUser[]>(() =>
     assignableUsersList.value.filter((u) => selectedUserIds.value.includes(u.id)),
 );
 
+const aiResponderPickerSource = computed<AssignableUser[]>(() =>
+    selectedUsers.value.length > 0 ? selectedUsers.value : assignableUsersList.value,
+);
+
 const usersLabel = computed<string>(() => {
     const count = selectedUserIds.value.length;
     if (count === 0) return 'Назначить сотрудников';
@@ -351,6 +389,8 @@ async function toggleAi(): Promise<void> {
         return;
     }
 
+    closeAiModeMenu();
+    closeAiResponderMenu();
     aiSaving.value = true;
     try {
         await axios.patch(route('chats.ai.update', props.chat.id), {
@@ -389,14 +429,58 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     }
 }
 
-function onAiResponderChange(event: Event): void {
-    const value = Number((event.target as HTMLSelectElement).value);
-    void updateAiSettings({ ai_responder_user_id: Number.isFinite(value) && value > 0 ? value : null });
+function closeAiModeMenu(): void {
+    aiModeMenuOpen.value = false;
 }
 
-function onAiModeChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value === 'draft' ? 'draft' : 'auto';
-    void updateAiSettings({ ai_mode: value });
+function closeAiResponderMenu(): void {
+    aiResponderMenuOpen.value = false;
+    aiResponderSearchQuery.value = '';
+}
+
+function toggleAiModeMenu(): void {
+    if (aiModeMenuOpen.value) {
+        closeAiModeMenu();
+        return;
+    }
+    closeMenu();
+    closeDepartmentsMenu();
+    closeUsersMenu();
+    closeAiResponderMenu();
+    aiModeMenuPos.value = computeMenuPosition(aiModeBtnRef.value);
+    aiModeMenuOpen.value = true;
+}
+
+async function pickAiMode(mode: 'auto' | 'draft'): Promise<void> {
+    if (aiMode.value === mode) {
+        closeAiModeMenu();
+        return;
+    }
+    await updateAiSettings({ ai_mode: mode });
+    closeAiModeMenu();
+}
+
+function toggleAiResponderMenu(): void {
+    if (aiResponderMenuOpen.value) {
+        closeAiResponderMenu();
+        return;
+    }
+    closeMenu();
+    closeDepartmentsMenu();
+    closeUsersMenu();
+    closeAiModeMenu();
+    aiResponderMenuPos.value = computeMenuPosition(aiResponderBtnRef.value);
+    aiResponderMenuOpen.value = true;
+}
+
+async function pickAiResponder(userId: number | null): Promise<void> {
+    const current = props.chat.ai_responder_user_id ?? null;
+    if (current === userId) {
+        closeAiResponderMenu();
+        return;
+    }
+    await updateAiSettings({ ai_responder_user_id: userId });
+    closeAiResponderMenu();
 }
 
 /** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
@@ -433,6 +517,29 @@ const filteredAssignableUsers = computed(() => {
     });
 });
 
+const filteredAiResponderPicker = computed(() => {
+    const list = aiResponderPickerSource.value;
+    const q = aiResponderSearchQuery.value.trim().toLowerCase();
+    if (!q) {
+        return list;
+    }
+
+    return list.filter((u) => {
+        const name = (u.name || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const role = assignableUserRoleLine(u).toLowerCase();
+        const dept = (u.department_name || '').toLowerCase();
+
+        return name.includes(q) || email.includes(q) || role.includes(q) || dept.includes(q);
+    });
+});
+
+watch(aiResponderMenuOpen, (open) => {
+    if (!open) {
+        aiResponderSearchQuery.value = '';
+    }
+});
+
 function toggleUsersMenu() {
     if (usersMenuOpen.value) {
         usersMenuOpen.value = false;
@@ -447,6 +554,8 @@ async function openAssignmentModal() {
         return;
     }
     usersMenuOpen.value = false;
+    closeAiModeMenu();
+    closeAiResponderMenu();
     assignmentModalOpen.value = true;
     userSearchQuery.value = '';
     await loadAssignmentHistory();
@@ -553,6 +662,10 @@ function toggleMenu() {
         menuOpen.value = false;
         return;
     }
+    closeDepartmentsMenu();
+    closeUsersMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     menuPos.value = computeMenuPosition(menuBtnRef.value, 4);
     menuOpen.value = true;
 }
@@ -571,6 +684,8 @@ function onEscape(e: KeyboardEvent) {
         closeDepartmentsMenu();
         closeDepartmentModal();
         closeUsersMenu();
+        closeAiModeMenu();
+        closeAiResponderMenu();
         closeAssignmentModal();
         scheduledMessagesOpen.value = false;
     }
@@ -585,6 +700,12 @@ function onViewportChange() {
     if (usersMenuOpen.value) {
         usersMenuPos.value = computeMenuPosition(usersBtnRef.value);
     }
+    if (aiModeMenuOpen.value) {
+        aiModeMenuPos.value = computeMenuPosition(aiModeBtnRef.value);
+    }
+    if (aiResponderMenuOpen.value) {
+        aiResponderMenuPos.value = computeMenuPosition(aiResponderBtnRef.value);
+    }
     if (menuOpen.value) {
         menuPos.value = computeMenuPosition(menuBtnRef.value, 4);
     }
@@ -593,7 +714,13 @@ function scrollTargetInsideOpenHeaderMenu(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) {
         return false;
     }
-    const roots = [departmentsMenuPanelRef.value, usersMenuPanelRef.value, overflowMenuPanelRef.value];
+    const roots = [
+        departmentsMenuPanelRef.value,
+        usersMenuPanelRef.value,
+        overflowMenuPanelRef.value,
+        aiModeMenuPanelRef.value,
+        aiResponderMenuPanelRef.value,
+    ];
     return roots.some((root) => root != null && root.contains(target));
 }
 
@@ -605,6 +732,8 @@ function onViewportScroll(e: Event) {
     closeMenu();
     closeDepartmentsMenu();
     closeUsersMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
 }
 
 window.addEventListener('keydown', onEscape);
@@ -626,22 +755,30 @@ onBeforeUnmount(() => {
 
 function openSearch() {
     closeMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     emit('toggle-search');
 }
 
 function openContactInfo() {
     closeMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     emit('show-contact-info');
 }
 
 function closeChatWindow() {
     closeMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     router.visit(route('chats.index'));
 }
 
 /** Закрыть просмотр чата: в архив (если ещё не там) и переход к списку архива. */
 async function archiveAndCloseChat(): Promise<void> {
     closeMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
     if (archivingChat.value) return;
     archivingChat.value = true;
     try {
@@ -738,7 +875,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 
         <div class="chat-header-toolbar flex flex-nowrap items-center gap-2 min-w-0 shrink">
             <!-- Отделы: сотрудник только видит свой; админ/руководитель — выбор -->
-            <div class="relative">
+            <div class="header-dept-control relative">
                 <div
                     v-if="!canEditChatDepartments"
                     class="label-pill label-pill-dept label-pill-dept-static cursor-default opacity-95"
@@ -870,7 +1007,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 </template>
             </div>
 
-            <div class="header-action-group header-ai-group" :class="{ 'header-ai-group-on': aiEnabled }">
+            <div class="header-action-group header-ai-group header-ai-control" :class="{ 'header-ai-group-on': aiEnabled }">
                 <button
                     v-if="canManageAi"
                     type="button"
@@ -885,35 +1022,39 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     <span class="header-ai-toggle-text">{{ aiModeLabel }}</span>
                 </button>
 
-                <select
+                <button
                     v-if="canManageAi && aiEnabled"
-                    class="ai-settings-select"
-                    :value="aiMode"
+                    ref="aiModeBtnRef"
+                    type="button"
+                    class="ai-menu-trigger"
                     :disabled="aiSaving"
-                    title="Режим AI"
-                    @change="onAiModeChange"
+                    title="Режим AI: автоответ или черновик в поле ввода"
+                    aria-haspopup="listbox"
+                    :aria-expanded="aiModeMenuOpen"
+                    @click="toggleAiModeMenu"
                 >
-                    <option value="auto">Автоответ</option>
-                    <option value="draft">Черновик</option>
-                </select>
+                    <span class="ai-menu-trigger-label truncate">{{ aiModePickerLabel }}</span>
+                    <svg class="ai-menu-trigger-chevron" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
 
-                <select
+                <button
                     v-if="canManageAi && aiEnabled && showAiResponderSelect"
-                    class="ai-settings-select"
-                    :value="chat.ai_responder_user_id || ''"
+                    ref="aiResponderBtnRef"
+                    type="button"
+                    class="ai-menu-trigger"
                     :disabled="aiSaving"
-                    title="AI отвечает от имени"
-                    @change="onAiResponderChange"
+                    title="От чьего имени отвечает AI"
+                    aria-haspopup="listbox"
+                    :aria-expanded="aiResponderMenuOpen"
+                    @click="toggleAiResponderMenu"
                 >
-                    <option value="">Автовыбор</option>
-                    <option
-                        v-for="user in selectedUsers.length ? selectedUsers : assignableUsersList"
-                        :key="user.id"
-                        :value="user.id"
-                    >
-                        {{ user.name }}
-                    </option>
-                </select>
+                    <span class="ai-menu-trigger-label truncate">{{ aiResponderMenuButtonLabel }}</span>
+                    <svg class="ai-menu-trigger-chevron" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
 
                 <button
                     type="button"
@@ -924,7 +1065,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                     }"
                     :title="aiStatusTitle"
                     aria-label="Открыть AI-ассистента"
-                    @click="emit('open-ai')"
+                    @click="closeAiModeMenu(); closeAiResponderMenu(); emit('open-ai')"
                 >
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -933,8 +1074,212 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 </button>
             </div>
 
+            <Teleport to="body">
+                <template v-if="canManageAi && aiEnabled">
+                    <div
+                        v-if="aiModeMenuOpen"
+                        class="fixed inset-0 z-[900]"
+                        @click="closeAiModeMenu"
+                    ></div>
+                    <div
+                        v-if="aiModeMenuOpen"
+                        ref="aiModeMenuPanelRef"
+                        class="fixed z-[1000] flex max-h-[min(88vh,320px)] w-[min(92vw,300px)] flex-col overflow-hidden rounded-xl border shadow-2xl header-menu assign-popover"
+                        :style="{
+                            top: `${aiModeMenuPos.top}px`,
+                            right: `${aiModeMenuPos.right}px`,
+                            background: 'var(--wa-panel-header)',
+                            borderColor: 'var(--wa-border-strong)',
+                        }"
+                        role="listbox"
+                        aria-label="Режим AI"
+                        @click.stop
+                    >
+                        <div
+                            class="border-b px-3 py-2 text-xs font-semibold"
+                            :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                        >
+                            Режим ответа
+                        </div>
+                        <div class="wa-scrollbar flex-1 overflow-y-auto py-1">
+                            <button
+                                type="button"
+                                class="assign-row"
+                                :class="{ 'assign-row-staff-active': aiMode === 'auto' }"
+                                role="option"
+                                :aria-selected="aiMode === 'auto'"
+                                @click="pickAiMode('auto')"
+                            >
+                                <span class="flex-1 min-w-0 text-left">
+                                    <span class="block truncate assign-name">Автоответ</span>
+                                    <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
+                                        Отправлять ответ клиенту автоматически
+                                    </span>
+                                </span>
+                                <svg
+                                    v-if="aiMode === 'auto'"
+                                    class="assign-check assign-check-staff shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.8"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="assign-row"
+                                :class="{ 'assign-row-staff-active': aiMode === 'draft' }"
+                                role="option"
+                                :aria-selected="aiMode === 'draft'"
+                                @click="pickAiMode('draft')"
+                            >
+                                <span class="flex-1 min-w-0 text-left">
+                                    <span class="block truncate assign-name">Черновик</span>
+                                    <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
+                                        Подставлять текст в поле ввода без отправки
+                                    </span>
+                                </span>
+                                <svg
+                                    v-if="aiMode === 'draft'"
+                                    class="assign-check assign-check-staff shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.8"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </Teleport>
+
+            <Teleport to="body">
+                <template v-if="canManageAi && aiEnabled && showAiResponderSelect">
+                    <div
+                        v-if="aiResponderMenuOpen"
+                        class="fixed inset-0 z-[900]"
+                        @click="closeAiResponderMenu"
+                    ></div>
+                    <div
+                        v-if="aiResponderMenuOpen"
+                        ref="aiResponderMenuPanelRef"
+                        class="fixed z-[1000] flex max-h-[min(90vh,440px)] w-[min(92vw,360px)] flex-col overflow-hidden rounded-xl border shadow-2xl header-menu assign-popover"
+                        :style="{
+                            top: `${aiResponderMenuPos.top}px`,
+                            right: `${aiResponderMenuPos.right}px`,
+                            background: 'var(--wa-panel-header)',
+                            borderColor: 'var(--wa-border-strong)',
+                        }"
+                        role="listbox"
+                        aria-label="Ответчик AI"
+                        @click.stop
+                    >
+                        <div
+                            class="border-b px-3 py-2 text-xs font-semibold"
+                            :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                        >
+                            От чьего имени AI
+                        </div>
+                        <div
+                            class="assign-search-wrap"
+                            :style="{ borderColor: 'var(--wa-border)' }"
+                        >
+                            <label class="assign-searchbox">
+                                <svg class="w-5 h-5 shrink-0 opacity-55" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.1-5.15a6.25 6.25 0 11-12.5 0 6.25 6.25 0 0112.5 0z" />
+                                </svg>
+                                <input
+                                    v-model="aiResponderSearchQuery"
+                                    type="search"
+                                    autocomplete="off"
+                                    placeholder="Поиск..."
+                                    class="assign-search"
+                                />
+                            </label>
+                        </div>
+                        <div class="assign-list wa-scrollbar flex-1 min-h-0 overflow-y-auto">
+                            <button
+                                type="button"
+                                class="assign-row"
+                                :class="{ 'assign-row-staff-active': chat.ai_responder_user_id == null }"
+                                role="option"
+                                :aria-selected="chat.ai_responder_user_id == null"
+                                @click="pickAiResponder(null)"
+                            >
+                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">A</span>
+                                <span class="flex-1 min-w-0 text-left">
+                                    <span class="block truncate assign-name">Автовыбор</span>
+                                    <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
+                                        Система выберет ответчика из назначенных на чат
+                                    </span>
+                                </span>
+                                <svg
+                                    v-if="chat.ai_responder_user_id == null"
+                                    class="assign-check assign-check-staff shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.8"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                            <button
+                                v-for="u in filteredAiResponderPicker"
+                                :key="u.id"
+                                type="button"
+                                class="assign-row"
+                                :class="{ 'assign-row-staff-active': chat.ai_responder_user_id === u.id }"
+                                role="option"
+                                :aria-selected="chat.ai_responder_user_id === u.id"
+                                @click="pickAiResponder(u.id)"
+                            >
+                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
+                                    {{ u.name?.charAt(0)?.toUpperCase() }}
+                                </span>
+                                <span class="flex-1 min-w-0 text-left">
+                                    <span class="block truncate assign-name">{{ u.name }}</span>
+                                    <span
+                                        v-if="assignableUserRoleLine(u)"
+                                        class="block truncate text-[11px] assign-role"
+                                        :style="{ color: 'var(--wa-text-secondary)' }"
+                                    >
+                                        {{ assignableUserRoleLine(u) }}
+                                    </span>
+                                </span>
+                                <svg
+                                    v-if="chat.ai_responder_user_id === u.id"
+                                    class="assign-check assign-check-staff shrink-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.8"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                            <div
+                                v-if="aiResponderSearchQuery.trim() && filteredAiResponderPicker.length === 0"
+                                class="px-5 py-4 text-sm"
+                                :style="{ color: 'var(--wa-text-secondary)' }"
+                            >
+                                Ничего не найдено
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </Teleport>
+
             <!-- Сотрудники: одна кнопка с аватарками; зелёная иерархия -->
-            <div v-if="showAssignUsersBlock" class="relative">
+            <div v-if="showAssignUsersBlock" class="header-staff-control relative">
                 <button
                     ref="usersBtnRef"
                     type="button"
@@ -1089,7 +1434,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
 
             <div
                 v-else-if="chat.assignments?.length"
-                class="label-pill label-pill-staff label-pill-staff-static label-pill-staff-avatars"
+                class="header-staff-control label-pill label-pill-staff label-pill-staff-static label-pill-staff-avatars"
                 title="Ответственные за этот чат"
             >
                 <div class="flex -space-x-2 shrink-0" aria-hidden="true">
@@ -1109,7 +1454,7 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                 </div>
             </div>
 
-            <div class="flex items-center gap-1 shrink-0">
+            <div class="header-menu-control flex items-center gap-1 shrink-0">
                 <button type="button" class="wa-header-btn shrink-0" title="Поиск" @click="openSearch">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1614,6 +1959,23 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
     flex-shrink: 0;
 }
 
+.header-dept-control {
+    order: 1;
+}
+
+.header-staff-control {
+    order: 2;
+}
+
+.header-ai-control {
+    order: 3;
+    margin-left: 0.35rem;
+}
+
+.header-menu-control {
+    order: 4;
+}
+
 .wa-header-btn {
     width: 2.5rem;
     height: 2.5rem;
@@ -1808,26 +2170,45 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
     font-size: 0.74rem;
 }
 
-.ai-settings-select {
+.ai-menu-trigger {
     height: 100%;
-    max-width: 8.6rem;
-    min-width: 6.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
     border: 0;
     border-left: 1px solid var(--wa-border);
-    border-radius: 0;
     background-color: color-mix(in srgb, var(--wa-panel) 78%, var(--wa-bg) 22%);
     color: var(--wa-text);
     font-size: 0.75rem;
     font-weight: 600;
-    padding: 0 1.45rem 0 0.65rem;
+    padding: 0 0.5rem 0 0.62rem;
+    max-width: 9.2rem;
+    min-width: 5.4rem;
+    cursor: pointer;
     outline: none;
 }
 
-.ai-settings-select:disabled {
+.ai-menu-trigger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-panel-hover) 72%, var(--wa-bg) 28%);
+}
+
+.ai-menu-trigger:disabled {
+    opacity: 0.62;
+    cursor: default;
+}
+
+.ai-menu-trigger-label {
+    min-width: 0;
+    text-align: left;
+}
+
+.ai-menu-trigger-chevron {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
     opacity: 0.62;
 }
 
-/* Иконочный вариант пилла: квадратная кнопка только с иконкой (+ опц. бейдж счётчика). */
 .label-pill-icon {
     width: 2.15rem;
     min-width: 2.15rem;
