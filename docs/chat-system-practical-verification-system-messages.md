@@ -94,11 +94,19 @@
 
 **Вопрос:** текст автоответа после звонка доставляется в WA и в UI, `sent_by_user_id` — системный пользователь?
 
-**Вывод.** Всё в порядке по коду: джоба вызывает `storeOutboundMessage` с системным пользователем, диспатчит `SendOutboundMessageJob` и `broadcast(new NewMessageReceived(...))` — цепочка как у обычного исходящего текста.
+**Вывод.** Всё в порядке: автотесты `tests/Feature/Chat/ProcessWhatsappCallRejectedJobTest.php` (PHPUnit, SQLite в памяти) проверяют, что после `ProcessWhatsappCallRejectedJob::handle` создаётся исходящее сообщение с `sent_by_user_id`, равным id пользователя `system@chatswitch.internal`; в шину ставится `SendOutboundMessageJob` (цепочка отправки текста в WhatsApp — `app/Jobs/SendOutboundMessageJob.php`); событие `NewMessageReceived` рассылается для обновления UI (`app/Events/NewMessageReceived.php`, полезная нагрузка включает `sent_by_user_id` и `sent_by_user`). Реализация джобы — `app/Jobs/ProcessWhatsappCallRejectedJob.php`; сохранение записи — `ChatService::storeOutboundMessage` с переданным системным пользователем (`app/Services/ChatService.php`).
 
-**Примечание.** Галочки доставки и поле `sent_by_user_id` в БД на стенде стоит сверить запросом или интерфейсом.
+Для воспроизведения прогона из корня репозитория выполняется команда:
 
-**Приложить скриншоты.** Сообщение в ленте ChatSwitch с указанием отправителя; скриншот стороны WhatsApp с тем же текстом.
+```bash
+./vendor/bin/phpunit tests/Feature/Chat/ProcessWhatsappCallRejectedJobTest.php
+```
+
+Ожидаемый результат прогона: успешное завершение двух тестов (семь утверждений). Дополнительно второй тест подтверждает, что в пределах окна rate limit повторный запуск не ставит второй `SendOutboundMessageJob`.
+
+**Примечание.** Фактические галочки доставки в WhatsApp на устройстве клиента и внешний вид пузыря в UI на рабочей стенде в этом прогоне не проверяются; при полевом аудите имеет смысл сверить сообщение в переписке клиента и отправителя «Система» в ленте оператора.
+
+**Приложить скриншоты.** Сообщение в ленте ChatSwitch с отправителем «Система» (или эквивалент из `sent_by_user`); скриншот переписки WhatsApp у клиента с тем же текстом автоответа.
 
 ---
 

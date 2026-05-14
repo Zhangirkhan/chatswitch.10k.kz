@@ -1,6 +1,8 @@
 <?php
 
+use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
+use App\Models\Company;
 use App\Models\EmployeeToneProfile;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -11,6 +13,19 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Artisan::command('ai:tone-profiles-refresh', function (): int {
+    Company::query()
+        ->where(function ($query): void {
+            $query->whereDoesntHave('toneProfile')
+                ->orWhereHas('toneProfile', function ($toneQuery): void {
+                    $toneQuery->whereNull('analyzed_at')
+                        ->orWhere('analyzed_at', '<', now()->subDays(7));
+                });
+        })
+        ->orderBy('id')
+        ->limit(100)
+        ->pluck('id')
+        ->each(fn ($companyId) => AnalyzeCompanyToneProfileJob::dispatch((int) $companyId));
+
     EmployeeToneProfile::query()
         ->where(function ($query): void {
             $query->whereNull('analyzed_at')
