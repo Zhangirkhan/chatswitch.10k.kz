@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
 use App\Jobs\GenerateAiReplyJob;
 use App\Models\AiResponseLog;
@@ -42,6 +43,7 @@ final class ChatAiSettingsController extends Controller
         ])->save();
 
         if ($chat->ai_enabled && $responder !== null && $companyId !== null) {
+            AnalyzeCompanyToneProfileJob::dispatch($companyId);
             AnalyzeEmployeeToneProfileJob::dispatch($responder->id, $companyId, $chat->id);
         }
 

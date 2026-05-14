@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Events\ChatsListNotify;
+use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
@@ -190,6 +191,7 @@ final class ChatAssignmentController extends Controller
         $chat->forceFill(['ai_responder_user_id' => $responderId])->save();
 
         if ($responderId !== null && $chat->company_id !== null) {
+            AnalyzeCompanyToneProfileJob::dispatch((int) $chat->company_id);
             AnalyzeEmployeeToneProfileJob::dispatch($responderId, (int) $chat->company_id, (int) $chat->id);
         }
     }
