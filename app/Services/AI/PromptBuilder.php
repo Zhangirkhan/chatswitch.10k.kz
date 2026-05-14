@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Models\Chat;
+use App\Models\CompanyToneProfile;
 use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
@@ -26,8 +27,9 @@ final class PromptBuilder
     private const AI_CONTINUITY_LIMIT = 5;
 
     public function __construct(
-        private readonly KnowledgeContextRepository $knowledge,
+        private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
         private readonly OpenAiChatService $openAi,
+        private readonly OperatorCalendarContextBuilder $calendarContext,
     ) {}
 
     /**
@@ -64,6 +66,7 @@ final class PromptBuilder
         $toneBlock = $companyId !== null
             ? $this->toneBlock($responder, $companyId)
             : 'Профиль тона сотрудника недоступен.';
+        $calendarBlock = $this->calendarContext->buildContextBlock($responder);
         $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder);
         $responderName = trim($responder->name) !== '' ? $responder->name : 'сотрудник';
 
@@ -83,8 +86,11 @@ final class PromptBuilder
 10. Подстраивай длину ответа под последние ручные сообщения сотрудника: если он пишет коротко и разговорно, отвечай коротко и разговорно, без канцелярита и длинных объяснений.
 11. Не повторяй уже сказанные клиенту цену, размеры, условия и наличие без необходимости. Если клиент уточнил деталь или подтвердил выбор — коротко подтверди следующий шаг.
 12. Блок "последние AI-ответы" используй только чтобы не повторяться и продолжать диалог. Не используй его как источник фактов: факты бери из базы знаний и ручной истории.
+13. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
 
 {$knowledgeBlock}
+
+{$calendarBlock}
 
 {$toneBlock}
 
@@ -94,30 +100,7 @@ PROMPT;
 
     private function knowledgeBlock(int $companyId): string
     {
-        $data = $this->knowledge->forPrompt($companyId);
-        $lines = ['База знаний компании. Валюта цен: казахстанский тенге (KZT, ₸).'];
-
-        $lines[] = 'Правила ответа:';
-        foreach ($data['rules'] as $rule) {
-            $lines[] = "- {$rule->title} ({$rule->type}, priority {$rule->priority}): {$rule->content}";
-        }
-
-        $lines[] = 'Товары:';
-        foreach ($data['products'] as $product) {
-            $price = $product->price !== null ? ' Цена: '.$this->formatTenge($product->price).'.' : '';
-            $sku = $product->sku ? " SKU: {$product->sku}." : '';
-            $attributes = $this->detailsBlock('Характеристики', $product->attributes);
-            $lines[] = trim("- {$product->name}.{$sku}{$price} ".trim((string) $product->description).' '.$attributes);
-        }
-
-        $lines[] = 'Услуги:';
-        foreach ($data['services'] as $service) {
-            $duration = $service->duration_minutes !== null ? " Длительность: {$service->duration_minutes} мин." : '';
-            $price = $service->price !== null ? ' Цена: '.$this->formatTenge($service->price).'.' : '';
-            $conditions = $this->detailsBlock('Условия', $service->conditions);
-            $lines[] = trim("- {$service->name}.{$duration}{$price} ".trim((string) $service->description).' '.$conditions);
-        }
-
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId);
         $fullContext = implode("\n", $lines);
         if (mb_strlen($fullContext) <= self::HISTORY_CHAR_BUDGET) {
             return $fullContext;
@@ -134,7 +117,13 @@ PROMPT;
             ->first();
 
         if ($profile === null || trim((string) $profile->summary) === '') {
-            return 'Профиль тона сотрудника ещё не построен. Используй нейтральный, вежливый и краткий стиль.';
+            return $this->companyToneBlock($companyId);
+        }
+
+        $source = (string) data_get($profile->metadata, 'source', '');
+        $samplesCount = (int) data_get($profile->metadata, 'samples_count', 0);
+        if ($source === 'fallback' || $samplesCount === 0) {
+            return $this->companyToneBlock($companyId);
         }
 
         $phrases = collect($profile->phrases ?? [])
@@ -143,6 +132,24 @@ PROMPT;
             ->implode('; ');
 
         return "Профиль тона сотрудника:\n{$profile->summary}\nТипичные формулировки: {$phrases}";
+    }
+
+    private function companyToneBlock(int $companyId): string
+    {
+        $profile = CompanyToneProfile::query()
+            ->where('company_id', $companyId)
+            ->first();
+
+        if ($profile === null || trim((string) $profile->summary) === '') {
+            return 'Профиль тона сотрудника ещё не построен, общий стиль компании тоже ещё не собран. Используй нейтральный, вежливый и краткий стиль.';
+        }
+
+        $phrases = collect($profile->phrases ?? [])
+            ->filter(fn ($phrase) => is_string($phrase) && trim($phrase) !== '')
+            ->take(12)
+            ->implode('; ');
+
+        return "Личный профиль тона сотрудника ещё не собран. Временно используй общий стиль компании:\n{$profile->summary}\nТипичные формулировки компании: {$phrases}";
     }
 
     private function styleExamplesBlock(Chat $chat, User $responder): string
@@ -236,43 +243,6 @@ PROMPT;
             ->reject(fn (Message $message): bool => $message->direction === 'outbound'
                 && data_get($message->metadata, 'ai.generated') === true)
             ->values();
-    }
-
-    private function formatTenge(mixed $price): string
-    {
-        $amount = is_numeric($price) ? (float) $price : 0.0;
-        $formatted = number_format($amount, (float) $amount === floor($amount) ? 0 : 2, ',', ' ');
-
-        return "{$formatted} ₸";
-    }
-
-    /**
-     * @param  array<string, mixed>|null  $details
-     */
-    private function detailsBlock(string $label, ?array $details): string
-    {
-        if ($details === null || $details === []) {
-            return '';
-        }
-
-        $pairs = collect($details)
-            ->map(function (mixed $value, string $key): ?string {
-                if ($value === null || $value === '') {
-                    return null;
-                }
-
-                if (is_array($value)) {
-                    $value = implode(', ', array_map(static fn (mixed $item): string => (string) $item, $value));
-                } elseif (is_bool($value)) {
-                    $value = $value ? 'да' : 'нет';
-                }
-
-                return "{$key}: {$value}";
-            })
-            ->filter()
-            ->implode('; ');
-
-        return $pairs !== '' ? "{$label}: {$pairs}." : '';
     }
 
     private function formatMessage(Message $message): string

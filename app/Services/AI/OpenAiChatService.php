@@ -11,8 +11,8 @@ use RuntimeException;
 
 /**
  * Тонкий клиент над OpenAI Chat Completions.
- * Возвращает только текст ответа: парсингом JSON и кодом сети не должны заниматься
- * вызывающие сервисы (DRY и тестируемость).
+ * Возвращает текст или строго распарсенный JSON: кодом сети не должны заниматься
+ * вызывающие сервисы.
  */
 final class OpenAiChatService
 {
@@ -20,6 +20,44 @@ final class OpenAiChatService
      * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
      */
     public function chat(array $messages, ?float $temperature = null, ?int $maxTokens = null): string
+    {
+        $message = $this->send($messages, $temperature, $maxTokens);
+        $content = $message['content'] ?? null;
+
+        if (! is_string($content) || trim($content) === '') {
+            throw new RuntimeException('Пустой ответ от OpenAI.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
+     * @return array<string, mixed>
+     */
+    public function chatJson(array $messages, ?float $temperature = null, ?int $maxTokens = null): array
+    {
+        $message = $this->send($messages, $temperature, $maxTokens, ['type' => 'json_object']);
+        $content = $message['content'] ?? null;
+
+        if (! is_string($content) || trim($content) === '') {
+            throw new RuntimeException('Пустой JSON-ответ от OpenAI.');
+        }
+
+        $decoded = json_decode($content, true);
+        if (! is_array($decoded)) {
+            throw new RuntimeException('OpenAI вернул невалидный JSON.');
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
+     * @param  array<string, mixed>|null  $responseFormat
+     * @return array<string, mixed>
+     */
+    private function send(array $messages, ?float $temperature = null, ?int $maxTokens = null, ?array $responseFormat = null): array
     {
         $apiKey = (string) config('services.openai.api_key');
         $baseUrl = rtrim((string) config('services.openai.base_url', 'https://api.openai.com/v1'), '/');
@@ -31,17 +69,22 @@ final class OpenAiChatService
         }
 
         try {
+            $payload = [
+                'model' => $model,
+                'messages' => $messages,
+                'temperature' => $temperature ?? 0.4,
+                'max_tokens' => $maxTokens ?? 900,
+            ];
+            if ($responseFormat !== null) {
+                $payload['response_format'] = $responseFormat;
+            }
+
             $response = Http::baseUrl($baseUrl)
                 ->withToken($apiKey)
                 ->acceptJson()
                 ->asJson()
                 ->timeout($timeout)
-                ->post('/chat/completions', [
-                    'model' => $model,
-                    'messages' => $messages,
-                    'temperature' => $temperature ?? 0.4,
-                    'max_tokens' => $maxTokens ?? 900,
-                ])
+                ->post('/chat/completions', $payload)
                 ->throw();
         } catch (ConnectionException $e) {
             throw new RuntimeException('Не удалось подключиться к OpenAI: '.$e->getMessage(), 0, $e);
@@ -51,12 +94,11 @@ final class OpenAiChatService
         }
 
         $data = $response->json();
-        $content = $data['choices'][0]['message']['content'] ?? null;
-
-        if (! is_string($content) || trim($content) === '') {
-            throw new RuntimeException('Пустой ответ от OpenAI.');
+        $message = $data['choices'][0]['message'] ?? null;
+        if (! is_array($message)) {
+            throw new RuntimeException('OpenAI вернул ответ без message.');
         }
 
-        return $content;
+        return $message;
     }
 }

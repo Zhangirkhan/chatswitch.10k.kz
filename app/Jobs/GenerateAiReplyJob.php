@@ -90,6 +90,7 @@ final class GenerateAiReplyJob implements ShouldQueue
                         'mode' => 'auto',
                         'trigger_message_id' => $trigger->id,
                     ],
+                    ...($generated['metadata'] ?? []),
                 ],
             ]);
 
