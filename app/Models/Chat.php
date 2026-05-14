@@ -82,6 +82,11 @@ final class Chat extends Model
         return $this->hasMany(Message::class);
     }
 
+    public function calendarEvents(): HasMany
+    {
+        return $this->hasMany(CalendarEvent::class);
+    }
+
     /**
      * Последнее сообщение чата — нужно для превью в списке (иконка + локализованная
      * подпись «Фото/Видео/Голосовое (0:12)»). Сортируем так же, как в

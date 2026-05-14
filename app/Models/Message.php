@@ -70,6 +70,11 @@ final class Message extends Model
         return $this->hasMany(MessageReaction::class);
     }
 
+    public function aiRatings(): HasMany
+    {
+        return $this->hasMany(AiMessageRating::class);
+    }
+
     /**
      * Цитируемое сообщение. На отправке мы сохраняем WA-идентификатор
      * оригинала в `quoted_message_id`, поэтому резолвим self-FK именно по нему.

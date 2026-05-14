@@ -55,6 +55,11 @@ final class Contact extends Model
         return $this->hasMany(Chat::class);
     }
 
+    public function calendarEvents(): HasMany
+    {
+        return $this->hasMany(CalendarEvent::class);
+    }
+
     public function companies(): BelongsToMany
     {
         return $this->belongsToMany(Company::class)

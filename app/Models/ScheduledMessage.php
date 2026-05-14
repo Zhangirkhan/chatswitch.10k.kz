@@ -13,15 +13,23 @@ final class ScheduledMessage extends Model
     use HasFactory;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_SENDING = 'sending';
+
     public const STATUS_SENT = 'sent';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_FAILED = 'failed';
+
+    public const PURPOSE_APPOINTMENT_REMINDER = 'appointment_reminder';
 
     protected $fillable = [
         'chat_id',
         'whatsapp_session_id',
         'user_id',
+        'calendar_event_id',
+        'purpose',
         'body',
         'display_body',
         'scheduled_at',
@@ -52,9 +60,13 @@ final class ScheduledMessage extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function calendarEvent(): BelongsTo
+    {
+        return $this->belongsTo(CalendarEvent::class);
+    }
+
     public function sentMessage(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'sent_message_id');
     }
 }
-
