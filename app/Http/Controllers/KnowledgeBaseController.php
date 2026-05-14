@@ -6,14 +6,18 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\KnowledgeBase\KnowledgeItemRequest;
 use App\Models\Company;
+use App\Models\KnowledgeAuditLog;
 use App\Models\KnowledgeRule;
 use App\Models\Product;
 use App\Models\Service;
+use App\Models\SystemSetting;
 use App\Services\AI\KnowledgeContextTextFormatter;
+use App\Services\Knowledge\KnowledgeAuditRecorder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,39 +25,55 @@ final class KnowledgeBaseController extends Controller
 {
     public function __construct(
         private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
+        private readonly KnowledgeAuditRecorder $knowledgeAudit,
     ) {}
 
     public function products(): Response
     {
+        $this->ensureSectionEnabled('products');
+
         return $this->render('products');
     }
 
     public function services(): Response
     {
+        $this->ensureSectionEnabled('services');
+
         return $this->render('services');
     }
 
     public function rules(): Response
     {
+        $this->ensureSectionEnabled('rules');
+
         return $this->render('rules');
     }
 
     public function storeProduct(KnowledgeItemRequest $request): JsonResponse
     {
+        $this->ensureSectionEnabled('products');
         $product = Product::create($this->productPayload($request->validated()));
+        $this->knowledgeAudit->recordCreated($product->fresh(), 'product', $request->user());
 
         return response()->json(['success' => true, 'item' => $this->transform($product)]);
     }
 
     public function updateProduct(KnowledgeItemRequest $request, Product $product): JsonResponse
     {
+        $this->ensureSectionEnabled('products');
+        $before = $this->knowledgeAudit->snapshot($product, 'product');
         $product->update($this->productPayload($request->validated()));
+        $product->refresh();
+        $after = $this->knowledgeAudit->snapshot($product, 'product');
+        $this->knowledgeAudit->recordUpdated($product, 'product', $request->user(), $before, $after);
 
-        return response()->json(['success' => true, 'item' => $this->transform($product->fresh())]);
+        return response()->json(['success' => true, 'item' => $this->transform($product)]);
     }
 
-    public function destroyProduct(Product $product): JsonResponse
+    public function destroyProduct(Request $request, Product $product): JsonResponse
     {
+        $this->ensureSectionEnabled('products');
+        $this->knowledgeAudit->recordDeleted($product, 'product', $request->user());
         $product->delete();
 
         return response()->json(['success' => true]);
@@ -61,20 +81,29 @@ final class KnowledgeBaseController extends Controller
 
     public function storeService(KnowledgeItemRequest $request): JsonResponse
     {
+        $this->ensureSectionEnabled('services');
         $service = Service::create($this->servicePayload($request->validated()));
+        $this->knowledgeAudit->recordCreated($service->fresh(), 'service', $request->user());
 
         return response()->json(['success' => true, 'item' => $this->transform($service)]);
     }
 
     public function updateService(KnowledgeItemRequest $request, Service $service): JsonResponse
     {
+        $this->ensureSectionEnabled('services');
+        $before = $this->knowledgeAudit->snapshot($service, 'service');
         $service->update($this->servicePayload($request->validated()));
+        $service->refresh();
+        $after = $this->knowledgeAudit->snapshot($service, 'service');
+        $this->knowledgeAudit->recordUpdated($service, 'service', $request->user(), $before, $after);
 
-        return response()->json(['success' => true, 'item' => $this->transform($service->fresh())]);
+        return response()->json(['success' => true, 'item' => $this->transform($service)]);
     }
 
-    public function destroyService(Service $service): JsonResponse
+    public function destroyService(Request $request, Service $service): JsonResponse
     {
+        $this->ensureSectionEnabled('services');
+        $this->knowledgeAudit->recordDeleted($service, 'service', $request->user());
         $service->delete();
 
         return response()->json(['success' => true]);
@@ -82,23 +111,64 @@ final class KnowledgeBaseController extends Controller
 
     public function storeRule(KnowledgeItemRequest $request): JsonResponse
     {
+        $this->ensureSectionEnabled('rules');
         $rule = KnowledgeRule::create($this->rulePayload($request->validated()));
+        $this->knowledgeAudit->recordCreated($rule->fresh(), 'rule', $request->user());
 
         return response()->json(['success' => true, 'item' => $this->transform($rule)]);
     }
 
     public function updateRule(KnowledgeItemRequest $request, KnowledgeRule $rule): JsonResponse
     {
+        $this->ensureSectionEnabled('rules');
+        $before = $this->knowledgeAudit->snapshot($rule, 'rule');
         $rule->update($this->rulePayload($request->validated()));
+        $rule->refresh();
+        $after = $this->knowledgeAudit->snapshot($rule, 'rule');
+        $this->knowledgeAudit->recordUpdated($rule, 'rule', $request->user(), $before, $after);
 
-        return response()->json(['success' => true, 'item' => $this->transform($rule->fresh())]);
+        return response()->json(['success' => true, 'item' => $this->transform($rule)]);
     }
 
-    public function destroyRule(KnowledgeRule $rule): JsonResponse
+    public function destroyRule(Request $request, KnowledgeRule $rule): JsonResponse
     {
+        $this->ensureSectionEnabled('rules');
+        $this->knowledgeAudit->recordDeleted($rule, 'rule', $request->user());
         $rule->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    public function audit(Request $request): JsonResponse
+    {
+        if (! Schema::hasTable('knowledge_audit_logs')) {
+            return response()->json([
+                'data' => [],
+                'current_page' => 1,
+                'last_page' => 1,
+                'per_page' => 30,
+                'total' => 0,
+            ]);
+        }
+
+        $validated = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'entity_type' => ['nullable', 'string', 'in:product,service,rule'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = KnowledgeAuditLog::query()
+            ->where('company_id', (int) $validated['company_id'])
+            ->with('user:id,name')
+            ->orderByDesc('id');
+
+        if (! empty($validated['entity_type'])) {
+            $query->where('entity_type', $validated['entity_type']);
+        }
+
+        $paginator = $query->paginate((int) ($validated['per_page'] ?? 30));
+
+        return response()->json($paginator);
     }
 
     public function promptPreview(Request $request): JsonResponse
@@ -126,13 +196,36 @@ final class KnowledgeBaseController extends Controller
 
     public function bulkProductsPrompt(Request $request): JsonResponse
     {
+        $this->ensureSectionEnabled('products');
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:500'],
             'ids.*' => ['integer', 'distinct', 'exists:products,id'],
             'include_in_prompt' => ['required', 'boolean'],
         ]);
 
+        $models = Product::query()->whereIn('id', $data['ids'])->get();
+        $beforeById = [];
+        foreach ($models as $model) {
+            $beforeById[$model->id] = $this->knowledgeAudit->snapshot($model, 'product');
+        }
+
         Product::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        $fresh = Product::query()->whereIn('id', $data['ids'])->get()->keyBy('id');
+        $bulkRows = [];
+        foreach ($models as $model) {
+            $current = $fresh->get($model->id);
+            if ($current === null) {
+                continue;
+            }
+
+            $bulkRows[] = [
+                'model' => $current,
+                'before' => $beforeById[$model->id] ?? [],
+                'after' => $this->knowledgeAudit->snapshot($current, 'product'),
+            ];
+        }
+        $this->knowledgeAudit->recordBulkPromptFlag('product', $request->user(), $bulkRows);
 
         return $this->bulkPromptResponse(
             Product::query()
@@ -145,13 +238,36 @@ final class KnowledgeBaseController extends Controller
 
     public function bulkServicesPrompt(Request $request): JsonResponse
     {
+        $this->ensureSectionEnabled('services');
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:500'],
             'ids.*' => ['integer', 'distinct', 'exists:services,id'],
             'include_in_prompt' => ['required', 'boolean'],
         ]);
 
+        $models = Service::query()->whereIn('id', $data['ids'])->get();
+        $beforeById = [];
+        foreach ($models as $model) {
+            $beforeById[$model->id] = $this->knowledgeAudit->snapshot($model, 'service');
+        }
+
         Service::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        $fresh = Service::query()->whereIn('id', $data['ids'])->get()->keyBy('id');
+        $bulkRows = [];
+        foreach ($models as $model) {
+            $current = $fresh->get($model->id);
+            if ($current === null) {
+                continue;
+            }
+
+            $bulkRows[] = [
+                'model' => $current,
+                'before' => $beforeById[$model->id] ?? [],
+                'after' => $this->knowledgeAudit->snapshot($current, 'service'),
+            ];
+        }
+        $this->knowledgeAudit->recordBulkPromptFlag('service', $request->user(), $bulkRows);
 
         return $this->bulkPromptResponse(
             Service::query()
@@ -164,13 +280,36 @@ final class KnowledgeBaseController extends Controller
 
     public function bulkRulesPrompt(Request $request): JsonResponse
     {
+        $this->ensureSectionEnabled('rules');
         $data = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:500'],
             'ids.*' => ['integer', 'distinct', 'exists:knowledge_rules,id'],
             'include_in_prompt' => ['required', 'boolean'],
         ]);
 
+        $models = KnowledgeRule::query()->whereIn('id', $data['ids'])->get();
+        $beforeById = [];
+        foreach ($models as $model) {
+            $beforeById[$model->id] = $this->knowledgeAudit->snapshot($model, 'rule');
+        }
+
         KnowledgeRule::query()->whereIn('id', $data['ids'])->update(['include_in_prompt' => $data['include_in_prompt']]);
+
+        $fresh = KnowledgeRule::query()->whereIn('id', $data['ids'])->get()->keyBy('id');
+        $bulkRows = [];
+        foreach ($models as $model) {
+            $current = $fresh->get($model->id);
+            if ($current === null) {
+                continue;
+            }
+
+            $bulkRows[] = [
+                'model' => $current,
+                'before' => $beforeById[$model->id] ?? [],
+                'after' => $this->knowledgeAudit->snapshot($current, 'rule'),
+            ];
+        }
+        $this->knowledgeAudit->recordBulkPromptFlag('rule', $request->user(), $bulkRows);
 
         return $this->bulkPromptResponse(
             KnowledgeRule::query()
@@ -178,6 +317,24 @@ final class KnowledgeBaseController extends Controller
                 ->with('company:id,name')
                 ->orderBy('id')
                 ->get(),
+        );
+    }
+
+    /**
+     * @param  'products'|'services'|'rules'  $section
+     */
+    private function ensureSectionEnabled(string $section): void
+    {
+        [$key, $label] = match ($section) {
+            'products' => ['module_products', 'Товары'],
+            'services' => ['module_services', 'Услуги'],
+            'rules' => ['module_knowledge', 'База знаний'],
+        };
+
+        abort_unless(
+            SystemSetting::getValue($key, 'on') === 'on',
+            403,
+            "Модуль «{$label}» отключён администратором.",
         );
     }
 

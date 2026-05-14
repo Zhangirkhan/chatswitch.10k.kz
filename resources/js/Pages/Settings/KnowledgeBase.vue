@@ -116,6 +116,27 @@ const previewHint = ref('');
 const testQuestion = ref('');
 const testQuestionResult = ref('');
 
+type AuditRow = {
+    id: number;
+    action: string;
+    entity_type: string;
+    entity_id: number;
+    entity_label: string | null;
+    changes: Record<string, unknown> | null;
+    created_at: string;
+    user?: { id: number; name: string } | null;
+};
+
+const auditOpen = ref(false);
+const auditLoading = ref(false);
+const auditEntries = ref<AuditRow[]>([]);
+const deleteTarget = ref<KnowledgeItem | null>(null);
+const deleteConfirmInput = ref('');
+
+const auditEntityType = computed(() =>
+    props.section === 'products' ? 'product' : props.section === 'services' ? 'service' : 'rule',
+);
+
 const selectedIds = ref<number[]>([]);
 
 watch(
@@ -408,15 +429,7 @@ async function save(): Promise<void> {
 }
 
 async function destroyItem(item: KnowledgeItem): Promise<void> {
-    if (!confirm('Удалить запись из базы знаний?')) return;
-
-    try {
-        await axios.delete(route(meta.value.destroy, item.id));
-        localItems.value = localItems.value.filter((existing) => existing.id !== item.id);
-        showToast({ message: 'Запись удалена', duration: 3000 });
-    } catch (error: any) {
-        showToast({ message: error?.response?.data?.message || 'Не удалось удалить запись', duration: 4000 });
-    }
+    openDeleteModal(item);
 }
 
 async function togglePrompt(item: KnowledgeItem): Promise<void> {
@@ -519,6 +532,100 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
         })
         .join('\n');
 }
+
+function formatAuditAction(action: string): string {
+    const map: Record<string, string> = {
+        created: 'Создано',
+        updated: 'Изменено',
+        deleted: 'Удалено',
+        bulk_prompt: 'Массово «В промпте»',
+    };
+
+    return map[action] ?? action;
+}
+
+function formatAuditWhen(iso: string): string {
+    try {
+        return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+    } catch {
+        return iso;
+    }
+}
+
+function summarizeAuditChanges(row: AuditRow): string {
+    const c = row.changes;
+    if (!c || typeof c !== 'object') {
+        return '';
+    }
+
+    if (c.diff && typeof c.diff === 'object') {
+        return JSON.stringify(c.diff, null, 0);
+    }
+
+    return JSON.stringify(c, null, 0);
+}
+
+async function loadAudit(): Promise<void> {
+    if (previewCompanyId.value == null) {
+        return;
+    }
+    auditLoading.value = true;
+    try {
+        const { data } = await axios.get(route('settings.knowledge.audit'), {
+            params: {
+                company_id: previewCompanyId.value,
+                entity_type: auditEntityType.value,
+                per_page: 30,
+            },
+        });
+        auditEntries.value = (data.data ?? []) as AuditRow[];
+    } catch (error: any) {
+        showToast({
+            message: error?.response?.data?.message || error?.message || 'Не удалось загрузить аудит',
+            duration: 4000,
+        });
+    } finally {
+        auditLoading.value = false;
+    }
+}
+
+async function toggleAudit(): Promise<void> {
+    auditOpen.value = !auditOpen.value;
+    if (auditOpen.value) {
+        await loadAudit();
+    }
+}
+
+function openDeleteModal(item: KnowledgeItem): void {
+    deleteTarget.value = item;
+    deleteConfirmInput.value = '';
+}
+
+function closeDeleteModal(): void {
+    deleteTarget.value = null;
+    deleteConfirmInput.value = '';
+}
+
+async function confirmDelete(): Promise<void> {
+    const item = deleteTarget.value;
+    if (!item) {
+        return;
+    }
+    const expected = itemTitle(item).trim();
+    if (deleteConfirmInput.value.trim() !== expected) {
+        showToast({ message: 'Введите название записи точно, как в списке', duration: 4000 });
+        return;
+    }
+
+    try {
+        await axios.delete(route(meta.value.destroy, item.id));
+        localItems.value = localItems.value.filter((existing) => existing.id !== item.id);
+        closeDeleteModal();
+        showToast({ message: 'Запись удалена', duration: 3000 });
+    } catch (error: any) {
+        showToast({ message: error?.response?.data?.message || 'Не удалось удалить запись', duration: 4000 });
+    }
+}
 </script>
 
 <template>
@@ -554,6 +661,52 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
                     <button type="button" class="px-3 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="bulkSetPrompt(true)">В промпте: да</button>
                     <button type="button" class="px-3 py-2 rounded-lg border border-[var(--wa-border)] text-sm" @click="bulkSetPrompt(false)">В промпте: нет</button>
                     <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 text-left"
+                    @click="toggleAudit"
+                >
+                    <div>
+                        <h3 class="text-sm font-semibold text-[var(--wa-text)]">История изменений</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)]">
+                            Аудит по выбранной компании для этого раздела (создание, правки, удаление, массовое «В промпте»).
+                        </p>
+                    </div>
+                    <span class="text-xs text-[var(--wa-text-secondary)] shrink-0">{{ auditOpen ? '▼' : '▶' }}</span>
+                </button>
+                <div v-if="auditOpen" class="mt-3 space-y-2">
+                    <p v-if="previewCompanyId == null" class="text-xs text-[var(--wa-text-secondary)]">Выберите компанию в блоке выше.</p>
+                    <p v-else-if="auditLoading" class="text-xs text-[var(--wa-text-secondary)]">Загрузка…</p>
+                    <ul v-else class="wa-scrollbar max-h-72 space-y-2 overflow-y-auto text-xs">
+                        <li
+                            v-for="row in auditEntries"
+                            :key="row.id"
+                            class="rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2"
+                        >
+                            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                <span class="font-medium text-[var(--wa-text)]">
+                                    {{ formatAuditAction(row.action) }}
+                                    <span class="font-normal text-[var(--wa-text-secondary)]"> · {{ row.entity_label || '#' + row.entity_id }}</span>
+                                </span>
+                                <span class="text-[var(--wa-text-secondary)]">{{ formatAuditWhen(row.created_at) }}</span>
+                            </div>
+                            <div class="mt-0.5 text-[var(--wa-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
+                            <pre
+                                v-if="summarizeAuditChanges(row)"
+                                class="mt-1 max-h-28 overflow-auto rounded bg-black/5 p-2 text-[10px] leading-snug text-[var(--wa-text)]"
+                            >{{ summarizeAuditChanges(row) }}</pre>
+                        </li>
+                    </ul>
+                    <p
+                        v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0"
+                        class="text-xs text-[var(--wa-text-secondary)]"
+                    >
+                        Пока нет записей аудита.
+                    </p>
                 </div>
             </div>
 
@@ -672,6 +825,27 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div v-if="deleteTarget" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4" @click.self="closeDeleteModal">
+            <div class="w-full max-w-md rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-5 shadow-xl">
+                <h3 class="text-lg text-[var(--wa-text)]">Удалить запись?</h3>
+                <p class="mt-2 text-sm text-[var(--wa-text-secondary)]">
+                    Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
+                    <span class="font-medium text-[var(--wa-text)]">{{ itemTitle(deleteTarget) }}</span>
+                </p>
+                <input
+                    v-model="deleteConfirmInput"
+                    type="text"
+                    class="mt-4 w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                    placeholder="Название для подтверждения"
+                    autocomplete="off"
+                />
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" class="px-4 py-2 rounded-lg border border-[var(--wa-border)] text-sm" @click="closeDeleteModal">Отмена</button>
+                    <button type="button" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm" @click="confirmDelete">Удалить</button>
+                </div>
             </div>
         </div>
 
