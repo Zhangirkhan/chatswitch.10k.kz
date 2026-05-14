@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Pivots\DepartmentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany; // используется в children()
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Department extends Model
 {
@@ -37,7 +39,14 @@ final class Department extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'department_user')
+            ->using(DepartmentUser::class)
             ->withTimestamps();
+    }
+
+    public function teamConversation(): HasOne
+    {
+        return $this->hasOne(TeamConversation::class, 'department_id')
+            ->where('type', TeamConversation::TYPE_DEPARTMENT);
     }
 
     public function chats(): BelongsToMany

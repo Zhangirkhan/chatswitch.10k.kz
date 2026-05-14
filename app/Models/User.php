@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Pivots\DepartmentUser;
+use App\Models\Pivots\TeamConversationUser;
 use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -71,6 +73,15 @@ final class User extends Authenticatable
     public function departments(): BelongsToMany
     {
         return $this->belongsToMany(Department::class, 'department_user')
+            ->using(DepartmentUser::class)
+            ->withTimestamps();
+    }
+
+    public function teamConversations(): BelongsToMany
+    {
+        return $this->belongsToMany(TeamConversation::class, 'team_conversation_user', 'user_id', 'team_conversation_id')
+            ->using(TeamConversationUser::class)
+            ->withPivot(['can_leave', 'last_read_at', 'last_read_message_id', 'last_delivered_message_id', 'pinned_at'])
             ->withTimestamps();
     }
 
