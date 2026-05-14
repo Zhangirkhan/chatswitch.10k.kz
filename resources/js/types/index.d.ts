@@ -228,4 +228,8 @@ export type PageProps<
         success: string | null;
         error: string | null;
     };
+    /** Inertia: страница внутреннего чата организации (опционально). */
+    selectedConversationId?: number | null;
+    /** Суммарно непрочитанных сообщений внутреннего чата (HandleInertiaRequests). */
+    teamChatUnreadCount?: number;
 };

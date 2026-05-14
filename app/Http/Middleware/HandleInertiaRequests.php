@@ -12,6 +12,7 @@ use App\Models\WhatsappSession;
 use App\Support\QuickReactions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
 
 final class HandleInertiaRequests extends Middleware
@@ -71,6 +72,7 @@ final class HandleInertiaRequests extends Middleware
             /** Непрочитанные только среди чатов, где пользователь в ответственных (для режима «Мои»). */
             'unreadChatsCountMine' => fn () => $user ? $this->unreadChatsCountMine($user) : 0,
             'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
+            'teamChatUnreadCount' => fn () => $user ? $this->teamChatUnreadTotal($user) : 0,
             'whatsappSessions' => fn () => $user ? $this->whatsappSessionsForUser($user) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
@@ -110,6 +112,29 @@ final class HandleInertiaRequests extends Middleware
         }
 
         return $query->count();
+    }
+
+    private function teamChatUnreadTotal(User $user): int
+    {
+        if (SystemSetting::getValue('module_tasks', 'on') !== 'on') {
+            return 0;
+        }
+
+        $ids = $user->teamConversations()->pluck('team_conversations.id')->all();
+        if ($ids === []) {
+            return 0;
+        }
+
+        return (int) DB::table('team_messages as m')
+            ->join('team_conversation_user as cu', function ($join) use ($user): void {
+                $join->on('cu.team_conversation_id', '=', 'm.team_conversation_id')
+                    ->where('cu.user_id', '=', $user->id);
+            })
+            ->whereIn('m.team_conversation_id', $ids)
+            ->where('m.sender_id', '!=', $user->id)
+            ->whereNull('m.deleted_at')
+            ->whereRaw('m.id > COALESCE(cu.last_read_message_id, 0)')
+            ->count();
     }
 
     /** @return array<int, array<string, mixed>> */
