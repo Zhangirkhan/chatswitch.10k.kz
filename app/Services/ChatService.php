@@ -119,7 +119,7 @@ final class ChatService
         return ['scanned' => $scanned, 'updated' => $updated];
     }
 
-    public function getChatsForUser(User $user, ?string $search = null): Builder
+    public function getChatsForUser(User $user, ?string $search = null, string $listOwnership = 'all'): Builder
     {
         // Закреплённые — сверху; затем по времени последней активности.
         // COALESCE нужен, чтобы только что созданные чаты (без сообщений)
@@ -137,6 +137,10 @@ final class ChatService
         ])
             ->orderByDesc('is_pinned')
             ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+
+        if ($listOwnership === 'mine' && ($user->hasRole('administrator') || $user->hasRole('manager'))) {
+            $query->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id));
+        }
 
         if ($user->hasRole('administrator')) {
             // sees all chats

@@ -7,6 +7,7 @@ import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
+import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import axios from 'axios';
 
 type ScopeKey = 'active' | 'archived';
@@ -29,13 +30,56 @@ const page = usePage<any>();
 const archivedCount = computed<number>(() => Number(page.props.archivedCount || 0));
 const user = computed(() => page.props.auth?.user);
 const liveUnread = useLiveUnreadCount();
-const currentUserId = computed<number | null>(() => user.value?.id ?? null);
 const roles = computed<string[]>(() => user.value?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
 const isManager = computed(() => roles.value.includes('manager'));
 const canFilterByOwnership = computed(() => isAdmin.value || isManager.value);
 
-const OWNERSHIP_KEY = 'chatswitch.chats.ownership';
+const listOwnership = computed(() => (page.props.listOwnership === 'mine' ? 'mine' : 'all'));
+
+function chatsListRoute(): string {
+    return props.scope === 'archived' ? route('chats.archived') : route('chats.index');
+}
+
+function chatsListQuery(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+    const q: Record<string, string | undefined> = { ...overrides };
+    if (props.search) {
+        q.search = props.search;
+    }
+    if (listOwnership.value === 'mine') {
+        q.ownership = 'mine';
+    }
+    return q;
+}
+
+const activeListHref = computed(() => {
+    const q = chatsListQuery();
+    const params = new URLSearchParams();
+    Object.entries(q).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') {
+            params.set(k, v);
+        }
+    });
+    const s = params.toString();
+    const base = route('chats.index') as string;
+
+    return s ? `${base}?${s}` : base;
+});
+
+const archivedListHref = computed(() => {
+    const q = chatsListQuery();
+    const params = new URLSearchParams();
+    Object.entries(q).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') {
+            params.set(k, v);
+        }
+    });
+    const s = params.toString();
+    const base = route('chats.archived') as string;
+
+    return s ? `${base}?${s}` : base;
+});
+
 const SEGMENT_KEY = 'chatswitch.chats.segment';
 const searchQuery = ref(props.search || '');
 const searchFocused = ref(false);
@@ -73,7 +117,7 @@ function applyIncomingMessage(chatId: number, msg: {
     const idx = localChats.value.findIndex((c) => c.id === chatId);
     if (idx < 0) {
         // Неизвестный чат — подгрузим список
-        router.reload({ only: ['chats', 'unreadChatsCount'] });
+        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
         return;
     }
 
@@ -122,6 +166,7 @@ async function onChatListScroll(e: Event): Promise<void> {
                 page: next,
                 search: props.search || undefined,
                 archived: props.scope === 'archived' ? 1 : 0,
+                ownership: listOwnership.value === 'mine' ? 'mine' : undefined,
             },
         });
         const seen = new Set(localChats.value.map((c) => c.id));
@@ -164,7 +209,7 @@ function setupListEcho(): void {
         listEchoChannel.listen('.chats.notify', (e: any) => {
             if (!e?.chat_id) return;
             // Для назначений/звонков перезагружаем список
-            router.reload({ only: ['chats', 'unreadChatsCount'] });
+            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
         });
     } catch {
         listEchoChannel = null;
@@ -181,7 +226,6 @@ function teardownListEcho(): void {
     listEchoChannel = null;
 }
 const activeSegment = ref<SegmentKey>('clients');
-const activeOwnership = ref<OwnershipKey>('all');
 const headerMenuOpen = ref(false);
 const showNewChat = ref(false);
 
@@ -209,10 +253,6 @@ onMounted(() => {
         promoBannerOpen.value = false;
     }
 
-    const storedOwnership = localStorage.getItem(OWNERSHIP_KEY);
-    if (storedOwnership === 'all' || storedOwnership === 'mine') {
-        activeOwnership.value = storedOwnership;
-    }
     const storedSegment = localStorage.getItem(SEGMENT_KEY);
     if (storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
         activeSegment.value = storedSegment;
@@ -242,17 +282,28 @@ onMounted(async () => {
         }, 300);
     }
 
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+        if (typeof document === 'undefined') {
+            return;
+        }
+        if (document.visibilityState === 'hidden') {
+            hiddenAt = Date.now();
+            return;
+        }
+        if (hiddenAt !== null && Date.now() - hiddenAt > 3000) {
+            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
+        }
+        hiddenAt = null;
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility));
+
     try {
         await axios.post(route('chats.sync-groups'));
-        router.reload({ only: ['chats', 'unreadChatsCount'] });
+        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
     } catch {
         // ignore (offline / service not ready)
-    }
-});
-
-watch(activeOwnership, (val) => {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem(OWNERSHIP_KEY, val);
     }
 });
 
@@ -289,28 +340,15 @@ let searchTimeout: ReturnType<typeof setTimeout>;
 watch(searchQuery, (val) => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
-        router.get(route('chats.index'), { search: val || undefined }, {
+        router.get(chatsListRoute(), chatsListQuery({ search: val || undefined }), {
             preserveState: true,
             preserveScroll: true,
-            only: ['chats', 'unreadChatsCount'],
+            only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'],
         });
     }, 300);
 });
 
-function isAssignedToMe(chat: Chat): boolean {
-    if (currentUserId.value === null) return false;
-    return (chat.assignments || []).some((a) => a.user_id === currentUserId.value);
-}
-
-const ownershipFilteredChats = computed(() => {
-    if (props.scope !== 'active' || !canFilterByOwnership.value) {
-        return localChats.value;
-    }
-    if (activeOwnership.value === 'mine') {
-        return localChats.value.filter(isAssignedToMe);
-    }
-    return localChats.value;
-});
+const ownershipFilteredChats = computed(() => localChats.value);
 
 const filteredChats = computed(() => {
     let list = ownershipFilteredChats.value;
@@ -339,20 +377,29 @@ const filteredChats = computed(() => {
 const favoritesTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.is_pinned || c.is_favorite).length
 );
-const clientsTotal = computed(() =>
-    ownershipFilteredChats.value.length
-);
+const clientsTotal = computed(() => Number(props.chats.total ?? ownershipFilteredChats.value.length));
 const staffTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.last_message_direction === 'outbound').length
 );
-const mineTotal = computed(() => localChats.value.filter(isAssignedToMe).length);
+const mineChatsTotal = computed(() => Number(page.props.mineChatsTotal ?? 0));
 
 function setSegment(key: SegmentKey) {
     activeSegment.value = key;
 }
 
 function setOwnership(key: OwnershipKey) {
-    activeOwnership.value = key;
+    const q: Record<string, string | undefined> = {};
+    if (props.search) {
+        q.search = props.search;
+    }
+    if (key === 'mine') {
+        q.ownership = 'mine';
+    }
+    router.get(chatsListRoute(), q, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'],
+    });
 }
 
 function clearSearch() {
@@ -380,7 +427,7 @@ function navigateChat(direction: 1 | -1) {
     } else {
         nextIdx = (currentIdx + direction + list.length) % list.length;
     }
-    router.visit(route('chats.show', list[nextIdx].id));
+    router.visit(appendChatListOwnership(route('chats.show', list[nextIdx].id), listOwnership.value));
 }
 
 const offNextChat = onShortcut('next-chat', () => navigateChat(1));
@@ -580,14 +627,14 @@ onBeforeUnmount(() => {
         <!-- Scope: Активные / Архив (стиль как «Все / Мои») -->
         <div class="px-3 pb-2 flex items-center gap-2 shrink-0">
             <Link
-                :href="route('chats.index')"
+                :href="activeListHref"
                 class="subtab"
                 :class="{ 'subtab-active': scope === 'active' }"
             >
                 Активные
             </Link>
             <Link
-                :href="route('chats.archived')"
+                :href="archivedListHref"
                 class="subtab"
                 :class="{ 'subtab-active': scope === 'archived' }"
             >
@@ -603,7 +650,7 @@ onBeforeUnmount(() => {
             <button
                 @click="setOwnership('all')"
                 class="subtab"
-                :class="{ 'subtab-active': activeOwnership === 'all' }"
+                :class="{ 'subtab-active': listOwnership === 'all' }"
                 type="button"
             >
                 Все
@@ -611,10 +658,10 @@ onBeforeUnmount(() => {
             <button
                 @click="setOwnership('mine')"
                 class="subtab"
-                :class="{ 'subtab-active': activeOwnership === 'mine' }"
+                :class="{ 'subtab-active': listOwnership === 'mine' }"
                 type="button"
             >
-                Мои<span v-if="mineTotal" class="ml-1.5">{{ mineTotal }}</span>
+                Мои<span v-if="mineChatsTotal" class="ml-1.5">{{ mineChatsTotal }}</span>
             </button>
         </div>
 

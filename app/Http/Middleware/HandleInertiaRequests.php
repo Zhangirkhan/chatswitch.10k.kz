@@ -9,6 +9,7 @@ use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Support\QuickReactions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -67,20 +68,33 @@ final class HandleInertiaRequests extends Middleware
             ],
             'archivedCount' => fn () => $user ? $this->archivedChatsCount($user) : 0,
             'unreadChatsCount' => fn () => $user ? $this->unreadChatsCount($user) : 0,
+            /** Непрочитанные только среди чатов, где пользователь в ответственных (для режима «Мои»). */
+            'unreadChatsCountMine' => fn () => $user ? $this->unreadChatsCountMine($user) : 0,
             'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
             'whatsappSessions' => fn () => $user ? $this->whatsappSessionsForUser($user) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            'quickReactions' => fn () => QuickReactions::configured(),
             'modules' => fn () => [
                 'calendar' => SystemSetting::getValue('module_calendar', 'on') === 'on',
+                'tasks' => SystemSetting::getValue('module_tasks', 'on') === 'on',
+                'funnels' => SystemSetting::getValue('module_funnels', 'on') === 'on',
+                'products' => SystemSetting::getValue('module_products', 'on') === 'on',
+                'services' => SystemSetting::getValue('module_services', 'on') === 'on',
+                'knowledge' => SystemSetting::getValue('module_knowledge', 'on') === 'on',
+                'ai_quality' => SystemSetting::getValue('module_ai_quality', 'on') === 'on',
             ],
         ];
     }
 
     private function orgOpenTasksCount(User $user): int
     {
+        if (SystemSetting::getValue('module_tasks', 'on') !== 'on') {
+            return 0;
+        }
+
         $query = DepartmentPost::query()
             ->whereIn('status', [DepartmentPost::STATUS_OPEN, DepartmentPost::STATUS_IN_PROGRESS]);
 
@@ -126,6 +140,17 @@ final class HandleInertiaRequests extends Middleware
     {
         return $this->applyAccessScope(
             Chat::query()->where('is_archived', false)->where('unread_count', '>', 0),
+            $user,
+        )->count();
+    }
+
+    private function unreadChatsCountMine(User $user): int
+    {
+        return (int) $this->applyAccessScope(
+            Chat::query()
+                ->where('is_archived', false)
+                ->where('unread_count', '>', 0)
+                ->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id)),
             $user,
         )->count();
     }

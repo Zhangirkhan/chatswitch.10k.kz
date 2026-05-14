@@ -9,6 +9,7 @@ import LastMessagePreview from '@/Components/LastMessagePreview.vue';
 import { useToastStore } from '@/stores/toast';
 import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 
 const { show: showToast } = useToastStore();
 
@@ -18,6 +19,10 @@ const props = defineProps<{
 }>();
 
 const page = usePage<PageProps>();
+
+const chatShowHref = computed(() =>
+    appendChatListOwnership(route('chats.show', props.chat.id), page.props.listOwnership as string | undefined),
+);
 
 /** Плашки «кто закреплён» — только у администратора и руководителя. */
 const showAssigneeBadges = computed(() => {
@@ -96,7 +101,9 @@ function closeMenu() {
     menuOpen.value = false;
 }
 
-async function run(action: () => Promise<unknown>, reloadKeys: string[] = ['chats', 'archivedCount', 'unreadChatsCount']) {
+const CHATS_PARTIAL_RELOAD = ['chats', 'archivedCount', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] as const;
+
+async function run(action: () => Promise<unknown>, reloadKeys: string[] = [...CHATS_PARTIAL_RELOAD]) {
     if (working.value) return;
     working.value = true;
     try {
@@ -117,7 +124,7 @@ function togglePin() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-pin', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
+                    router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
                 },
             },
         });
@@ -133,7 +140,7 @@ function toggleArchive() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.archive', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
+                    router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
                 },
             },
         });
@@ -144,7 +151,7 @@ const isGroupChat = computed<boolean>(() => props.chat.is_group);
 
 async function muteApi(payload: { duration?: '8h' | '1w' | 'always'; unmute?: boolean }): Promise<void> {
     await axios.post(route('chats.toggle-mute', props.chat.id), payload);
-    router.reload({ only: ['chats', 'chat', 'unreadChatsCount'] });
+    router.reload({ only: ['chats', 'chat', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
 }
 
 function toggleMute() {
@@ -194,7 +201,7 @@ function toggleFavorite() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-favorite', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
+                    router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
                 },
             },
         });
@@ -210,7 +217,7 @@ function toggleUnread() {
                 label: 'Отменить',
                 handler: async () => {
                     await axios.post(route('chats.toggle-unread', props.chat.id));
-                    router.reload({ only: ['chats', 'archivedCount', 'unreadChatsCount'] });
+                    router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
                 },
             },
         });
@@ -322,7 +329,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
 
 <template>
     <Link
-        :href="route('chats.show', chat.id)"
+        :href="chatShowHref"
         class="flex items-center px-3 py-[10px] gap-3 cursor-pointer transition group chat-list-item"
         :class="isSelected ? 'is-selected' : ''"
         preserve-state

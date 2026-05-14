@@ -4,6 +4,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 import { formatPhone } from '@/utils/phone';
+import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 
 const toast = useToastStore();
 
@@ -346,7 +347,7 @@ async function createGroup() {
         }
 
         if (data.chat_id) {
-            router.visit(route('chats.show', data.chat_id));
+            router.visit(appendChatListOwnership(route('chats.show', data.chat_id), page.props.listOwnership as string | undefined));
         } else {
             emit('close');
         }
@@ -1266,7 +1267,7 @@ async function unlinkGroup(chatId: number) {
                     :key="g.id"
                     class="contact-row w-full"
                     type="button"
-                    @click="router.visit(route('chats.show', g.id))"
+                    @click="router.visit(appendChatListOwnership(route('chats.show', g.id), page.props.listOwnership as string | undefined))"
                 >
                     <div
                         class="w-[49px] h-[49px] rounded-full flex items-center justify-center shrink-0"

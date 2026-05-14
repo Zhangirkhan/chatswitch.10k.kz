@@ -288,7 +288,7 @@ async function unpinPinned(): Promise<void> {
     try {
         await axios.delete(route('chats.unpin-message', props.chat.id));
         // Refresh chat so header banner updates.
-        router.reload({ only: ['chat', 'unreadChatsCount'] });
+        router.reload({ only: ['chat', 'unreadChatsCount', 'unreadChatsCountMine'] });
     } catch {
         // no-op; ChatMessage.vue shows alerts on pin/unpin from context menu
     }
@@ -380,7 +380,7 @@ function markAsRead() {
         axios
             .post(route('chats.mark-read', props.chat.id))
             .then(() => {
-                router.reload({ only: ['unreadChatsCount', 'chat', 'chats'] });
+                router.reload({ only: ['unreadChatsCount', 'unreadChatsCountMine', 'chat', 'chats', 'listOwnership', 'mineChatsTotal'] });
             })
             .catch(() => {});
     }
@@ -399,7 +399,7 @@ async function onMessageSent(message: Message) {
     scrollToBottom();
     // Назначения/отделы в шапке и плашки в списке (в т.ч. авто-добавление админа) — сразу с сервера.
     try {
-        await router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
+        await router.reload({ only: ['chat', 'chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
     } catch {
         /* сеть / 419 — локальное сообщение уже в ленте */
     }

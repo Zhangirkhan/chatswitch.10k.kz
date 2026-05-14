@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
+import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 
 const props = defineProps<{
     chat: Chat;
@@ -21,6 +22,12 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'open-search'): void;
 }>();
+
+const page = usePage<any>();
+
+function contactChatHref(chatId: number): string {
+    return appendChatListOwnership(route('chats.show', chatId), page.props.listOwnership as string | undefined);
+}
 
 const working = ref(false);
 const editOpen = ref(false);
@@ -360,7 +367,7 @@ async function togglePin() {
     working.value = true;
     try {
         await axios.post(route('chats.toggle-pin', props.chat.id));
-        router.reload({ only: ['chat', 'chats', 'unreadChatsCount'] });
+        router.reload({ only: ['chat', 'chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
     } finally {
         working.value = false;
     }
@@ -412,7 +419,7 @@ async function saveContactName() {
     try {
         await axios.post(route('chats.save-contact', props.chat.id), { name });
         closeEdit();
-        router.reload({ only: ['chat', 'chats', 'messages', 'unreadChatsCount'] });
+        router.reload({ only: ['chat', 'chats', 'messages', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
     } catch (e: any) {
         saveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось сохранить контакт';
     } finally {
@@ -792,7 +799,7 @@ async function saveContactName() {
                     <Link
                         v-for="c in otherSessionChats"
                         :key="c.id"
-                        :href="route('chats.show', c.id)"
+                        :href="contactChatHref(c.id)"
                         class="sibling-row"
                     >
                         <span

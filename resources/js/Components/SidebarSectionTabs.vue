@@ -7,8 +7,14 @@ defineProps<{
 }>();
 
 const page = usePage<any>();
-const unread = computed<number>(() => Number(page.props.unreadChatsCount || 0));
+const listOwnership = computed(() => (page.props.listOwnership === 'mine' ? 'mine' : 'all'));
+const unread = computed<number>(() => {
+    const mine = Number(page.props.unreadChatsCountMine || 0);
+    const all = Number(page.props.unreadChatsCount || 0);
+    return listOwnership.value === 'mine' ? mine : all;
+});
 const orgOpen = computed<number>(() => Number(page.props.orgOpenTasksCount || 0));
+const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?? true));
 </script>
 
 <template>
@@ -26,11 +32,14 @@ const orgOpen = computed<number>(() => Number(page.props.orgOpenTasksCount || 0)
                 <span
                     v-if="unread > 0"
                     class="tab-badge"
-                    :title="`Непрочитанных чатов: ${unread}`"
+                    :title="listOwnership === 'mine'
+                        ? `Непрочитанных среди «Мои»: ${unread}`
+                        : `Непрочитанных чатов (все доступные): ${unread}`"
                 >{{ unread > 99 ? '99+' : unread }}</span>
             </span>
         </Link>
         <Link
+            v-if="tasksEnabled"
             :href="route('organization.index')"
             class="section-tab"
             :class="{ 'section-tab-active': active === 'organization' }"

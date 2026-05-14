@@ -58,25 +58,31 @@ final class ChatController extends Controller
 
     public function index(Request $request): Response
     {
-        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
+        $listOwnership = $this->chatListOwnership($request);
+        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'), $listOwnership)
             ->where('is_archived', false)
             ->paginate(self::CHAT_LIST_PER_PAGE);
 
         return Inertia::render('Chats/Index', [
             'chats' => $chats,
             'search' => $request->input('search'),
+            'listOwnership' => $listOwnership,
+            'mineChatsTotal' => $this->mineChatsListTotal($request->user(), false),
         ]);
     }
 
     public function archivedIndex(Request $request): Response
     {
-        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'))
+        $listOwnership = $this->chatListOwnership($request);
+        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'), $listOwnership)
             ->where('is_archived', true)
             ->paginate(self::CHAT_LIST_PER_PAGE);
 
         return Inertia::render('Chats/Archived', [
             'chats' => $chats,
             'search' => $request->input('search'),
+            'listOwnership' => $listOwnership,
+            'mineChatsTotal' => $this->mineChatsListTotal($request->user(), true),
         ]);
     }
 
@@ -93,7 +99,8 @@ final class ChatController extends Controller
             $search = null;
         }
 
-        $paginator = $this->chatService->getChatsForUser($request->user(), $search)
+        $listOwnership = $this->chatListOwnership($request);
+        $paginator = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership)
             ->where('is_archived', $archived)
             ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
 
@@ -139,7 +146,8 @@ final class ChatController extends Controller
             ->orderByDesc('message_timestamp')
             ->paginate(50);
 
-        $allChats = $this->chatService->getChatsForUser($request->user())
+        $listOwnership = $this->chatListOwnership($request);
+        $allChats = $this->chatService->getChatsForUser($request->user(), null, $listOwnership)
             ->where(function (Builder $q) use ($chat): void {
                 $q->where('is_archived', false);
                 if ($chat->is_archived) {
@@ -169,7 +177,32 @@ final class ChatController extends Controller
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
             'aiStatus' => $this->latestAiStatus($chat, $request->user()),
+            'listOwnership' => $listOwnership,
+            'mineChatsTotal' => $this->mineChatsListTotal($request->user(), false),
         ]);
+    }
+
+    /** «Все» / «Мои» в списке чатов — только администратор и руководитель; синхронизируется через query `ownership`. */
+    private function chatListOwnership(Request $request): string
+    {
+        $user = $request->user();
+        if ($user === null || ! $user->hasAnyRole(['administrator', 'manager'])) {
+            return 'all';
+        }
+
+        return $request->query('ownership') === 'mine' ? 'mine' : 'all';
+    }
+
+    /** Сколько чатов в режиме «Мои» (назначенных на пользователя) в текущей вкладке активные/архив. */
+    private function mineChatsListTotal(User $user, bool $isArchived): int
+    {
+        if (! $user->hasAnyRole(['administrator', 'manager'])) {
+            return 0;
+        }
+
+        return (int) $this->chatService->getChatsForUser($user, null, 'mine')
+            ->where('is_archived', $isArchived)
+            ->count();
     }
 
     /**
