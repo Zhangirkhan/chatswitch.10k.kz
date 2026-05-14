@@ -8,6 +8,8 @@ type AdminItem = {
     description: string;
     icon: string;
     routeName: string;
+    /** Имя модуля в `page.props.modules`. Если задано и модуль выключен — пункт скрыт. */
+    moduleKey?: string;
 };
 
 type ProfileItem = {
@@ -16,6 +18,7 @@ type ProfileItem = {
     label: string;
     description: string;
     icon: string;
+    adminOnly?: boolean;
 };
 
 type Item = AdminItem | ProfileItem;
@@ -60,6 +63,7 @@ const adminItems: AdminItem[] = [
         description: 'Этапы и статусы сделок',
         icon: 'funnel',
         routeName: 'settings.funnels',
+        moduleKey: 'funnels',
     },
     {
         kind: 'admin',
@@ -74,6 +78,7 @@ const adminItems: AdminItem[] = [
         description: 'Каталог товаров',
         icon: 'products',
         routeName: 'settings.knowledge.products',
+        moduleKey: 'products',
     },
     {
         kind: 'admin',
@@ -81,6 +86,7 @@ const adminItems: AdminItem[] = [
         description: 'Цены и условия услуг',
         icon: 'services',
         routeName: 'settings.knowledge.services',
+        moduleKey: 'services',
     },
     {
         kind: 'admin',
@@ -88,6 +94,15 @@ const adminItems: AdminItem[] = [
         description: 'Правила ответа AI',
         icon: 'knowledge',
         routeName: 'settings.knowledge.rules',
+        moduleKey: 'knowledge',
+    },
+    {
+        kind: 'admin',
+        label: 'AI и качество',
+        description: 'Сбои и оценки ответов',
+        icon: 'ai-quality',
+        routeName: 'settings.ai-quality',
+        moduleKey: 'ai_quality',
     },
     {
         kind: 'admin',
@@ -102,6 +117,7 @@ const profileItems: ProfileItem[] = [
     { kind: 'profile', id: 'profile', label: 'Профиль', description: 'Имя, фото профиля, имя пользователя', icon: 'user' },
     { kind: 'profile', id: 'chats', label: 'Чаты', description: 'Тема, обои, настройки чата', icon: 'chat' },
     { kind: 'profile', id: 'notifications', label: 'Уведомления', description: 'Сообщения, группы, звуки', icon: 'bell' },
+    { kind: 'profile', id: 'modules', label: 'Модули', description: 'Включение и отключение функционала компании', icon: 'modules', adminOnly: true },
     { kind: 'profile', id: 'shortcuts', label: 'Сочетания клавиш', description: 'Быстрые действия', icon: 'keyboard' },
 ];
 
@@ -111,8 +127,20 @@ function matchesQuery(item: Item): boolean {
     return item.label.toLowerCase().includes(q) || item.description.toLowerCase().includes(q);
 }
 
-const filteredAdminItems = computed(() => (isAdmin.value ? adminItems.filter(matchesQuery) : []));
-const filteredProfileItems = computed(() => profileItems.filter(matchesQuery));
+const modulesEnabled = computed<Record<string, boolean>>(() => (page.props.modules ?? {}) as Record<string, boolean>);
+
+function isModuleEnabledFor(item: AdminItem): boolean {
+    if (!item.moduleKey) return true;
+    const value = modulesEnabled.value[item.moduleKey];
+    return value === undefined ? true : Boolean(value);
+}
+
+const filteredAdminItems = computed(() => (isAdmin.value
+    ? adminItems.filter(isModuleEnabledFor).filter(matchesQuery)
+    : []));
+const filteredProfileItems = computed(() => profileItems
+    .filter((item) => !item.adminOnly || isAdmin.value)
+    .filter(matchesQuery));
 
 function isAdminActive(item: AdminItem): boolean {
     return route().current(item.routeName + '*');
@@ -216,6 +244,10 @@ function logout() {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 004 21.5v-16z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h8M8 15h5" />
                         </svg>
+                        <svg v-else-if="item.icon === 'ai-quality'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09L9 18.75l.813-2.846a4.5 4.5 0 003.09-3.09L15.75 12l-2.846-.813a4.5 4.5 0 00-3.09-3.09L9 5.25z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25z" />
+                        </svg>
                         <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -261,6 +293,12 @@ function logout() {
                     </svg>
                     <svg v-else-if="item.icon === 'keyboard'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 10.5h.008v.008H6V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 3h.008v.008H6v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM9 10.5h.008v.008H9V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM9 13.5h.008v.008H9v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm1.125-3h.008v.008H10.5V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 3h.008v.008h-.008v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm1.125-3h.008v.008H12V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM12 13.5h.008v.008H12v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm1.125-3h.008v.008h-.008V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 3h.008v.008h-.008v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm1.125-3h.008v.008H15V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 3h.008v.008H15v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm1.125-3h.008v.008h-.008V10.5zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 3h.008v.008h-.008v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM6 16.5h12M3.75 7.5h16.5c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125H3.75c-.621 0-1.125-.504-1.125-1.125v-9.75C2.625 8.004 3.129 7.5 3.75 7.5z" />
+                    </svg>
+                    <svg v-else-if="item.icon === 'modules'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <rect x="14" y="14" width="7" height="7" rx="1.5" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />

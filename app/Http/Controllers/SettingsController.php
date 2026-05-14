@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\SystemSetting;
+use App\Services\Calendar\AppointmentReminderSettings;
+use App\Support\QuickReactions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,7 +17,9 @@ final class SettingsController extends Controller
 {
     public function index(): Response
     {
-        $settings = SystemSetting::all()->pluck('value', 'key');
+        $settings = collect(AppointmentReminderSettings::defaults())
+            ->merge(QuickReactions::defaults())
+            ->merge(SystemSetting::all()->pluck('value', 'key'));
 
         return Inertia::render('Settings/System', [
             'settings' => $settings,
@@ -28,10 +33,61 @@ final class SettingsController extends Controller
             'settings.*' => 'nullable|string|max:2000',
         ]);
 
-        foreach ($validated['settings'] as $key => $value) {
+        $settings = $this->normalizeSettings($validated['settings']);
+
+        foreach ($settings as $key => $value) {
             SystemSetting::setValue($key, $value);
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * @param  array<string, string|null>  $settings
+     * @return array<string, string|null>
+     */
+    private function normalizeSettings(array $settings): array
+    {
+        if (array_key_exists(AppointmentReminderSettings::ENABLED_KEY, $settings)) {
+            $enabled = $settings[AppointmentReminderSettings::ENABLED_KEY];
+            if (! in_array($enabled, ['on', 'off'], true)) {
+                throw ValidationException::withMessages([
+                    AppointmentReminderSettings::ENABLED_KEY => 'Выберите, включены ли напоминания о записи.',
+                ]);
+            }
+        }
+
+        if (array_key_exists(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, $settings)) {
+            $raw = $settings[AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY];
+            if (! is_numeric($raw)) {
+                throw ValidationException::withMessages([
+                    AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY => 'Укажите время напоминания в минутах.',
+                ]);
+            }
+
+            $minutes = (int) $raw;
+            if ($minutes < AppointmentReminderSettings::MIN_LEAD_TIME_MINUTES || $minutes > AppointmentReminderSettings::MAX_LEAD_TIME_MINUTES) {
+                throw ValidationException::withMessages([
+                    AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY => 'Время напоминания должно быть от 5 минут до 7 дней.',
+                ]);
+            }
+
+            $settings[AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY] = (string) $minutes;
+        }
+
+        if (array_key_exists(QuickReactions::KEY, $settings)) {
+            $raw = $settings[QuickReactions::KEY];
+            $emojis = QuickReactions::normalize($raw);
+
+            if (count($emojis) !== QuickReactions::COUNT) {
+                throw ValidationException::withMessages([
+                    QuickReactions::KEY => 'Укажите 5 быстрых реакций.',
+                ]);
+            }
+
+            $settings[QuickReactions::KEY] = QuickReactions::encode($emojis);
+        }
+
+        return $settings;
     }
 }
