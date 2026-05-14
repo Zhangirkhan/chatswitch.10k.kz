@@ -22,6 +22,7 @@ use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MessageTranslationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationTeamChatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
@@ -121,6 +122,19 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::delete('/calendar/events/{event}', [CalendarController::class, 'destroy'])->name('calendar.events.destroy');
 
         Route::get('/organization', [OrganizationController::class, 'index'])->name('organization.index');
+        Route::get('/organization/chat/api/conversations', [OrganizationTeamChatController::class, 'conversations'])->name('organization.team-chat.api.conversations');
+        Route::get('/organization/chat/api/contacts', [OrganizationTeamChatController::class, 'contacts'])->name('organization.team-chat.api.contacts');
+        Route::get('/organization/chat/api/search', [OrganizationTeamChatController::class, 'search'])->name('organization.team-chat.api.search');
+        Route::post('/organization/chat/api/direct', [OrganizationTeamChatController::class, 'openDirect'])->name('organization.team-chat.api.direct');
+        Route::post('/organization/chat/api/{team_conversation}/pin', [OrganizationTeamChatController::class, 'setPinned'])->name('organization.team-chat.api.pin');
+        Route::get('/organization/chat/api/{team_conversation}/read-meta', [OrganizationTeamChatController::class, 'readMeta'])->name('organization.team-chat.api.read-meta');
+        Route::get('/organization/chat/api/{team_conversation}/participants', [OrganizationTeamChatController::class, 'participants'])->name('organization.team-chat.api.participants');
+        Route::get('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'messages'])->name('organization.team-chat.api.messages');
+        Route::post('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'storeMessage'])->name('organization.team-chat.api.messages.store');
+        Route::post('/organization/chat/api/{team_conversation}/read', [OrganizationTeamChatController::class, 'markRead'])->name('organization.team-chat.api.read');
+        Route::post('/organization/chat/api/{team_conversation}/delivered', [OrganizationTeamChatController::class, 'markDelivered'])->name('organization.team-chat.api.delivered');
+        Route::get('/organization/chat', [OrganizationTeamChatController::class, 'index'])->name('organization.team-chat.index');
+        Route::get('/organization/chat/{team_conversation}', [OrganizationTeamChatController::class, 'show'])->name('organization.team-chat.show');
         Route::get('/organization/archive', [OrganizationController::class, 'archive'])->name('organization.archive');
         Route::get('/organization/departments/{department}', [OrganizationController::class, 'showDepartment'])->name('organization.departments.show');
         Route::post('/organization/departments/{department}/posts', [OrganizationController::class, 'storePost'])->name('organization.posts.store');
