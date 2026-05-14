@@ -118,6 +118,9 @@ const page = usePage();
 const { theme } = useTheme();
 const roles = computed(() => (page.props as { auth?: { user?: { roles?: string[] } } }).auth?.user?.roles || []);
 const isEmployee = computed(() => roles.value.includes('employee') && !roles.value.includes('administrator'));
+const funnelsModuleEnabled = computed<boolean>(() => Boolean(
+    (page.props as { modules?: { funnels?: boolean } }).modules?.funnels ?? true,
+));
 const analyticsType = ref<AnalyticsType>('dialogs');
 
 const from = ref(props.filterOptions.default_from.slice(0, 10));
@@ -263,6 +266,12 @@ function debouncedFetch() {
         fetchAnalytics();
     }, 280);
 }
+
+watch(funnelsModuleEnabled, (enabled) => {
+    if (!enabled && analyticsType.value === 'funnels') {
+        analyticsType.value = 'dialogs';
+    }
+}, { immediate: true });
 
 watch([analyticsType, from, to, employeeId, departmentId, status, channel], () => {
     problemPage.value = 1;
@@ -567,6 +576,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 Диалоги
                             </button>
                             <button
+                                v-if="funnelsModuleEnabled"
                                 type="button"
                                 class="analytics-pill"
                                 :class="{ 'analytics-pill-active': analyticsType === 'funnels' }"

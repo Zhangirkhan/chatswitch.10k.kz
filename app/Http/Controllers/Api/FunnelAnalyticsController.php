@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Funnel;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,12 @@ final class FunnelAnalyticsController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
+        abort_unless(
+            SystemSetting::getValue('module_funnels', 'on') === 'on',
+            403,
+            'Модуль «Воронки продаж» отключён администратором.',
+        );
+
         $user = $request->user();
         abort_unless($user && $user->hasAnyRole(['administrator', 'manager', 'employee']), 403);
 

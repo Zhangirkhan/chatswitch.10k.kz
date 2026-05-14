@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Funnel;
 use App\Models\FunnelStage;
+use App\Models\SystemSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,8 @@ final class FunnelController extends Controller
 {
     public function index(): Response
     {
+        $this->ensureModuleEnabled();
+
         $funnels = Funnel::query()
             ->with(['stages'])
             ->withCount('stages')
@@ -36,6 +39,7 @@ final class FunnelController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->ensureModuleEnabled();
         $validated = $this->validateFunnel($request);
 
         $funnel = DB::transaction(static function () use ($validated): Funnel {
@@ -56,6 +60,7 @@ final class FunnelController extends Controller
 
     public function update(Request $request, Funnel $funnel): JsonResponse
     {
+        $this->ensureModuleEnabled();
         $validated = $this->validateFunnel($request);
 
         $funnel->update($validated);
@@ -66,6 +71,7 @@ final class FunnelController extends Controller
 
     public function destroy(Funnel $funnel): JsonResponse
     {
+        $this->ensureModuleEnabled();
         $funnel->delete();
 
         return response()->json(['success' => true]);
@@ -73,6 +79,7 @@ final class FunnelController extends Controller
 
     public function storeStage(Request $request, Funnel $funnel): JsonResponse
     {
+        $this->ensureModuleEnabled();
         $validated = $this->validateStage($request);
 
         $stage = DB::transaction(static function () use ($funnel, $validated): FunnelStage {
@@ -95,6 +102,7 @@ final class FunnelController extends Controller
 
     public function updateStage(Request $request, Funnel $funnel, FunnelStage $stage): JsonResponse
     {
+        $this->ensureModuleEnabled();
         // Защита от подмены id в URL: этап должен принадлежать переданной воронке.
         abort_if((int) $stage->funnel_id !== (int) $funnel->id, 404);
 
@@ -112,6 +120,7 @@ final class FunnelController extends Controller
 
     public function destroyStage(Funnel $funnel, FunnelStage $stage): JsonResponse
     {
+        $this->ensureModuleEnabled();
         abort_if((int) $stage->funnel_id !== (int) $funnel->id, 404);
 
         $stage->delete();
@@ -126,6 +135,7 @@ final class FunnelController extends Controller
      */
     public function reorderStages(Request $request, Funnel $funnel): JsonResponse
     {
+        $this->ensureModuleEnabled();
         $validated = $request->validate([
             'stage_ids' => ['required', 'array', 'min:1'],
             'stage_ids.*' => ['integer', 'exists:funnel_stages,id'],
@@ -153,6 +163,15 @@ final class FunnelController extends Controller
         $funnel->load('stages')->loadCount('stages');
 
         return response()->json(['success' => true, 'funnel' => $funnel]);
+    }
+
+    private function ensureModuleEnabled(): void
+    {
+        abort_unless(
+            SystemSetting::getValue('module_funnels', 'on') === 'on',
+            403,
+            'Модуль «Воронки продаж» отключён администратором.',
+        );
     }
 
     /** @return array<string, mixed> */
