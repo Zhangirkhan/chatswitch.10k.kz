@@ -132,6 +132,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/organization/chat/api/search', [OrganizationTeamChatController::class, 'search'])->name('organization.team-chat.api.search');
         Route::post('/organization/chat/api/direct', [OrganizationTeamChatController::class, 'openDirect'])->name('organization.team-chat.api.direct');
         Route::post('/organization/chat/api/{team_conversation}/pin', [OrganizationTeamChatController::class, 'setPinned'])->name('organization.team-chat.api.pin');
+        Route::post('/organization/chat/api/{team_conversation}/pinned-message', [OrganizationTeamChatController::class, 'setRoomPinnedMessage'])->name('organization.team-chat.api.pinned-message');
         Route::get('/organization/chat/api/{team_conversation}/read-meta', [OrganizationTeamChatController::class, 'readMeta'])->name('organization.team-chat.api.read-meta');
         Route::get('/organization/chat/api/{team_conversation}/participants', [OrganizationTeamChatController::class, 'participants'])->name('organization.team-chat.api.participants');
         Route::get('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'messages'])->name('organization.team-chat.api.messages');

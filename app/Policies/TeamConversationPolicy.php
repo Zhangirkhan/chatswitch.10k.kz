@@ -13,4 +13,20 @@ final class TeamConversationPolicy
     {
         return $teamConversation->participants()->where('users.id', $user->id)->exists();
     }
+
+    /**
+     * Закрепить сообщение в чате отдела (общее для всех участников).
+     */
+    public function pinRoomMessage(User $user, TeamConversation $teamConversation): bool
+    {
+        if (! $teamConversation->isDepartment()) {
+            return false;
+        }
+
+        if (! $teamConversation->participants()->where('users.id', $user->id)->exists()) {
+            return false;
+        }
+
+        return $user->hasAnyRole(['administrator', 'manager']);
+    }
 }

@@ -13,6 +13,15 @@ final class TeamMessage extends Model
 {
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::deleted(function (TeamMessage $message): void {
+            TeamConversation::query()
+                ->where('pinned_team_message_id', $message->id)
+                ->update(['pinned_team_message_id' => null]);
+        });
+    }
+
     protected $fillable = [
         'team_conversation_id',
         'parent_team_message_id',

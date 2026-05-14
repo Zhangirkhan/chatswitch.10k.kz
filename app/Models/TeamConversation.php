@@ -24,6 +24,7 @@ final class TeamConversation extends Model
         'user_high_id',
         'last_message_at',
         'last_message_preview',
+        'pinned_team_message_id',
     ];
 
     protected function casts(): array
@@ -46,6 +47,11 @@ final class TeamConversation extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(TeamMessage::class, 'team_conversation_id');
+    }
+
+    public function pinnedMessage(): BelongsTo
+    {
+        return $this->belongsTo(TeamMessage::class, 'pinned_team_message_id');
     }
 
     public function participants(): BelongsToMany

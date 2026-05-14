@@ -513,6 +513,113 @@ final class OrganizationTeamChatTest extends TestCase
             ->assertJsonPath('read_meta.others_min_last_delivered_message_id', $messageId);
     }
 
+    public function test_department_room_pinned_message_manager_can_set_and_clear(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $manager = User::factory()->create(['company_id' => $company->id]);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $manager->assignRole('manager');
+        $employee->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
+        $dept->users()->sync([$manager->id => [], $employee->id => []]);
+        app(TeamDepartmentChatSyncService::class)->syncAllMembers($dept);
+        $deptConv = TeamConversation::query()
+            ->where('department_id', $dept->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->firstOrFail();
+
+        $this->actingAs($employee)
+            ->postJson(route('organization.team-chat.api.messages.store', $deptConv), ['body' => 'Объявление'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $deptConv->id)->max('id');
+
+        $this->actingAs($manager)
+            ->postJson(route('organization.team-chat.api.pinned-message', $deptConv), [
+                'team_message_id' => $messageId,
+            ])
+            ->assertOk()
+            ->assertJsonPath('room_pinned_message.id', $messageId);
+
+        $deptConv->refresh();
+        $this->assertSame($messageId, (int) ($deptConv->pinned_team_message_id ?? 0));
+
+        $this->actingAs($manager)
+            ->getJson(route('organization.team-chat.api.messages', $deptConv))
+            ->assertOk()
+            ->assertJsonPath('conversation.room_pinned_message.id', $messageId)
+            ->assertJsonPath('conversation.can_pin_room_message', true);
+
+        $this->actingAs($manager)
+            ->postJson(route('organization.team-chat.api.pinned-message', $deptConv), [
+                'team_message_id' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('room_pinned_message', null);
+
+        $deptConv->refresh();
+        $this->assertNull($deptConv->pinned_team_message_id);
+    }
+
+    public function test_department_room_pin_forbidden_for_employee(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
+        $dept->users()->sync([$alice->id => [], $bob->id => []]);
+        app(TeamDepartmentChatSyncService::class)->syncAllMembers($dept);
+        $deptConv = TeamConversation::query()
+            ->where('department_id', $dept->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->firstOrFail();
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $deptConv), ['body' => 'Текст'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $deptConv->id)->max('id');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.pinned-message', $deptConv), [
+                'team_message_id' => $messageId,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_direct_room_pin_forbidden(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('manager');
+        $bob->assignRole('employee');
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'ЛС'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $direct->id)->max('id');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.pinned-message', $direct), [
+                'team_message_id' => $messageId,
+            ])
+            ->assertForbidden();
+    }
+
     public function test_store_message_reply_to_root_parent(): void
     {
         $company = Company::query()->create(['name' => 'Acme']);

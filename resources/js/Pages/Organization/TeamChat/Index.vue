@@ -21,6 +21,12 @@ type TeamReplyTo = {
     body_preview: string;
 };
 
+type TeamRoomPinned = {
+    id: number;
+    sender_name: string;
+    body_preview: string;
+};
+
 type TeamMsg = {
     id: number;
     team_conversation_id: number;
@@ -70,6 +76,10 @@ const forwardTargetsLoading = ref(false);
 const forwardSending = ref(false);
 
 const replyToMessage = ref<TeamMsg | null>(null);
+
+const canPinRoomMessage = ref(false);
+const roomPinnedMessage = ref<TeamRoomPinned | null>(null);
+const roomPinSending = ref(false);
 
 const replyJumpNotice = ref('');
 let replyJumpNoticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -211,9 +221,18 @@ async function fetchMessages(beforeId?: number | null) {
             params: beforeId ? { before_id: beforeId } : {},
         });
         const incoming = (data.messages ?? []) as TeamMsg[];
-        const conv = data.conversation as { id?: number; type?: string } | undefined;
+        const conv = data.conversation as {
+            id?: number;
+            type?: string;
+            can_pin_room_message?: boolean;
+            room_pinned_message?: TeamRoomPinned | null;
+        } | undefined;
         const t = conv?.type;
         conversationType.value = t === 'direct' || t === 'department' ? t : null;
+        if (typeof conv?.can_pin_room_message === 'boolean') {
+            canPinRoomMessage.value = conv.can_pin_room_message;
+        }
+        roomPinnedMessage.value = conv?.room_pinned_message ?? null;
         applyReadMetaFromPayload(
             data.read_meta as TeamReadMetaPayload,
         );
@@ -408,6 +427,24 @@ function setupEcho() {
             peerLastReadMessageId.value = lid;
         }
     });
+    echoChannel.listen('.team.room-pin', (e: any) => {
+        const cid = props.selectedConversationId;
+        if (!cid || Number(e.conversation_id) !== cid) {
+            return;
+        }
+        const p = e.room_pinned_message;
+        if (p === null) {
+            roomPinnedMessage.value = null;
+            return;
+        }
+        if (typeof p?.id === 'number' && p.id > 0) {
+            roomPinnedMessage.value = {
+                id: p.id,
+                sender_name: String(p.sender_name ?? '…'),
+                body_preview: String(p.body_preview ?? ''),
+            };
+        }
+    });
 }
 
 function teardownEcho(conversationId?: number | null): void {
@@ -476,6 +513,9 @@ watch(
         peerLastReadMessageId.value = null;
         peerLastDeliveredMessageId.value = null;
         othersMinDeliveredMessageId.value = null;
+        canPinRoomMessage.value = false;
+        roomPinnedMessage.value = null;
+        roomPinSending.value = false;
         if (!id) {
             draft.value = '';
             return;
@@ -607,6 +647,43 @@ async function scrollToQuotedParent(parentMessageId: number): Promise<void> {
     );
 }
 
+async function clearRoomPinned(): Promise<void> {
+    const cid = props.selectedConversationId;
+    if (!cid || roomPinSending.value) {
+        return;
+    }
+    roomPinSending.value = true;
+    try {
+        await axios.post(route('organization.team-chat.api.pinned-message', cid), {
+            team_message_id: null,
+        });
+        roomPinnedMessage.value = null;
+    } catch {
+        /* ignore */
+    } finally {
+        roomPinSending.value = false;
+    }
+}
+
+async function setRoomPinnedForMessage(messageId: number): Promise<void> {
+    const cid = props.selectedConversationId;
+    if (!cid || roomPinSending.value || messageId < 1) {
+        return;
+    }
+    roomPinSending.value = true;
+    try {
+        const { data } = await axios.post(route('organization.team-chat.api.pinned-message', cid), {
+            team_message_id: messageId,
+        });
+        const p = data.room_pinned_message as TeamRoomPinned | null | undefined;
+        roomPinnedMessage.value = p && typeof p.id === 'number' ? p : null;
+    } catch {
+        /* ignore */
+    } finally {
+        roomPinSending.value = false;
+    }
+}
+
 async function loadMore() {
     const first = messages.value[0];
     if (!first || !hasMore.value || loading.value) return;
@@ -709,6 +786,33 @@ onBeforeUnmount(() => {
                 </p>
             </div>
             <template v-else>
+                <div class="flex flex-1 min-h-0 flex-col">
+                    <div
+                        v-if="conversationType === 'department' && roomPinnedMessage"
+                        class="shrink-0 border-b border-[var(--wa-border)] bg-[var(--wa-selected)]/20 px-3 sm:px-4 py-2"
+                    >
+                        <div class="max-w-4xl mx-auto flex items-start gap-2 text-xs sm:text-sm">
+                            <span class="shrink-0 pt-0.5" aria-hidden="true">📌</span>
+                            <button
+                                type="button"
+                                class="min-w-0 flex-1 text-left rounded-lg px-2 py-1 -mx-2 -my-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                title="Перейти к сообщению"
+                                @click="scrollToQuotedParent(roomPinnedMessage.id)"
+                            >
+                                <div class="font-semibold text-[var(--wa-accent)]">{{ roomPinnedMessage.sender_name }}</div>
+                                <div class="text-[var(--wa-text-secondary)] truncate mt-0.5">{{ roomPinnedMessage.body_preview }}</div>
+                            </button>
+                            <button
+                                v-if="canPinRoomMessage"
+                                type="button"
+                                class="shrink-0 text-[var(--wa-text-secondary)] hover:text-[var(--wa-text)] px-2 py-1 rounded-lg disabled:opacity-40"
+                                :disabled="roomPinSending"
+                                @click="clearRoomPinned()"
+                            >
+                                Снять
+                            </button>
+                        </div>
+                    </div>
                 <div
                     ref="threadEl"
                     class="flex-1 overflow-y-auto wa-scrollbar px-3 sm:px-4 py-3 space-y-2 min-h-0"
@@ -791,6 +895,19 @@ onBeforeUnmount(() => {
                                 ↩
                             </button>
                             <button
+                                v-if="canPinRoomMessage && conversationType === 'department'"
+                                type="button"
+                                class="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-sm px-1 py-1 rounded-lg disabled:opacity-40"
+                                :class="roomPinnedMessage?.id === m.id
+                                    ? 'text-amber-600 dark:text-amber-400 opacity-100'
+                                    : 'text-[var(--wa-accent)] opacity-70 hover:opacity-100'"
+                                :title="roomPinnedMessage?.id === m.id ? 'Снять закреп в чате отдела' : 'Закрепить в чате отдела'"
+                                :disabled="roomPinSending"
+                                @click="roomPinnedMessage?.id === m.id ? clearRoomPinned() : setRoomPinnedForMessage(m.id)"
+                            >
+                                📌
+                            </button>
+                            <button
                                 type="button"
                                 class="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-sm text-[var(--wa-accent)] opacity-70 hover:opacity-100 px-1 py-1 rounded-lg active:opacity-100"
                                 title="Переслать"
@@ -818,6 +935,7 @@ onBeforeUnmount(() => {
                             </span>
                         </div>
                     </div>
+                </div>
                 </div>
                 <div
                     class="shrink-0 border-t border-[var(--wa-border)] px-3 pt-3 bg-[var(--wa-panel)] team-chat-input-bar"

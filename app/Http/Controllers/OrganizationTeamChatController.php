@@ -10,6 +10,7 @@ use App\Models\SystemSetting;
 use App\Models\TeamConversation;
 use App\Models\TeamMessage;
 use App\Models\User;
+use App\Events\TeamRoomPinUpdated;
 use App\Services\TeamChatService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -106,6 +107,49 @@ final class OrganizationTeamChatController extends Controller
         return response()->json([
             'success' => true,
             'pinned' => (bool) $data['pinned'],
+        ]);
+    }
+
+    public function setRoomPinnedMessage(Request $request, TeamConversation $teamConversation): JsonResponse
+    {
+        $this->ensureModuleEnabled();
+        $this->authorize('pinRoomMessage', $teamConversation);
+
+        $data = $request->validate([
+            'team_message_id' => ['present', 'nullable', 'integer', 'min:1'],
+        ]);
+
+        $mid = $data['team_message_id'] !== null ? (int) $data['team_message_id'] : 0;
+
+        if ($mid < 1) {
+            $teamConversation->pinned_team_message_id = null;
+            $teamConversation->save();
+            broadcast(new TeamRoomPinUpdated($teamConversation->id, null));
+
+            return response()->json([
+                'room_pinned_message' => null,
+            ]);
+        }
+
+        $message = TeamMessage::query()
+            ->where('team_conversation_id', $teamConversation->id)
+            ->whereKey($mid)
+            ->first();
+
+        if ($message === null) {
+            throw ValidationException::withMessages([
+                'team_message_id' => 'Сообщение не найдено в этой беседе.',
+            ]);
+        }
+
+        $teamConversation->pinned_team_message_id = $message->id;
+        $teamConversation->save();
+        $message->loadMissing(['sender:id,name']);
+        $payload = $this->roomPinnedMessagePayload($message);
+        broadcast(new TeamRoomPinUpdated($teamConversation->id, $payload));
+
+        return response()->json([
+            'room_pinned_message' => $payload,
         ]);
     }
 
@@ -310,6 +354,8 @@ final class OrganizationTeamChatController extends Controller
         $this->ensureModuleEnabled();
         $this->authorize('view', $teamConversation);
 
+        $teamConversation->loadMissing(['pinnedMessage.sender:id,name']);
+
         $beforeId = $request->integer('before_id') ?: null;
         $query = TeamMessage::query()
             ->where('team_conversation_id', $teamConversation->id)
@@ -341,6 +387,8 @@ final class OrganizationTeamChatController extends Controller
             'conversation' => [
                 'id' => $teamConversation->id,
                 'type' => $teamConversation->type,
+                'can_pin_room_message' => $request->user()->can('pinRoomMessage', $teamConversation),
+                'room_pinned_message' => $this->roomPinnedMessagePayload($teamConversation->pinnedMessage),
             ],
             'read_meta' => $this->readMetaPayload($request->user(), $teamConversation),
         ]);
@@ -627,6 +675,29 @@ final class OrganizationTeamChatController extends Controller
                 'email' => (string) ($u->email ?? ''),
             ])
             ->all();
+    }
+
+    /**
+     * @return array{id: int, sender_name: string, body_preview: string}|null
+     */
+    private function roomPinnedMessagePayload(?TeamMessage $m): ?array
+    {
+        if ($m === null) {
+            return null;
+        }
+
+        $body = trim((string) $m->body);
+        if ($body === '' && is_string($m->forward_quote_body) && trim((string) $m->forward_quote_body) !== '') {
+            $body = trim((string) $m->forward_quote_body);
+        }
+
+        $preview = mb_substr(preg_replace('/\s+/u', ' ', $body) ?? '', 0, 200);
+
+        return [
+            'id' => (int) $m->id,
+            'sender_name' => (string) ($m->sender?->name ?? '…'),
+            'body_preview' => $preview,
+        ];
     }
 
     /**
