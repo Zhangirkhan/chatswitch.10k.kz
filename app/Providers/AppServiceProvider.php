@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\Chat;
+use App\Models\Department;
+use App\Models\TeamConversation;
 use App\Models\WhatsappSession;
+use App\Observers\DepartmentObserver;
 use App\Policies\ChatPolicy;
+use App\Policies\TeamConversationPolicy;
 use App\Policies\WhatsappSessionPolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -31,6 +35,9 @@ final class AppServiceProvider extends ServiceProvider
         });
 
         Gate::policy(Chat::class, ChatPolicy::class);
+        Gate::policy(TeamConversation::class, TeamConversationPolicy::class);
         Gate::policy(WhatsappSession::class, WhatsappSessionPolicy::class);
+
+        Department::observe(DepartmentObserver::class);
     }
 }
