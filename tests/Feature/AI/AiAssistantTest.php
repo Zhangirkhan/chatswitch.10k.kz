@@ -4,19 +4,34 @@ declare(strict_types=1);
 
 namespace Tests\Feature\AI;
 
-use App\Jobs\GenerateAiReplyJob;
+use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
+use App\Jobs\GenerateAiReplyJob;
+use App\Jobs\SendOutboundMessageJob;
 use App\Models\AiResponseLog;
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Company;
+use App\Models\CompanyToneProfile;
+use App\Models\Contact;
+use App\Models\EmployeeToneProfile;
 use App\Models\KnowledgeRule;
 use App\Models\Message;
 use App\Models\Product;
+use App\Models\ScheduledMessage;
 use App\Models\Service;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\AiAppointmentIntentService;
+use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\PromptBuilder;
+use App\Services\AI\ToneProfileAnalyzer;
+use App\Services\Calendar\AppointmentBookingService;
+use App\Services\Calendar\AppointmentReminderSettings;
+use App\Services\OutboundChatMessageDispatcher;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
@@ -34,6 +49,13 @@ final class AiAssistantTest extends TestCase
         foreach (['administrator', 'manager', 'employee'] as $role) {
             Role::findOrCreate($role);
         }
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_prompt_builder_uses_only_enabled_knowledge_from_chat_company(): void
@@ -255,6 +277,91 @@ final class AiAssistantTest extends TestCase
         $this->assertStringNotContainsString('чужой стиль не брать', $prompt);
     }
 
+    public function test_prompt_builder_uses_company_tone_until_employee_profile_is_collected(): void
+    {
+        $company = Company::create(['name' => 'Company']);
+        $responder = User::factory()->create(['company_id' => $company->id, 'name' => 'New manager']);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        CompanyToneProfile::create([
+            'company_id' => $company->id,
+            'summary' => 'Компания пишет коротко, дружелюбно и сразу по делу.',
+            'phrases' => ['Да, конечно', 'Сейчас уточню', 'Записала вас'],
+            'metadata' => ['samples_count' => 20, 'source' => 'openai'],
+            'analyzed_at' => now(),
+        ]);
+        EmployeeToneProfile::create([
+            'company_id' => $company->id,
+            'user_id' => $responder->id,
+            'summary' => 'Недостаточно исходящих сообщений. Использовать нейтральный стиль.',
+            'phrases' => [],
+            'metadata' => ['samples_count' => 0, 'source' => 'fallback'],
+            'analyzed_at' => now(),
+        ]);
+
+        $built = app(PromptBuilder::class)->build($chat, $responder, 'Здравствуйте');
+        $prompt = collect($built['messages'])->pluck('content')->implode("\n");
+
+        $this->assertStringContainsString('Временно используй общий стиль компании', $prompt);
+        $this->assertStringContainsString('Компания пишет коротко', $prompt);
+        $this->assertStringContainsString('Записала вас', $prompt);
+        $this->assertStringNotContainsString('Недостаточно исходящих сообщений', $prompt);
+    }
+
+    public function test_company_tone_profile_is_built_from_manual_company_messages(): void
+    {
+        config()->set('services.openai.api_key', 'test-key');
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'summary' => 'Общий стиль компании: коротко, дружелюбно, без длинных вступлений.',
+                        'phrases' => ['Да, конечно', 'Сейчас уточню'],
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ]),
+        ]);
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'Да, конечно, сейчас уточню',
+            'sent_by_user_id' => $employee->id,
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'AI-шаблон не должен попадать в общий стиль',
+            'sent_by_user_id' => $employee->id,
+            'metadata' => ['ai' => ['generated' => true]],
+            'ack' => 'delivered',
+            'message_timestamp' => now()->addMinute(),
+        ]);
+
+        $profile = app(ToneProfileAnalyzer::class)->analyzeCompany($company->id);
+
+        $this->assertStringContainsString('коротко', (string) $profile->summary);
+        $this->assertSame(1, (int) data_get($profile->metadata, 'samples_count'));
+        $this->assertSame(['Да, конечно', 'Сейчас уточню'], $profile->phrases);
+    }
+
     public function test_assigned_employee_can_enable_ai_for_chat(): void
     {
         Bus::fake();
@@ -288,7 +395,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_assignment_sync_replaces_stale_ai_responder(): void
     {
-        Bus::fake([AnalyzeEmployeeToneProfileJob::class]);
+        Bus::fake([AnalyzeCompanyToneProfileJob::class, AnalyzeEmployeeToneProfileJob::class]);
 
         $company = Company::create(['name' => 'Company']);
         $berik = User::factory()->create(['name' => 'Берик', 'company_id' => $company->id]);
@@ -353,7 +460,7 @@ final class AiAssistantTest extends TestCase
         ]);
 
         (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(\App\Services\AI\AiReplyGenerator::class), app(\App\Services\OutboundChatMessageDispatcher::class));
+            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
 
         $this->assertDatabaseHas('ai_response_logs', [
             'chat_id' => $chat->id,
@@ -409,7 +516,7 @@ final class AiAssistantTest extends TestCase
         ]);
 
         (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(\App\Services\AI\AiReplyGenerator::class), app(\App\Services\OutboundChatMessageDispatcher::class));
+            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
 
         $this->assertDatabaseHas('ai_response_logs', [
             'chat_id' => $chat->id,
@@ -421,5 +528,304 @@ final class AiAssistantTest extends TestCase
             'direction' => 'outbound',
             'sent_by_user_id' => $employee->id,
         ]);
+    }
+
+    public function test_ai_creates_calendar_event_and_reminder_after_explicit_booking_confirmation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
+        config()->set('app.timezone', 'Asia/Almaty');
+        config()->set('services.openai.api_key', 'test-key');
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'is_appointment_request' => true,
+                        'has_explicit_confirmation' => true,
+                        'service_name' => 'Массаж',
+                        'starts_at' => '2026-05-13T13:00:00+05:00',
+                        'duration_minutes' => 90,
+                        'missing_fields' => [],
+                        'client_reply' => 'Записала вас на массаж сегодня в 13:00. Напомним за час.',
+                        'client_note' => 'Клиент подтвердил время.',
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ]),
+        ]);
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $employee->assignRole('employee');
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::create(['whatsapp_id' => '77010000000@c.us', 'name' => 'Айжан', 'phone_number' => '77010000000']);
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'chat_name' => 'Айжан',
+            'ai_enabled' => true,
+            'ai_mode' => 'auto',
+            'ai_responder_user_id' => $employee->id,
+        ]);
+        Service::create([
+            'company_id' => $company->id,
+            'name' => 'Массаж',
+            'duration_minutes' => 90,
+            'include_in_prompt' => true,
+            'is_active' => true,
+        ]);
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Да, запишите меня сегодня на 13:00 на массаж',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        (new GenerateAiReplyJob($chat->id, $trigger->id))
+            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+
+        $event = CalendarEvent::query()->where('trigger_message_id', $trigger->id)->first();
+        $this->assertNotNull($event);
+        $this->assertSame(CalendarEvent::SOURCE_AI_AUTO, $event->source);
+        $this->assertSame($chat->id, $event->chat_id);
+        $this->assertSame($contact->id, $event->contact_id);
+        $this->assertSame($employee->id, $event->assignee_user_id);
+        $this->assertSame(90, (int) data_get($event->metadata, 'ai.duration_minutes'));
+
+        $reminder = ScheduledMessage::query()->where('calendar_event_id', $event->id)->first();
+        $this->assertNotNull($reminder);
+        $this->assertSame(ScheduledMessage::PURPOSE_APPOINTMENT_REMINDER, $reminder->purpose);
+        $this->assertSame(ScheduledMessage::STATUS_PENDING, $reminder->status);
+        $this->assertTrue($reminder->scheduled_at->equalTo(Carbon::parse('2026-05-13T12:00:00+05:00')));
+        $this->assertStringContainsString('13.05 в 13:00', $reminder->body);
+        $this->assertStringNotContainsString('сегодня', mb_strtolower($reminder->body));
+
+        $message = Message::query()->where('chat_id', $chat->id)->where('direction', 'outbound')->latest('id')->first();
+        $this->assertNotNull($message);
+        $this->assertStringContainsString('13.05 в 13:00', (string) $message->body);
+        $this->assertStringNotContainsString('сегодня', mb_strtolower((string) $message->body));
+        $this->assertStringNotContainsString('завтра', mb_strtolower((string) $message->body));
+        $this->assertSame('booked', data_get($message->metadata, 'appointment.status'));
+        $this->assertSame($event->id, data_get($message->metadata, 'appointment.calendar_event_id'));
+    }
+
+    public function test_appointment_reminder_uses_system_lead_time_setting(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
+        config()->set('app.timezone', 'Asia/Almaty');
+        SystemSetting::setValue(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, '30');
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::create(['whatsapp_id' => '77010000000@c.us', 'name' => 'Айжан', 'phone_number' => '77010000000']);
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'chat_name' => 'Айжан',
+        ]);
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Да, запишите меня сегодня на 13:00 на массаж',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $booking = app(AppointmentBookingService::class)->book(
+            $chat,
+            $employee,
+            $trigger,
+            'Массаж',
+            Carbon::parse('2026-05-13T13:00:00+05:00'),
+            90,
+        );
+
+        $this->assertNotNull($booking['reminder']);
+        $this->assertTrue($booking['reminder']->scheduled_at->equalTo(Carbon::parse('2026-05-13T12:30:00+05:00')));
+    }
+
+    public function test_ai_does_not_book_without_explicit_service_date_and_time_confirmation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
+        config()->set('app.timezone', 'Asia/Almaty');
+        config()->set('services.openai.api_key', 'test-key');
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'is_appointment_request' => true,
+                        'has_explicit_confirmation' => false,
+                        'service_name' => 'Массаж',
+                        'starts_at' => null,
+                        'duration_minutes' => 60,
+                        'missing_fields' => ['time'],
+                        'client_reply' => 'Подскажите, пожалуйста, на какое время вас записать?',
+                        'client_note' => null,
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ]),
+        ]);
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $employee->assignRole('employee');
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+            'ai_enabled' => true,
+            'ai_mode' => 'auto',
+            'ai_responder_user_id' => $employee->id,
+        ]);
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Хочу записаться завтра на массаж',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        (new GenerateAiReplyJob($chat->id, $trigger->id))
+            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+
+        $this->assertDatabaseCount('calendar_events', 0);
+        $this->assertDatabaseCount('scheduled_messages', 0);
+
+        $message = Message::query()->where('chat_id', $chat->id)->where('direction', 'outbound')->latest('id')->first();
+        $this->assertNotNull($message);
+        $this->assertStringContainsString('на какое время', (string) $message->body);
+        $this->assertSame('needs_more_details', data_get($message->metadata, 'appointment.status'));
+    }
+
+    public function test_ai_hands_off_to_operator_when_requested_time_conflicts(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
+        config()->set('app.timezone', 'Asia/Almaty');
+        config()->set('services.openai.api_key', 'test-key');
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'is_appointment_request' => true,
+                        'has_explicit_confirmation' => true,
+                        'service_name' => 'Массаж',
+                        'starts_at' => '2026-05-14T13:00:00+05:00',
+                        'duration_minutes' => 60,
+                        'missing_fields' => [],
+                        'client_reply' => 'Записала вас на массаж завтра в 13:00.',
+                        'client_note' => null,
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ]),
+        ]);
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $employee->assignRole('employee');
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+            'ai_enabled' => true,
+            'ai_mode' => 'auto',
+            'ai_responder_user_id' => $employee->id,
+        ]);
+        $conflict = CalendarEvent::create([
+            'user_id' => $employee->id,
+            'assignee_user_id' => $employee->id,
+            'title' => 'Existing appointment',
+            'starts_at' => Carbon::parse('2026-05-14T12:30:00+05:00'),
+            'ends_at' => Carbon::parse('2026-05-14T13:30:00+05:00'),
+            'all_day' => false,
+        ]);
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Да, запишите меня завтра на 13:00 на массаж',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        (new GenerateAiReplyJob($chat->id, $trigger->id))
+            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+
+        $this->assertSame(1, CalendarEvent::query()->count());
+        $this->assertDatabaseMissing('calendar_events', [
+            'trigger_message_id' => $trigger->id,
+            'source' => CalendarEvent::SOURCE_AI_AUTO,
+        ]);
+        $this->assertDatabaseCount('scheduled_messages', 0);
+
+        $message = Message::query()->where('chat_id', $chat->id)->where('direction', 'outbound')->latest('id')->first();
+        $this->assertNotNull($message);
+        $this->assertStringContainsString('передам оператору', mb_strtolower((string) $message->body));
+        $this->assertSame('conflict', data_get($message->metadata, 'appointment.status'));
+        $this->assertSame($conflict->id, data_get($message->metadata, 'appointment.conflict_event_id'));
+    }
+
+    public function test_appointment_reminder_is_sent_by_existing_scheduled_message_command(): void
+    {
+        Bus::fake([SendOutboundMessageJob::class]);
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+        $event = CalendarEvent::create([
+            'user_id' => $employee->id,
+            'assignee_user_id' => $employee->id,
+            'chat_id' => $chat->id,
+            'title' => 'Массаж',
+            'starts_at' => now()->addHour(),
+            'ends_at' => now()->addHours(2),
+            'all_day' => false,
+            'source' => CalendarEvent::SOURCE_AI_AUTO,
+        ]);
+        $scheduled = ScheduledMessage::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'user_id' => $employee->id,
+            'calendar_event_id' => $event->id,
+            'purpose' => ScheduledMessage::PURPOSE_APPOINTMENT_REMINDER,
+            'body' => 'Напоминаем: вы записаны на массаж сегодня в 13:00.',
+            'display_body' => 'Напоминаем: вы записаны на массаж сегодня в 13:00.',
+            'scheduled_at' => now()->subMinute(),
+            'status' => ScheduledMessage::STATUS_PENDING,
+        ]);
+
+        $this->artisan('scheduled-messages:send')->assertExitCode(0);
+
+        $scheduled->refresh();
+        $this->assertSame(ScheduledMessage::STATUS_SENT, $scheduled->status);
+        $this->assertNotNull($scheduled->sent_message_id);
+        $this->assertDatabaseHas('messages', [
+            'id' => $scheduled->sent_message_id,
+            'chat_id' => $chat->id,
+            'direction' => 'outbound',
+        ]);
+        Bus::assertDispatched(SendOutboundMessageJob::class);
+    }
+
+    public function test_appointment_intent_analysis_triggers_for_window_measurement_booking(): void
+    {
+        $svc = app(AiAppointmentIntentService::class);
+        $msg = new Message([
+            'body' => 'Да, жду замер окон завтра в 15:00',
+        ]);
+
+        $this->assertTrue($svc->shouldAnalyze($msg));
     }
 }

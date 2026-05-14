@@ -87,4 +87,51 @@ final class KnowledgeBaseAdminTest extends TestCase
         $this->assertFalse((bool) Product::query()->find($p2->id)?->include_in_prompt);
         $response->assertJsonCount(2, 'items');
     }
+
+    public function test_store_product_writes_knowledge_audit_log(): void
+    {
+        $company = Company::create(['name' => 'Acme']);
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)->postJson(route('settings.knowledge.products.store'), [
+            'company_id' => $company->id,
+            'name' => 'Audit widget',
+            'description' => 'Test',
+            'price' => 100,
+            'is_active' => true,
+            'include_in_prompt' => true,
+            'sort_order' => 0,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('knowledge_audit_logs', [
+            'company_id' => $company->id,
+            'user_id' => $admin->id,
+            'entity_type' => 'product',
+            'action' => 'created',
+        ]);
+    }
+
+    public function test_admin_can_list_knowledge_audit(): void
+    {
+        $company = Company::create(['name' => 'Acme']);
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)->postJson(route('settings.knowledge.products.store'), [
+            'company_id' => $company->id,
+            'name' => 'Listed product',
+            'description' => 'Test',
+            'price' => 50,
+            'is_active' => true,
+            'include_in_prompt' => true,
+            'sort_order' => 0,
+        ])->assertOk();
+
+        $response = $this->actingAs($admin)->getJson('/settings/knowledge/audit?company_id='.$company->id.'&entity_type=product');
+
+        $response->assertOk();
+        $response->assertJsonStructure(['data', 'current_page', 'total']);
+        $this->assertGreaterThanOrEqual(1, count($response->json('data')));
+    }
 }
