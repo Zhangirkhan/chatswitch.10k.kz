@@ -1,0 +1,642 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Organization;
+
+use App\Models\Company;
+use App\Models\Department;
+use App\Models\TeamConversation;
+use App\Models\TeamMessage;
+use App\Models\TeamMessageMention;
+use App\Models\User;
+use App\Services\TeamChatService;
+use App\Services\TeamDepartmentChatSyncService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+final class OrganizationTeamChatTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        foreach (['administrator', 'manager', 'employee'] as $r) {
+            Role::findOrCreate($r);
+        }
+    }
+
+    public function test_direct_message_between_colleagues_same_company(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), ['body' => 'Привет'])
+            ->assertOk()
+            ->assertJsonPath('message.body', 'Привет')
+            ->assertJsonPath('duplicate', false);
+
+        $this->actingAs($bob)
+            ->getJson(route('organization.team-chat.api.messages', $conversation))
+            ->assertOk()
+            ->assertJsonFragment(['body' => 'Привет']);
+    }
+
+    public function test_open_direct_rejects_different_company(): void
+    {
+        $c1 = Company::query()->create(['name' => 'A']);
+        $c2 = Company::query()->create(['name' => 'B']);
+        $alice = User::factory()->create(['company_id' => $c1->id]);
+        $stranger = User::factory()->create(['company_id' => $c2->id]);
+        $alice->assignRole('employee');
+        $stranger->assignRole('employee');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.direct'), ['user_id' => $stranger->id])
+            ->assertUnprocessable();
+    }
+
+    public function test_store_message_deduplicates_by_client_message_id(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $clientId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+        $first = $this->actingAs($alice)->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+            'body' => 'Один раз',
+            'client_message_id' => $clientId,
+        ])->assertOk();
+
+        $second = $this->actingAs($alice)->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+            'body' => 'Один раз',
+            'client_message_id' => $clientId,
+        ])->assertOk();
+
+        $this->assertSame($first->json('message.id'), $second->json('message.id'));
+        $this->assertFalse($first->json('duplicate'));
+        $this->assertTrue($second->json('duplicate'));
+        $this->assertSame(1, TeamMessage::query()->where('team_conversation_id', $conversation->id)->count());
+    }
+
+    public function test_conversations_filter_direct_and_invalid_filter(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $list = $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.conversations', ['filter' => 'direct']))
+            ->assertOk()
+            ->assertJsonPath('filter', 'direct')
+            ->json('conversations');
+
+        $this->assertIsArray($list);
+        foreach ($list as $row) {
+            $this->assertSame('direct', $row['type']);
+        }
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.conversations', ['filter' => 'invalid']))
+            ->assertOk()
+            ->assertJsonPath('filter', null);
+    }
+
+    public function test_store_message_rejects_mention_of_non_participant(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $carol = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $carol->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Привет',
+                'mention_user_ids' => [$carol->id],
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_store_message_stores_mentions_and_messages_list_resolves_names(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
+        $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Смотри',
+                'mention_user_ids' => [$bob->id],
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.mentioned_user_ids.0', $bob->id)
+            ->assertJsonPath('message.mentioned_users.0.name', 'Боб');
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.messages', $conversation))
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Боб']);
+    }
+
+    public function test_read_meta_and_participants_endpoints(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.participants', $conversation))
+            ->assertOk()
+            ->assertJsonCount(2, 'participants');
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $conversation))
+            ->assertOk()
+            ->assertJsonPath('read_meta.conversation_type', 'direct')
+            ->assertJsonPath('read_meta.peer_last_read_message_id', null)
+            ->assertJsonPath('read_meta.peer_last_delivered_message_id', null)
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', null);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), ['body' => 'Раз'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $conversation->id)->max('id');
+
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.read', $conversation), ['message_id' => $messageId])
+            ->assertOk();
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $conversation))
+            ->assertOk()
+            ->assertJsonPath('read_meta.peer_last_read_message_id', $messageId)
+            ->assertJsonPath('read_meta.peer_last_delivered_message_id', $messageId)
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', null);
+    }
+
+    public function test_messages_payload_includes_conversation_and_read_meta(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.messages', $conversation))
+            ->assertOk()
+            ->assertJsonPath('conversation.id', $conversation->id)
+            ->assertJsonPath('conversation.type', 'direct')
+            ->assertJsonStructure([
+                'read_meta' => [
+                    'conversation_type',
+                    'peer_last_read_message_id',
+                    'peer_last_delivered_message_id',
+                    'others_min_last_delivered_message_id',
+                ],
+            ]);
+    }
+
+    public function test_forward_message_to_department_conversation(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
+        $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
+        $dept->users()->sync([$alice->id => [], $bob->id => []]);
+        app(TeamDepartmentChatSyncService::class)->syncAllMembers($dept);
+        $deptConv = TeamConversation::query()
+            ->where('department_id', $dept->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->firstOrFail();
+
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'Секрет из ЛС'])
+            ->assertOk();
+        $sourceId = (int) TeamMessage::query()->where('team_conversation_id', $direct->id)->max('id');
+
+        $resp = $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $deptConv), [
+                'forwarded_from_team_message_id' => $sourceId,
+                'body' => 'Смотрите',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.body', 'Смотрите')
+            ->assertJsonPath('message.forward.quote_body', 'Секрет из ЛС')
+            ->assertJsonPath('message.forward.quote_sender_name', 'Боб');
+
+        $this->assertStringContainsString('ЛС', (string) $resp->json('message.forward.source_title'));
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.messages', $deptConv))
+            ->assertOk()
+            ->assertJsonFragment(['quote_body' => 'Секрет из ЛС']);
+    }
+
+    public function test_forward_from_department_shows_department_name_as_source(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
+        $dept->users()->sync([$alice->id => [], $bob->id => []]);
+        app(TeamDepartmentChatSyncService::class)->syncAllMembers($dept);
+        $deptConv = TeamConversation::query()
+            ->where('department_id', $dept->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->firstOrFail();
+
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.messages.store', $deptConv), ['body' => 'В отделе'])
+            ->assertOk();
+        $sourceId = (int) TeamMessage::query()->where('team_conversation_id', $deptConv->id)->max('id');
+
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), [
+                'forwarded_from_team_message_id' => $sourceId,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message.forward.source_title', 'Продажи');
+    }
+
+    public function test_forward_rejected_when_user_not_in_source_conversation(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $carol = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $carol->assignRole('employee');
+
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'Только для Алисы'])
+            ->assertOk();
+        $sourceId = (int) TeamMessage::query()->where('team_conversation_id', $direct->id)->max('id');
+
+        $carolAlice = app(TeamChatService::class)->findOrCreateDirect($carol, $alice);
+
+        $this->actingAs($carol)
+            ->postJson(route('organization.team-chat.api.messages.store', $carolAlice), [
+                'forwarded_from_team_message_id' => $sourceId,
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_forward_rejects_mention_user_ids(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $this->actingAs($bob)->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'X'])->assertOk();
+        $sourceId = (int) TeamMessage::query()->where('team_conversation_id', $direct->id)->max('id');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), [
+                'forwarded_from_team_message_id' => $sourceId,
+                'mention_user_ids' => [$bob->id],
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_team_chat_search_finds_message_and_conversation(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса Поиск']);
+        $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Менеджер Василий']);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'Уникальная строка для поиска xyz'])
+            ->assertOk();
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.search', ['q' => 'xyz']))
+            ->assertOk()
+            ->assertJsonPath('query', 'xyz')
+            ->assertJsonFragment(['body_snippet' => 'Уникальная строка для поиска xyz']);
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.search', ['q' => 'Васил']))
+            ->assertOk()
+            ->assertJsonFragment(['title' => 'Менеджер Василий']);
+    }
+
+    public function test_team_chat_search_includes_colleagues(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
+        $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Борис Коллега', 'email' => 'boris@acme.test']);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.search', ['q' => 'Бор']))
+            ->assertOk()
+            ->assertJsonPath('colleagues.0.id', $bob->id)
+            ->assertJsonPath('colleagues.0.name', 'Борис Коллега');
+    }
+
+    public function test_team_chat_search_short_query_returns_empty(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.search', ['q' => 'a']))
+            ->assertOk()
+            ->assertJsonPath('conversations', [])
+            ->assertJsonPath('messages', [])
+            ->assertJsonPath('colleagues', []);
+    }
+
+    public function test_mark_delivered_updates_read_meta_for_peer(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), ['body' => 'Ping'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $conversation->id)->max('id');
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $conversation))
+            ->assertOk()
+            ->assertJsonPath('read_meta.peer_last_read_message_id', null)
+            ->assertJsonPath('read_meta.peer_last_delivered_message_id', null)
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', null);
+
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.delivered', $conversation), ['message_id' => $messageId])
+            ->assertOk();
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $conversation))
+            ->assertOk()
+            ->assertJsonPath('read_meta.peer_last_delivered_message_id', $messageId)
+            ->assertJsonPath('read_meta.peer_last_read_message_id', null)
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', null);
+    }
+
+    public function test_store_message_creates_team_message_mention_rows(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Эй',
+                'mention_user_ids' => [$bob->id],
+            ])
+            ->assertOk();
+
+        $mid = (int) TeamMessage::query()->where('team_conversation_id', $conversation->id)->max('id');
+        $this->assertTrue(
+            TeamMessageMention::query()
+                ->where('team_message_id', $mid)
+                ->where('user_id', $bob->id)
+                ->exists(),
+        );
+    }
+
+    public function test_department_read_meta_others_min_delivered(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $carol = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $carol->assignRole('employee');
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
+        $dept->users()->sync([$alice->id => [], $bob->id => [], $carol->id => []]);
+        app(TeamDepartmentChatSyncService::class)->syncAllMembers($dept);
+        $deptConv = TeamConversation::query()
+            ->where('department_id', $dept->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->firstOrFail();
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $deptConv), ['body' => 'Всем привет'])
+            ->assertOk();
+        $messageId = (int) TeamMessage::query()->where('team_conversation_id', $deptConv->id)->max('id');
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $deptConv))
+            ->assertOk()
+            ->assertJsonPath('read_meta.conversation_type', 'department')
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', 0);
+
+        $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.delivered', $deptConv), ['message_id' => $messageId])
+            ->assertOk();
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $deptConv))
+            ->assertOk()
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', 0);
+
+        $this->actingAs($carol)
+            ->postJson(route('organization.team-chat.api.delivered', $deptConv), ['message_id' => $messageId])
+            ->assertOk();
+
+        $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.read-meta', $deptConv))
+            ->assertOk()
+            ->assertJsonPath('read_meta.others_min_last_delivered_message_id', $messageId);
+    }
+
+    public function test_store_message_reply_to_root_parent(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $root = $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), ['body' => 'Корень'])
+            ->assertOk()
+            ->json('message');
+        $rootId = (int) $root['id'];
+
+        $reply = $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Ответ',
+                'parent_team_message_id' => $rootId,
+            ])
+            ->assertOk()
+            ->json('message');
+
+        $this->assertSame($rootId, (int) ($reply['parent_team_message_id'] ?? 0));
+        $this->assertSame('Алиса', $reply['reply_to']['sender_name'] ?? '');
+        $this->assertStringContainsString('Корень', (string) ($reply['reply_to']['body_preview'] ?? ''));
+    }
+
+    public function test_store_message_rejects_reply_to_non_root_parent(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $conversation = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+
+        $rootId = (int) $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), ['body' => 'Корень'])
+            ->assertOk()
+            ->json('message.id');
+
+        $replyId = (int) $this->actingAs($bob)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Ответ',
+                'parent_team_message_id' => $rootId,
+            ])
+            ->assertOk()
+            ->json('message.id');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $conversation), [
+                'body' => 'Вложенный',
+                'parent_team_message_id' => $replyId,
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_store_forward_rejects_parent_team_message_id(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $direct = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $this->actingAs($bob)->postJson(route('organization.team-chat.api.messages.store', $direct), ['body' => 'X'])->assertOk();
+        $sourceId = (int) TeamMessage::query()->where('team_conversation_id', $direct->id)->max('id');
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $direct), [
+                'forwarded_from_team_message_id' => $sourceId,
+                'parent_team_message_id' => $sourceId,
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_team_chat_pin_moves_conversation_to_top(): void
+    {
+        $company = Company::query()->create(['name' => 'Acme']);
+        $alice = User::factory()->create(['company_id' => $company->id]);
+        $bob = User::factory()->create(['company_id' => $company->id]);
+        $carol = User::factory()->create(['company_id' => $company->id]);
+        $alice->assignRole('employee');
+        $bob->assignRole('employee');
+        $carol->assignRole('employee');
+
+        $convBob = app(TeamChatService::class)->findOrCreateDirect($alice, $bob);
+        $convCarol = app(TeamChatService::class)->findOrCreateDirect($alice, $carol);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $convBob), ['body' => 'Старое'])
+            ->assertOk();
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.messages.store', $convCarol), ['body' => 'Новее'])
+            ->assertOk();
+
+        $listBefore = $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.conversations'))
+            ->assertOk()
+            ->json('conversations');
+        $this->assertSame($convCarol->id, $listBefore[0]['id']);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.pin', $convBob), ['pinned' => true])
+            ->assertOk()
+            ->assertJsonPath('pinned', true);
+
+        $listAfter = $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.conversations'))
+            ->assertOk()
+            ->json('conversations');
+        $this->assertSame($convBob->id, $listAfter[0]['id']);
+        $this->assertTrue($listAfter[0]['is_pinned']);
+
+        $this->actingAs($alice)
+            ->postJson(route('organization.team-chat.api.pin', $convBob), ['pinned' => false])
+            ->assertOk();
+
+        $listUnpin = $this->actingAs($alice)
+            ->getJson(route('organization.team-chat.api.conversations'))
+            ->assertOk()
+            ->json('conversations');
+        $this->assertFalse($listUnpin[0]['is_pinned'] ?? false);
+        $this->assertSame($convCarol->id, $listUnpin[0]['id']);
+    }
+}
