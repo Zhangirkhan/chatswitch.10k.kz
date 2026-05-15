@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,7 @@ final class FunnelAnalyticsController extends Controller
         $scopeDepartmentIds = $departmentId !== null ? [$departmentId] : $allowedDepartmentIds;
 
         $funnels = Funnel::query()
+            ->where('company_id', TenantCompany::id())
             ->with(['stages', 'departments:id,name'])
             ->withCount('stages')
             ->orderBy('position')

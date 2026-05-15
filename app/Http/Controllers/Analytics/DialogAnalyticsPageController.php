@@ -19,6 +19,14 @@ final class DialogAnalyticsPageController extends Controller
         $user = $request->user();
         abort_unless($user && $user->hasAnyRole(['administrator', 'manager', 'employee']), 403);
 
+        $analyticsOn = SystemSetting::getValue('module_analytics', 'on') === 'on';
+        $funnelsOn = SystemSetting::getValue('module_funnels', 'on') === 'on';
+        abort_unless(
+            $analyticsOn || $funnelsOn,
+            403,
+            'Модули «Аналитика диалогов» и «Воронки продаж» отключены. Включите хотя бы один в настройках.',
+        );
+
         $departments = $this->departmentsForUser($user);
         $employees = $this->employeesForUser($user);
 

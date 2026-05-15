@@ -121,6 +121,9 @@ const isEmployee = computed(() => roles.value.includes('employee') && !roles.val
 const funnelsModuleEnabled = computed<boolean>(() => Boolean(
     (page.props as { modules?: { funnels?: boolean } }).modules?.funnels ?? true,
 ));
+const analyticsModuleEnabled = computed<boolean>(() => Boolean(
+    (page.props as { modules?: { analytics?: boolean } }).modules?.analytics ?? true,
+));
 const analyticsType = ref<AnalyticsType>('dialogs');
 
 const from = ref(props.filterOptions.default_from.slice(0, 10));
@@ -267,9 +270,16 @@ function debouncedFetch() {
     }, 280);
 }
 
-watch(funnelsModuleEnabled, (enabled) => {
-    if (!enabled && analyticsType.value === 'funnels') {
-        analyticsType.value = 'dialogs';
+watch([analyticsModuleEnabled, funnelsModuleEnabled], () => {
+    if (!funnelsModuleEnabled.value && analyticsType.value === 'funnels') {
+        if (analyticsModuleEnabled.value) {
+            analyticsType.value = 'dialogs';
+        }
+    }
+    if (!analyticsModuleEnabled.value && analyticsType.value === 'dialogs') {
+        if (funnelsModuleEnabled.value) {
+            analyticsType.value = 'funnels';
+        }
     }
 }, { immediate: true });
 
@@ -568,6 +578,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                         <span class="text-xs text-[var(--wa-text-secondary)]">Тип аналитики</span>
                         <div class="inline-flex flex-wrap gap-1 rounded-xl p-1" :style="{ background: 'var(--wa-surface-inset)' }">
                             <button
+                                v-if="analyticsModuleEnabled"
                                 type="button"
                                 class="analytics-pill"
                                 :class="{ 'analytics-pill-active': analyticsType === 'dialogs' }"

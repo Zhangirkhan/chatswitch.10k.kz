@@ -39,6 +39,11 @@ const modulesConfig: { key: string; label: string; description: string }[] = [
         description: 'Позволяет сотрудникам создавать записи с повторениями (час, день, месяц).',
     },
     {
+        key: 'module_analytics',
+        label: 'Аналитика диалогов',
+        description: 'Раздел «Аналитика» в левой панели и страница /analytics/dialogs.',
+    },
+    {
         key: 'module_funnels',
         label: 'Воронки продаж',
         description: 'Этапы и статусы сделок, аналитика воронок.',

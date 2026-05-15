@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Analytics;
 
 use App\Models\Department;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -112,5 +113,29 @@ final class DialogAnalyticsTest extends TestCase
 
         $this->actingAs($emp)->get('/analytics/dialogs')
             ->assertOk();
+    }
+
+    public function test_analytics_api_forbidden_when_module_disabled(): void
+    {
+        SystemSetting::setValue('module_analytics', 'off');
+        SystemSetting::setValue('module_funnels', 'off');
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)->getJson('/api/analytics/dialogs?'.http_build_query($this->queryParams()))
+            ->assertForbidden();
+    }
+
+    public function test_analytics_page_forbidden_when_both_modules_disabled(): void
+    {
+        SystemSetting::setValue('module_analytics', 'off');
+        SystemSetting::setValue('module_funnels', 'off');
+
+        $emp = User::factory()->create();
+        $emp->assignRole('employee');
+
+        $this->actingAs($emp)->get('/analytics/dialogs')
+            ->assertForbidden();
     }
 }

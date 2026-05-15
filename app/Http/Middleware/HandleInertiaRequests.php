@@ -9,6 +9,7 @@ use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\TeamDepartmentChatSyncService;
 use App\Support\QuickReactions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -81,6 +82,7 @@ final class HandleInertiaRequests extends Middleware
             'quickReactions' => fn () => QuickReactions::configured(),
             'modules' => fn () => [
                 'calendar' => SystemSetting::getValue('module_calendar', 'on') === 'on',
+                'analytics' => SystemSetting::getValue('module_analytics', 'on') === 'on',
                 'tasks' => SystemSetting::getValue('module_tasks', 'on') === 'on',
                 'funnels' => SystemSetting::getValue('module_funnels', 'on') === 'on',
                 'products' => SystemSetting::getValue('module_products', 'on') === 'on',
@@ -118,6 +120,10 @@ final class HandleInertiaRequests extends Middleware
     {
         if (SystemSetting::getValue('module_tasks', 'on') !== 'on') {
             return 0;
+        }
+
+        if ($user->hasRole('administrator')) {
+            app(TeamDepartmentChatSyncService::class)->syncAdministratorToAllDepartmentChats($user);
         }
 
         $ids = $user->teamConversations()->pluck('team_conversations.id')->all();

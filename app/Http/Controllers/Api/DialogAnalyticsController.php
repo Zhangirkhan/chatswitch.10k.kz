@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DialogAnalyticsRequest;
+use App\Models\SystemSetting;
 use App\Services\DialogAnalytics\DialogAnalyticsFilters;
 use App\Services\DialogAnalytics\DialogAnalyticsService;
 use Carbon\Carbon;
@@ -18,6 +19,7 @@ final class DialogAnalyticsController extends Controller
     {
         $user = $request->user();
         abort_unless($user, 403);
+        abort_unless(SystemSetting::getValue('module_analytics', 'on') === 'on', 403, 'Модуль «Аналитика диалогов» отключён администратором.');
 
         $v = $request->validated();
         $filters = new DialogAnalyticsFilters(

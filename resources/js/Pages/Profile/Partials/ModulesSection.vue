@@ -26,6 +26,12 @@ const MODULES: readonly ModuleDef[] = [
         description: 'Записи с напоминаниями и повторениями (час, день, месяц).',
     },
     {
+        key: 'analytics',
+        settingKey: 'module_analytics',
+        title: 'Аналитика диалогов',
+        description: 'Иконка в левой панели и страница аналитики по диалогам.',
+    },
+    {
         key: 'funnels',
         settingKey: 'module_funnels',
         title: 'Воронки продаж',
