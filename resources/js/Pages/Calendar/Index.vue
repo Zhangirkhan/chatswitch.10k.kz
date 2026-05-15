@@ -368,7 +368,31 @@ async function loadEvents() {
 
 watch([rangeStart, rangeEnd], loadEvents);
 watch([listFilter, filterAuthorId, filterAssigneeId], loadEvents);
-onMounted(loadEvents);
+onMounted(() => {
+    loadEvents();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') !== '1') {
+        return;
+    }
+    const f = emptyForm();
+    const title = params.get('title');
+    const description = params.get('description');
+    const assignee = params.get('assignee_user_id');
+    if (title) {
+        f.title = title;
+    }
+    if (description) {
+        f.description = description;
+    }
+    if (assignee) {
+        f.assignee_user_id = assignee;
+    }
+    editingId.value = null;
+    editingMeta.value = null;
+    form.value = f;
+    formError.value = null;
+    showModal.value = true;
+});
 
 // Switch view: set cursor to week containing today (or current month start)
 function switchView(v: ViewMode) {

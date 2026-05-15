@@ -167,7 +167,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('analytics.dialogs')"
+                    v-if="route().has('analytics.dialogs') && (page.props.modules?.analytics || page.props.modules?.funnels)"
                     :href="route('analytics.dialogs')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('analytics.*') }"
