@@ -51,9 +51,12 @@ final class OrganizationTeamChatController extends Controller
         $this->ensureModuleEnabled();
         $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
+        $user = $request->user();
+
         return Inertia::render('Organization/TeamChat/Index', [
-            'departments' => $this->departmentsPayload($request->user()),
+            'departments' => $this->departmentsPayload($user),
             'selectedConversationId' => $teamConversation->id,
+            'conversationHeader' => $this->conversationHeaderPayload($user, $teamConversation),
         ]);
     }
 
@@ -400,16 +403,22 @@ final class OrganizationTeamChatController extends Controller
 
         $items = $page->map(fn (TeamMessage $m) => $this->transformMessage($m, $mentionNamesById));
 
+        $user = $request->user();
+        $header = $this->conversationHeaderPayload($user, $teamConversation);
+
         return response()->json([
             'messages' => $items,
             'conversation' => [
                 'id' => $teamConversation->id,
                 'type' => $teamConversation->type,
+                'title' => $header['title'],
+                'subtitle' => $header['subtitle'],
+                'is_pinned' => $header['is_pinned'],
                 'department_id' => $teamConversation->isDepartment() ? $teamConversation->department_id : null,
-                'can_pin_room_message' => $request->user()->can('pinRoomMessage', $teamConversation),
+                'can_pin_room_message' => $user->can('pinRoomMessage', $teamConversation),
                 'room_pinned_message' => $this->roomPinnedMessagePayload($teamConversation->pinnedMessage),
             ],
-            'read_meta' => $this->readMetaPayload($request->user(), $teamConversation),
+            'read_meta' => $this->readMetaPayload($user, $teamConversation),
         ]);
     }
 
@@ -648,6 +657,34 @@ final class OrganizationTeamChatController extends Controller
         }
 
         return $out;
+    }
+
+    /**
+     * @return array{id: int, type: string, title: string, subtitle: string|null, is_pinned: bool}
+     */
+    private function conversationHeaderPayload(User $user, TeamConversation $conversation): array
+    {
+        $loaded = $user->teamConversations()
+            ->where('team_conversations.id', $conversation->id)
+            ->with(['department:id,name', 'userLow:id,name', 'userHigh:id,name'])
+            ->withPivot('pinned_at')
+            ->first();
+
+        $item = $loaded !== null
+            ? $this->transformConversationListItem($user, $loaded, 0)
+            : $this->transformConversationListItem(
+                $user,
+                $conversation->loadMissing(['department:id,name', 'userLow:id,name', 'userHigh:id,name']),
+                0,
+            );
+
+        return [
+            'id' => (int) $item['id'],
+            'type' => (string) $item['type'],
+            'title' => (string) $item['title'],
+            'subtitle' => isset($item['subtitle']) ? (string) $item['subtitle'] : null,
+            'is_pinned' => (bool) ($item['is_pinned'] ?? false),
+        ];
     }
 
     /**

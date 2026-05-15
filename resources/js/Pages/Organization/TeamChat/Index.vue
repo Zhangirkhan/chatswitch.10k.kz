@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import TeamChatMessage, { type TeamChatMessageModel } from './Partials/TeamChatMessage.vue';
 import TeamChatInput from './Partials/TeamChatInput.vue';
+import TeamChatHeader, { type TeamConversationHeader } from './Partials/TeamChatHeader.vue';
 import type { OrgDepartment } from '../Partials/OrganizationSidebar.vue';
 import type { MessageReaction, PageProps } from '@/types';
 
@@ -25,6 +26,7 @@ type TeamParticipant = { id: number; name: string };
 const props = defineProps<{
     departments: OrgDepartment[];
     selectedConversationId: number | null;
+    conversationHeader?: TeamConversationHeader | null;
 }>();
 
 const page = usePage<PageProps>();
@@ -77,6 +79,50 @@ const roomPinnedMessage = ref<TeamRoomPinned | null>(null);
 const roomPinSending = ref(false);
 
 const taskFromMessageSending = ref(false);
+
+const headerState = ref<TeamConversationHeader | null>(props.conversationHeader ?? null);
+const headerPinBusy = ref(false);
+
+function applyConversationHeader(raw: {
+    id?: number;
+    type?: string;
+    title?: string;
+    subtitle?: string | null;
+    is_pinned?: boolean;
+} | null | undefined): void {
+    if (!raw?.id || !raw.title) {
+        return;
+    }
+    const t = raw.type === 'direct' || raw.type === 'department' ? raw.type : null;
+    if (!t) {
+        return;
+    }
+    headerState.value = {
+        id: raw.id,
+        type: t,
+        title: raw.title,
+        subtitle: raw.subtitle ?? null,
+        is_pinned: Boolean(raw.is_pinned),
+    };
+}
+
+async function toggleConversationPin(): Promise<void> {
+    const cid = props.selectedConversationId;
+    const h = headerState.value;
+    if (!cid || !h || headerPinBusy.value) {
+        return;
+    }
+    headerPinBusy.value = true;
+    try {
+        const nextPinned = !h.is_pinned;
+        await axios.post(route('organization.team-chat.api.pin', cid), { pinned: nextPinned });
+        headerState.value = { ...h, is_pinned: nextPinned };
+    } catch {
+        /* ignore */
+    } finally {
+        headerPinBusy.value = false;
+    }
+}
 
 const replyJumpNotice = ref('');
 let replyJumpNoticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -226,10 +272,14 @@ async function fetchMessages(beforeId?: number | null) {
         const conv = data.conversation as {
             id?: number;
             type?: string;
+            title?: string;
+            subtitle?: string | null;
+            is_pinned?: boolean;
             department_id?: number | null;
             can_pin_room_message?: boolean;
             room_pinned_message?: TeamRoomPinned | null;
         } | undefined;
+        applyConversationHeader(conv);
         const t = conv?.type;
         conversationType.value = t === 'direct' || t === 'department' ? t : null;
         departmentId.value = typeof conv?.department_id === 'number' && conv.department_id > 0
@@ -535,6 +585,10 @@ watch(
         canPinRoomMessage.value = false;
         roomPinnedMessage.value = null;
         roomPinSending.value = false;
+        headerState.value =
+            id && props.conversationHeader && props.conversationHeader.id === id
+                ? props.conversationHeader
+                : null;
         if (!id) {
             draft.value = '';
             typingUsers.clear();
@@ -924,6 +978,15 @@ onBeforeUnmount(() => {
             </div>
             <template v-else>
                 <div class="flex flex-1 min-h-0 flex-col">
+                    <TeamChatHeader
+                        v-if="headerState"
+                        :header="headerState"
+                        :participants="participants"
+                        :typing-label="typingLabel"
+                        :pin-busy="headerPinBusy"
+                        @pin="toggleConversationPin"
+                        @calendar="openCalendarFromChat"
+                    />
                     <div
                         v-if="conversationType === 'department' && roomPinnedMessage"
                         class="shrink-0 border-b border-[var(--wa-border)] bg-[var(--wa-selected)]/20 px-3 sm:px-4 py-2"
@@ -1021,14 +1084,6 @@ onBeforeUnmount(() => {
                                     @{{ p.name }}
                                 </button>
                             </template>
-                            <button
-                                v-if="participants.length > 0"
-                                type="button"
-                                class="rounded-full border border-[var(--wa-border)] px-3 py-1.5 min-h-[40px] touch-manipulation text-[var(--wa-text)] hover:bg-[var(--wa-selected)]"
-                                @click="openCalendarFromChat"
-                            >
-                                📅 Встреча
-                            </button>
                         </div>
                         <div
                             v-if="typingLabel"
