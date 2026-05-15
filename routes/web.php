@@ -13,6 +13,7 @@ use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
@@ -82,6 +83,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats/{chat}/media-links-documents', [ChatController::class, 'mediaLinksDocuments'])->name('chats.media-links-documents');
         Route::post('/chats/{chat}/departments', [ChatController::class, 'syncDepartments'])->name('chats.departments.sync');
         Route::get('/chats/{chat}/departments/history', [ChatController::class, 'departmentHistory'])->name('chats.departments.history');
+        Route::patch('/chats/{chat}/funnel', [ChatFunnelController::class, 'update'])->name('chats.funnel.update');
+        Route::get('/chats/{chat}/funnel/history', [ChatFunnelController::class, 'history'])->name('chats.funnel.history');
         Route::post('/chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
             ->middleware('throttle:30,1')
             ->name('chats.ai.chat');
@@ -137,8 +140,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/organization/chat/api/{team_conversation}/participants', [OrganizationTeamChatController::class, 'participants'])->name('organization.team-chat.api.participants');
         Route::get('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'messages'])->name('organization.team-chat.api.messages');
         Route::post('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'storeMessage'])->name('organization.team-chat.api.messages.store');
+        Route::post('/organization/chat/api/{team_conversation}/messages/{team_message}/react', [OrganizationTeamChatController::class, 'reactToMessage'])->name('organization.team-chat.api.messages.react');
         Route::post('/organization/chat/api/{team_conversation}/read', [OrganizationTeamChatController::class, 'markRead'])->name('organization.team-chat.api.read');
         Route::post('/organization/chat/api/{team_conversation}/delivered', [OrganizationTeamChatController::class, 'markDelivered'])->name('organization.team-chat.api.delivered');
+        Route::post('/organization/chat/api/{team_conversation}/typing', [OrganizationTeamChatController::class, 'typing'])->name('organization.team-chat.api.typing');
         Route::get('/organization/chat', [OrganizationTeamChatController::class, 'index'])->name('organization.team-chat.index');
         Route::get('/organization/chat/{team_conversation}', [OrganizationTeamChatController::class, 'show'])->name('organization.team-chat.show');
         Route::get('/organization/archive', [OrganizationController::class, 'archive'])->name('organization.archive');
@@ -174,6 +179,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('settings.departments.destroy');
 
         Route::get('/funnels', [FunnelController::class, 'index'])->name('settings.funnels');
+        Route::post('/funnels/ai-suggest', [FunnelController::class, 'aiSuggest'])->name('settings.funnels.ai-suggest');
+        Route::post('/funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest'])->name('settings.funnels.ai-onboarding-suggest');
         Route::post('/funnels', [FunnelController::class, 'store'])->name('settings.funnels.store');
         Route::put('/funnels/{funnel}', [FunnelController::class, 'update'])->name('settings.funnels.update');
         Route::delete('/funnels/{funnel}', [FunnelController::class, 'destroy'])->name('settings.funnels.destroy');

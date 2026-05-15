@@ -26,9 +26,11 @@ use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Models\Product;
 use App\Models\Service;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
+use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
@@ -141,6 +143,16 @@ final class ChatController extends Controller
         ]);
         $chat->setAttribute('can_manage_ai', $request->user()->can('manageAi', $chat));
 
+        $funnelCatalog = [];
+        if (SystemSetting::getValue('module_funnels', 'on') === 'on') {
+            $chat->loadMissing(['funnel', 'funnelStage', 'departments']);
+            $funnelState = app(ChatFunnelStateService::class);
+            foreach ($funnelState->inertiaExtras($chat) as $key => $value) {
+                $chat->setAttribute($key, $value);
+            }
+            $funnelCatalog = $funnelState->catalogForClient($chat);
+        }
+
         $messages = $chat->messages()
             ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->orderByDesc('message_timestamp')
@@ -179,6 +191,7 @@ final class ChatController extends Controller
             'aiStatus' => $this->latestAiStatus($chat, $request->user()),
             'listOwnership' => $listOwnership,
             'mineChatsTotal' => $this->mineChatsListTotal($request->user(), false),
+            'funnelCatalog' => $funnelCatalog,
         ]);
     }
 

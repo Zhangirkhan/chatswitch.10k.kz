@@ -10,7 +10,7 @@ import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
-import type { AssignableUser, Chat, Department, Message, MessageReaction, Paginated } from '@/types';
+import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, MessageReaction, Paginated } from '@/types';
 import { useToastStore } from '@/stores/toast';
 
 const props = defineProps<{
@@ -51,9 +51,31 @@ const props = defineProps<{
             updated_at: string | null;
         }>;
     } | null;
+    funnelCatalog?: FunnelCatalogEntry[];
 }>();
 
 const { show: showToast } = useToastStore();
+
+const funnelRealtime = ref<Partial<Chat>>({});
+
+const headerChat = computed(() => ({
+    ...props.chat,
+    ...funnelRealtime.value,
+}));
+
+watch(
+    () => props.chat.id,
+    () => {
+        funnelRealtime.value = {};
+    },
+);
+
+watch(
+    () => props.chat.updated_at,
+    () => {
+        funnelRealtime.value = {};
+    },
+);
 
 const localMessages = ref<Message[]>([...props.messages.data].reverse());
 const localChats = ref<Paginated<Chat>>({
@@ -474,6 +496,18 @@ function setupEcho() {
             msg.reactions = (e.reactions || []) as MessageReaction[];
         }
     });
+
+    echoChannel.listen('.funnel.updated', (e: any) => {
+        funnelRealtime.value = {
+            funnel: e.funnel ?? null,
+            funnel_stage: e.stage ?? null,
+            funnel_progress_percent: typeof e.progress_percent === 'number' ? e.progress_percent : undefined,
+            funnel_progress: e.funnel_progress ?? undefined,
+            funnel_ai_last_reason: e.reason ?? null,
+            funnel_tracking_enabled: e.funnel_tracking_enabled,
+            funnel_stage_locked: e.funnel_stage_locked,
+        };
+    });
 }
 
 function cleanupEcho() {
@@ -485,16 +519,17 @@ function cleanupEcho() {
 </script>
 
 <template>
-    <Head :title="chat.chat_name || 'Чат'" />
-    <ChatLayout :chats="localChats" :selected-chat-id="chat.id">
+    <Head :title="headerChat.chat_name || 'Чат'" />
+    <ChatLayout :chats="localChats" :selected-chat-id="headerChat.id">
         <div class="flex h-full w-full min-h-0">
             <div class="flex flex-col flex-1 min-w-0 min-h-0">
                 <ChatHeader
-                    :chat="chat"
+                    :chat="headerChat"
                     :typing-users="typingUsers"
                     :departments="departments"
                     :assignable-users="assignableUsers"
                     :ai-status="aiStatus"
+                    :funnel-catalog="funnelCatalog"
                     @toggle-search="toggleSearch"
                     @show-contact-info="toggleContactInfo"
                     @open-ai="openAiPanel"

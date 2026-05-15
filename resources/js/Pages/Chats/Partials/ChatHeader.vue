@@ -3,7 +3,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
-import type { AssignableUser, Chat, Department } from '@/types';
+import type { AssignableUser, Chat, Department, FunnelCatalogEntry } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 
@@ -49,6 +49,7 @@ const props = defineProps<{
     departments?: Department[];
     assignableUsers?: AssignableUser[];
     aiStatus?: AiStatus | null;
+    funnelCatalog?: FunnelCatalogEntry[];
 }>();
 
 const page = usePage<any>();
@@ -828,6 +829,139 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
     if (!phone && !name) return null;
     return { phone, name };
 });
+
+const funnelCatalogList = computed(() => props.funnelCatalog ?? []);
+
+const funnelModuleVisible = computed(
+    () => Boolean(page.props.modules?.funnels) && !props.chat.is_group,
+);
+
+const funnelBarPercent = computed(() => {
+    const p = props.chat.funnel_progress_percent;
+    if (typeof p === 'number' && Number.isFinite(p)) {
+        return Math.min(100, Math.max(0, p));
+    }
+    return 0;
+});
+
+const funnelBarColor = computed(() => {
+    return props.chat.funnel_stage?.color || props.chat.funnel?.color || '#22c55e';
+});
+
+const funnelBarTitle = computed(() => {
+    if (!funnelModuleVisible.value) return '';
+    const fn = props.chat.funnel?.name;
+    const st = props.chat.funnel_stage?.name;
+    const reason = props.chat.funnel_ai_last_reason;
+    if (fn && st) {
+        return reason ? `${fn} — ${st}. ${reason}` : `${fn} — ${st}`;
+    }
+    return 'Воронка продаж: нажмите, чтобы выбрать этап';
+});
+
+const funnelModalOpen = ref(false);
+const funnelSaving = ref(false);
+const funnelModalFunnelId = ref<number | null>(null);
+const funnelModalStageId = ref<number | null>(null);
+const funnelModalTracking = ref(true);
+const funnelModalLocked = ref(false);
+const funnelHistoryLoading = ref(false);
+const funnelHistoryError = ref<string | null>(null);
+const funnelHistory = ref<
+    Array<{
+        id: number;
+        source: string;
+        reason: string | null;
+        confidence: number | null;
+        created_at: string | null;
+        to_funnel_id: number | null;
+        to_stage_id: number | null;
+    }>
+>([]);
+
+function openFunnelModal() {
+    if (!funnelModuleVisible.value) return;
+    funnelModalFunnelId.value = props.chat.funnel?.id ?? funnelCatalogList.value[0]?.id ?? null;
+    funnelModalStageId.value = props.chat.funnel_stage?.id ?? null;
+    funnelModalTracking.value = props.chat.funnel_tracking_enabled !== false;
+    funnelModalLocked.value = Boolean(props.chat.funnel_stage_locked);
+    funnelHistoryError.value = null;
+    funnelHistory.value = [];
+    funnelModalOpen.value = true;
+}
+
+function closeFunnelModal() {
+    funnelModalOpen.value = false;
+}
+
+const modalStages = computed(() => {
+    const fid = funnelModalFunnelId.value;
+    if (fid == null) return [];
+    const f = funnelCatalogList.value.find((x) => x.id === fid);
+    return f?.stages ?? [];
+});
+
+watch(funnelModalFunnelId, (fid) => {
+    if (fid == null) return;
+    const f = funnelCatalogList.value.find((x) => x.id === fid);
+    if (!f?.stages?.length) {
+        funnelModalStageId.value = null;
+        return;
+    }
+    if (!f.stages.some((s) => s.id === funnelModalStageId.value)) {
+        funnelModalStageId.value = f.stages[0]!.id;
+    }
+});
+
+async function loadFunnelHistory() {
+    funnelHistoryLoading.value = true;
+    funnelHistoryError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.funnel.history', props.chat.id));
+        funnelHistory.value = Array.isArray(data.data) ? data.data : [];
+    } catch (e: any) {
+        funnelHistoryError.value = e?.response?.data?.message || 'Не удалось загрузить историю';
+    } finally {
+        funnelHistoryLoading.value = false;
+    }
+}
+
+watch(funnelModalOpen, (open) => {
+    if (open) {
+        void loadFunnelHistory();
+    }
+});
+
+function onFunnelSelect(e: Event) {
+    const v = (e.target as HTMLSelectElement).value;
+    funnelModalFunnelId.value = v === '' ? null : Number(v);
+}
+
+async function saveFunnelModal() {
+    if (funnelSaving.value) return;
+    funnelSaving.value = true;
+    try {
+        const payload: Record<string, unknown> = {
+            funnel_tracking_enabled: funnelModalTracking.value,
+            funnel_stage_locked: funnelModalLocked.value,
+        };
+        if (funnelModalFunnelId.value != null && funnelModalStageId.value != null) {
+            payload.funnel_id = funnelModalFunnelId.value;
+            payload.funnel_stage_id = funnelModalStageId.value;
+        } else {
+            payload.funnel_id = null;
+            payload.funnel_stage_id = null;
+        }
+        await axios.patch(route('chats.funnel.update', props.chat.id), payload);
+        closeFunnelModal();
+        await router.reload({ only: ['chat', 'funnelCatalog'] });
+    } catch (e: any) {
+        const msg = e?.response?.data?.message || e?.response?.data?.errors?.funnel_id?.[0] || 'Не удалось сохранить';
+        window.alert(typeof msg === 'string' ? msg : 'Ошибка сохранения');
+    } finally {
+        funnelSaving.value = false;
+    }
+}
 </script>
 
 <template>
@@ -1936,6 +2070,146 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
                                 <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">{{ formatAssignmentTime(item.at) }}</div>
                             </li>
                         </ol>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <button
+            v-if="funnelModuleVisible"
+            type="button"
+            class="absolute inset-x-0 bottom-0 z-[5] h-3 w-full border-0 p-0 m-0 bg-transparent cursor-pointer group"
+            :title="funnelBarTitle"
+            aria-label="Воронка продаж — открыть настройку"
+            @click="openFunnelModal"
+        >
+            <span
+                class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-black/10 dark:bg-white/10"
+                aria-hidden="true"
+            />
+            <span
+                class="pointer-events-none absolute left-0 bottom-0 h-[3px] rounded-r transition-[width] duration-700 ease-out group-hover:opacity-90"
+                :style="{ width: funnelBarPercent + '%', backgroundColor: funnelBarColor }"
+                aria-hidden="true"
+            />
+        </button>
+
+        <Teleport to="body">
+            <div
+                v-if="funnelModalOpen"
+                class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/55 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Воронка продаж"
+                @click.self="closeFunnelModal"
+            >
+                <div
+                    class="w-full max-w-[560px] max-h-[min(90vh,720px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <div class="px-5 py-4 flex items-center justify-between border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div>
+                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Воронка продаж</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Этап в чате с клиентом (и авто-оценка по входящим)</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
+                            aria-label="Закрыть"
+                            @click="closeFunnelModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+                        <div v-if="funnelCatalogList.length === 0" class="text-sm text-[var(--wa-text-secondary)] rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
+                            Нет доступных воронок. Подключите воронки к отделам чата в настройках отделов.
+                        </div>
+
+                        <template v-else>
+                            <div>
+                                <label class="block text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">Воронка</label>
+                                <select
+                                    :value="funnelModalFunnelId === null ? '' : String(funnelModalFunnelId)"
+                                    class="w-full rounded-xl border px-3 py-2 text-sm bg-[var(--wa-panel-header)] text-[var(--wa-text)]"
+                                    :style="{ borderColor: 'var(--wa-border)' }"
+                                    @change="onFunnelSelect"
+                                >
+                                    <option value="">Не выбрано (сброс)</option>
+                                    <option v-for="f in funnelCatalogList" :key="f.id" :value="String(f.id)">{{ f.name }}</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <div class="text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">Этап</div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        v-for="s in modalStages"
+                                        :key="s.id"
+                                        type="button"
+                                        class="px-3 py-1.5 rounded-full text-xs border transition"
+                                        :class="funnelModalStageId === s.id ? 'ring-2 ring-offset-1 ring-[var(--wa-accent)]' : ''"
+                                        :style="{
+                                            borderColor: 'var(--wa-border)',
+                                            background: funnelModalStageId === s.id ? 'var(--wa-panel-hover)' : 'var(--wa-panel-header)',
+                                            color: 'var(--wa-text)',
+                                        }"
+                                        @click="funnelModalStageId = s.id"
+                                    >
+                                        {{ s.name }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
+                                <input v-model="funnelModalTracking" type="checkbox" class="rounded border-[var(--wa-border)]" />
+                                Авто-оценка этапа по входящим сообщениям
+                            </label>
+                            <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
+                                <input v-model="funnelModalLocked" type="checkbox" class="rounded border-[var(--wa-border)]" />
+                                Закрепить этап (AI не меняет)
+                            </label>
+
+                            <div class="flex gap-2">
+                                <button
+                                    type="button"
+                                    class="flex-1 py-2.5 rounded-xl text-sm font-medium border"
+                                    :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                                    :disabled="funnelSaving"
+                                    @click="
+                                        funnelModalFunnelId = null;
+                                        funnelModalStageId = null;
+                                    "
+                                >
+                                    Сбросить воронку
+                                </button>
+                                <button
+                                    type="button"
+                                    class="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--wa-accent)] hover:opacity-95 disabled:opacity-50"
+                                    :disabled="funnelSaving"
+                                    @click="saveFunnelModal"
+                                >
+                                    {{ funnelSaving ? 'Сохранение…' : 'Сохранить' }}
+                                </button>
+                            </div>
+
+                            <div class="border-t pt-4" :style="{ borderColor: 'var(--wa-border)' }">
+                                <div class="text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">История переходов</div>
+                                <div v-if="funnelHistoryLoading" class="text-sm text-[var(--wa-text-secondary)]">Загрузка…</div>
+                                <div v-else-if="funnelHistoryError" class="text-sm text-[var(--wa-danger)]">{{ funnelHistoryError }}</div>
+                                <ul v-else-if="funnelHistory.length" class="space-y-2 max-h-48 overflow-y-auto wa-scrollbar text-xs text-[var(--wa-text-secondary)]">
+                                    <li v-for="h in funnelHistory" :key="h.id" class="border rounded-lg px-3 py-2" :style="{ borderColor: 'var(--wa-border)' }">
+                                        <span class="text-[var(--wa-text)]">{{ h.source }}</span>
+                                        <span v-if="h.reason"> — {{ h.reason }}</span>
+                                        <div class="mt-0.5 opacity-80">{{ h.created_at }}</div>
+                                    </li>
+                                </ul>
+                                <div v-else class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей</div>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>

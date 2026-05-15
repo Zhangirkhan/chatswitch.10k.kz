@@ -185,3 +185,23 @@ GET /analytics/funnels   →   Api\FunnelAnalyticsController
 | Создание / редактирование / удаление воронок и этапов | `administrator` |
 | Подключение воронок к отделу | `administrator` |
 | Просмотр аналитики по воронкам | `administrator`, `manager`, `employee` |
+
+---
+
+## AI-трекинг и ручная смена этапа в чате (WhatsApp)
+
+Работает только для **чатов с клиентом** (не группы), при включённом модуле `module_funnels`.
+
+### Как устроено
+
+1. **Каталог** для чата строится из отделов, прикреплённых к чату: воронки из `department_funnel` и этапы из `department_funnel_stage` (если этапы для воронки не выбраны — берутся все активные этапы воронки).
+2. После **каждого входящего** сообщения клиента (очередь WhatsApp) ставится отложенная задача `AnalyzeChatFunnelJob` (debounce по `config/funnel.php`, по умолчанию 45 с). К моменту запуска проверяется, что это всё ещё последнее входящее сообщение — иначе задача пропускается.
+3. **Независимо от AI-автоответа** (`ai_enabled`): классификация вызывается отдельно через `ChatFunnelClassifierService` (OpenAI JSON). Если у чата включён **«Закрепить этап»** (`funnel_stage_locked`), AI не меняет воронку.
+4. Состояние хранится в `chats`: `funnel_id`, `funnel_stage_id`, `funnel_tracking_enabled`, `funnel_stage_locked`, служебные поля последнего анализа. История переходов — `chat_funnel_transitions`.
+5. **Realtime:** событие `ChatFunnelUpdated` на канале `private-chat.{id}` с именем `funnel.updated` — шапка чата обновляет зелёную полоску прогресса без перезагрузки страницы.
+6. **Ручная смена:** клик по полоске в шапке открывает модалку; API `PATCH /chats/{chat}/funnel`, история `GET /chats/{chat}/funnel/history`.
+
+### Переменные окружения (опционально)
+
+См. `config/funnel.php`: `FUNNEL_AI_MIN_CONFIDENCE`, `FUNNEL_AI_ROLLBACK_MIN_CONFIDENCE`, `FUNNEL_AI_DEBOUNCE_SECONDS`, и т.д.
+

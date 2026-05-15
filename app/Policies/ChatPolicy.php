@@ -54,6 +54,11 @@ final class ChatPolicy
         return false;
     }
 
+    public function manageFunnel(User $user, Chat $chat): bool
+    {
+        return $this->view($user, $chat);
+    }
+
     public function sendMessage(User $user, Chat $chat): bool
     {
         return $this->view($user, $chat);

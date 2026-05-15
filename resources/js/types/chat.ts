@@ -96,6 +96,22 @@ export interface Chat {
     ai_responder?: { id: number; name: string } | null;
     can_manage_ai?: boolean;
     created_at?: string;
+    updated_at?: string | null;
+    funnel?: { id: number; name: string; color: string } | null;
+    funnel_stage?: { id: number; name: string; color: string; position: number } | null;
+    funnel_tracking_enabled?: boolean;
+    funnel_stage_locked?: boolean;
+    funnel_progress_percent?: number;
+    funnel_progress?: { percent: number; stage_index: number | null; stages_count: number };
+    funnel_ai_last_reason?: string | null;
+}
+
+export interface FunnelCatalogEntry {
+    id: number;
+    name: string;
+    description: string | null;
+    color: string;
+    stages: Array<{ id: number; name: string; color: string; position: number }>;
 }
 
 export interface MessageReaction {

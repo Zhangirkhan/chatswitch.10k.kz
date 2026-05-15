@@ -36,6 +36,13 @@ final class Chat extends Model
         'ai_enabled',
         'ai_mode',
         'ai_responder_user_id',
+        'funnel_id',
+        'funnel_stage_id',
+        'funnel_tracking_enabled',
+        'funnel_stage_locked',
+        'funnel_ai_last_analyzed_at',
+        'funnel_ai_last_message_id',
+        'funnel_ai_last_reason',
     ];
 
     protected function casts(): array
@@ -47,8 +54,11 @@ final class Chat extends Model
             'is_muted' => 'boolean',
             'is_favorite' => 'boolean',
             'ai_enabled' => 'boolean',
+            'funnel_tracking_enabled' => 'boolean',
+            'funnel_stage_locked' => 'boolean',
             'last_message_at' => 'datetime',
             'muted_until' => 'datetime',
+            'funnel_ai_last_analyzed_at' => 'datetime',
         ];
     }
 
@@ -117,5 +127,29 @@ final class Chat extends Model
     {
         return $this->belongsToMany(Department::class, 'chat_department')
             ->withTimestamps();
+    }
+
+    /**
+     * @return BelongsTo<Funnel, $this>
+     */
+    public function funnel(): BelongsTo
+    {
+        return $this->belongsTo(Funnel::class);
+    }
+
+    /**
+     * @return BelongsTo<FunnelStage, $this>
+     */
+    public function funnelStage(): BelongsTo
+    {
+        return $this->belongsTo(FunnelStage::class, 'funnel_stage_id');
+    }
+
+    /**
+     * @return HasMany<ChatFunnelTransition>
+     */
+    public function funnelTransitions(): HasMany
+    {
+        return $this->hasMany(ChatFunnelTransition::class)->orderByDesc('created_at');
     }
 }
