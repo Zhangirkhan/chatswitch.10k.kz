@@ -1,4 +1,5 @@
 import '../css/app.css';
+import '../css/wa-chat-composer.css';
 import './bootstrap';
 import { initTheme } from './composables/useTheme';
 import { initChatBackground } from './composables/useChatBackground';

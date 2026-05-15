@@ -4,6 +4,7 @@ import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import TeamChatMessage, { type TeamChatMessageModel } from './Partials/TeamChatMessage.vue';
+import TeamChatInput from './Partials/TeamChatInput.vue';
 import type { OrgDepartment } from '../Partials/OrganizationSidebar.vue';
 import type { MessageReaction, PageProps } from '@/types';
 
@@ -32,7 +33,6 @@ const myUserId = () => page.props.auth?.user?.id ?? 0;
 const messages = ref<TeamMsg[]>([]);
 const draft = ref('');
 const pendingAttachments = ref<File[]>([]);
-const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const sending = ref(false);
 const loading = ref(false);
 const hasMore = ref(true);
@@ -572,21 +572,72 @@ watch(
     },
 );
 
-function onAttachmentInputChange(e: Event): void {
-    const t = e.target as HTMLInputElement;
-    const picked = t.files ? Array.from(t.files) : [];
-    t.value = '';
-    if (picked.length === 0) return;
-    const max = 5;
-    pendingAttachments.value = [...pendingAttachments.value, ...picked].slice(0, max);
+async function postMessage(formDataOrPayload: FormData | Record<string, unknown>): Promise<void> {
+    const cid = props.selectedConversationId;
+    if (!cid) return;
+
+    const { data } = await axios.post(
+        route('organization.team-chat.api.messages.store', cid),
+        formDataOrPayload,
+    );
+
+    draft.value = '';
+    if (cid) {
+        clearDraftInStorage(cid);
+    }
+    pendingAttachments.value = [];
+    mentionUserIds.value = [];
+    replyToMessage.value = null;
+
+    const m = data.message as TeamMsg | undefined;
+    if (m?.id) {
+        const existsById = messages.value.some((x) => x.id === m.id);
+        const existsByClient =
+            m.client_message_id
+            && messages.value.some((x) => x.client_message_id === m.client_message_id);
+        if (!existsById && !existsByClient) {
+            messages.value = [...messages.value, normalizeTeamMsg(m)];
+        }
+    }
+    await nextTick(() => scrollToBottom());
+    void markRead();
 }
 
-function removePendingAttachment(index: number): void {
-    pendingAttachments.value = pendingAttachments.value.filter((_, i) => i !== index);
-}
+function buildMessagePayload(text: string, clientMessageId: string): FormData | Record<string, unknown> {
+    const files = pendingAttachments.value;
+    if (files.length > 0) {
+        const fd = new FormData();
+        if (text !== '') {
+            fd.append('body', text);
+        }
+        fd.append('client_message_id', clientMessageId);
+        if (mentionUserIds.value.length > 0) {
+            for (const id of mentionUserIds.value) {
+                fd.append('mention_user_ids[]', String(id));
+            }
+        }
+        const reply = replyToMessage.value;
+        if (reply?.id) {
+            fd.append('parent_team_message_id', String(reply.id));
+        }
+        for (const f of files) {
+            fd.append('attachments[]', f);
+        }
+        return fd;
+    }
 
-function openAttachmentPicker(): void {
-    attachmentInputRef.value?.click();
+    const payload: Record<string, unknown> = {
+        body: text,
+        client_message_id: clientMessageId,
+    };
+    if (mentionUserIds.value.length > 0) {
+        payload.mention_user_ids = [...mentionUserIds.value];
+    }
+    const reply = replyToMessage.value;
+    if (reply?.id) {
+        payload.parent_team_message_id = reply.id;
+    }
+    return payload;
 }
 
 async function send() {
@@ -598,74 +649,31 @@ async function send() {
     sending.value = true;
     const clientMessageId = crypto.randomUUID();
     try {
-        const hasFiles = files.length > 0;
-        if (hasFiles) {
-            const fd = new FormData();
-            if (text !== '') {
-                fd.append('body', draft.value);
-            }
-            fd.append('client_message_id', clientMessageId);
-            if (mentionUserIds.value.length > 0) {
-                for (const id of mentionUserIds.value) {
-                    fd.append('mention_user_ids[]', String(id));
-                }
-            }
-            const reply = replyToMessage.value;
-            if (reply?.id) {
-                fd.append('parent_team_message_id', String(reply.id));
-            }
-            for (const f of files) {
-                fd.append('attachments[]', f);
-            }
-            const { data } = await axios.post(route('organization.team-chat.api.messages.store', cid), fd);
-            draft.value = '';
-            clearDraftInStorage(cid);
-            pendingAttachments.value = [];
-            mentionUserIds.value = [];
-            replyToMessage.value = null;
-            const m = data.message as TeamMsg | undefined;
-            if (m?.id) {
-                const existsById = messages.value.some((x) => x.id === m.id);
-                const existsByClient =
-                    m.client_message_id
-                    && messages.value.some((x) => x.client_message_id === m.client_message_id);
-                if (!existsById && !existsByClient) {
-                    messages.value = [...messages.value, normalizeTeamMsg(m)];
-                }
-            }
-            await nextTick(() => scrollToBottom());
-            void markRead();
-            return;
-        }
+        await postMessage(buildMessagePayload(text, clientMessageId));
+    } finally {
+        sending.value = false;
+    }
+}
 
-        const payload: Record<string, unknown> = {
-            body: text,
-            client_message_id: clientMessageId,
-        };
+async function sendVoice(file: File): Promise<void> {
+    const cid = props.selectedConversationId;
+    if (!cid || sending.value) return;
+    sending.value = true;
+    const clientMessageId = crypto.randomUUID();
+    try {
+        const fd = new FormData();
+        fd.append('client_message_id', clientMessageId);
+        fd.append('attachments[]', file);
         if (mentionUserIds.value.length > 0) {
-            payload.mention_user_ids = [...mentionUserIds.value];
+            for (const id of mentionUserIds.value) {
+                fd.append('mention_user_ids[]', String(id));
+            }
         }
         const reply = replyToMessage.value;
         if (reply?.id) {
-            payload.parent_team_message_id = reply.id;
+            fd.append('parent_team_message_id', String(reply.id));
         }
-        const { data } = await axios.post(route('organization.team-chat.api.messages.store', cid), payload);
-        draft.value = '';
-        clearDraftInStorage(cid);
-        mentionUserIds.value = [];
-        replyToMessage.value = null;
-        const m = data.message as TeamMsg | undefined;
-        if (m?.id) {
-            const existsById = messages.value.some((x) => x.id === m.id);
-            const existsByClient =
-                m.client_message_id
-                && messages.value.some((x) => x.client_message_id === m.client_message_id);
-            if (!existsById && !existsByClient) {
-                messages.value = [...messages.value, normalizeTeamMsg(m)];
-            }
-        }
-        await nextTick(() => scrollToBottom());
-        void markRead();
+        await postMessage(fd);
     } finally {
         sending.value = false;
     }
@@ -827,13 +835,6 @@ async function loadMore() {
     await nextTick();
     if (el) {
         el.scrollTop = el.scrollHeight - prev;
-    }
-}
-
-function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        void send();
     }
 }
 
@@ -1051,59 +1052,15 @@ onBeforeUnmount(() => {
                                 @click="clearReplyTo"
                             >×</button>
                         </div>
-                        <div v-if="pendingAttachments.length" class="flex flex-wrap gap-1.5 text-xs">
-                            <span
-                                v-for="(f, fi) in pendingAttachments"
-                                :key="`${f.name}-${fi}-${f.size}`"
-                                class="inline-flex items-center gap-1 rounded-full border border-[var(--wa-border)] bg-[var(--wa-panel-header)] pl-2 pr-1 py-0.5 max-w-full"
-                            >
-                                <span class="truncate max-w-[10rem]">{{ f.name }}</span>
-                                <button
-                                    type="button"
-                                    class="shrink-0 rounded-full px-1 opacity-60 hover:opacity-100"
-                                    :aria-label="`Убрать ${f.name}`"
-                                    @click="removePendingAttachment(fi)"
-                                >×</button>
-                            </span>
-                        </div>
-                        <div class="flex gap-2 items-end">
-                        <input
-                            ref="attachmentInputRef"
-                            type="file"
-                            class="sr-only"
-                            multiple
-                            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
-                            @change="onAttachmentInputChange"
-                        />
-                        <button
-                            type="button"
-                            class="shrink-0 min-h-[44px] min-w-[44px] rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel-header)] text-[var(--wa-accent)] flex items-center justify-center disabled:opacity-40 hover:bg-[var(--wa-selected)]/40 transition-colors"
-                            :disabled="sending"
-                            title="Прикрепить файл (до 5)"
-                            aria-label="Прикрепить файл"
-                            @click="openAttachmentPicker"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.14-7.693 7.693a2.25 2.25 0 0 0 3.182 3.182l7.693-7.693a.75.75 0 0 0-1.06-1.06l-7.693 7.693Z" />
-                            </svg>
-                        </button>
-                        <textarea
+                        <TeamChatInput
                             v-model="draft"
-                            rows="2"
-                            class="flex-1 min-h-[44px] resize-none rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel-header)] px-3 py-2 text-base sm:text-sm text-[var(--wa-text)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
-                            placeholder="Сообщение…"
-                            @input="onDraftInput"
-                            @keydown="onKeydown"
+                            v-model:attachments="pendingAttachments"
+                            :disabled="sending"
+                            placeholder="Введите сообщение"
+                            @typing="onDraftInput"
+                            @submit="send"
+                            @voice="sendVoice"
                         />
-                        <button
-                            type="button"
-                            class="shrink-0 min-h-[44px] min-w-[44px] px-3 sm:px-4 rounded-lg text-sm font-medium text-[var(--wa-unread-text,#0b0d0e)] bg-[var(--wa-accent)] disabled:opacity-50"
-                            :disabled="sending || (!draft.trim() && pendingAttachments.length === 0)"
-                            @click="send"
-                        >
-                            Отправить
-                        </button>
-                        </div>
                     </div>
                 </div>
                 </div>

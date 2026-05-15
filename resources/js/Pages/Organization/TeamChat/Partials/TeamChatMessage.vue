@@ -111,6 +111,10 @@ const MENU_REACTION_GAP = 6;
 const canReply = computed(() => !props.message.reply_to);
 const hasBody = computed(() => (props.message.body ?? '').trim() !== '');
 
+function isAudioAttachment(a: TeamAttachment): boolean {
+    return (a.mime_type ?? '').startsWith('audio/');
+}
+
 type TeamBodySeg = { text: string; mentionUserId?: number };
 
 function teamMessageBodySegments(body: string, mentioned: { id: number; name: string }[] | undefined): TeamBodySeg[] {
@@ -487,6 +491,15 @@ onBeforeUnmount(() => {
                             decoding="async"
                         />
                     </a>
+                    <audio
+                        v-else-if="isAudioAttachment(a)"
+                        :src="a.url"
+                        controls
+                        preload="metadata"
+                        playsinline
+                        class="block w-full max-w-[min(100%,320px)] h-9"
+                        @click.stop
+                    />
                     <a
                         v-else
                         :href="a.url"
