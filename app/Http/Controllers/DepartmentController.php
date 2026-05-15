@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\FunnelStage;
 use App\Models\User;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ final class DepartmentController extends Controller
 
         // Воронки со списком этапов — нужны для пикера в модалке отдела.
         $funnels = Funnel::query()
+            ->where('company_id', TenantCompany::id())
             ->with(['stages'])
             ->orderBy('position')
             ->orderBy('id')

@@ -45,4 +45,9 @@ final class Company extends Model
     {
         return $this->hasOne(CompanyToneProfile::class);
     }
+
+    public function funnels(): HasMany
+    {
+        return $this->hasMany(Funnel::class);
+    }
 }

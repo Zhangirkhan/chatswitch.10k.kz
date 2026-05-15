@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -18,6 +19,7 @@ final class Funnel extends Model
     use HasFactory;
 
     protected $fillable = [
+        'company_id',
         'name',
         'description',
         'color',
@@ -28,9 +30,18 @@ final class Funnel extends Model
     protected function casts(): array
     {
         return [
+            'company_id' => 'integer',
             'is_active' => 'boolean',
             'position' => 'integer',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Company, $this>
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     /**
