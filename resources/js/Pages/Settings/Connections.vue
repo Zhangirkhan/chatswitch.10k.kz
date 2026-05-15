@@ -80,6 +80,62 @@ function sessionLabel(session: WhatsappSession): string {
     return session.display_name?.trim() || session.session_name;
 }
 
+const dayInMs = 24 * 60 * 60 * 1000;
+const fullDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+const timeOnlyFormatter = new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+});
+const dateThisYearFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+/**
+ * Человеко-читаемый формат для меток подключения:
+ * «сегодня в 14:19», «вчера в 14:19», «14 мая, 14:19», «14.05.2025, 14:19».
+ */
+function formatDateTime(value: string | null | undefined): string {
+    if (!value) return '—';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const diffDays = Math.round((startOfToday - startOfTarget) / dayInMs);
+
+    if (diffDays === 0) {
+        return `сегодня в ${timeOnlyFormatter.format(date)}`;
+    }
+    if (diffDays === 1) {
+        return `вчера в ${timeOnlyFormatter.format(date)}`;
+    }
+    if (date.getFullYear() === now.getFullYear()) {
+        return dateThisYearFormatter.format(date);
+    }
+
+    return fullDateFormatter.format(date);
+}
+
+function fullDateTimeTitle(value: string | null | undefined): string {
+    if (!value) return '';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return fullDateFormatter.format(date);
+}
+
 function errorMessage(err: unknown, fallback = 'Ошибка выполнения действия'): string {
     const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } }; message?: string };
     const errors = e.response?.data?.errors;
@@ -176,7 +232,7 @@ async function loadQr(session: WhatsappSession, options: { silent?: boolean } = 
             qrBySessionId.value = { ...qrBySessionId.value, [session.id]: qr };
             qrUpdatedAtBySessionId.value = {
                 ...qrUpdatedAtBySessionId.value,
-                [session.id]: new Date().toLocaleTimeString(),
+                [session.id]: timeOnlyFormatter.format(new Date()),
             };
             return;
         }
@@ -441,7 +497,21 @@ function reloadPage(): void {
                         </div>
                         <div>
                             <dt class="text-xs text-[var(--wa-text-secondary)]">Подключено</dt>
-                            <dd class="text-[var(--wa-text)]">{{ session.connected_at || '-' }}</dd>
+                            <dd
+                                class="text-[var(--wa-text)]"
+                                :title="fullDateTimeTitle(session.connected_at)"
+                            >
+                                {{ formatDateTime(session.connected_at) }}
+                            </dd>
+                        </div>
+                        <div v-if="session.disconnected_at && session.status !== 'connected'">
+                            <dt class="text-xs text-[var(--wa-text-secondary)]">Отключено</dt>
+                            <dd
+                                class="text-[var(--wa-text)]"
+                                :title="fullDateTimeTitle(session.disconnected_at)"
+                            >
+                                {{ formatDateTime(session.disconnected_at) }}
+                            </dd>
                         </div>
                     </dl>
 
