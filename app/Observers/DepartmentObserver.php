@@ -15,6 +15,7 @@ final class DepartmentObserver
 
     public function created(Department $department): void
     {
-        $this->teamDepartmentChatSync->ensureDepartmentConversation($department);
+        $conversation = $this->teamDepartmentChatSync->ensureDepartmentConversation($department);
+        $this->teamDepartmentChatSync->syncAdministratorsToDepartment($department, $conversation);
     }
 }

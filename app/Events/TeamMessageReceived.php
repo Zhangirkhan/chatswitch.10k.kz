@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\TeamMessage;
+use App\Models\TeamMessageReaction;
 use App\Models\User;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -20,7 +21,7 @@ final class TeamMessageReceived implements ShouldBroadcastNow
     public function __construct(
         public readonly TeamMessage $message,
     ) {
-        $this->message->loadMissing(['sender:id,name', 'conversation', 'parentMessage.sender:id,name']);
+        $this->message->loadMissing(['sender:id,name', 'conversation', 'parentMessage.sender:id,name', 'attachments', 'reactions.user:id,name']);
     }
 
     /** @return array<int, Channel> */
@@ -78,6 +79,24 @@ final class TeamMessageReceived implements ShouldBroadcastNow
             ];
         }
 
+        $attachments = $m->attachments->map(static function ($a): array {
+            return [
+                'id' => $a->id,
+                'original_name' => $a->original_name,
+                'url' => $a->url(),
+                'mime_type' => $a->mime_type,
+                'size' => (int) $a->size,
+                'is_image' => $a->isImage(),
+            ];
+        })->values()->all();
+
+        $reactions = $m->reactions->map(static fn (TeamMessageReaction $r): array => $r->toApiArray())->values()->all();
+
+        $linkPreview = $m->link_preview;
+        if (! is_array($linkPreview) || $linkPreview === []) {
+            $linkPreview = null;
+        }
+
         return [
             'conversation_id' => $m->team_conversation_id,
             'message' => [
@@ -91,6 +110,9 @@ final class TeamMessageReceived implements ShouldBroadcastNow
                 'mentioned_users' => $mentionedUsers,
                 'forward' => $forward,
                 'reply_to' => $m->replyToApiFragment(),
+                'attachments' => $attachments,
+                'link_preview' => $linkPreview,
+                'reactions' => $reactions,
                 'created_at' => $m->created_at?->toIso8601String(),
                 'sender' => $m->sender ? [
                     'id' => $m->sender->id,

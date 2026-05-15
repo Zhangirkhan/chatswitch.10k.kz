@@ -1,25 +1,13 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
+import TeamChatMessage, { type TeamChatMessageModel } from './Partials/TeamChatMessage.vue';
 import type { OrgDepartment } from '../Partials/OrganizationSidebar.vue';
-import type { PageProps } from '@/types';
+import type { MessageReaction, PageProps } from '@/types';
 
 const DRAFTS_KEY = 'chatswitch:orgTeamChatDrafts:v1';
-
-type TeamForward = {
-    from_message_id: number;
-    source_title: string;
-    quote_sender_name: string;
-    quote_body: string;
-};
-
-type TeamReplyTo = {
-    id: number;
-    sender_name: string;
-    body_preview: string;
-};
 
 type TeamRoomPinned = {
     id: number;
@@ -27,20 +15,7 @@ type TeamRoomPinned = {
     body_preview: string;
 };
 
-type TeamMsg = {
-    id: number;
-    team_conversation_id: number;
-    parent_team_message_id?: number | null;
-    sender_id: number;
-    body: string;
-    client_message_id?: string | null;
-    mentioned_user_ids?: number[];
-    mentioned_users?: { id: number; name: string }[];
-    forward?: TeamForward | null;
-    reply_to?: TeamReplyTo | null;
-    created_at: string | null;
-    sender: { id: number; name: string } | null;
-};
+type TeamMsg = TeamChatMessageModel;
 
 type TeamConvPick = { id: number; title: string; subtitle: string | null };
 
@@ -56,15 +31,20 @@ const myUserId = () => page.props.auth?.user?.id ?? 0;
 
 const messages = ref<TeamMsg[]>([]);
 const draft = ref('');
+const pendingAttachments = ref<File[]>([]);
+const attachmentInputRef = ref<HTMLInputElement | null>(null);
 const sending = ref(false);
 const loading = ref(false);
 const hasMore = ref(true);
 const threadEl = ref<HTMLElement | null>(null);
 const conversationType = ref<'direct' | 'department' | null>(null);
+const departmentId = ref<number | null>(null);
 const peerLastReadMessageId = ref<number | null>(null);
 const peerLastDeliveredMessageId = ref<number | null>(null);
 /** В группе отдела: min(last_delivered) по остальным участникам — для подписи «Доставлено» ко всем. */
 const othersMinDeliveredMessageId = ref<number | null>(null);
+/** В группе отдела: min(last_read) по остальным — «Прочитано» всеми. */
+const othersMinReadMessageId = ref<number | null>(null);
 const participants = ref<TeamParticipant[]>([]);
 const mentionUserIds = ref<number[]>([]);
 
@@ -77,9 +57,26 @@ const forwardSending = ref(false);
 
 const replyToMessage = ref<TeamMsg | null>(null);
 
+/** user_id → имя; только собеседники (не я). */
+const typingUsers = reactive(new Map<number, string>());
+let typingPingTimer: ReturnType<typeof setTimeout> | null = null;
+
+const typingLabel = computed((): string => {
+    const names = [...typingUsers.values()];
+    if (names.length === 0) {
+        return '';
+    }
+    if (names.length === 1) {
+        return `${names[0]} печатает…`;
+    }
+    return `${names.join(', ')} печатают…`;
+});
+
 const canPinRoomMessage = ref(false);
 const roomPinnedMessage = ref<TeamRoomPinned | null>(null);
 const roomPinSending = ref(false);
+
+const taskFromMessageSending = ref(false);
 
 const replyJumpNotice = ref('');
 let replyJumpNoticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -176,6 +173,8 @@ function outgoingDmReceiptLabel(m: TeamMsg): 'read' | 'delivered' | 'sent' | nul
         return 'sent';
     }
     if (conversationType.value === 'department') {
+        const readMin = othersMinReadMessageId.value;
+        if (readMin !== null && m.id <= readMin) return 'read';
         const d = othersMinDeliveredMessageId.value;
         if (d !== null && m.id <= d) return 'delivered';
         return 'sent';
@@ -187,6 +186,7 @@ type TeamReadMetaPayload = {
     peer_last_read_message_id?: number | null;
     peer_last_delivered_message_id?: number | null;
     others_min_last_delivered_message_id?: number | null;
+    others_min_last_read_message_id?: number | null;
 };
 
 function applyReadMetaFromPayload(rm: TeamReadMetaPayload | undefined): void {
@@ -196,6 +196,8 @@ function applyReadMetaFromPayload(rm: TeamReadMetaPayload | undefined): void {
     peerLastDeliveredMessageId.value = typeof pd === 'number' && pd > 0 ? pd : null;
     const om = rm?.others_min_last_delivered_message_id;
     othersMinDeliveredMessageId.value = typeof om === 'number' && om >= 0 ? om : null;
+    const or = rm?.others_min_last_read_message_id;
+    othersMinReadMessageId.value = typeof or === 'number' && or >= 0 ? or : null;
 }
 
 async function refreshReadMeta(): Promise<void> {
@@ -224,11 +226,15 @@ async function fetchMessages(beforeId?: number | null) {
         const conv = data.conversation as {
             id?: number;
             type?: string;
+            department_id?: number | null;
             can_pin_room_message?: boolean;
             room_pinned_message?: TeamRoomPinned | null;
         } | undefined;
         const t = conv?.type;
         conversationType.value = t === 'direct' || t === 'department' ? t : null;
+        departmentId.value = typeof conv?.department_id === 'number' && conv.department_id > 0
+            ? conv.department_id
+            : null;
         if (typeof conv?.can_pin_room_message === 'boolean') {
             canPinRoomMessage.value = conv.can_pin_room_message;
         }
@@ -238,9 +244,9 @@ async function fetchMessages(beforeId?: number | null) {
         );
 
         if (beforeId) {
-            messages.value = [...incoming, ...messages.value];
+            messages.value = [...incoming.map(normalizeTeamMsg), ...messages.value];
         } else {
-            messages.value = incoming;
+            messages.value = incoming.map(normalizeTeamMsg);
             await nextTick();
             scrollToBottom();
         }
@@ -288,83 +294,6 @@ function toggleMentionColleague(id: number) {
     mentionUserIds.value = [...set];
 }
 
-/** Сегменты текста для подсветки @Имя по списку упомянутых (фаза 2 roadmap). */
-type TeamBodySeg = { text: string; mentionUserId?: number };
-
-function teamMessageBodySegments(body: string, mentioned: { id: number; name: string }[] | undefined): TeamBodySeg[] {
-    const users = (mentioned ?? []).filter((u) => u.name.trim() !== '');
-    if (!body || users.length === 0) {
-        return [{ text: body }];
-    }
-    const sorted = [...users].sort((a, b) => b.name.length - a.name.length);
-    const out: TeamBodySeg[] = [];
-    let buf = '';
-    const flushBuf = (): void => {
-        if (buf !== '') {
-            out.push({ text: buf });
-            buf = '';
-        }
-    };
-    let i = 0;
-    while (i < body.length) {
-        if (body[i] === '@') {
-            let matched: { id: number; name: string } | null = null;
-            for (const u of sorted) {
-                const name = u.name;
-                if (name === '') continue;
-                if (body.startsWith(name, i + 1)) {
-                    const after = i + 1 + name.length;
-                    const ch = body[after];
-                    if (ch !== undefined && /[\p{L}\p{N}_]/u.test(ch)) {
-                        continue;
-                    }
-                    matched = u;
-                    break;
-                }
-            }
-            if (matched) {
-                flushBuf();
-                out.push({ text: `@${matched.name}`, mentionUserId: matched.id });
-                i += 1 + matched.name.length;
-                continue;
-            }
-        }
-        buf += body[i];
-        i++;
-    }
-    flushBuf();
-    return out;
-}
-
-function mentionAppearsInBody(body: string, name: string): boolean {
-    const needle = `@${name}`;
-    if (name.trim() === '') {
-        return false;
-    }
-    let idx = body.indexOf(needle);
-    while (idx !== -1) {
-        const after = idx + needle.length;
-        const ch = body[after];
-        if (ch === undefined || !/[\p{L}\p{N}_]/u.test(ch)) {
-            return true;
-        }
-        idx = body.indexOf(needle, idx + 1);
-    }
-    return false;
-}
-
-function mentionedUsersNotInBody(m: TeamMsg): { id: number; name: string }[] {
-    const users = m.mentioned_users ?? [];
-    if (users.length === 0) {
-        return [];
-    }
-    const body = m.body ?? '';
-    if (body === '') {
-        return users;
-    }
-    return users.filter((u) => !mentionAppearsInBody(body, u.name));
-}
-
 async function markRead() {
     const cid = props.selectedConversationId;
     if (!cid) return;
@@ -380,6 +309,63 @@ function scrollToBottom() {
     if (el) el.scrollTop = el.scrollHeight;
 }
 
+function scheduleTypingPing(): void {
+    const cid = props.selectedConversationId;
+    if (!cid || sending.value) {
+        return;
+    }
+    if (typingPingTimer) {
+        clearTimeout(typingPingTimer);
+    }
+    typingPingTimer = setTimeout(() => {
+        typingPingTimer = null;
+        void axios.post(route('organization.team-chat.api.typing', cid)).catch(() => {});
+    }, 520);
+}
+
+function onDraftInput(): void {
+    if (!props.selectedConversationId || sending.value) {
+        return;
+    }
+    if (draft.value === '' && pendingAttachments.value.length === 0) {
+        return;
+    }
+    scheduleTypingPing();
+}
+
+function patchMessageReactions(messageId: number, reactions: MessageReaction[]): void {
+    messages.value = messages.value.map((row) =>
+        row.id === messageId ? { ...row, reactions: [...reactions] } : row,
+    );
+}
+
+async function applyTeamReaction(m: TeamMsg, emoji: string): Promise<void> {
+    const cid = props.selectedConversationId;
+    if (!cid || emoji.trim() === '') {
+        return;
+    }
+    try {
+        const { data } = await axios.post(
+            route('organization.team-chat.api.messages.react', {
+                team_conversation: cid,
+                team_message: m.id,
+            }),
+            { emoji },
+        );
+        const reactions = Array.isArray(data.reactions) ? (data.reactions as MessageReaction[]) : [];
+        patchMessageReactions(m.id, reactions);
+    } catch {
+        /* ignore */
+    }
+}
+
+function normalizeTeamMsg(row: TeamMsg): TeamMsg {
+    return {
+        ...row,
+        reactions: Array.isArray(row.reactions) ? row.reactions : [],
+    };
+}
+
 function setupEcho() {
     const Echo = (window as any).Echo;
     const cid = props.selectedConversationId;
@@ -393,7 +379,9 @@ function setupEcho() {
         if (m.client_message_id && messages.value.some((x) => x.client_message_id === m.client_message_id)) {
             return;
         }
-        messages.value = [...messages.value, m];
+        const merged = normalizeTeamMsg(m);
+        messages.value = [...messages.value, merged];
+        typingUsers.delete(m.sender_id);
         void nextTick(() => scrollToBottom());
         if (m.sender_id !== myUserId()) {
             scheduleMarkDelivered(m.id);
@@ -420,11 +408,16 @@ function setupEcho() {
         const readerId = Number(e.reader_user_id);
         const lid = Number(e.last_read_message_id);
         if (!readerId || readerId === myUserId()) return;
-        if (conversationType.value !== 'direct') return;
         if (!lid) return;
-        const cur = peerLastReadMessageId.value ?? 0;
-        if (lid > cur) {
-            peerLastReadMessageId.value = lid;
+        if (conversationType.value === 'direct') {
+            const cur = peerLastReadMessageId.value ?? 0;
+            if (lid > cur) {
+                peerLastReadMessageId.value = lid;
+            }
+            return;
+        }
+        if (conversationType.value === 'department') {
+            void refreshReadMeta();
         }
     });
     echoChannel.listen('.team.room-pin', (e: any) => {
@@ -444,6 +437,24 @@ function setupEcho() {
                 body_preview: String(p.body_preview ?? ''),
             };
         }
+    });
+    echoChannel.listen('.team.typing', (e: any) => {
+        const uid = Number(e.user_id);
+        if (!uid || uid === myUserId()) {
+            return;
+        }
+        typingUsers.set(uid, String(e.user_name ?? '…'));
+        window.setTimeout(() => typingUsers.delete(uid), 3200);
+    });
+    echoChannel.listen('.team.message.reactions', (e: any) => {
+        const mid = Number(e.id);
+        const conv = Number(e.conversation_id);
+        const cid = props.selectedConversationId;
+        if (!mid || !cid || conv !== cid) {
+            return;
+        }
+        const reactions = Array.isArray(e.reactions) ? (e.reactions as MessageReaction[]) : [];
+        patchMessageReactions(mid, reactions);
     });
 }
 
@@ -508,16 +519,29 @@ watch(
         hasMore.value = true;
         mentionUserIds.value = [];
         replyToMessage.value = null;
+        pendingAttachments.value = [];
+        typingUsers.clear();
+        if (typingPingTimer) {
+            clearTimeout(typingPingTimer);
+            typingPingTimer = null;
+        }
         participants.value = [];
         conversationType.value = null;
+        departmentId.value = null;
         peerLastReadMessageId.value = null;
         peerLastDeliveredMessageId.value = null;
         othersMinDeliveredMessageId.value = null;
+        othersMinReadMessageId.value = null;
         canPinRoomMessage.value = false;
         roomPinnedMessage.value = null;
         roomPinSending.value = false;
         if (!id) {
             draft.value = '';
+            typingUsers.clear();
+            if (typingPingTimer) {
+                clearTimeout(typingPingTimer);
+                typingPingTimer = null;
+            }
             return;
         }
         draft.value = readAllDrafts()[String(id)] ?? '';
@@ -548,13 +572,72 @@ watch(
     },
 );
 
+function onAttachmentInputChange(e: Event): void {
+    const t = e.target as HTMLInputElement;
+    const picked = t.files ? Array.from(t.files) : [];
+    t.value = '';
+    if (picked.length === 0) return;
+    const max = 5;
+    pendingAttachments.value = [...pendingAttachments.value, ...picked].slice(0, max);
+}
+
+function removePendingAttachment(index: number): void {
+    pendingAttachments.value = pendingAttachments.value.filter((_, i) => i !== index);
+}
+
+function openAttachmentPicker(): void {
+    attachmentInputRef.value?.click();
+}
+
 async function send() {
     const cid = props.selectedConversationId;
     const text = draft.value.trim();
-    if (!cid || !text || sending.value) return;
+    const files = pendingAttachments.value;
+    if (!cid || sending.value) return;
+    if (!text && files.length === 0) return;
     sending.value = true;
     const clientMessageId = crypto.randomUUID();
     try {
+        const hasFiles = files.length > 0;
+        if (hasFiles) {
+            const fd = new FormData();
+            if (text !== '') {
+                fd.append('body', draft.value);
+            }
+            fd.append('client_message_id', clientMessageId);
+            if (mentionUserIds.value.length > 0) {
+                for (const id of mentionUserIds.value) {
+                    fd.append('mention_user_ids[]', String(id));
+                }
+            }
+            const reply = replyToMessage.value;
+            if (reply?.id) {
+                fd.append('parent_team_message_id', String(reply.id));
+            }
+            for (const f of files) {
+                fd.append('attachments[]', f);
+            }
+            const { data } = await axios.post(route('organization.team-chat.api.messages.store', cid), fd);
+            draft.value = '';
+            clearDraftInStorage(cid);
+            pendingAttachments.value = [];
+            mentionUserIds.value = [];
+            replyToMessage.value = null;
+            const m = data.message as TeamMsg | undefined;
+            if (m?.id) {
+                const existsById = messages.value.some((x) => x.id === m.id);
+                const existsByClient =
+                    m.client_message_id
+                    && messages.value.some((x) => x.client_message_id === m.client_message_id);
+                if (!existsById && !existsByClient) {
+                    messages.value = [...messages.value, normalizeTeamMsg(m)];
+                }
+            }
+            await nextTick(() => scrollToBottom());
+            void markRead();
+            return;
+        }
+
         const payload: Record<string, unknown> = {
             body: text,
             client_message_id: clientMessageId,
@@ -578,7 +661,7 @@ async function send() {
                 m.client_message_id
                 && messages.value.some((x) => x.client_message_id === m.client_message_id);
             if (!existsById && !existsByClient) {
-                messages.value = [...messages.value, m];
+                messages.value = [...messages.value, normalizeTeamMsg(m)];
             }
         }
         await nextTick(() => scrollToBottom());
@@ -591,6 +674,57 @@ async function send() {
 function startReplyTo(m: TeamMsg): void {
     if (m.reply_to) return;
     replyToMessage.value = m;
+    const sel = window.getSelection()?.toString().trim() ?? '';
+    if (sel.length >= 2) {
+        const quote = `«${sel.slice(0, 240)}»\n\n`;
+        if (!draft.value.startsWith(quote)) {
+            draft.value = quote + draft.value;
+        }
+    }
+}
+
+function openCalendarFromChat(): void {
+    const cid = props.selectedConversationId;
+    if (!cid) return;
+    const names = participants.value.map((p) => p.name).filter(Boolean).join(', ');
+    const params = new URLSearchParams({ create: '1' });
+    if (names) {
+        params.set('title', `Встреча: ${names.slice(0, 80)}`);
+    }
+    const mine = myUserId();
+    const others = participants.value.filter((p) => p.id !== mine);
+    if (others.length === 1) {
+        params.set('assignee_user_id', String(others[0]!.id));
+    }
+    window.open(`${route('calendar.index')}?${params.toString()}`, '_blank', 'noopener,noreferrer');
+}
+
+async function createTaskFromMessage(m: TeamMsg): Promise<void> {
+    const deptId = departmentId.value;
+    if (!deptId || taskFromMessageSending.value) return;
+    const cid = props.selectedConversationId;
+    const bodyText = (m.body ?? '').trim();
+    const quote = bodyText !== '' ? bodyText.slice(0, 500) : 'Сообщение без текста';
+    const titleSource = bodyText !== '' ? bodyText : (m.sender?.name ?? 'Задача из чата');
+    const title = titleSource.slice(0, 120);
+    const chatUrl = cid ? route('organization.team-chat.show', cid) : '';
+    const body = `<p>Из внутреннего чата${chatUrl ? ` (<a href="${chatUrl}">открыть беседу</a>)` : ''}:</p><blockquote>${quote.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>`;
+    taskFromMessageSending.value = true;
+    try {
+        const { data } = await axios.post(route('organization.posts.store', deptId), {
+            title,
+            body,
+            status: 'open',
+        });
+        const postId = data?.post?.id;
+        if (typeof postId === 'number' && postId > 0) {
+            window.open(route('organization.posts.show', postId), '_blank', 'noopener,noreferrer');
+        }
+    } catch {
+        /* ignore */
+    } finally {
+        taskFromMessageSending.value = false;
+    }
 }
 
 function clearReplyTo(): void {
@@ -759,6 +893,8 @@ async function submitForward(targetConversationId: number) {
 }
 
 onBeforeUnmount(() => {
+    if (typingPingTimer) clearTimeout(typingPingTimer);
+    typingPingTimer = null;
     if (deliverFlushTimer) clearTimeout(deliverFlushTimer);
     deliverFlushTimer = null;
     if (replyJumpNoticeTimer) clearTimeout(replyJumpNoticeTimer);
@@ -815,7 +951,7 @@ onBeforeUnmount(() => {
                     </div>
                 <div
                     ref="threadEl"
-                    class="flex-1 overflow-y-auto wa-scrollbar px-3 sm:px-4 py-3 space-y-2 min-h-0"
+                    class="team-chat-thread flex-1 overflow-y-auto wa-scrollbar px-3 sm:px-4 py-3 min-h-0"
                     @scroll.passive="onThreadScroll"
                 >
                     <div v-if="loading && messages.length === 0" class="text-sm text-[var(--wa-text-secondary)]">
@@ -828,114 +964,26 @@ onBeforeUnmount(() => {
                     >
                         {{ replyJumpNotice }}
                     </div>
-                    <div
+                    <TeamChatMessage
                         v-for="m in messages"
                         :key="m.id"
-                        :data-team-msg-id="m.id"
-                        class="max-w-[min(92%,28rem)] sm:max-w-[min(85%,28rem)] rounded-lg px-3 py-2.5 sm:py-2 text-sm border group/msg touch-manipulation"
-                        :class="m.sender_id === myUserId()
-                            ? 'ml-auto border-[var(--wa-accent)] bg-[var(--wa-selected)] text-[var(--wa-text)]'
-                            : 'mr-auto border-[var(--wa-border)] bg-[var(--wa-panel-header)] text-[var(--wa-text)]'"
-                    >
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="min-w-0 flex-1">
-                        <div v-if="m.sender_id !== myUserId()" class="text-xs font-semibold text-[var(--wa-accent)] mb-1">
-                            {{ m.sender?.name ?? '…' }}
-                        </div>
-                        <div
-                            v-if="m.forward"
-                            class="mb-2 rounded border-l-2 border-[var(--wa-accent)] bg-black/5 dark:bg-white/5 pl-2 py-1.5 pr-1 text-[0.75rem]"
-                        >
-                            <div class="text-[var(--wa-text-secondary)] font-medium">Переслано из «{{ m.forward.source_title }}»</div>
-                            <div v-if="m.forward.quote_body" class="mt-0.5 opacity-90">
-                                <span class="font-semibold text-[var(--wa-accent)]">{{ m.forward.quote_sender_name }}:</span>
-                                {{ m.forward.quote_body }}
-                            </div>
-                        </div>
-                        <button
-                            v-if="m.reply_to"
-                            type="button"
-                            class="mb-2 w-full rounded border-l-2 border-[var(--wa-border)] bg-black/5 dark:bg-white/5 pl-2 py-1.5 pr-1 text-left text-[0.75rem] cursor-pointer transition-colors hover:bg-black/10 dark:hover:bg-white/10"
-                            title="Перейти к сообщению"
-                            @click="scrollToQuotedParent(m.reply_to.id)"
-                        >
-                            <div class="text-[var(--wa-text-secondary)]">
-                                Ответ на
-                                <span class="font-medium text-[var(--wa-accent)]">{{ m.reply_to.sender_name }}</span>
-                            </div>
-                            <div v-if="m.reply_to.body_preview" class="mt-0.5 opacity-90 truncate">{{ m.reply_to.body_preview }}</div>
-                        </button>
-                        <div v-if="m.body" class="whitespace-pre-wrap break-words">
-                            <template
-                                v-for="(seg, si) in teamMessageBodySegments(m.body, m.mentioned_users)"
-                                :key="`${m.id}-b-${si}`"
-                            >
-                                <span
-                                    v-if="seg.mentionUserId"
-                                    class="team-chat-mention font-medium text-[var(--wa-accent)] bg-[var(--wa-accent)]/12 rounded px-0.5"
-                                >{{ seg.text }}</span>
-                                <span v-else>{{ seg.text }}</span>
-                            </template>
-                        </div>
-                        <div
-                            v-if="mentionedUsersNotInBody(m).length"
-                            class="text-[0.65rem] mt-1 text-[var(--wa-accent)] opacity-90"
-                        >
-                            Упомянуты: {{ mentionedUsersNotInBody(m).map((u) => u.name).join(', ') }}
-                        </div>
-                            </div>
-                            <div class="flex flex-col gap-0.5 shrink-0 items-center">
-                            <button
-                                v-if="!m.reply_to"
-                                type="button"
-                                class="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-sm text-[var(--wa-accent)] opacity-80 hover:opacity-100 px-1 py-1 rounded-lg"
-                                title="Ответить"
-                                @click="startReplyTo(m)"
-                            >
-                                ↩
-                            </button>
-                            <button
-                                v-if="canPinRoomMessage && conversationType === 'department'"
-                                type="button"
-                                class="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-sm px-1 py-1 rounded-lg disabled:opacity-40"
-                                :class="roomPinnedMessage?.id === m.id
-                                    ? 'text-amber-600 dark:text-amber-400 opacity-100'
-                                    : 'text-[var(--wa-accent)] opacity-70 hover:opacity-100'"
-                                :title="roomPinnedMessage?.id === m.id ? 'Снять закреп в чате отдела' : 'Закрепить в чате отдела'"
-                                :disabled="roomPinSending"
-                                @click="roomPinnedMessage?.id === m.id ? clearRoomPinned() : setRoomPinnedForMessage(m.id)"
-                            >
-                                📌
-                            </button>
-                            <button
-                                type="button"
-                                class="min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 flex items-center justify-center text-sm text-[var(--wa-accent)] opacity-70 hover:opacity-100 px-1 py-1 rounded-lg active:opacity-100"
-                                title="Переслать"
-                                @click="openForwardPicker(m)"
-                            >
-                                →
-                            </button>
-                            </div>
-                        </div>
-                        <div class="text-[0.65rem] mt-1 opacity-70 flex items-center justify-end gap-2 flex-wrap">
-                            <span
-                                v-if="outgoingDmReceiptLabel(m) === 'read'"
-                                class="text-[var(--wa-text-secondary)]"
-                            >Прочитано</span>
-                            <span
-                                v-else-if="outgoingDmReceiptLabel(m) === 'delivered'"
-                                class="text-[var(--wa-text-secondary)]"
-                            >Доставлено</span>
-                            <span
-                                v-else-if="outgoingDmReceiptLabel(m) === 'sent'"
-                                class="text-[var(--wa-text-secondary)]"
-                            >Отправлено</span>
-                            <span>
-                                {{ m.created_at ? new Date(m.created_at).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                        :message="m"
+                        :is-outbound="m.sender_id === myUserId()"
+                        :show-sender-name="conversationType === 'department' && m.sender_id !== myUserId()"
+                        :receipt-label="outgoingDmReceiptLabel(m)"
+                        :can-pin-room="canPinRoomMessage && conversationType === 'department'"
+                        :is-room-pinned="roomPinnedMessage?.id === m.id"
+                        :room-pin-sending="roomPinSending"
+                        :can-create-task="conversationType === 'department' && !!departmentId"
+                        :task-sending="taskFromMessageSending"
+                        @reply="startReplyTo"
+                        @forward="openForwardPicker"
+                        @react="({ message, emoji }) => applyTeamReaction(message, emoji)"
+                        @jump-to-reply="scrollToQuotedParent"
+                        @pin-room="setRoomPinnedForMessage"
+                        @unpin-room="clearRoomPinned"
+                        @create-task="createTaskFromMessage"
+                    />
                 </div>
                 <div
                     class="shrink-0 border-t border-[var(--wa-border)] px-3 pt-3 bg-[var(--wa-panel)] team-chat-input-bar"
@@ -972,6 +1020,21 @@ onBeforeUnmount(() => {
                                     @{{ p.name }}
                                 </button>
                             </template>
+                            <button
+                                v-if="participants.length > 0"
+                                type="button"
+                                class="rounded-full border border-[var(--wa-border)] px-3 py-1.5 min-h-[40px] touch-manipulation text-[var(--wa-text)] hover:bg-[var(--wa-selected)]"
+                                @click="openCalendarFromChat"
+                            >
+                                📅 Встреча
+                            </button>
+                        </div>
+                        <div
+                            v-if="typingLabel"
+                            class="text-xs text-[var(--wa-text-secondary)] px-0.5 min-h-[1.1rem]"
+                            role="status"
+                        >
+                            {{ typingLabel }}
                         </div>
                         <div
                             v-if="replyToMessage"
@@ -988,24 +1051,61 @@ onBeforeUnmount(() => {
                                 @click="clearReplyTo"
                             >×</button>
                         </div>
+                        <div v-if="pendingAttachments.length" class="flex flex-wrap gap-1.5 text-xs">
+                            <span
+                                v-for="(f, fi) in pendingAttachments"
+                                :key="`${f.name}-${fi}-${f.size}`"
+                                class="inline-flex items-center gap-1 rounded-full border border-[var(--wa-border)] bg-[var(--wa-panel-header)] pl-2 pr-1 py-0.5 max-w-full"
+                            >
+                                <span class="truncate max-w-[10rem]">{{ f.name }}</span>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded-full px-1 opacity-60 hover:opacity-100"
+                                    :aria-label="`Убрать ${f.name}`"
+                                    @click="removePendingAttachment(fi)"
+                                >×</button>
+                            </span>
+                        </div>
                         <div class="flex gap-2 items-end">
+                        <input
+                            ref="attachmentInputRef"
+                            type="file"
+                            class="sr-only"
+                            multiple
+                            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                            @change="onAttachmentInputChange"
+                        />
+                        <button
+                            type="button"
+                            class="shrink-0 min-h-[44px] min-w-[44px] rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel-header)] text-[var(--wa-accent)] flex items-center justify-center disabled:opacity-40 hover:bg-[var(--wa-selected)]/40 transition-colors"
+                            :disabled="sending"
+                            title="Прикрепить файл (до 5)"
+                            aria-label="Прикрепить файл"
+                            @click="openAttachmentPicker"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.14-7.693 7.693a2.25 2.25 0 0 0 3.182 3.182l7.693-7.693a.75.75 0 0 0-1.06-1.06l-7.693 7.693Z" />
+                            </svg>
+                        </button>
                         <textarea
                             v-model="draft"
                             rows="2"
                             class="flex-1 min-h-[44px] resize-none rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel-header)] px-3 py-2 text-base sm:text-sm text-[var(--wa-text)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
                             placeholder="Сообщение…"
+                            @input="onDraftInput"
                             @keydown="onKeydown"
                         />
                         <button
                             type="button"
                             class="shrink-0 min-h-[44px] min-w-[44px] px-3 sm:px-4 rounded-lg text-sm font-medium text-[var(--wa-unread-text,#0b0d0e)] bg-[var(--wa-accent)] disabled:opacity-50"
-                            :disabled="sending || !draft.trim()"
+                            :disabled="sending || (!draft.trim() && pendingAttachments.length === 0)"
                             @click="send"
                         >
                             Отправить
                         </button>
                         </div>
                     </div>
+                </div>
                 </div>
                 <Teleport to="body">
                     <div

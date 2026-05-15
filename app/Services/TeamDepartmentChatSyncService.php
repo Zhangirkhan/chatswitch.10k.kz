@@ -43,7 +43,37 @@ final class TeamDepartmentChatSyncService
                     ],
                 ])->all(),
             );
+
+            $this->syncAdministratorsToDepartment($department, $conversation);
         });
+    }
+
+    /**
+     * Администратор видит и участвует во всех чатах отделов (single-tenant: один инстанс — все отделы).
+     */
+    public function syncAdministratorToAllDepartmentChats(User $user): void
+    {
+        if (! $user->hasRole('administrator')) {
+            return;
+        }
+
+        $conversations = TeamConversation::query()
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->whereHas('department', static fn ($q) => $q->where('is_active', true))
+            ->get(['id']);
+
+        foreach ($conversations as $conversation) {
+            $this->attachAdministrator($conversation, $user);
+        }
+    }
+
+    public function syncAdministratorsToDepartment(Department $department, ?TeamConversation $conversation = null): void
+    {
+        $conversation ??= $this->ensureDepartmentConversation($department);
+
+        foreach ($this->activeAdministratorIds() as $adminId) {
+            $this->attachAdministrator($conversation, $adminId);
+        }
     }
 
     public function onDepartmentMemberAttached(Department $department, int $userId): void
@@ -58,6 +88,8 @@ final class TeamDepartmentChatSyncService
                 'updated_at' => now(),
             ],
         ]);
+
+        $this->syncAdministratorsToDepartment($department, $conversation);
     }
 
     public function onDepartmentMemberDetached(Department $department, int $userId): void
@@ -97,5 +129,31 @@ final class TeamDepartmentChatSyncService
         }
 
         return (int) $row->company_id;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function activeAdministratorIds(): array
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereHas('roles', static fn ($q) => $q->where('name', 'administrator'))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function attachAdministrator(TeamConversation $conversation, User|int $admin): void
+    {
+        $adminId = $admin instanceof User ? (int) $admin->id : $admin;
+
+        $conversation->participants()->syncWithoutDetaching([
+            $adminId => [
+                'can_leave' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
     }
 }

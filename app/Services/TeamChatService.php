@@ -9,9 +9,12 @@ use App\Events\TeamChatReadUpdated;
 use App\Events\TeamMessageReceived;
 use App\Models\TeamConversation;
 use App\Models\TeamMessage;
+use App\Models\TeamMessageAttachment;
 use App\Models\TeamMessageMention;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -77,6 +80,7 @@ final class TeamChatService
 
     /**
      * @param  array<int, int|string>|null  $mentionUserIds
+     * @param  list<UploadedFile>  $attachmentUploads
      */
     public function sendMessage(
         User $sender,
@@ -85,9 +89,11 @@ final class TeamChatService
         ?string $clientMessageId = null,
         ?array $mentionUserIds = null,
         ?int $parentTeamMessageId = null,
+        array $attachmentUploads = [],
+        ?Request $request = null,
     ): TeamChatSendResult {
         $body = trim($body);
-        if ($body === '') {
+        if ($body === '' && $attachmentUploads === []) {
             throw ValidationException::withMessages(['body' => 'Сообщение не может быть пустым.']);
         }
 
@@ -99,7 +105,7 @@ final class TeamChatService
         $mentionsNormalized = $this->normalizeMentionUserIds($conversation, $mentionUserIds ?? []);
         $parentIdPersisted = $this->validatedParentTeamMessageId($conversation, $parentTeamMessageId);
 
-        return DB::transaction(function () use ($sender, $conversation, $body, $clientKey, $mentionsNormalized, $parentIdPersisted): TeamChatSendResult {
+        return DB::transaction(function () use ($sender, $conversation, $body, $clientKey, $mentionsNormalized, $parentIdPersisted, $attachmentUploads, $request): TeamChatSendResult {
             if ($clientKey !== null) {
                 $existing = TeamMessage::query()
                     ->where('team_conversation_id', $conversation->id)
@@ -111,7 +117,12 @@ final class TeamChatService
                 }
             }
 
-            $preview = mb_substr(preg_replace('/\s+/u', ' ', $body) ?? '', 0, 240);
+            $previewSource = $body;
+            if ($previewSource === '' && $attachmentUploads !== []) {
+                $first = $attachmentUploads[0];
+                $previewSource = '📎 '.($first instanceof UploadedFile ? $first->getClientOriginalName() : 'файл');
+            }
+            $preview = mb_substr(preg_replace('/\s+/u', ' ', $previewSource) ?? '', 0, 240);
 
             try {
                 $message = TeamMessage::query()->create([
@@ -123,6 +134,31 @@ final class TeamChatService
                     'mentioned_user_ids' => $mentionsNormalized,
                 ]);
                 $this->replaceMessageMentions($message, $mentionsNormalized);
+
+                foreach ($attachmentUploads as $file) {
+                    if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                        continue;
+                    }
+                    $path = $file->store("team-chat/{$conversation->id}/{$message->id}", 'public');
+                    TeamMessageAttachment::query()->create([
+                        'team_message_id' => $message->id,
+                        'uploaded_by' => $sender->id,
+                        'original_name' => $file->getClientOriginalName() ?: 'file',
+                        'path' => $path,
+                        'mime_type' => $file->getMimeType(),
+                        'size' => (int) ($file->getSize() ?: 0),
+                    ]);
+                }
+
+                if ($body !== '') {
+                    $linkPreview = app(LinkPreviewService::class)->storedPreviewForBody($body, $request);
+                    if ($linkPreview !== null) {
+                        $message->link_preview = $linkPreview;
+                        $message->save();
+                    }
+                }
+
+                $message->loadMissing('attachments');
             } catch (QueryException $e) {
                 if ($clientKey === null) {
                     throw $e;

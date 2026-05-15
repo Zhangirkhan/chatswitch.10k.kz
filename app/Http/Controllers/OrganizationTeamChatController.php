@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Events\TeamMessageReactionsUpdated;
+use App\Events\TeamRoomPinUpdated;
+use App\Events\TeamUserTyping;
 use App\Models\Department;
 use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
 use App\Models\TeamConversation;
 use App\Models\TeamMessage;
+use App\Models\TeamMessageAttachment;
+use App\Models\TeamMessageReaction;
 use App\Models\User;
-use App\Events\TeamRoomPinUpdated;
 use App\Services\TeamChatService;
+use App\Services\TeamDepartmentChatSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,11 +32,13 @@ final class OrganizationTeamChatController extends Controller
 {
     public function __construct(
         private readonly TeamChatService $teamChatService,
+        private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
     ) {}
 
     public function index(Request $request): Response
     {
         $this->ensureModuleEnabled();
+        $this->prepareTeamChatAccess($request->user());
 
         return Inertia::render('Organization/TeamChat/Index', [
             'departments' => $this->departmentsPayload($request->user()),
@@ -40,7 +49,7 @@ final class OrganizationTeamChatController extends Controller
     public function show(Request $request, TeamConversation $teamConversation): Response
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         return Inertia::render('Organization/TeamChat/Index', [
             'departments' => $this->departmentsPayload($request->user()),
@@ -52,6 +61,7 @@ final class OrganizationTeamChatController extends Controller
     {
         $this->ensureModuleEnabled();
         $user = $request->user();
+        $this->prepareTeamChatAccess($user);
 
         $filter = $request->query('filter', '');
         $filter = is_string($filter) ? trim($filter) : '';
@@ -67,6 +77,8 @@ final class OrganizationTeamChatController extends Controller
             ->orderByDesc('team_conversations.last_message_at')
             ->orderByDesc('team_conversations.id')
             ->get();
+
+        $conversations = $this->filterConversationsVisibleToUser($conversations, $user);
 
         $ids = $conversations->pluck('id')->all();
         $unreadMap = $this->unreadCountsForUser($user, $ids);
@@ -92,7 +104,7 @@ final class OrganizationTeamChatController extends Controller
     public function setPinned(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $data = $request->validate([
             'pinned' => ['required', 'boolean'],
@@ -185,6 +197,7 @@ final class OrganizationTeamChatController extends Controller
     {
         $this->ensureModuleEnabled();
         $user = $request->user();
+        $this->prepareTeamChatAccess($user);
         $data = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
         ]);
@@ -200,7 +213,10 @@ final class OrganizationTeamChatController extends Controller
 
         $like = '%'.$this->escapeLike($q).'%';
 
-        $conversationIds = $user->teamConversations()->pluck('team_conversations.id')->all();
+        $conversationIds = $this->filterConversationsVisibleToUser(
+            $user->teamConversations()->get(),
+            $user,
+        )->pluck('id')->all();
         if ($conversationIds === []) {
             return response()->json([
                 'query' => $q,
@@ -232,6 +248,8 @@ final class OrganizationTeamChatController extends Controller
             ->orderByDesc('team_conversations.id')
             ->limit(20)
             ->get();
+
+        $conversations = $this->filterConversationsVisibleToUser($conversations, $user);
 
         $conversationRows = $conversations->map(function (TeamConversation $c) use ($user): array {
             $row = $this->transformConversationListItem($user, $c, 0);
@@ -326,7 +344,7 @@ final class OrganizationTeamChatController extends Controller
     public function readMeta(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         return response()->json([
             'read_meta' => $this->readMetaPayload($request->user(), $teamConversation),
@@ -336,7 +354,7 @@ final class OrganizationTeamChatController extends Controller
     public function participants(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $participants = $teamConversation->participants()
             ->where('users.is_active', true)
@@ -352,14 +370,14 @@ final class OrganizationTeamChatController extends Controller
     public function messages(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $teamConversation->loadMissing(['pinnedMessage.sender:id,name']);
 
         $beforeId = $request->integer('before_id') ?: null;
         $query = TeamMessage::query()
             ->where('team_conversation_id', $teamConversation->id)
-            ->with(['sender:id,name', 'parentMessage.sender:id,name'])
+            ->with(['sender:id,name', 'parentMessage.sender:id,name', 'attachments', 'reactions.user:id,name'])
             ->orderByDesc('id');
 
         if ($beforeId !== null) {
@@ -387,6 +405,7 @@ final class OrganizationTeamChatController extends Controller
             'conversation' => [
                 'id' => $teamConversation->id,
                 'type' => $teamConversation->type,
+                'department_id' => $teamConversation->isDepartment() ? $teamConversation->department_id : null,
                 'can_pin_room_message' => $request->user()->can('pinRoomMessage', $teamConversation),
                 'room_pinned_message' => $this->roomPinnedMessagePayload($teamConversation->pinnedMessage),
             ],
@@ -397,7 +416,7 @@ final class OrganizationTeamChatController extends Controller
     public function storeMessage(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $data = $request->validate([
             'body' => ['nullable', 'string', 'max:16000'],
@@ -406,7 +425,21 @@ final class OrganizationTeamChatController extends Controller
             'mention_user_ids.*' => ['integer', 'distinct', 'min:1'],
             'forwarded_from_team_message_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'parent_team_message_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'attachments' => ['sometimes', 'array', 'max:5'],
+            'attachments.*' => ['file', 'max:15360'],
         ]);
+
+        $rawFiles = $request->file('attachments');
+        $uploads = [];
+        if ($rawFiles instanceof UploadedFile) {
+            $uploads = [$rawFiles];
+        } elseif (is_array($rawFiles)) {
+            foreach ($rawFiles as $f) {
+                if ($f instanceof UploadedFile) {
+                    $uploads[] = $f;
+                }
+            }
+        }
 
         $forwardSourceId = isset($data['forwarded_from_team_message_id'])
             ? (int) $data['forwarded_from_team_message_id']
@@ -414,6 +447,12 @@ final class OrganizationTeamChatController extends Controller
         $bodyTrim = trim((string) ($data['body'] ?? ''));
 
         if ($forwardSourceId > 0) {
+            if ($uploads !== []) {
+                throw ValidationException::withMessages([
+                    'attachments' => 'Вложения недоступны при пересылке.',
+                ]);
+            }
+
             if (($data['mention_user_ids'] ?? null) !== null && $data['mention_user_ids'] !== []) {
                 throw ValidationException::withMessages([
                     'mention_user_ids' => 'Упоминания недоступны при пересылке.',
@@ -434,7 +473,7 @@ final class OrganizationTeamChatController extends Controller
                 $data['client_message_id'] ?? null,
             );
         } else {
-            if ($bodyTrim === '') {
+            if ($bodyTrim === '' && $uploads === []) {
                 throw ValidationException::withMessages([
                     'body' => 'Сообщение не может быть пустым.',
                 ]);
@@ -447,10 +486,12 @@ final class OrganizationTeamChatController extends Controller
                 $data['client_message_id'] ?? null,
                 $data['mention_user_ids'] ?? null,
                 isset($data['parent_team_message_id']) ? (int) $data['parent_team_message_id'] : null,
+                $uploads,
+                $request,
             );
         }
         $message = $result->message;
-        $message->load(['sender:id,name', 'parentMessage.sender:id,name']);
+        $message->load(['sender:id,name', 'parentMessage.sender:id,name', 'attachments', 'reactions.user:id,name']);
         if (! $result->duplicate) {
             $teamConversation->refresh();
         }
@@ -474,7 +515,7 @@ final class OrganizationTeamChatController extends Controller
     public function markRead(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $data = $request->validate([
             'message_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
@@ -492,7 +533,7 @@ final class OrganizationTeamChatController extends Controller
     public function markDelivered(Request $request, TeamConversation $teamConversation): JsonResponse
     {
         $this->ensureModuleEnabled();
-        $this->authorize('view', $teamConversation);
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
 
         $data = $request->validate([
             'message_id' => ['required', 'integer', 'min:1'],
@@ -505,6 +546,77 @@ final class OrganizationTeamChatController extends Controller
         );
 
         return response()->json(['success' => true]);
+    }
+
+    public function typing(Request $request, TeamConversation $teamConversation): JsonResponse
+    {
+        $this->ensureModuleEnabled();
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
+
+        $user = $request->user();
+        $key = 'team-typing:'.$user->id.':'.$teamConversation->id;
+        if (RateLimiter::tooManyAttempts($key, 1)) {
+            return response()->json(['success' => true]);
+        }
+        RateLimiter::hit($key, 2);
+
+        broadcast(new TeamUserTyping(
+            $teamConversation->id,
+            $user->id,
+            (string) $user->name,
+        ));
+
+        return response()->json(['success' => true]);
+    }
+
+    public function reactToMessage(Request $request, TeamConversation $teamConversation, TeamMessage $teamMessage): JsonResponse
+    {
+        $this->ensureModuleEnabled();
+        $this->authorizeTeamConversationView($request->user(), $teamConversation);
+        abort_unless((int) $teamMessage->team_conversation_id === (int) $teamConversation->id, 404);
+
+        $data = $request->validate([
+            'emoji' => ['required', 'string', 'max:32'],
+        ]);
+
+        $emoji = $data['emoji'];
+        $normalizedNew = $this->normalizeTeamReactionEmoji($emoji);
+        $user = $request->user();
+
+        $existing = TeamMessageReaction::query()
+            ->where('team_message_id', $teamMessage->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if ($existing !== null && $this->normalizeTeamReactionEmoji((string) $existing->emoji) === $normalizedNew) {
+            $existing->delete();
+        } else {
+            TeamMessageReaction::query()->updateOrCreate(
+                [
+                    'team_message_id' => $teamMessage->id,
+                    'user_id' => $user->id,
+                ],
+                ['emoji' => $emoji],
+            );
+        }
+
+        $reactions = TeamMessageReaction::query()
+            ->where('team_message_id', $teamMessage->id)
+            ->with('user:id,name')
+            ->orderBy('id')
+            ->get();
+
+        broadcast(new TeamMessageReactionsUpdated(
+            $teamConversation->id,
+            $teamMessage->id,
+            $reactions,
+        ));
+
+        return response()->json([
+            'success' => true,
+            'message_id' => $teamMessage->id,
+            'reactions' => $reactions->map(fn (TeamMessageReaction $r) => $r->toApiArray())->values()->all(),
+        ]);
     }
 
     /**
@@ -589,6 +701,9 @@ final class OrganizationTeamChatController extends Controller
             'others_min_last_delivered_message_id' => $conversation->isDepartment()
                 ? $this->departmentOthersMinLastDeliveredMessageId($viewer, $conversation)
                 : null,
+            'others_min_last_read_message_id' => $conversation->isDepartment()
+                ? $this->departmentOthersMinLastReadMessageId($viewer, $conversation)
+                : null,
         ];
     }
 
@@ -648,6 +763,26 @@ final class OrganizationTeamChatController extends Controller
         return (int) $min;
     }
 
+    private function departmentOthersMinLastReadMessageId(User $viewer, TeamConversation $conversation): int
+    {
+        $values = DB::table('team_conversation_user')
+            ->where('team_conversation_id', $conversation->id)
+            ->where('user_id', '!=', $viewer->id)
+            ->pluck('last_read_message_id');
+
+        if ($values->isEmpty()) {
+            return 0;
+        }
+
+        $min = null;
+        foreach ($values as $v) {
+            $n = $v === null ? 0 : (int) $v;
+            $min = $min === null ? $n : min($min, $n);
+        }
+
+        return (int) $min;
+    }
+
     /**
      * @return array<int, array{id: int, name: string, email: string}>
      */
@@ -675,6 +810,21 @@ final class OrganizationTeamChatController extends Controller
                 'email' => (string) ($u->email ?? ''),
             ])
             ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformTeamMessageAttachment(TeamMessageAttachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'original_name' => $attachment->original_name,
+            'url' => $attachment->url(),
+            'mime_type' => $attachment->mime_type,
+            'size' => (int) $attachment->size,
+            'is_image' => $attachment->isImage(),
+        ];
     }
 
     /**
@@ -726,6 +876,19 @@ final class OrganizationTeamChatController extends Controller
             ];
         }
 
+        $attachments = $m->relationLoaded('attachments')
+            ? $m->attachments->map(fn (TeamMessageAttachment $a) => $this->transformTeamMessageAttachment($a))->values()->all()
+            : [];
+
+        $reactions = $m->relationLoaded('reactions')
+            ? $m->reactions->map(fn (TeamMessageReaction $r) => $r->toApiArray())->values()->all()
+            : [];
+
+        $linkPreview = $m->link_preview;
+        if (! is_array($linkPreview) || $linkPreview === []) {
+            $linkPreview = null;
+        }
+
         return [
             'id' => $m->id,
             'team_conversation_id' => $m->team_conversation_id,
@@ -737,6 +900,9 @@ final class OrganizationTeamChatController extends Controller
             'mentioned_users' => $mentionedUsers,
             'forward' => $forward,
             'reply_to' => $m->replyToApiFragment(),
+            'attachments' => $attachments,
+            'link_preview' => $linkPreview,
+            'reactions' => $reactions,
             'created_at' => $m->created_at?->toIso8601String(),
             'sender' => $m->sender ? [
                 'id' => $m->sender->id,
@@ -748,6 +914,44 @@ final class OrganizationTeamChatController extends Controller
     /**
      * @return Collection<int, array<string, mixed>>
      */
+    private function authorizeTeamConversationView(User $user, TeamConversation $teamConversation): void
+    {
+        $this->prepareTeamChatAccess($user);
+        $this->authorize('view', $teamConversation);
+    }
+
+    private function prepareTeamChatAccess(User $user): void
+    {
+        if ($user->hasRole('administrator')) {
+            $this->teamDepartmentChatSync->syncAdministratorToAllDepartmentChats($user);
+        }
+    }
+
+    /**
+     * @param  Collection<int, TeamConversation>  $conversations
+     * @return Collection<int, TeamConversation>
+     */
+    private function filterConversationsVisibleToUser(Collection $conversations, User $user): Collection
+    {
+        if ($user->hasRole('administrator')) {
+            return $conversations;
+        }
+
+        $deptIds = $user->departmentIds();
+
+        return $conversations->filter(function (TeamConversation $c) use ($deptIds): bool {
+            if ($c->isDirect()) {
+                return true;
+            }
+
+            if ($c->department_id === null) {
+                return false;
+            }
+
+            return in_array((int) $c->department_id, $deptIds, true);
+        })->values();
+    }
+
     private function departmentsPayload(User $user): Collection
     {
         $query = Department::query()
@@ -788,6 +992,11 @@ final class OrganizationTeamChatController extends Controller
             403,
             'Модуль «Задачи» отключён администратором.',
         );
+    }
+
+    private function normalizeTeamReactionEmoji(string $emoji): string
+    {
+        return preg_replace('/[\x{FE0F}\x{200D}]/u', '', $emoji) ?? $emoji;
     }
 
     private function escapeLike(string $value): string
