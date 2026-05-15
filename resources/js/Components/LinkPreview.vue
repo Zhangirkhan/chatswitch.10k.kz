@@ -4,6 +4,14 @@ import axios from 'axios';
 
 const props = defineProps<{
     url: string;
+    /** Server-side preview (team chat, etc.): skip HTTP fetch */
+    cached?: {
+        url: string;
+        title?: string | null;
+        description?: string | null;
+        image?: string | null;
+        site_name?: string | null;
+    } | null;
 }>();
 
 type Preview = {
@@ -16,6 +24,16 @@ type Preview = {
 
 const loading = ref(false);
 const preview = ref<Preview | null>(null);
+
+function previewFromCached(c: NonNullable<typeof props.cached>): Preview {
+    return {
+        url: String(c.url || props.url),
+        title: c.title != null && String(c.title) !== '' ? String(c.title) : null,
+        description: c.description != null && String(c.description) !== '' ? String(c.description) : null,
+        image: c.image != null && String(c.image) !== '' ? String(c.image) : null,
+        site_name: c.site_name != null && String(c.site_name) !== '' ? String(c.site_name) : null,
+    };
+}
 
 const displayHost = computed(() => {
     try {
@@ -30,6 +48,11 @@ async function load(): Promise<void> {
     const url = (props.url || '').trim();
     if (!url) {
         preview.value = null;
+        return;
+    }
+    if (props.cached) {
+        preview.value = previewFromCached(props.cached);
+        loading.value = false;
         return;
     }
     loading.value = true;
@@ -58,7 +81,7 @@ onMounted(() => {
 });
 
 watch(
-    () => props.url,
+    () => [props.url, props.cached] as const,
     () => {
         preview.value = null;
         load();
