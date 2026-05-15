@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 final class TeamMessage extends Model
 {
@@ -15,7 +16,16 @@ final class TeamMessage extends Model
 
     protected static function booted(): void
     {
-        static::deleted(function (TeamMessage $message): void {
+        self::deleting(function (TeamMessage $message): void {
+            foreach ($message->attachments()->get() as $attachment) {
+                if ($attachment->path !== '') {
+                    Storage::disk('public')->delete($attachment->path);
+                }
+                $attachment->delete();
+            }
+        });
+
+        self::deleted(function (TeamMessage $message): void {
             TeamConversation::query()
                 ->where('pinned_team_message_id', $message->id)
                 ->update(['pinned_team_message_id' => null]);
@@ -33,12 +43,14 @@ final class TeamMessage extends Model
         'forward_source_title',
         'forward_quote_sender_name',
         'forward_quote_body',
+        'link_preview',
     ];
 
     protected function casts(): array
     {
         return [
             'mentioned_user_ids' => 'array',
+            'link_preview' => 'array',
         ];
     }
 
@@ -72,6 +84,18 @@ final class TeamMessage extends Model
     public function mentionRows(): HasMany
     {
         return $this->hasMany(TeamMessageMention::class, 'team_message_id');
+    }
+
+    /** @return HasMany<TeamMessageAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TeamMessageAttachment::class, 'team_message_id')->orderBy('id');
+    }
+
+    /** @return HasMany<TeamMessageReaction, $this> */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(TeamMessageReaction::class, 'team_message_id')->orderBy('id');
     }
 
     /**

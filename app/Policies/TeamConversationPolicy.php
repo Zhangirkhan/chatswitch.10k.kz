@@ -11,6 +11,10 @@ final class TeamConversationPolicy
 {
     public function view(User $user, TeamConversation $teamConversation): bool
     {
+        if ($user->hasRole('administrator') && $teamConversation->isDepartment()) {
+            return true;
+        }
+
         return $teamConversation->participants()->where('users.id', $user->id)->exists();
     }
 
