@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import FunnelAiWizard, { type AiFunnelSuggestion } from '@/Pages/Settings/Partials/FunnelAiWizard.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -32,6 +33,7 @@ const props = defineProps<{
 const { show: showToast } = useToastStore();
 
 const localFunnels = ref<Funnel[]>([...props.funnels]);
+const aiWizardRef = ref<InstanceType<typeof FunnelAiWizard> | null>(null);
 
 watch(
     () => props.funnels,
@@ -51,8 +53,16 @@ const palette = [
 /* ============================================================
  * Modal: Funnel (create/edit)
  * ============================================================ */
+type FunnelMode = 'manual' | 'ai';
+
+interface AiStageDraft {
+    name: string;
+    color: string;
+}
+
 const funnelModalOpen = ref(false);
 const editingFunnelId = ref<number | null>(null);
+const funnelMode = ref<FunnelMode>('manual');
 const funnelForm = ref({
     name: '',
     description: '',
@@ -62,8 +72,20 @@ const funnelForm = ref({
 const savingFunnel = ref(false);
 const funnelErrors = ref<Record<string, string>>({});
 
-function openCreateFunnel() {
+const aiStages = ref<AiStageDraft[]>([]);
+const aiSuggested = ref(false);
+const aiError = ref<string | null>(null);
+
+function resetAiState() {
+    aiStages.value = [];
+    aiSuggested.value = false;
+    aiError.value = null;
+    aiWizardRef.value?.resetWizard();
+}
+
+function openCreateFunnel(mode: FunnelMode = 'manual') {
     editingFunnelId.value = null;
+    funnelMode.value = mode;
     funnelForm.value = {
         name: '',
         description: '',
@@ -71,11 +93,13 @@ function openCreateFunnel() {
         is_active: true,
     };
     funnelErrors.value = {};
+    resetAiState();
     funnelModalOpen.value = true;
 }
 
 function openEditFunnel(funnel: Funnel) {
     editingFunnelId.value = funnel.id;
+    funnelMode.value = 'manual';
     funnelForm.value = {
         name: funnel.name,
         description: funnel.description ?? '',
@@ -83,12 +107,56 @@ function openEditFunnel(funnel: Funnel) {
         is_active: funnel.is_active !== false,
     };
     funnelErrors.value = {};
+    resetAiState();
     funnelModalOpen.value = true;
 }
 
 function closeFunnelModal() {
     funnelModalOpen.value = false;
     funnelErrors.value = {};
+    resetAiState();
+}
+
+function switchFunnelMode(mode: FunnelMode) {
+    if (funnelMode.value === mode) return;
+    funnelMode.value = mode;
+    funnelErrors.value = {};
+    aiError.value = null;
+    if (mode === 'ai') {
+        aiSuggested.value = false;
+        aiStages.value = [];
+        aiWizardRef.value?.resetWizard();
+    }
+}
+
+function onWizardSelect(suggestion: AiFunnelSuggestion) {
+    funnelForm.value = {
+        name: String(suggestion.name ?? '').slice(0, 255) || 'Новая воронка',
+        description: String(suggestion.description ?? ''),
+        color: String(suggestion.color ?? '#25d366'),
+        is_active: true,
+    };
+    aiStages.value = suggestion.stages.map((s) => ({
+        name: s.name.trim(),
+        color: s.color || '#9ca3af',
+    }));
+    aiSuggested.value = true;
+    aiError.value = null;
+}
+
+function addAiStage() {
+    aiStages.value.push({ name: '', color: '#9ca3af' });
+}
+
+function removeAiStage(index: number) {
+    aiStages.value.splice(index, 1);
+}
+
+function moveAiStage(index: number, direction: -1 | 1) {
+    const swap = index + direction;
+    if (swap < 0 || swap >= aiStages.value.length) return;
+    const stages = aiStages.value;
+    [stages[index], stages[swap]] = [stages[swap], stages[index]];
 }
 
 async function saveFunnel() {
@@ -96,26 +164,58 @@ async function saveFunnel() {
         funnelErrors.value = { name: 'Укажите название воронки' };
         return;
     }
+
+    const isAiCreate = funnelMode.value === 'ai' && editingFunnelId.value === null;
+    if (isAiCreate && !aiSuggested.value) {
+        aiError.value = 'Сначала сгенерируйте воронку с помощью AI или переключитесь в режим «Вручную».';
+        return;
+    }
+
+    let stagesPayload: { name: string; color: string; is_active: boolean }[] = [];
+    if (isAiCreate) {
+        stagesPayload = aiStages.value
+            .map((s) => ({
+                name: s.name.trim(),
+                color: s.color || '#9ca3af',
+                is_active: true,
+            }))
+            .filter((s) => s.name !== '');
+
+        if (stagesPayload.length === 0) {
+            aiError.value = 'Добавьте хотя бы один этап перед сохранением.';
+            return;
+        }
+    }
+
     if (savingFunnel.value) return;
     savingFunnel.value = true;
     funnelErrors.value = {};
 
     try {
-        const payload = {
+        const payload: Record<string, unknown> = {
             name: funnelForm.value.name.trim(),
             description: funnelForm.value.description.trim() || null,
             color: funnelForm.value.color,
             is_active: funnelForm.value.is_active,
         };
+        if (isAiCreate) {
+            payload.stages = stagesPayload;
+        }
 
         if (editingFunnelId.value === null) {
             await axios.post(route('settings.funnels.store'), payload);
-            showToast({ message: 'Воронка создана', duration: 3000 });
+            showToast({
+                message: isAiCreate
+                    ? `Воронка создана с ${stagesPayload.length} этап(ами)`
+                    : 'Воронка создана',
+                duration: 3000,
+            });
         } else {
             await axios.put(route('settings.funnels.update', editingFunnelId.value), payload);
             showToast({ message: 'Воронка обновлена', duration: 3000 });
         }
         funnelModalOpen.value = false;
+        resetAiState();
         await router.reload({ only: ['funnels'] });
     } catch (err: unknown) {
         const e = err as { response?: { status?: number; data?: { message?: string; errors?: Record<string, string[]> } } };
@@ -277,19 +377,27 @@ const totalFunnels = computed(() => localFunnels.value.length);
     <Head title="Воронки продаж" />
     <SettingsLayout title="Воронки продаж" subtitle="Этапы и статусы сделок">
         <template #actions>
-            <button
-                @click="openCreateFunnel"
-                class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-            >
-                + Новая воронка
-            </button>
+            <div class="flex items-center gap-2">
+                <button
+                    @click="openCreateFunnel('ai')"
+                    class="px-4 py-2 text-sm rounded-lg border transition hover:brightness-95"
+                    :style="{ borderColor: 'var(--wa-border-strong)', color: 'var(--wa-text)' }"
+                >
+                    AI-конструктор
+                </button>
+                <button
+                    @click="openCreateFunnel('manual')"
+                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                >
+                    + Новая воронка
+                </button>
+            </div>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
             <p class="text-sm text-[var(--wa-text-secondary)] max-w-3xl">
-                Создавайте воронки и заполняйте их этапами вручную. Этапы упорядочены — порядок
-                задаётся стрелками «вверх/вниз».
+                Создавайте воронки вручную или через AI-конструктор. Можно вести несколько воронок одновременно.
             </p>
 
             <div
@@ -299,15 +407,24 @@ const totalFunnels = computed(() => localFunnels.value.length);
             >
                 <div class="text-[var(--wa-text)] text-base font-medium mb-1">Воронок пока нет</div>
                 <div class="text-sm text-[var(--wa-text-secondary)] mb-4">
-                    Создайте первую воронку и добавьте к ней этапы.
+                    Пройдите AI-онбординг — система предложит несколько вариантов воронок под ваш бизнес.
                 </div>
-                <button
-                    @click="openCreateFunnel"
-                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                >
-                    + Новая воронка
-                </button>
+                <div class="flex flex-wrap justify-center gap-2">
+                    <button
+                        @click="openCreateFunnel('ai')"
+                        class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    >
+                        Создать с AI
+                    </button>
+                    <button
+                        @click="openCreateFunnel('manual')"
+                        class="px-4 py-2 text-sm rounded-lg border transition hover:brightness-95"
+                        :style="{ borderColor: 'var(--wa-border-strong)', color: 'var(--wa-text)' }"
+                    >
+                        Создать вручную
+                    </button>
+                </div>
             </div>
 
             <div v-else class="space-y-3">
@@ -457,7 +574,8 @@ const totalFunnels = computed(() => localFunnels.value.length);
                 @click.self="closeFunnelModal"
             >
                 <div
-                    class="w-full max-w-lg max-h-[min(90vh,800px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
+                    class="w-full max-h-[min(90vh,800px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
+                    :class="editingFunnelId === null && funnelMode === 'ai' && !aiSuggested ? 'max-w-2xl' : 'max-w-lg'"
                     :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
                     @click.stop
                 >
@@ -478,8 +596,49 @@ const totalFunnels = computed(() => localFunnels.value.length);
                         </button>
                     </div>
 
+                    <div
+                        v-if="editingFunnelId === null"
+                        class="px-5 pt-4 shrink-0"
+                    >
+                        <div
+                            class="inline-flex rounded-lg border p-1 text-xs"
+                            :style="{ background: 'var(--wa-bg)', borderColor: 'var(--wa-border-strong)' }"
+                        >
+                            <button
+                                type="button"
+                                class="px-3 py-1.5 rounded-md transition"
+                                :style="funnelMode === 'manual'
+                                    ? { background: 'var(--wa-accent)', color: '#fff' }
+                                    : { color: 'var(--wa-text-secondary)' }"
+                                @click="switchFunnelMode('manual')"
+                            >
+                                Вручную
+                            </button>
+                            <button
+                                type="button"
+                                class="px-3 py-1.5 rounded-md transition flex items-center gap-1.5"
+                                :style="funnelMode === 'ai'
+                                    ? { background: 'var(--wa-accent)', color: '#fff' }
+                                    : { color: 'var(--wa-text-secondary)' }"
+                                @click="switchFunnelMode('ai')"
+                            >
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" />
+                                </svg>
+                                AI-конструктор
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
-                        <div>
+                        <template v-if="funnelMode === 'ai' && editingFunnelId === null && !aiSuggested">
+                            <FunnelAiWizard
+                                ref="aiWizardRef"
+                                @select="onWizardSelect"
+                            />
+                        </template>
+
+                        <div v-if="funnelMode === 'manual' || aiSuggested">
                             <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Название</label>
                             <input
                                 v-model="funnelForm.name"
@@ -493,7 +652,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             </div>
                         </div>
 
-                        <div>
+                        <div v-if="funnelMode === 'manual' || aiSuggested">
                             <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Описание (необязательно)</label>
                             <textarea
                                 v-model="funnelForm.description"
@@ -503,7 +662,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             ></textarea>
                         </div>
 
-                        <div>
+                        <div v-if="funnelMode === 'manual' || aiSuggested">
                             <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Цвет</label>
                             <div class="flex flex-wrap gap-2">
                                 <button
@@ -520,7 +679,10 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-2 pt-1">
+                        <div
+                            v-if="funnelMode === 'manual' || aiSuggested"
+                            class="flex items-center gap-2 pt-1"
+                        >
                             <input
                                 id="funnel-active"
                                 v-model="funnelForm.is_active"
@@ -531,9 +693,93 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                 Активна
                             </label>
                         </div>
+
+                        <!-- AI stages preview / editor -->
+                        <div
+                            v-if="funnelMode === 'ai' && aiSuggested"
+                            class="pt-2 border-t"
+                            :style="{ borderColor: 'var(--wa-border)' }"
+                        >
+                            <div class="flex items-center justify-between mb-2 mt-2">
+                                <label class="text-sm text-[var(--wa-text-secondary)]">
+                                    Этапы воронки ({{ aiStages.length }})
+                                </label>
+                                <button
+                                    type="button"
+                                    class="text-xs px-2 py-1 rounded-md border transition hover:brightness-95"
+                                    :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                    @click="addAiStage"
+                                >
+                                    + Этап
+                                </button>
+                            </div>
+
+                            <ol v-if="aiStages.length > 0" class="space-y-2">
+                                <li
+                                    v-for="(stage, idx) in aiStages"
+                                    :key="idx"
+                                    class="flex items-center gap-2 px-2.5 py-2 rounded-lg border"
+                                    :style="{ background: 'var(--wa-bg)', borderColor: 'var(--wa-border-strong)' }"
+                                >
+                                    <span class="text-xs font-mono text-[var(--wa-text-secondary)] w-5 text-right">
+                                        {{ idx + 1 }}.
+                                    </span>
+                                    <input
+                                        v-model="stage.color"
+                                        type="color"
+                                        class="w-6 h-6 rounded cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                                        :title="stage.color"
+                                    />
+                                    <input
+                                        v-model="stage.name"
+                                        type="text"
+                                        class="settings-input flex-1 min-w-0"
+                                        placeholder="Название этапа"
+                                    />
+                                    <div class="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            class="px-1.5 py-1 rounded text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-30"
+                                            :disabled="idx === 0"
+                                            title="Переместить выше"
+                                            @click="moveAiStage(idx, -1)"
+                                        >
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="px-1.5 py-1 rounded text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-30"
+                                            :disabled="idx === aiStages.length - 1"
+                                            title="Переместить ниже"
+                                            @click="moveAiStage(idx, 1)"
+                                        >
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="px-1.5 py-1 rounded text-red-400 hover:bg-red-500/10"
+                                            title="Удалить этап"
+                                            @click="removeAiStage(idx)"
+                                        >
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </li>
+                            </ol>
+                            <div v-else class="text-xs text-[var(--wa-text-secondary)] italic">
+                                Этапов нет — нажмите «+ Этап», чтобы добавить.
+                            </div>
+                        </div>
                     </div>
 
                     <div
+                        v-if="funnelMode !== 'ai' || editingFunnelId !== null || aiSuggested"
                         class="flex justify-end gap-2 px-5 py-3 border-t shrink-0"
                         :style="{ borderColor: 'var(--wa-border)' }"
                     >
@@ -548,10 +794,15 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             type="button"
                             class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
                             :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                            :disabled="savingFunnel"
+                            :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
                             @click="saveFunnel"
                         >
-                            {{ savingFunnel ? 'Сохранение…' : (editingFunnelId === null ? 'Создать' : 'Сохранить') }}
+                            <template v-if="savingFunnel">Сохранение…</template>
+                            <template v-else-if="editingFunnelId !== null">Сохранить</template>
+                            <template v-else-if="funnelMode === 'ai' && aiSuggested">
+                                Создать с {{ aiStages.length }} этап(ами)
+                            </template>
+                            <template v-else>Создать</template>
                         </button>
                     </div>
                 </div>
