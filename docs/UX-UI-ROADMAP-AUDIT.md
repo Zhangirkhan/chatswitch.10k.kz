@@ -26,7 +26,7 @@
 | 3 | Симулятор клиента | ✅ | `AiSimulationService`, `settings/ai-quality/simulate`, `POST chats/{chat}/ai-simulate`, модалка `AiSimulatorModal` в `ChatHeader` (контекст чата + история). | Нет анимированного preview смены этапа воронки после симуляции. |
 | 4 | История решений AI в чате | ✅ | `MessageAiDecisionService` → `ai_decision` на bubble в `ChatMessage.vue`; также history в сайдбаре/панели AI. | Нет раскрытия полного plan JSON. |
 | 5 | Быстрые действия в шапке чата | ✅ | `ChatHeader.vue`: AI, этап, назначение, отделы + кнопка **«Задача»**. | — |
-| 6 | Предупреждения перед опасными настройками | ✅ | `AiReadinessService` + confirm в `ChatAiSettingsController` при включении AI. | Можно заменить `window.confirm` на модалку. |
+| 6 | Предупреждения перед опасными настройками | ✅ | `AiReadinessService` + подтверждение при включении AI (`ChatAiSettingsController`). Модалка в `ChatHeader.vue` при низкой готовности + ссылка на AI Quality. | Другие `window.confirm` в приложении. |
 | 7 | Умные подсказки в настройках воронки | ✅ | `funnelStageHints.ts` + чипы на карточке этапа в `Funnels.vue` (цель, переход, 2–3 вопроса, follow-up). `suggestedStageRule()` и audit в AI Quality. | — |
 | 8 | Фильтр «требует внимания» | ✅ | `ChatAttentionService`, таб **«Внимание»** в `ChatSidebar`, `?filter=attention`. | Нет «AI uncertain», «спорная оплата», «неизвестный срок». |
 | 9 | Мягкое ручное вмешательство | 🟡 | Режим `ai_mode: draft`, `draft_reply` → `ChatInput`. `AiDraftToneLearningService` + toast в чате при сильной правке черновика. Подсказка под черновиком в `AiAssistantPanel.vue`. | Учёт лёгких правок (пунктуация). |
