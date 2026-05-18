@@ -46,6 +46,10 @@ final class ChatFunnelStateService
             ]);
         });
 
+        if ($fromStageId !== $classification->funnelStageId) {
+            app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat->fresh() ?? $chat);
+        }
+
         $this->broadcastFresh($chat->id, 'ai', $classification->reason);
     }
 
@@ -117,6 +121,10 @@ final class ChatFunnelStateService
             }
         });
 
+        if ($funnelChanged) {
+            app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat->fresh() ?? $chat);
+        }
+
         $this->broadcastFresh($chat->id, 'manual');
     }
 
@@ -143,6 +151,7 @@ final class ChatFunnelStateService
                 'id' => $chat->funnelStage->id,
                 'name' => $chat->funnelStage->name,
                 'color' => $chat->funnelStage->color,
+                'stage_type' => $chat->funnelStage->stage_type,
                 'position' => $chat->funnelStage->position,
             ] : null,
             'progress_percent' => $progress['percent'],
@@ -166,7 +175,7 @@ final class ChatFunnelStateService
 
         return [
             'funnel' => $chat->funnel ? $chat->funnel->only(['id', 'name', 'color']) : null,
-            'funnel_stage' => $chat->funnelStage ? $chat->funnelStage->only(['id', 'name', 'color', 'position']) : null,
+            'funnel_stage' => $chat->funnelStage ? $chat->funnelStage->only(['id', 'name', 'color', 'stage_type', 'position']) : null,
             'funnel_progress_percent' => $progress['percent'],
             'funnel_progress' => $progress,
         ];

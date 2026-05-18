@@ -22,7 +22,7 @@ final class ChatFunnelCatalogBuilder
      *     name: string,
      *     description: string|null,
      *     color: string,
-     *     stages: list<array{id: int, name: string, color: string, position: int}>
+     *     stages: list<array{id: int, name: string, color: string, stage_type: string, position: int}>
      * }>
      */
     public function forChat(Chat $chat): array
@@ -35,7 +35,7 @@ final class ChatFunnelCatalogBuilder
         /** @var Collection<int, Department> $departments */
         $departments = $chat->departments;
         if ($departments->isEmpty()) {
-            return [];
+            return $this->companyCatalog($chat);
         }
 
         /** @var array<int, true> $funnelIds */
@@ -53,7 +53,7 @@ final class ChatFunnelCatalogBuilder
         }
 
         if ($funnelIds === []) {
-            return [];
+            return $this->companyCatalog($chat);
         }
 
         /** @var Collection<int, Funnel> $funnels */
@@ -92,6 +92,7 @@ final class ChatFunnelCatalogBuilder
                         'id' => $stage->id,
                         'name' => $stage->name,
                         'color' => $stage->color,
+                        'stage_type' => $stage->stage_type,
                         'position' => $stage->position,
                     ])
                     ->all(),
@@ -99,6 +100,55 @@ final class ChatFunnelCatalogBuilder
         }
 
         return $catalog;
+    }
+
+    /**
+     * When a chat is new it may not have departments yet. In that state the AI
+     * still needs a catalog so it can pick the first suitable funnel itself.
+     *
+     * @return list<array{
+     *     id: int,
+     *     name: string,
+     *     description: string|null,
+     *     color: string,
+     *     stages: list<array{id: int, name: string, color: string, stage_type: string, position: int}>
+     * }>
+     */
+    private function companyCatalog(Chat $chat): array
+    {
+        if ($chat->company_id === null) {
+            return [];
+        }
+
+        /** @var Collection<int, Funnel> $funnels */
+        $funnels = Funnel::query()
+            ->where('company_id', $chat->company_id)
+            ->where('is_active', true)
+            ->with(['stages' => static fn ($q) => $q->where('is_active', true)->orderBy('position')->orderBy('id')])
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get();
+
+        return $funnels
+            ->filter(static fn (Funnel $funnel): bool => $funnel->stages->isNotEmpty())
+            ->map(static fn (Funnel $funnel): array => [
+                'id' => $funnel->id,
+                'name' => $funnel->name,
+                'description' => $funnel->description,
+                'color' => $funnel->color,
+                'stages' => $funnel->stages
+                    ->values()
+                    ->map(static fn (FunnelStage $stage): array => [
+                        'id' => $stage->id,
+                        'name' => $stage->name,
+                        'color' => $stage->color,
+                        'stage_type' => $stage->stage_type,
+                        'position' => $stage->position,
+                    ])
+                    ->all(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

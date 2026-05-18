@@ -92,7 +92,7 @@ final class GenerateAiReplyJob implements ShouldQueue
                     ],
                     ...($generated['metadata'] ?? []),
                 ],
-            ]);
+            ])->message;
 
             $log->forceFill([
                 'message_id' => $message->id,

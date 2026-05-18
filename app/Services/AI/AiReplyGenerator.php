@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
+use App\Services\Knowledge\ProductMessageAttachmentService;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -26,6 +27,7 @@ final class AiReplyGenerator
         private readonly CalendarAvailabilityService $availability,
         private readonly AppointmentBookingService $bookingService,
         private readonly AppointmentReminderSettings $appointmentReminderSettings,
+        private readonly ProductMessageAttachmentService $productAttachments,
     ) {}
 
     /**
@@ -46,7 +48,17 @@ final class AiReplyGenerator
         $reply = trim($this->openAi->chat($built['messages'], 0.35, 700));
         $reply = $this->sanitizeReply($reply);
         $reply = $this->normalizeCurrency($reply);
+        $parsed = $this->productAttachments->stripAttachMarker($reply);
+        $reply = $parsed['reply'];
         $this->assertSafeReply($reply);
+
+        $metadata = [];
+        if ($parsed['product_id'] !== null) {
+            $product = $this->productAttachments->findForChat($chat, $parsed['product_id']);
+            if ($product !== null) {
+                $metadata['product'] = $this->productAttachments->snapshot($product);
+            }
+        }
 
         $log?->forceFill([
             'prompt_hash' => $built['prompt_hash'],
@@ -54,13 +66,14 @@ final class AiReplyGenerator
             'metadata' => [
                 ...($log->metadata ?? []),
                 'messages_count' => count($built['messages']),
+                'product_attach_id' => $parsed['product_id'],
             ],
         ])->save();
 
         return [
             'reply' => $reply,
             'prompt_hash' => $built['prompt_hash'],
-            'metadata' => [],
+            'metadata' => $metadata,
         ];
     }
 

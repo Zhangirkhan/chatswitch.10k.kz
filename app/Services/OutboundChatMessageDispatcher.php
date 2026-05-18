@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Events\NewMessageReceived;
+use App\Jobs\ProcessOutboundFunnelSignalJob;
 use App\Jobs\SendOutboundMessageJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\AiDraftToneLearningService;
+use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Общая отправка исходящего текстового сообщения (веб и Mobile API v1).
@@ -37,13 +42,15 @@ final class OutboundChatMessageDispatcher
 
     public function __construct(
         private readonly ChatService $chatService,
+        private readonly ProductMessageAttachmentService $productAttachments,
+        private readonly AiDraftToneLearningService $draftToneLearning,
     ) {}
 
     /**
      * @param  array<string, mixed>  $input
-     *                         Keys: message, display_message?, quoted_message_id?, mentions?, mentions_meta?, metadata?
+     *                                       Keys: message, display_message?, quoted_message_id?, mentions?, mentions_meta?, metadata?, product_id?
      */
-    public function sendTextMessage(User $user, Chat $chat, array $input): Message
+    public function sendTextMessage(User $user, Chat $chat, array $input): OutboundTextSendResult
     {
         $chat->load('whatsappSession');
         $session = $chat->whatsappSession;
@@ -52,6 +59,30 @@ final class OutboundChatMessageDispatcher
         $displayText = (string) ($input['display_message'] ?? '');
         if (trim($displayText) === '') {
             $displayText = $text;
+        }
+
+        $metadata = is_array($input['metadata'] ?? null) ? $input['metadata'] : [];
+        if (isset($input['product_id']) && $input['product_id'] !== null && $input['product_id'] !== '') {
+            $product = $this->productAttachments->findForChat($chat, (int) $input['product_id']);
+            if ($product === null) {
+                throw ValidationException::withMessages([
+                    'product_id' => ['Товар не найден или недоступен для этого чата.'],
+                ]);
+            }
+            $metadata['product'] = $this->productAttachments->snapshot($product);
+        }
+
+        $productSnapshot = is_array($metadata['product'] ?? null) ? $metadata['product'] : null;
+        if (trim($displayText) === '' && $productSnapshot !== null) {
+            $displayText = $this->productAttachments->whatsappCaptionFallback($productSnapshot);
+        }
+        if (trim($text) === '' && $productSnapshot !== null) {
+            $text = $displayText;
+        }
+        if (trim($text) === '' && trim($displayText) === '') {
+            throw ValidationException::withMessages([
+                'message' => ['Введите текст сообщения или прикрепите товар.'],
+            ]);
         }
         $mentionsRaw = $input['mentions'] ?? [];
         $mentionsMetaRaw = $input['mentions_meta'] ?? [];
@@ -132,6 +163,10 @@ final class OutboundChatMessageDispatcher
 
         $signedText = OperatorSignature::prepend($user, $text);
         $signedDisplayText = OperatorSignature::prepend($user, $displayText);
+        $waText = $signedText;
+        if ($productSnapshot !== null) {
+            $waText = $this->productAttachments->appendToWhatsappBody($signedText, $productSnapshot);
+        }
 
         $message = $this->chatService->storeOutboundMessage(
             $chat,
@@ -140,7 +175,7 @@ final class OutboundChatMessageDispatcher
             $signedDisplayText,
             null,
             is_string($quotedMessageId) ? $quotedMessageId : null,
-            is_array($input['metadata'] ?? null) ? $input['metadata'] : null,
+            $metadata !== [] ? $metadata : null,
         );
 
         if ($mentionsMeta !== []) {
@@ -152,16 +187,39 @@ final class OutboundChatMessageDispatcher
         $message->load(self::messageWithRelations());
         broadcast(new NewMessageReceived($message, $chat->id));
 
-        SendOutboundMessageJob::dispatch(
-            $message->id,
-            'text',
-            [
-                'body' => $signedText,
-                'quoted_message_id' => $quotedMessageId,
-                'mentions' => $mentions,
-            ],
-        );
+        $imagePath = is_string($productSnapshot['image_path'] ?? null) ? $productSnapshot['image_path'] : '';
+        if ($imagePath !== '' && Storage::disk('public')->exists($imagePath)) {
+            $mime = $this->productAttachments->publicImageMimeType($imagePath);
+            $filename = basename($imagePath);
+            $caption = trim($waText) !== '' ? $waText : null;
 
-        return $message;
+            SendOutboundMessageJob::dispatch(
+                $message->id,
+                'media',
+                [
+                    'disk' => 'public',
+                    'path' => $imagePath,
+                    'mimetype' => $mime,
+                    'filename' => $filename,
+                    'caption' => $caption,
+                ],
+            );
+        } else {
+            SendOutboundMessageJob::dispatch(
+                $message->id,
+                'text',
+                [
+                    'body' => $waText,
+                    'quoted_message_id' => $quotedMessageId,
+                    'mentions' => $mentions,
+                ],
+            );
+        }
+
+        ProcessOutboundFunnelSignalJob::dispatch($message->id);
+
+        $toneScheduled = $this->draftToneLearning->learnFromOutbound($user, $chat, $signedDisplayText);
+
+        return new OutboundTextSendResult($message, $toneScheduled);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Events\NewMessageReceived;
+use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\WhatsappSession;
@@ -60,18 +61,35 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
         });
 
         $message->loadMissing('chat');
-        if ($message->chat !== null
+        $shouldAnalyzeFunnel = $message->chat !== null
             && SystemSetting::getValue('module_funnels', 'on') === 'on'
             && ! $message->chat->is_group
             && $message->direction === 'inbound'
             && $message->chat->funnel_tracking_enabled
-            && ! $message->chat->funnel_stage_locked) {
-            $delaySeconds = max(5, (int) config('funnel.ai.debounce_seconds', 45));
+            && ! $message->chat->funnel_stage_locked;
+
+        $orchestratorEnabled = $message->chat !== null
+            && $message->chat->funnel_id !== null
+            && FunnelAiScenario::query()
+                ->where('funnel_id', $message->chat->funnel_id)
+                ->where('enabled', true)
+                ->exists();
+
+        if ($orchestratorEnabled) {
+            $delaySeconds = max(1, (int) config('funnel.orchestrator.debounce_seconds', 3));
+            RunAiFunnelOrchestratorJob::dispatch($message->chat_id, $message->id)
+                ->delay(now()->addSeconds($delaySeconds));
+
+            return;
+        }
+
+        if ($shouldAnalyzeFunnel) {
+            $delaySeconds = max(1, (int) config('funnel.ai.debounce_seconds', 5));
             AnalyzeChatFunnelJob::dispatch($message->chat_id, $message->id)
                 ->delay(now()->addSeconds($delaySeconds));
         }
 
-        if ($message->chat?->ai_enabled === true) {
+        if ($message->chat?->ai_enabled === true && ! $shouldAnalyzeFunnel) {
             GenerateAiReplyJob::dispatch($message->chat_id, $message->id);
         }
     }

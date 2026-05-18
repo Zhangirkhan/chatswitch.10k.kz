@@ -46,6 +46,8 @@ final class KnowledgeItemRequest extends FormRequest
 
         return $common + [
             'sku' => ['nullable', 'string', 'max:120'],
+            'image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'remove_image' => ['nullable', 'boolean'],
             'attributes' => ['nullable', 'array'],
         ];
     }

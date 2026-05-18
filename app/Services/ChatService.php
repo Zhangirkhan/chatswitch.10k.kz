@@ -13,6 +13,8 @@ use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\ChatAttentionService;
+use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
@@ -119,8 +121,12 @@ final class ChatService
         return ['scanned' => $scanned, 'updated' => $updated];
     }
 
-    public function getChatsForUser(User $user, ?string $search = null, string $listOwnership = 'all'): Builder
-    {
+    public function getChatsForUser(
+        User $user,
+        ?string $search = null,
+        string $listOwnership = 'all',
+        ?string $filter = null,
+    ): Builder {
         // Закреплённые — сверху; затем по времени последней активности.
         // COALESCE нужен, чтобы только что созданные чаты (без сообщений)
         // сортировались по created_at и попадали в самый верх списка.
@@ -134,10 +140,31 @@ final class ChatService
             // даёт MySQL 1052 Column 'chat_id' in SELECT is ambiguous.
             'latestMessage',
             'latestMessage.media:id,message_id,mime_type,filename',
-        ])
+        ]);
+
+        $query = $this->applyChatVisibilityForUser($query, $user, $search, $listOwnership);
+
+        if ($filter === ChatAttentionService::FILTER_ATTENTION) {
+            app(ChatAttentionService::class)->applyAttentionScope($query);
+
+            return $query;
+        }
+
+        return $query
             ->orderByDesc('is_pinned')
             ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+    }
 
+    /**
+     * @param  Builder<Chat>  $query
+     * @return Builder<Chat>
+     */
+    private function applyChatVisibilityForUser(
+        Builder $query,
+        User $user,
+        ?string $search,
+        string $listOwnership,
+    ): Builder {
         if ($listOwnership === 'mine' && ($user->hasRole('administrator') || $user->hasRole('manager'))) {
             $query->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id));
         }
@@ -189,6 +216,22 @@ final class ChatService
         }
 
         return $query;
+    }
+
+    /**
+     * @param  list<Chat>  $chats
+     */
+    public function enrichAttentionMeta(array $chats): void
+    {
+        $service = app(ChatAttentionService::class);
+        foreach ($chats as $chat) {
+            if (! $chat instanceof Chat) {
+                continue;
+            }
+            $meta = $service->describe($chat);
+            $chat->setAttribute('attention_reason', $meta['reason']);
+            $chat->setAttribute('attention_severity', $meta['severity']);
+        }
     }
 
     /**
@@ -453,6 +496,8 @@ final class ChatService
             $contact = $this->findOrCreateContact($data);
             $chat->update(['contact_id' => $contact->id]);
         }
+
+        app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat);
 
         return $message;
     }

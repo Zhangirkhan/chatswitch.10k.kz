@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -31,6 +32,7 @@ final class ChatAssistantService
         private readonly OpenAiChatService $openAi,
         private readonly OperatorCalendarContextBuilder $operatorCalendarContext,
         private readonly PromptBuilder $promptBuilder,
+        private readonly ProductMessageAttachmentService $productAttachments,
     ) {}
 
     /**
@@ -38,7 +40,10 @@ final class ChatAssistantService
      *                                                                                          История переписки оператора с AI в этой панели (без system-сообщений).
      * @param  string  $userPrompt  Свежее сообщение оператора к AI.
      */
-    public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): string
+    /**
+     * @return array{reply: string, product: array<string, mixed>|null}
+     */
+    public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): array
     {
         $knowledgePrompt = $this->promptBuilder->build(
             $chat,
@@ -54,7 +59,20 @@ final class ChatAssistantService
             ['role' => 'user', 'content' => $this->normalizeUserPrompt($userPrompt)],
         ];
 
-        return trim($this->openAi->chat($messages, 0.45, 900));
+        $reply = trim($this->openAi->chat($messages, 0.45, 900));
+        $parsed = $this->productAttachments->stripAttachMarker($reply);
+        $product = null;
+        if ($parsed['product_id'] !== null) {
+            $model = $this->productAttachments->findForChat($chat, $parsed['product_id']);
+            if ($model !== null) {
+                $product = $this->productAttachments->snapshot($model);
+            }
+        }
+
+        return [
+            'reply' => $parsed['reply'],
+            'product' => $product,
+        ];
     }
 
     private function buildSystemPrompt(Chat $chat, User $operator): string
@@ -80,6 +98,7 @@ final class ChatAssistantService
 {$this->calendarBehaviorInstructions()}
 
 Ты не отправляешь ничего клиенту самостоятельно. Твои сообщения видит только оператор.
+{$this->productAttachments->promptInstruction()}
 PROMPT;
     }
 

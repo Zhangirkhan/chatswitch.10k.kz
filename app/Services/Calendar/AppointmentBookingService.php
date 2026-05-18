@@ -32,12 +32,15 @@ final class AppointmentBookingService
         CarbonInterface $startsAt,
         int $durationMinutes,
         ?string $clientNote = null,
+        ?User $assignee = null,
     ): array {
         $durationMinutes = max(1, $durationMinutes);
         $endsAt = Carbon::instance($startsAt->toDateTime())->copy()->addMinutes($durationMinutes);
         $startsAt = Carbon::instance($startsAt->toDateTime())->copy();
 
-        return DB::transaction(function () use ($chat, $responder, $triggerMessage, $serviceName, $startsAt, $endsAt, $durationMinutes, $clientNote): array {
+        $assignee ??= $responder;
+
+        return DB::transaction(function () use ($chat, $responder, $assignee, $triggerMessage, $serviceName, $startsAt, $endsAt, $durationMinutes, $clientNote): array {
             $existing = CalendarEvent::query()
                 ->where('trigger_message_id', $triggerMessage->id)
                 ->where('source', CalendarEvent::SOURCE_AI_AUTO)
@@ -53,7 +56,7 @@ final class AppointmentBookingService
 
             $event = CalendarEvent::create([
                 'user_id' => $responder->id,
-                'assignee_user_id' => $responder->id,
+                'assignee_user_id' => $assignee->id,
                 'chat_id' => $chat->id,
                 'contact_id' => $chat->contact_id,
                 'trigger_message_id' => $triggerMessage->id,
@@ -72,6 +75,7 @@ final class AppointmentBookingService
                         'service_name' => $serviceName,
                         'duration_minutes' => $durationMinutes,
                         'trigger_message_id' => $triggerMessage->id,
+                        'assignee_user_id' => $assignee->id,
                     ],
                 ],
             ]);

@@ -21,7 +21,8 @@ final class SendMessageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'message' => ['required', 'string', 'max:4096'],
+            'message' => ['required_without:product_id', 'nullable', 'string', 'max:4096'],
+            'product_id' => ['nullable', 'integer', 'exists:products,id'],
             'display_message' => ['nullable', 'string', 'max:4096'],
             'quoted_message_id' => ['nullable', 'string', 'max:255'],
             'mentions' => ['nullable', 'array', 'max:20'],

@@ -9,6 +9,7 @@ use App\Models\CompanyToneProfile;
 use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -30,6 +31,7 @@ final class PromptBuilder
         private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
         private readonly OpenAiChatService $openAi,
         private readonly OperatorCalendarContextBuilder $calendarContext,
+        private readonly ProductMessageAttachmentService $productAttachments,
     ) {}
 
     /**
@@ -38,12 +40,12 @@ final class PromptBuilder
     public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null): array
     {
         $companyId ??= $chat->company_id ?? $responder->company_id;
-        $system = $this->systemPrompt($chat, $responder, $companyId);
-        $context = $this->conversationContext($chat);
-        $continuity = $this->aiContinuityContext($chat);
         $question = trim($clientQuestion) !== ''
             ? trim($clientQuestion)
             : 'Ответь на последнее сообщение клиента.';
+        $system = $this->systemPrompt($chat, $responder, $companyId, $question);
+        $context = $this->conversationContext($chat);
+        $continuity = $this->aiContinuityContext($chat);
 
         $messages = [
             ['role' => 'system', 'content' => $system],
@@ -58,10 +60,10 @@ final class PromptBuilder
         ];
     }
 
-    private function systemPrompt(Chat $chat, User $responder, ?int $companyId): string
+    private function systemPrompt(Chat $chat, User $responder, ?int $companyId, string $clientQuestion): string
     {
         $knowledgeBlock = $companyId !== null
-            ? $this->knowledgeBlock($companyId)
+            ? $this->knowledgeBlock($companyId, $clientQuestion)
             : 'База знаний компании не выбрана.';
         $toneBlock = $companyId !== null
             ? $this->toneBlock($responder, $companyId)
@@ -87,6 +89,7 @@ final class PromptBuilder
 11. Не повторяй уже сказанные клиенту цену, размеры, условия и наличие без необходимости. Если клиент уточнил деталь или подтвердил выбор — коротко подтверди следующий шаг.
 12. Блок "последние AI-ответы" используй только чтобы не повторяться и продолжать диалог. Не используй его как источник фактов: факты бери из базы знаний и ручной истории.
 13. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
+{$this->productAttachments->promptInstruction()}
 
 {$knowledgeBlock}
 
@@ -98,9 +101,10 @@ final class PromptBuilder
 PROMPT;
     }
 
-    private function knowledgeBlock(int $companyId): string
+    private function knowledgeBlock(int $companyId, string $clientQuestion): string
     {
-        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId);
+        $query = trim($clientQuestion) !== '' ? trim($clientQuestion) : null;
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query);
         $fullContext = implode("\n", $lines);
         if (mb_strlen($fullContext) <= self::HISTORY_CHAR_BUDGET) {
             return $fullContext;

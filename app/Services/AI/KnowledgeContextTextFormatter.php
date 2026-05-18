@@ -7,11 +7,13 @@ namespace App\Services\AI;
 use App\Models\KnowledgeRule;
 use App\Models\Product;
 use App\Models\Service;
+use App\Services\Knowledge\KnowledgeRagRetriever;
 
 final class KnowledgeContextTextFormatter
 {
     public function __construct(
         private readonly KnowledgeContextRepository $knowledge,
+        private readonly KnowledgeRagRetriever $ragRetriever,
     ) {}
 
     /**
@@ -19,27 +21,32 @@ final class KnowledgeContextTextFormatter
      *
      * @return list<string>
      */
-    public function knowledgeLines(int $companyId): array
+    public function knowledgeLines(int $companyId, ?string $query = null): array
     {
+        if ($this->ragRetriever->shouldUseForQuery($query)) {
+            $ragLines = $this->ragRetriever->retrieveLines($companyId, (string) $query);
+            if ($ragLines !== []) {
+                return $this->ragHeader($query, true, $ragLines);
+            }
+        }
+
         $data = $this->knowledge->forPrompt($companyId);
-        $lines = ['База знаний компании. Валюта цен: казахстанский тенге (KZT, ₸).'];
-
-        $lines[] = 'Правила ответа:';
+        $bodyLines = ['Правила ответа:'];
         foreach ($data['rules'] as $rule) {
-            $lines[] = $this->formatRuleLine($rule);
+            $bodyLines[] = $this->formatRuleLine($rule);
         }
 
-        $lines[] = 'Товары:';
+        $bodyLines[] = 'Товары:';
         foreach ($data['products'] as $product) {
-            $lines[] = $this->formatProductLine($product);
+            $bodyLines[] = $this->formatProductLine($product);
         }
 
-        $lines[] = 'Услуги:';
+        $bodyLines[] = 'Услуги:';
         foreach ($data['services'] as $service) {
-            $lines[] = $this->formatServiceLine($service);
+            $bodyLines[] = $this->formatServiceLine($service);
         }
 
-        return $lines;
+        return $this->ragHeader($query, false, $bodyLines);
     }
 
     /**
@@ -56,27 +63,50 @@ final class KnowledgeContextTextFormatter
         ];
     }
 
-    private function formatRuleLine(KnowledgeRule $rule): string
+    public function formatRuleLine(KnowledgeRule $rule): string
     {
         return "- {$rule->title} ({$rule->type}, priority {$rule->priority}): {$rule->content}";
     }
 
-    private function formatProductLine(Product $product): string
+    public function formatProductLine(Product $product): string
     {
         $price = $product->price !== null ? ' Цена: '.$this->formatTenge($product->price).'.' : '';
         $sku = $product->sku ? " SKU: {$product->sku}." : '';
         $attributes = $this->detailsBlock('Характеристики', $product->attributes);
 
-        return trim("- {$product->name}.{$sku}{$price} ".trim((string) $product->description).' '.$attributes);
+        return $this->factsLine('Товар', "[id={$product->id}] {$product->name}", [
+            $sku,
+            $price,
+            trim((string) $product->description),
+            $attributes,
+        ]);
     }
 
-    private function formatServiceLine(Service $service): string
+    public function formatServiceLine(Service $service): string
     {
         $duration = $service->duration_minutes !== null ? " Длительность: {$service->duration_minutes} мин." : '';
         $price = $service->price !== null ? ' Цена: '.$this->formatTenge($service->price).'.' : '';
         $conditions = $this->detailsBlock('Условия', $service->conditions);
 
-        return trim("- {$service->name}.{$duration}{$price} ".trim((string) $service->description).' '.$conditions);
+        return $this->factsLine('Услуга', $service->name, [
+            $duration,
+            $price,
+            trim((string) $service->description),
+            $conditions,
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $parts
+     */
+    private function factsLine(string $type, string $name, array $parts): string
+    {
+        $facts = collect($parts)
+            ->map(static fn (string $part): string => trim($part, " \t\n\r\0\x0B."))
+            ->filter()
+            ->implode(' | ');
+
+        return $facts !== '' ? "- {$type}: {$name} | {$facts}" : "- {$type}: {$name}";
     }
 
     private function formatTenge(mixed $price): string
@@ -114,5 +144,23 @@ final class KnowledgeContextTextFormatter
             ->implode('; ');
 
         return $pairs !== '' ? "{$label}: {$pairs}." : '';
+    }
+
+    /**
+     * @param  list<string>  $bodyLines
+     * @return list<string>
+     */
+    private function ragHeader(?string $query, bool $usedRag, array $bodyLines): array
+    {
+        $header = [
+            'База знаний компании. Валюта цен: казахстанский тенге (KZT, ₸).',
+            'Используй эти записи как факты для точного ответа. Не превращай каждый товар или услугу в одинаковую рекламную карточку; отвечай только по вопросу клиента.',
+        ];
+
+        if ($usedRag && trim((string) $query) !== '') {
+            $header[] = 'Подбор записей: RAG (релевантные фрагменты по запросу клиента).';
+        }
+
+        return [...$header, ...$bodyLines];
     }
 }
