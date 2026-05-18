@@ -14,20 +14,22 @@
 :root,
 [data-theme='dark'] {
     /* Backgrounds */
-    --wa-bg: #0b141a;              /* chat canvas / app background */
-    --wa-panel: #111b21;           /* chat list / content panel */
-    --wa-panel-header: #202c33;    /* top bars, search container */
-    --wa-panel-input: #2a3942;     /* input fields */
-    --wa-panel-hover: #1f2c33;     /* row / button hover */
-    --wa-selected: #2a3942;        /* selected row / pressed state */
-    --wa-rail-bg: #111b21;         /* narrow left icon rail */
-    --wa-rail-btn-hover: #202c33;
-    --wa-empty-bg: #202c33;
+    --wa-bg: #161717;              /* chat canvas / app background */
+    --wa-sidebar-bg: #1d1f1f;      /* sidebars / chat list */
+    --wa-panel: var(--wa-sidebar-bg);           /* chat list / content panel */
+    --wa-panel-header: var(--wa-sidebar-bg);    /* top bars, search container */
+    --wa-panel-input: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --wa-panel-hover: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
+    --wa-selected: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --wa-rail-bg: var(--wa-sidebar-bg);         /* narrow left icon rail */
+    --wa-rail-btn-hover: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --wa-empty-bg: #161717;
 
     /* Borders & dividers */
     --wa-border: rgba(134, 150, 160, 0.13);
     --wa-border-strong: rgba(134, 150, 160, 0.22);
     --wa-divider: rgba(134, 150, 160, 0.13);
+    --wa-sidebar-divider: #343636;
 
     /* Text */
     --wa-text: #E9EDEF;
@@ -35,19 +37,24 @@
     --wa-text-muted: #667781;
 
     /* Brand / accent */
-    --wa-accent: #00a884;          /* primary accent (links, icons, buttons) */
-    --wa-accent-hover: #06cf9c;
-    --wa-accent-soft: #0b3b31;     /* subtle accent bg (badges, pills) */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
+    --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 16%, var(--wa-panel));
+    --brand-accent-border: color-mix(in srgb, var(--brand-accent) 38%, var(--wa-border));
+    --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
+    --wa-accent-hover: var(--brand-accent-hover);
+    --wa-accent-soft: var(--brand-accent-soft);     /* subtle accent bg (badges, pills) */
     --wa-accent-on: #111b21;       /* foreground on accent bg */
+    --wa-green: var(--brand-accent);
 
     /* Message bubbles */
-    --wa-bubble-in: #202c33;       /* incoming messages */
-    --wa-bubble-out: #005c4b;      /* outgoing messages */
+    --wa-bubble-in: color-mix(in srgb, #ffffff 6%, var(--wa-bg));       /* incoming messages */
+    --wa-bubble-out: color-mix(in srgb, var(--brand-accent) 42%, #003b32 58%);      /* outgoing messages */
     --wa-bubble-text: #e9edef;
     --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.26);
 
     /* Indicators */
-    --wa-unread: #00a884;
+    --wa-unread: var(--brand-accent);
     --wa-unread-text: #111b21;
     --wa-ack-read: #53bdeb;        /* double-tick "read" */
 
@@ -60,22 +67,22 @@
 
     /* Misc */
     --wa-doodle-color: '%231D1F20';
-    --wa-date-bubble: #182229;
+    --wa-date-bubble: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
     --wa-date-bubble-text: #d1d7db;
     /* Центрированные системные строки в ленте (назначения, отделы) — как в WhatsApp */
-    --wa-system-chat-pill-bg: rgba(24, 34, 41, 0.88);
+    --wa-system-chat-pill-bg: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
     --wa-system-chat-pill-text: #8696a0;
-    --wa-avatar-bg: #2a3942;
+    --wa-avatar-bg: color-mix(in srgb, #ffffff 8%, var(--wa-bg));
     --wa-avatar-icon: #aebac1;
     --wa-danger: #f15c6d;
 
     /* Контекстное меню сообщения + полоска быстрых реакций (teleport на body) */
-    --msg-menu-bg: #233138;
+    --msg-menu-bg: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
     --msg-menu-border: rgba(233, 237, 239, 0.08);
     --msg-menu-shadow: 0 10px 32px rgba(0, 0, 0, 0.48);
-    --msg-menu-item-hover: #182229;
+    --msg-menu-item-hover: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
     --msg-menu-divider: rgba(233, 237, 239, 0.08);
-    --msg-reaction-bar-bg: #233138;
+    --msg-reaction-bar-bg: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
     --msg-reaction-bar-border: rgba(233, 237, 239, 0.08);
     --msg-reaction-bar-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
     --msg-reaction-emoji-color: #f5f5f5;
@@ -111,12 +118,30 @@
     --wa-header-pill-dept-text: #fde68a;
     --wa-header-pill-dept-text-active: #fffbeb;
     --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
-    --wa-header-pill-sched-text: #bfdbfe;
-    --wa-header-pill-sched-bg-hover: color-mix(in srgb, #3b82f6 16%, var(--wa-panel));
+    --wa-header-pill-sched-text: var(--wa-accent);
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
     --wa-assignee-pill-fg: #b6f7df;
 
     /* Внутренние «колодцы» списков/графиков (не использовать chat-parchment wa-bg) */
-    --wa-surface-inset: color-mix(in srgb, var(--wa-bg) 58%, var(--wa-panel) 42%);
+    --wa-surface-inset: color-mix(in srgb, #ffffff 3%, var(--wa-bg));
+
+    /* Settings/admin surfaces — WhatsApp graphite with clearer depth, not slate-blue. */
+    --ui-bg: var(--wa-bg);
+    --ui-surface: color-mix(in srgb, #ffffff 3%, var(--wa-bg));
+    --ui-surface-muted: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --ui-surface-raised: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --ui-surface-inset: color-mix(in srgb, #000000 10%, var(--wa-bg));
+    --ui-input-bg: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
+    --ui-border: rgba(174, 186, 193, 0.2);
+    --ui-border-strong: rgba(174, 186, 193, 0.34);
+    --ui-accent: var(--brand-accent);
+    --ui-accent-hover: var(--brand-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--brand-accent) 16%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--brand-accent) 38%, var(--ui-border));
+    --ui-text: var(--wa-text);
+    --ui-text-secondary: var(--wa-text-secondary);
+    --ui-shadow-card: 0 18px 48px rgba(0, 0, 0, 0.34);
+    --ui-shadow-soft: 0 8px 26px rgba(0, 0, 0, 0.22);
 }
 
 /* Light */
@@ -136,6 +161,7 @@
     --wa-border: #D1D7DB;
     --wa-border-strong: #D1D7DB;
     --wa-divider: #E9EDEF;
+    --wa-sidebar-divider: #d1d7db;
 
     /* Text */
     --wa-text: #111B21;
@@ -143,19 +169,24 @@
     --wa-text-muted: #8696A0;
 
     /* Brand / accent */
-    --wa-accent: #008069;          /* darker WA green — readable on white */
-    --wa-accent-hover: #00A884;
-    --wa-accent-soft: #D8FDD2;
+    --brand-accent: #00b86b;
+    --brand-accent-hover: #00c875;
+    --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 12%, var(--wa-panel));
+    --brand-accent-border: color-mix(in srgb, var(--brand-accent) 30%, var(--wa-border));
+    --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
+    --wa-accent-hover: var(--brand-accent-hover);
+    --wa-accent-soft: var(--brand-accent-soft);
     --wa-accent-on: #FFFFFF;
+    --wa-green: var(--brand-accent);
 
     /* Message bubbles */
     --wa-bubble-in: #FFFFFF;
-    --wa-bubble-out: #DCF8C6;
+    --wa-bubble-out: color-mix(in srgb, var(--brand-accent) 18%, #dcf8c6 82%);
     --wa-bubble-text: #111B21;
     --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
 
     /* Indicators */
-    --wa-unread: #25D366;          /* brand green badge */
+    --wa-unread: var(--brand-accent);          /* brand green badge */
     --wa-unread-text: #FFFFFF;
     --wa-ack-read: #53BDEB;
 
@@ -217,11 +248,28 @@
     --wa-header-pill-dept-text: #92400e;
     --wa-header-pill-dept-text-active: #78350f;
     --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
-    --wa-header-pill-sched-text: #1e40af;
-    --wa-header-pill-sched-bg-hover: color-mix(in srgb, #3b82f6 18%, var(--wa-panel));
+    --wa-header-pill-sched-text: var(--wa-accent);
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
     --wa-assignee-pill-fg: #0a5c4a;
 
     --wa-surface-inset: #e8edf2;
+
+    --ui-bg: color-mix(in srgb, var(--wa-panel-header) 78%, var(--wa-bg) 22%);
+    --ui-surface: var(--wa-panel);
+    --ui-surface-muted: color-mix(in srgb, var(--wa-panel-hover) 82%, var(--wa-panel-header) 18%);
+    --ui-surface-raised: color-mix(in srgb, var(--wa-panel) 86%, var(--wa-panel-header) 14%);
+    --ui-surface-inset: color-mix(in srgb, var(--wa-panel-header) 70%, var(--wa-bg) 30%);
+    --ui-input-bg: var(--wa-panel-input);
+    --ui-border: rgba(17, 27, 33, 0.15);
+    --ui-border-strong: rgba(17, 27, 33, 0.26);
+    --ui-accent: var(--brand-accent);
+    --ui-accent-hover: var(--brand-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--brand-accent) 12%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--brand-accent) 30%, var(--ui-border));
+    --ui-text: var(--wa-text);
+    --ui-text-secondary: var(--wa-text-secondary);
+    --ui-shadow-card: 0 18px 48px rgba(17, 27, 33, 0.1);
+    --ui-shadow-soft: 0 8px 24px rgba(17, 27, 33, 0.08);
 }
 
 html,
@@ -296,7 +344,7 @@ body {
 [data-theme='dark']:not([data-chat-bg]) .chat-bg,
 [data-theme='dark'][data-chat-bg='default'] .chat-bg {
     background-image:
-        linear-gradient(rgba(11, 20, 26, 0.74), rgba(11, 20, 26, 0.74)),
+        linear-gradient(rgba(22, 23, 23, 0.76), rgba(22, 23, 23, 0.76)),
         url("/images/chat-backgrounds/whatsapp.png");
     background-size: auto, 420px;
     background-position: center, center;
@@ -315,6 +363,11 @@ body {
 input::placeholder,
 textarea::placeholder {
     color: var(--wa-text-secondary);
+}
+
+::selection {
+    background: color-mix(in srgb, var(--wa-accent) 28%, transparent);
+    color: var(--wa-text);
 }
 
 button:focus,
@@ -365,14 +418,14 @@ button.wa-mention-link:hover {
 
 /* Clickable links inside message bubbles (rendered via waMarkup.ts linkify) */
 a.wa-link {
-    color: #53BDEB; /* WhatsApp-like blue on dark */
+    color: var(--wa-accent);
     text-decoration: underline;
     text-underline-offset: 2px;
     text-decoration-thickness: 1px;
     word-break: break-word;
 }
 [data-theme='light'] a.wa-link {
-    color: #0B57D0; /* readable blue on light */
+    color: color-mix(in srgb, var(--wa-accent) 82%, #064e3b 18%);
 }
 a.wa-link:hover {
     filter: brightness(1.08);
@@ -414,7 +467,7 @@ a.wa-link:hover {
     width: 15px;
     height: 15px;
     border-radius: 9999px;
-    background: #00a884;
+    background: var(--wa-accent);
     color: #fff;
     display: flex;
     align-items: center;
