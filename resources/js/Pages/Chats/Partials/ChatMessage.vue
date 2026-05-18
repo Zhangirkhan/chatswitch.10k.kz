@@ -6,10 +6,12 @@ import EmojiPicker from './EmojiPicker.vue';
 import MessageReactions from './MessageReactions.vue';
 import MessageStatus from './MessageStatus.vue';
 import { useToastStore } from '@/stores/toast';
-import type { Chat, Message, MessageMedia, MessageReaction } from '@/types';
+import type { Chat, Message, MessageAiDecision, MessageMedia, MessageReaction } from '@/types';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { renderWaMarkup, stripWaMarkup } from '@/utils/waMarkup';
 import LinkPreview from '@/Components/LinkPreview.vue';
+import ChatMessageProductCard from '@/Components/ChatMessageProductCard.vue';
+import type { MessageProductAttachment } from '@/types';
 import { useTranslationLang } from '@/composables/useTranslationLang';
 
 const props = defineProps<{
@@ -112,6 +114,9 @@ const aiFeedbackOptions: { id: AiFeedbackRating; label: string; title: string }[
 
 const aiFeedbackSubmitting = ref(false);
 const canShowAiFeedback = computed(() => showMessageBody.value && isAiGenerated.value && isInternalUser.value && aiQualityModuleEnabled.value);
+
+const aiDecision = computed<MessageAiDecision | null>(() => props.message.ai_decision ?? null);
+const showAiDecision = computed(() => isInternalUser.value && aiDecision.value !== null);
 
 async function submitAiFeedback(rating: AiFeedbackRating): Promise<void> {
     if (aiFeedbackSubmitting.value) {
@@ -451,7 +456,21 @@ function extractFirstUrl(text: string): string | null {
     return raw.startsWith('http') ? raw : `https://${raw}`;
 }
 
+const attachedProduct = computed<MessageProductAttachment | null>(() => {
+    const meta = props.message.metadata as { product?: MessageProductAttachment } | null | undefined;
+    const product = meta?.product;
+    if (!product || typeof product !== 'object' || !product.name) {
+        return null;
+    }
+
+    return product;
+});
+
 const linkPreviewUrl = computed(() => {
+    if (attachedProduct.value) {
+        return null;
+    }
+
     const body = stripWaMarkup(props.message.body).trim();
     const url = extractFirstUrl(body);
     if (!url) return null;
@@ -465,6 +484,40 @@ const linkPreviewUrl = computed(() => {
     }
 
     return url;
+});
+
+function bodyTextWithoutOperatorSignature(body: string): string {
+    return body.replace(/^\*[^*\n]+\*\s*\n?/, '').trim();
+}
+
+/** Текст, который совпадает с автоподписью товара (название/цена) — не дублируем над карточкой. */
+const isProductAutoCaptionBody = computed(() => {
+    const product = attachedProduct.value;
+    if (!product) {
+        return false;
+    }
+
+    const rest = bodyTextWithoutOperatorSignature(stripWaMarkup(props.message.body || ''));
+    if (rest === '') {
+        return true;
+    }
+
+    const variants = [
+        [product.name, product.price_formatted].filter(Boolean).join(' — '),
+        product.name,
+        product.price_formatted,
+    ].filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+
+    return variants.some((v) => rest === v.trim());
+});
+
+/** Медиа товара показываем только в карточке, не отдельным вложением. */
+const mediaItemsForDisplay = computed(() => {
+    if (attachedProduct.value?.image_url) {
+        return mediaItems.value.filter((m) => !isImageMime(m));
+    }
+
+    return mediaItems.value;
 });
 
 /** Псевдо-волна как в WhatsApp (высоты детерминированы от id сообщения). */
@@ -727,8 +780,16 @@ const showMessageBody = computed(() => {
         return false;
     }
 
+    if (attachedProduct.value && !hasQuoted.value && isProductAutoCaptionBody.value) {
+        return false;
+    }
+
     return true;
 });
+
+const wideProductBubble = computed(
+    () => !!attachedProduct.value && !hasQuoted.value && !showVoiceFallback.value,
+);
 
 function isVisualAttachment(m: MessageMedia): boolean {
     return isImageMime(m) || isVideoMime(m);
@@ -736,12 +797,13 @@ function isVisualAttachment(m: MessageMedia): boolean {
 
 /** Только картинки/видео — можно full-bleed как в WhatsApp. */
 const allMediaAreVisual = computed(
-    () => mediaItems.value.length > 0 && mediaItems.value.every((m) => isVisualAttachment(m)),
+    () => mediaItemsForDisplay.value.length > 0 && mediaItemsForDisplay.value.every((m) => isVisualAttachment(m)),
 );
 
 /** Без текста/цитаты/заглушки голоса: фото на всю ширину пузырька, время поверх. */
 const fullBleedVisualBubble = computed(
     () =>
+        !attachedProduct.value &&
         allMediaAreVisual.value &&
         !hasQuoted.value &&
         !showMessageBody.value &&
@@ -749,12 +811,12 @@ const fullBleedVisualBubble = computed(
 );
 
 const fullBleedHasVideo = computed(
-    () => fullBleedVisualBubble.value && mediaItems.value.some((m) => isVideoMime(m) && !isGifLikeMedia(m)),
+    () => fullBleedVisualBubble.value && mediaItemsForDisplay.value.some((m) => isVideoMime(m) && !isGifLikeMedia(m)),
 );
 
 /** Шире обычного пузырька для визуальных вложений (как в мессенджерах на телефоне). */
 const wideImageBubble = computed(
-    () => allMediaAreVisual.value && !hasQuoted.value && !showVoiceFallback.value,
+    () => (allMediaAreVisual.value || wideProductBubble.value) && !hasQuoted.value && !showVoiceFallback.value,
 );
 
 const imageLightboxMediaId = ref<number | null>(null);
@@ -1284,9 +1346,16 @@ onBeforeUnmount(() => {
                 </div>
             </button>
 
+            <ChatMessageProductCard
+                v-if="attachedProduct"
+                :product="attachedProduct"
+                :outbound="isOutbound"
+            />
+
             <p
                 v-if="showMessageBody"
                 class="wa-msg-text mb-0.5 whitespace-pre-wrap break-words"
+                :class="{ 'mt-1': attachedProduct }"
                 style="word-break: break-word;"
             >
                 <span
@@ -1299,6 +1368,24 @@ onBeforeUnmount(() => {
                 <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
                     {{ operatorDisplayName }} (AI)
                 </span>
+                <div
+                    v-if="showAiDecision && aiDecision"
+                    class="ai-decision-card mb-1.5 rounded-lg border px-2.5 py-2 text-[11px] leading-snug"
+                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
+                >
+                    <p class="font-semibold text-[var(--wa-text)] m-0">{{ aiDecision.label }}</p>
+                    <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
+                    <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
+                        <span
+                            v-for="(chip, chipIdx) in aiDecision.chips"
+                            :key="chipIdx"
+                            class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                        >
+                            {{ chip.label }}
+                        </span>
+                    </div>
+                </div>
                 <template v-for="(seg, i) in bodySegments" :key="i">
                     <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>
                     <button
@@ -1407,7 +1494,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div
-                v-if="mediaItems.length"
+                v-if="mediaItemsForDisplay.length"
                 class="mb-1"
                 :class="
                     fullBleedVisualBubble
@@ -1421,7 +1508,7 @@ onBeforeUnmount(() => {
                         : 'space-y-2'
                 "
             >
-                <template v-for="m in mediaItems" :key="m.id">
+                <template v-for="m in mediaItemsForDisplay" :key="m.id">
                     <button
                         v-if="isImageMime(m)"
                         type="button"

@@ -38,6 +38,13 @@ const searchQuery = ref('');
 const adminItems: AdminItem[] = [
     {
         kind: 'admin',
+        label: 'Онбординг',
+        description: 'Пошаговый запуск AI и воронки',
+        icon: 'onboarding',
+        routeName: 'settings.onboarding',
+    },
+    {
+        kind: 'admin',
         label: 'Подключения WhatsApp',
         description: 'Номера и QR-коды',
         icon: 'connection',
@@ -164,10 +171,10 @@ function logout() {
 </script>
 
 <template>
-    <aside class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)] shrink-0">
+    <aside class="w-[400px] h-full flex flex-col bg-[var(--ui-surface)] shrink-0">
         <!-- Header with user name -->
-        <div class="h-[60px] px-6 flex items-center shrink-0">
-            <h1 class="text-[var(--wa-text)] text-xl font-normal truncate">
+        <div class="h-[60px] px-6 flex items-center shrink-0 border-b border-[var(--ui-border)]">
+            <h1 class="text-[var(--ui-text)] text-xl font-semibold truncate">
                 {{ user?.name }}
             </h1>
         </div>
@@ -185,7 +192,7 @@ function logout() {
                     v-model="searchQuery"
                     type="text"
                     placeholder="Поиск"
-                    class="w-full pl-12 pr-4 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none relative z-[1]"
+                    class="w-full pl-12 pr-4 py-[9px] bg-transparent rounded-full text-sm text-[var(--ui-text)] border-0 focus:ring-0 focus:outline-none relative z-[1]"
                 />
             </div>
         </div>
@@ -199,7 +206,7 @@ function logout() {
             >
                 <div
                     class="w-[150px] h-[150px] rounded-full flex items-center justify-center text-5xl font-medium shadow"
-                    :style="{ background: 'var(--wa-avatar-bg)', color: 'var(--wa-avatar-icon)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--wa-icon)' }"
                 >
                     {{ initial(user?.name) }}
                 </div>
@@ -215,7 +222,10 @@ function logout() {
                     :class="{ 'is-active': isAdminActive(item) }"
                 >
                     <div class="shrink-0 w-6 flex items-center justify-center text-[var(--wa-icon)]">
-                        <svg v-if="item.icon === 'connection'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <svg v-if="item.icon === 'onboarding'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'connection'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 16l-4-4m0 0l4-4m-4 4h16m-4 4l4-4m0 0l-4-4" />
                         </svg>
                         <svg v-else-if="item.icon === 'departments'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
@@ -254,8 +264,8 @@ function logout() {
                         </svg>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <div class="text-[15px] text-[var(--wa-text)] truncate">{{ item.label }}</div>
-                        <div class="text-xs text-[var(--wa-text-secondary)] truncate">{{ item.description }}</div>
+                        <div class="text-[15px] text-[var(--ui-text)] truncate">{{ item.label }}</div>
+                        <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ item.description }}</div>
                     </div>
                 </Link>
 
@@ -263,7 +273,7 @@ function logout() {
                 <div
                     v-if="filteredProfileItems.length > 0"
                     class="mx-6 my-2 h-px"
-                    :style="{ background: 'var(--wa-border)' }"
+                    :style="{ background: 'var(--ui-border)' }"
                 ></div>
             </template>
 
@@ -305,8 +315,8 @@ function logout() {
                     </svg>
                 </div>
                 <div class="min-w-0 flex-1">
-                    <div class="text-[15px] text-[var(--wa-text)] truncate">{{ item.label }}</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)] truncate">{{ item.description }}</div>
+                    <div class="text-[15px] text-[var(--ui-text)] truncate">{{ item.label }}</div>
+                    <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ item.description }}</div>
                 </div>
             </Link>
         </div>
@@ -329,33 +339,41 @@ function logout() {
 
 <style scoped>
 .settings-search {
-    background-color: var(--wa-panel-header);
-    border: 2px solid transparent;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
+    background-color: var(--ui-surface-inset);
+    border: 1px solid var(--ui-border-strong);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 .settings-search:focus-within {
-    border-color: var(--wa-accent);
-    background-color: var(--wa-panel);
+    border-color: var(--ui-accent);
+    background-color: var(--ui-input-bg);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .settings-search-icon {
     color: var(--wa-icon);
 }
 .settings-search:focus-within .settings-search-icon {
-    color: var(--wa-accent);
+    color: var(--ui-accent);
 }
 .settings-item {
-    transition: background-color 0.15s ease;
+    border-left: 3px solid transparent;
+    position: relative;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .settings-item:hover {
-    background-color: var(--wa-panel-hover);
+    background-color: var(--ui-surface-muted);
 }
 .settings-item.is-active {
-    background-color: var(--wa-selected);
+    background: color-mix(in srgb, var(--ui-accent) 18%, var(--ui-surface-muted));
+    border-left-color: var(--ui-accent);
+}
+.settings-item.is-active > div:first-child {
+    color: var(--ui-accent);
 }
 .logout-item {
-    border-top: 1px solid var(--wa-border);
+    border-top: 1px solid var(--ui-border-strong);
 }
 .logout-item:hover {
-    background-color: var(--wa-panel-hover);
+    background-color: var(--ui-surface-muted);
 }
 </style>

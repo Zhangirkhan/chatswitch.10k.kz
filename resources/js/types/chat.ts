@@ -98,12 +98,31 @@ export interface Chat {
     created_at?: string;
     updated_at?: string | null;
     funnel?: { id: number; name: string; color: string } | null;
-    funnel_stage?: { id: number; name: string; color: string; position: number } | null;
+    funnel_stage?: { id: number; name: string; color: string; stage_type?: string; position: number } | null;
     funnel_tracking_enabled?: boolean;
     funnel_stage_locked?: boolean;
     funnel_progress_percent?: number;
     funnel_progress?: { percent: number; stage_index: number | null; stages_count: number };
     funnel_ai_last_reason?: string | null;
+    ai_orchestrator_status?: 'pending' | 'running' | 'completed' | 'needs_manager' | 'skipped' | 'failed' | null;
+    ai_orchestrator_last_run_id?: number | null;
+    ai_orchestrator_last_action_at?: string | null;
+    ai_orchestrator_last_summary?: string | null;
+    attention_reason?: string | null;
+    attention_severity?: 'critical' | 'danger' | 'warning' | 'normal' | null;
+}
+
+export interface MessageAiDecisionChip {
+    label: string;
+    type: string;
+}
+
+export interface MessageAiDecision {
+    source: 'reply' | 'orchestrator';
+    label: string;
+    reason: string;
+    chips: MessageAiDecisionChip[];
+    confidence: number | null;
 }
 
 export interface FunnelCatalogEntry {
@@ -111,7 +130,7 @@ export interface FunnelCatalogEntry {
     name: string;
     description: string | null;
     color: string;
-    stages: Array<{ id: number; name: string; color: string; position: number }>;
+    stages: Array<{ id: number; name: string; color: string; stage_type?: string; position: number }>;
 }
 
 export interface MessageReaction {
@@ -128,6 +147,17 @@ export interface MessageMedia {
     id: number;
     mime_type: string;
     filename: string | null;
+}
+
+export interface MessageProductAttachment {
+    id: number;
+    name: string;
+    sku?: string | null;
+    description?: string | null;
+    price?: string | null;
+    price_formatted?: string | null;
+    image_url?: string | null;
+    attributes?: Record<string, unknown> | null;
 }
 
 export interface QuotedMessagePreview {
@@ -165,6 +195,7 @@ export interface Message {
     whatsapp_session?: WhatsappSession;
     quoted_message_id?: string | null;
     quoted_message?: QuotedMessagePreview | null;
+    ai_decision?: MessageAiDecision | null;
 }
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'voice' | 'sticker' | 'gif' | 'document';

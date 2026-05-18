@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
+import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
 import { Head, router, Link } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -78,6 +80,7 @@ type ContactCardPayload = {
         messages: { total: number; inbound: number; outbound: number };
         attachments: { media: number; documents: number; links: number };
     };
+    crm: ContactCrmPayload;
 };
 
 const props = defineProps<{
@@ -94,6 +97,7 @@ const clients = ref<ClientItem[]>([...props.clients.data]);
 const companies = ref<CompanyItem[]>([...props.companies.data]);
 const companyOptions = ref<CompanyOption[]>([...props.companyOptions]);
 const activeTab = ref<'clients' | 'companies'>(props.activeTab || 'clients');
+const isSingleTenant = computed(() => companyOptions.value.length <= 1);
 const openClientId = ref<number | null>(null);
 const editingName = ref('');
 const saving = ref(false);
@@ -394,6 +398,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex flex-wrap items-center gap-2">
                     <button
+                        v-if="!isSingleTenant"
                         type="button"
                         class="rounded-full px-4 py-2 text-sm font-medium"
                         :style="{
@@ -418,7 +423,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <button
-                        v-if="activeTab === 'companies'"
+                        v-if="activeTab === 'companies' && !isSingleTenant"
                         type="button"
                         class="rounded-full px-4 py-2 text-sm font-semibold"
                         :style="{ background: 'var(--wa-accent)', color: '#fff' }"
@@ -512,7 +517,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         </div>
                     </div>
 
-                    <div v-if="c.companies.length" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--wa-border)' }">
+                    <div v-if="c.companies.length && !isSingleTenant" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--wa-border)' }">
                         <div class="mb-1.5" :style="{ color: 'var(--wa-text-secondary)' }">Компании:</div>
                         <div class="flex flex-wrap gap-2">
                             <span
@@ -528,8 +533,30 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
 
                 </div>
 
-                <div v-if="clients.length === 0" class="py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                    Клиенты не найдены
+                <div
+                    v-if="clients.length === 0"
+                    class="rounded-xl border border-dashed px-6 py-10 text-center"
+                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
+                >
+                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                        {{ search.trim() ? 'По запросу ничего не найдено' : 'Клиентов пока нет' }}
+                    </div>
+                    <p class="mt-2 text-sm max-w-md mx-auto" :style="{ color: 'var(--wa-text-secondary)' }">
+                        <template v-if="search.trim()">
+                            Попробуйте имя, телефон или компанию — список обновится автоматически.
+                        </template>
+                        <template v-else>
+                            Клиенты появляются из WhatsApp-диалогов. Подключите номер в разделе подключений и дождитесь первого чата.
+                        </template>
+                    </p>
+                    <Link
+                        v-if="!search.trim()"
+                        :href="route('settings.connections')"
+                        class="mt-4 inline-flex rounded-lg px-4 py-2 text-sm font-medium"
+                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    >
+                        Перейти к подключениям WhatsApp
+                    </Link>
                 </div>
 
                 <div v-if="props.clients.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
@@ -689,7 +716,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                             <div><span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(openedClient.last_chat_at) }}</div>
                         </div>
 
-                        <div class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                        <div v-if="!isSingleTenant" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
                             <div class="mb-3 flex items-center justify-between gap-2">
                                 <div>
                                     <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">Компании и должности</div>
@@ -755,9 +782,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                                 </button>
                             </div>
 
-                            <div v-if="contactCardLoading" class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                                Загрузка…
-                            </div>
+                            <ContactCardSkeleton v-if="contactCardLoading" :show-deal="true" />
                             <div v-else-if="contactCardError" class="text-xs" :style="{ color: 'var(--wa-danger)' }">
                                 {{ contactCardError }}
                             </div>
@@ -794,9 +819,15 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                                     <div :style="{ color: 'var(--wa-text-secondary)' }">Последняя реплика клиента</div>
                                     <div class="mt-1" :style="{ color: 'var(--wa-text)' }">{{ shortText(contactCard.activity.last_client_message.body) }}</div>
                                 </div>
+
+                                <ContactCrmSections v-if="contactCard.crm" :crm="contactCard.crm" />
                             </div>
-                            <div v-else class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                                Нет данных.
+                            <div
+                                v-else
+                                class="rounded-lg border border-dashed px-3 py-4 text-xs text-center"
+                                :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                            >
+                                Карточка появится после переписки с клиентом. Нажмите «Обновить», когда в чатах уже есть сообщения.
                             </div>
                         </div>
 

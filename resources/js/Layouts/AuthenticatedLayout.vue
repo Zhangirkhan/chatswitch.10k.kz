@@ -144,8 +144,8 @@ onUnmounted(() => {
 <template>
     <div class="h-screen w-screen flex bg-[var(--wa-bg)] text-[var(--wa-text)] overflow-hidden">
         <aside
-            class="w-[60px] shrink-0 flex flex-col items-center py-3"
-            :style="{ background: 'var(--wa-rail-bg)' }"
+            class="w-[60px] shrink-0 flex flex-col items-center py-3 border-r"
+            :style="{ background: 'var(--wa-rail-bg)', borderColor: 'var(--wa-sidebar-divider)' }"
         >
             <nav class="flex flex-col items-center gap-1 flex-1">
                 <Link
@@ -295,7 +295,7 @@ onUnmounted(() => {
     background: #94a3b8;
 }
 .wa-session-chip-dot.is-online {
-    background: #25d366;
+    background: var(--wa-accent);
 }
 .wa-session-chip-dot.is-pending {
     background: #facc15;

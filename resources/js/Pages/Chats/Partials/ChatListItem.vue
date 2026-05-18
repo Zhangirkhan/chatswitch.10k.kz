@@ -50,6 +50,22 @@ const showAssigneePill = computed(
 
 const showAiPill = computed(() => props.chat.ai_enabled === true);
 
+const attentionReason = computed(() => props.chat.attention_reason?.trim() || '');
+const showAttentionPill = computed(() => attentionReason.value.length > 0);
+
+const attentionPillStyle = computed<Record<string, string>>(() => {
+    switch (props.chat.attention_severity) {
+        case 'critical':
+            return { background: 'color-mix(in srgb, #ef4444 18%, transparent)', color: '#ef4444' };
+        case 'danger':
+            return { background: 'color-mix(in srgb, #f97316 18%, transparent)', color: '#f97316' };
+        case 'warning':
+            return { background: 'color-mix(in srgb, #eab308 18%, transparent)', color: '#ca8a04' };
+        default:
+            return { background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' };
+    }
+});
+
 const menuOpen = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
@@ -369,7 +385,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                         class="text-sm text-[var(--wa-text-secondary)] truncate min-w-0"
                     />
                     <div
-                        v-if="getSessionLabel(chat) || showAssigneePill || showAiPill"
+                        v-if="getSessionLabel(chat) || showAssigneePill || showAiPill || showAttentionPill"
                         class="flex max-w-full min-w-0 flex-col items-start gap-1"
                     >
                         <span
@@ -393,6 +409,14 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                             title="AI-ассистент включён в этом чате"
                         >
                             AI
+                        </span>
+                        <span
+                            v-if="showAttentionPill"
+                            class="max-w-full truncate text-[10px] px-1.5 py-0.5 rounded font-medium leading-snug"
+                            :style="attentionPillStyle"
+                            :title="attentionReason"
+                        >
+                            {{ attentionReason }}
                         </span>
                     </div>
                 </div>

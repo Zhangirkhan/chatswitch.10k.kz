@@ -50,7 +50,7 @@ export const wallpapers: Wallpaper[] = [
         label: 'Без узора',
         kind: 'solid',
         lightColor: '#efeae2',
-        darkColor: '#0b141a',
+        darkColor: '#161717',
     },
     {
         id: 'mint',
@@ -78,7 +78,7 @@ export const wallpapers: Wallpaper[] = [
         label: 'Точки',
         kind: 'pattern',
         lightColor: '#efeae2',
-        darkColor: '#0b141a',
+        darkColor: '#161717',
         lightImage: dotsPattern('%23b5a994'),
         darkImage: dotsPattern('%23243240'),
         tileSize: '40px',
@@ -166,7 +166,7 @@ export function applyWallpaper(wallpaper: Wallpaper, theme: Theme): void {
 /** Returns a CSS `background` shorthand used for the picker thumbnail preview. */
 export function wallpaperPreview(wallpaper: Wallpaper, theme: Theme): string {
     if (wallpaper.kind === 'default') {
-        return theme === 'light' ? '#efeae2' : '#0b141a';
+        return theme === 'light' ? '#efeae2' : '#161717';
     }
 
     const color = theme === 'light' ? wallpaper.lightColor : wallpaper.darkColor;

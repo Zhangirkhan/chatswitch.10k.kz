@@ -104,12 +104,18 @@ export interface Chat {
     community_id?: number | null;
     updated_at?: string | null;
     funnel?: { id: number; name: string; color: string } | null;
-    funnel_stage?: { id: number; name: string; color: string; position: number } | null;
+    funnel_stage?: { id: number; name: string; color: string; stage_type?: string; position: number } | null;
     funnel_tracking_enabled?: boolean;
     funnel_stage_locked?: boolean;
     funnel_progress_percent?: number;
     funnel_progress?: { percent: number; stage_index: number | null; stages_count: number };
     funnel_ai_last_reason?: string | null;
+    ai_orchestrator_status?: 'pending' | 'running' | 'completed' | 'needs_manager' | 'skipped' | 'failed' | null;
+    ai_orchestrator_last_run_id?: number | null;
+    ai_orchestrator_last_action_at?: string | null;
+    ai_orchestrator_last_summary?: string | null;
+    attention_reason?: string | null;
+    attention_severity?: 'critical' | 'danger' | 'warning' | 'normal' | null;
 }
 
 export interface FunnelCatalogEntry {
@@ -117,7 +123,7 @@ export interface FunnelCatalogEntry {
     name: string;
     description: string | null;
     color: string;
-    stages: Array<{ id: number; name: string; color: string; position: number }>;
+    stages: Array<{ id: number; name: string; color: string; stage_type?: string; position: number }>;
 }
 
 export interface ContactPayload {
@@ -136,9 +142,34 @@ export interface PollPayload {
     allow_multiple_answers?: boolean;
 }
 
+export interface MessageAiDecisionChip {
+    label: string;
+    type: string;
+}
+
+export interface MessageAiDecision {
+    source: 'reply' | 'orchestrator';
+    label: string;
+    reason: string;
+    chips: MessageAiDecisionChip[];
+    confidence: number | null;
+}
+
+export interface MessageProductAttachment {
+    id: number;
+    name: string;
+    sku?: string | null;
+    description?: string | null;
+    price?: string | null;
+    price_formatted?: string | null;
+    image_url?: string | null;
+    attributes?: Record<string, unknown> | null;
+}
+
 export interface MessageMetadata {
     contact?: ContactPayload;
     poll?: PollPayload;
+    product?: MessageProductAttachment;
     videoPosterUrl?: string | null;
     [key: string]: unknown;
 }
@@ -167,6 +198,7 @@ export interface Message {
     sent_by_user: { id: number; name: string } | null;
     whatsapp_session: { id: number; phone_number: string | null; display_name: string | null } | null;
     reactions?: MessageReaction[];
+    ai_decision?: MessageAiDecision | null;
 }
 
 export interface QuotedMessagePreview {

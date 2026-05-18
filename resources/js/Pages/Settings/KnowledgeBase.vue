@@ -21,6 +21,8 @@ type KnowledgeItem = {
     sku?: string | null;
     description?: string | null;
     content?: string | null;
+    image_path?: string | null;
+    image_url?: string | null;
     price?: string | number | null;
     duration_minutes?: number | null;
     type?: string | null;
@@ -57,6 +59,8 @@ const form = ref({
     sort_order: 0,
     is_active: true,
     include_in_prompt: true,
+    image_file: null as File | null,
+    remove_image: false,
 });
 
 watch(
@@ -113,8 +117,42 @@ const previewText = ref('');
 const previewTruncated = ref(false);
 const previewCounts = ref<PreviewCounts | null>(null);
 const previewHint = ref('');
+const previewUsedRag = ref(false);
 const testQuestion = ref('');
 const testQuestionResult = ref('');
+
+type RagStatus = {
+    enabled: boolean;
+    indexed: number;
+    with_embedding: number;
+    ready: boolean;
+};
+
+const ragStatus = ref<RagStatus | null>(null);
+const reindexLoading = ref(false);
+const ragReindexSuggested = ref(false);
+
+type CatalogAuditFinding = {
+    key: string;
+    severity: 'critical' | 'warning' | 'info';
+    category: string;
+    title: string;
+    description: string;
+    action: string;
+};
+
+type CatalogAuditSummary = {
+    critical: number;
+    warning: number;
+    info: number;
+    total: number;
+};
+
+const catalogAuditLoading = ref(false);
+const catalogAuditFindings = ref<CatalogAuditFinding[]>([]);
+const catalogAuditSummary = ref<CatalogAuditSummary | null>(null);
+const catalogAuditUseLlm = ref(false);
+const catalogAuditLlmUsed = ref(false);
 
 type AuditRow = {
     id: number;
@@ -132,12 +170,17 @@ const auditLoading = ref(false);
 const auditEntries = ref<AuditRow[]>([]);
 const deleteTarget = ref<KnowledgeItem | null>(null);
 const deleteConfirmInput = ref('');
+const productImagePreview = ref<string | null>(null);
 
 const auditEntityType = computed(() =>
     props.section === 'products' ? 'product' : props.section === 'services' ? 'service' : 'rule',
 );
 
 const selectedIds = ref<number[]>([]);
+const searchQuery = ref('');
+const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
+const promptFilter = ref<'all' | 'included' | 'excluded'>('all');
+const aiToolsOpen = ref(false);
 
 watch(
     () => props.companies,
@@ -158,7 +201,47 @@ watch(
 );
 
 const allSelected = computed(
-    () => localItems.value.length > 0 && localItems.value.every((i) => selectedIds.value.includes(i.id)),
+    () => filteredItems.value.length > 0 && filteredItems.value.every((i) => selectedIds.value.includes(i.id)),
+);
+
+const filteredItems = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+
+    return localItems.value.filter((item) => {
+        if (statusFilter.value === 'active' && !item.is_active) return false;
+        if (statusFilter.value === 'inactive' && item.is_active) return false;
+        if (promptFilter.value === 'included' && !item.include_in_prompt) return false;
+        if (promptFilter.value === 'excluded' && item.include_in_prompt) return false;
+
+        if (q === '') return true;
+
+        const haystack = [
+            item.name,
+            item.title,
+            item.sku,
+            item.description,
+            item.content,
+            item.company?.name,
+            item.price,
+            item.duration_minutes,
+            item.type,
+            JSON.stringify(item.attributes ?? item.conditions ?? {}),
+        ]
+            .filter((value) => value !== null && value !== undefined)
+            .join(' ')
+            .toLowerCase();
+
+        return haystack.includes(q);
+    });
+});
+
+const activeCount = computed(() => localItems.value.filter((item) => item.is_active).length);
+const promptCount = computed(() => localItems.value.filter((item) => item.is_active && item.include_in_prompt).length);
+const missingDescriptionCount = computed(() =>
+    localItems.value.filter((item) => props.section !== 'rules' && !String(item.description ?? '').trim()).length,
+);
+const missingPriceCount = computed(() =>
+    localItems.value.filter((item) => props.section !== 'rules' && (item.price === null || item.price === undefined || item.price === '')).length,
 );
 
 const emptyCrossLinks = computed((): { label: string; href: string }[] => {
@@ -184,9 +267,9 @@ const emptyCrossLinks = computed((): { label: string; href: string }[] => {
 const promptReadyItems = computed(() => localItems.value.filter((item) => item.is_active && item.include_in_prompt));
 const readinessChecks = computed(() => [
     {
-        label: 'Есть компания',
+        label: 'Контекст готов',
         ok: props.companies.length > 0,
-        hint: props.companies.length > 0 ? 'Можно собирать контекст по компании.' : 'Создайте компанию или назначьте записи компании.',
+        hint: props.companies.length > 0 ? 'Можно собирать контекст для AI.' : 'Контекст AI ещё не подготовлен.',
     },
     {
         label: 'Есть активные записи в промпте',
@@ -196,7 +279,7 @@ const readinessChecks = computed(() => [
     {
         label: 'Предпросмотр доступен',
         ok: previewCompanyId.value !== null,
-        hint: previewCompanyId.value !== null ? 'Можно проверить, что увидит AI.' : 'Выберите компанию для предпросмотра.',
+        hint: previewCompanyId.value !== null ? 'Можно проверить, что увидит AI.' : 'Предпросмотр пока недоступен.',
     },
 ]);
 const dataWarnings = computed(() => {
@@ -221,14 +304,15 @@ const dataWarnings = computed(() => {
 });
 
 function toggleSelectAll(): void {
-    if (localItems.value.length === 0) {
+    if (filteredItems.value.length === 0) {
         return;
     }
     if (allSelected.value) {
-        selectedIds.value = [];
+        const visible = new Set(filteredItems.value.map((i) => i.id));
+        selectedIds.value = selectedIds.value.filter((id) => !visible.has(id));
         return;
     }
-    selectedIds.value = localItems.value.map((i) => i.id);
+    selectedIds.value = Array.from(new Set([...selectedIds.value, ...filteredItems.value.map((i) => i.id)]));
 }
 
 function toggleRowSelection(id: number): void {
@@ -245,20 +329,74 @@ function clearSelection(): void {
     selectedIds.value = [];
 }
 
-async function loadPreview(): Promise<void> {
+async function loadRagStatus(): Promise<void> {
     if (previewCompanyId.value == null) {
-        showToast({ message: 'Выберите компанию', duration: 3000 });
+        ragStatus.value = null;
+        return;
+    }
+    try {
+        const { data } = await axios.get(route('settings.knowledge.rag-status'), {
+            params: { company_id: previewCompanyId.value },
+        });
+        ragStatus.value = (data.rag ?? null) as RagStatus | null;
+    } catch {
+        ragStatus.value = null;
+    }
+}
+
+function suggestRagReindex(): void {
+    if (ragStatus.value?.enabled) {
+        ragReindexSuggested.value = true;
+    }
+}
+
+async function reindexEmbeddings(): Promise<void> {
+    if (previewCompanyId.value == null) {
+        return;
+    }
+    reindexLoading.value = true;
+    try {
+        const { data } = await axios.post(route('settings.knowledge.reindex-embeddings'), {
+            company_id: previewCompanyId.value,
+        });
+        ragStatus.value = (data.rag ?? null) as RagStatus | null;
+        showToast({
+            message: `Индексация: +${data.stats?.indexed ?? 0}, пропущено ${data.stats?.skipped ?? 0}`,
+            duration: 4000,
+        });
+        ragReindexSuggested.value = false;
+    } catch (error: any) {
+        showToast({
+            message: error?.response?.data?.message || error?.message || 'Не удалось проиндексировать',
+            duration: 4000,
+        });
+    } finally {
+        reindexLoading.value = false;
+    }
+}
+
+async function loadPreview(query?: string | null): Promise<void> {
+    if (previewCompanyId.value == null) {
+        showToast({ message: 'Предпросмотр пока недоступен', duration: 3000 });
         return;
     }
     previewLoading.value = true;
+    const trimmedQuery = (query ?? testQuestion.value).trim();
     try {
         const { data } = await axios.get(route('settings.knowledge.prompt-preview'), {
-            params: { company_id: previewCompanyId.value },
+            params: {
+                company_id: previewCompanyId.value,
+                ...(trimmedQuery !== '' ? { query: trimmedQuery } : {}),
+            },
         });
         previewText.value = String(data.text ?? '');
         previewTruncated.value = Boolean(data.truncated);
         previewCounts.value = data.counts as PreviewCounts;
         previewHint.value = String(data.hint ?? '');
+        previewUsedRag.value = Boolean(data.used_rag);
+        if (data.rag) {
+            ragStatus.value = data.rag as RagStatus;
+        }
         previewOpen.value = true;
     } catch (error: any) {
         showToast({
@@ -281,8 +419,11 @@ async function runTestQuestion(): Promise<void> {
         return;
     }
 
-    if (previewText.value.trim() === '') {
-        await loadPreview();
+    await loadPreview(question);
+
+    if (previewUsedRag.value) {
+        testQuestionResult.value = 'RAG подобрал релевантные записи по вопросу — откройте предпросмотр.';
+        return;
     }
 
     const context = previewText.value.toLowerCase();
@@ -293,11 +434,61 @@ async function runTestQuestion(): Promise<void> {
     const matched = keywords.filter((word) => context.includes(word));
 
     if (matched.length > 0) {
-        testQuestionResult.value = `В контексте AI найдены совпадения: ${matched.slice(0, 5).join(', ')}. Проверьте предпросмотр перед сохранением.`;
+        testQuestionResult.value = `В полном контексте AI найдены совпадения: ${matched.slice(0, 5).join(', ')}. Для точной проверки включите RAG и проиндексируйте базу.`;
         return;
     }
 
-    testQuestionResult.value = 'В текущем AI-контексте нет явных совпадений по вопросу. Добавьте товар, услугу или правило с нужными формулировками.';
+    testQuestionResult.value = 'В контексте нет явных совпадений. Добавьте запись с нужными формулировками или проиндексируйте RAG.';
+}
+
+watch(previewCompanyId, () => {
+    void loadRagStatus();
+    if (aiToolsOpen.value) {
+        void loadCatalogAudit();
+    }
+});
+
+watch(aiToolsOpen, (open) => {
+    if (open) {
+        void loadRagStatus();
+        void loadCatalogAudit();
+    }
+});
+
+function catalogSeverityClass(severity: CatalogAuditFinding['severity']): string {
+    if (severity === 'critical') {
+        return 'bg-red-500/15 text-red-500';
+    }
+    if (severity === 'warning') {
+        return 'bg-amber-500/15 text-amber-500';
+    }
+    return 'bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]';
+}
+
+async function loadCatalogAudit(): Promise<void> {
+    if (previewCompanyId.value == null) {
+        catalogAuditFindings.value = [];
+        catalogAuditSummary.value = null;
+        return;
+    }
+    catalogAuditLoading.value = true;
+    try {
+        const { data } = await axios.get(route('settings.knowledge.catalog-audit'), {
+            params: {
+                company_id: previewCompanyId.value,
+                llm: catalogAuditUseLlm.value ? 1 : 0,
+                refresh_llm: catalogAuditUseLlm.value ? 1 : 0,
+            },
+        });
+        catalogAuditFindings.value = (data.findings ?? []) as CatalogAuditFinding[];
+        catalogAuditSummary.value = (data.summary ?? null) as CatalogAuditSummary | null;
+        catalogAuditLlmUsed.value = Boolean(data.llm_used);
+    } catch {
+        catalogAuditFindings.value = [];
+        catalogAuditSummary.value = null;
+    } finally {
+        catalogAuditLoading.value = false;
+    }
 }
 
 async function bulkSetPrompt(include: boolean): Promise<void> {
@@ -314,6 +505,7 @@ async function bulkSetPrompt(include: boolean): Promise<void> {
         localItems.value = localItems.value.map((row) => map.get(row.id) ?? row);
         showToast({ message: 'Колонка «В промпте» обновлена', duration: 3000 });
         selectedIds.value = [];
+        suggestRagReindex();
     } catch (error: any) {
         showToast({
             message: error?.response?.data?.message || error?.message || 'Не удалось обновить записи',
@@ -324,6 +516,7 @@ async function bulkSetPrompt(include: boolean): Promise<void> {
 
 function resetForm(): void {
     editing.value = null;
+    revokeProductImagePreview();
     form.value = {
         company_id: props.companies[0]?.id ?? null,
         name: '',
@@ -338,8 +531,11 @@ function resetForm(): void {
         sort_order: 0,
         is_active: true,
         include_in_prompt: true,
+        image_file: null,
+        remove_image: false,
     };
     detailsText.value = '';
+    productImagePreview.value = null;
 }
 
 function openAdd(): void {
@@ -363,9 +559,42 @@ function openEdit(item: KnowledgeItem): void {
         sort_order: item.sort_order ?? 0,
         is_active: item.is_active,
         include_in_prompt: item.include_in_prompt,
+        image_file: null,
+        remove_image: false,
     };
+    revokeProductImagePreview();
+    productImagePreview.value = item.image_url ?? null;
     detailsText.value = detailsObjectToText(props.section === 'services' ? (item.conditions ?? {}) : (item.attributes ?? {}));
     showForm.value = true;
+}
+
+function revokeProductImagePreview(): void {
+    if (productImagePreview.value?.startsWith('blob:')) {
+        URL.revokeObjectURL(productImagePreview.value);
+    }
+}
+
+function selectProductImage(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    revokeProductImagePreview();
+    form.value.image_file = file;
+    form.value.remove_image = false;
+    productImagePreview.value = file ? URL.createObjectURL(file) : editing.value?.image_url ?? null;
+}
+
+function removeProductImage(): void {
+    revokeProductImagePreview();
+    form.value.image_file = null;
+    form.value.remove_image = true;
+    productImagePreview.value = null;
+}
+
+function closeForm(): void {
+    revokeProductImagePreview();
+    productImagePreview.value = null;
+    showForm.value = false;
 }
 
 function payload(): Record<string, unknown> {
@@ -406,23 +635,82 @@ function payload(): Record<string, unknown> {
         description: form.value.description.trim() || null,
         attributes: detailsPayload,
         sort_order: form.value.sort_order,
+        remove_image: form.value.remove_image,
     };
+}
+
+function appendFormData(formData: FormData, key: string, value: unknown): void {
+    if (value === undefined) {
+        return;
+    }
+
+    if (value instanceof File) {
+        formData.append(key, value);
+        return;
+    }
+
+    if (value === null) {
+        formData.append(key, '');
+        return;
+    }
+
+    if (typeof value === 'boolean') {
+        formData.append(key, value ? '1' : '0');
+        return;
+    }
+
+    if (Array.isArray(value)) {
+        value.forEach((entry, index) => appendFormData(formData, `${key}[${index}]`, entry));
+        return;
+    }
+
+    if (typeof value === 'object') {
+        Object.entries(value as Record<string, unknown>).forEach(([childKey, childValue]) => {
+            appendFormData(formData, `${key}[${childKey}]`, childValue);
+        });
+        return;
+    }
+
+    formData.append(key, String(value));
+}
+
+function productFormData(data: Record<string, unknown>, method?: 'PUT'): FormData {
+    const formData = new FormData();
+
+    Object.entries(data).forEach(([key, value]) => appendFormData(formData, key, value));
+
+    if (form.value.image_file) {
+        formData.append('image', form.value.image_file);
+    }
+
+    if (method) {
+        formData.append('_method', method);
+    }
+
+    return formData;
 }
 
 async function save(): Promise<void> {
     try {
         const data = payload();
-        const response = editing.value
-            ? await axios.put(route(meta.value.update, editing.value.id), data)
-            : await axios.post(route(meta.value.store), data);
+        const response = props.section === 'products' && form.value.image_file
+            ? editing.value
+                ? await axios.post(route(meta.value.update, editing.value.id), productFormData(data, 'PUT'))
+                : await axios.post(route(meta.value.store), productFormData(data))
+            : editing.value
+                ? await axios.put(route(meta.value.update, editing.value.id), data)
+                : await axios.post(route(meta.value.store), data);
         const item = response.data.item as KnowledgeItem;
         if (editing.value) {
             localItems.value = localItems.value.map((existing) => existing.id === item.id ? item : existing);
         } else {
             localItems.value = [item, ...localItems.value];
         }
+        revokeProductImagePreview();
+        productImagePreview.value = null;
         showForm.value = false;
         showToast({ message: 'Запись сохранена', duration: 3000 });
+        suggestRagReindex();
     } catch (error: any) {
         showToast({ message: error?.response?.data?.message || error?.message || 'Не удалось сохранить запись', duration: 4000 });
     }
@@ -442,10 +730,49 @@ async function togglePrompt(item: KnowledgeItem): Promise<void> {
     const response = await axios.put(route(meta.value.update, item.id), data);
     const updated = response.data.item as KnowledgeItem;
     localItems.value = localItems.value.map((existing) => existing.id === updated.id ? updated : existing);
+    suggestRagReindex();
 }
 
 function itemTitle(item: KnowledgeItem): string {
     return item.name || item.title || `#${item.id}`;
+}
+
+function itemDescription(item: KnowledgeItem): string {
+    const value = item.description || item.content || '';
+    return value.trim() || (props.section === 'rules' ? 'Текст правила не заполнен' : 'Описание не заполнено');
+}
+
+function compactDetails(item: KnowledgeItem): string[] {
+    const raw = props.section === 'services' ? item.conditions : item.attributes;
+    if (!raw || props.section === 'rules') {
+        return [];
+    }
+
+    return Object.entries(raw)
+        .filter(([, value]) => value !== null && value !== '')
+        .slice(0, 4)
+        .map(([key, value]) => {
+            const display = Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value);
+            return `${key}: ${display}`;
+        });
+}
+
+function itemQualityFlags(item: KnowledgeItem): string[] {
+    const flags: string[] = [];
+    if (!item.is_active) {
+        flags.push('Отключено');
+    }
+    if (!item.include_in_prompt) {
+        flags.push('Не в AI');
+    }
+    if (props.section !== 'rules' && !String(item.description ?? '').trim()) {
+        flags.push('Нет описания');
+    }
+    if (props.section !== 'rules' && (item.price === null || item.price === undefined || item.price === '')) {
+        flags.push('Нет цены');
+    }
+
+    return flags;
 }
 
 function formatTenge(price: KnowledgeItem['price']): string {
@@ -622,6 +949,7 @@ async function confirmDelete(): Promise<void> {
         localItems.value = localItems.value.filter((existing) => existing.id !== item.id);
         closeDeleteModal();
         showToast({ message: 'Запись удалена', duration: 3000 });
+        suggestRagReindex();
     } catch (error: any) {
         showToast({ message: error?.response?.data?.message || 'Не удалось удалить запись', duration: 4000 });
     }
@@ -633,203 +961,301 @@ async function confirmDelete(): Promise<void> {
 
     <SettingsLayout :title="meta.title" :subtitle="meta.subtitle">
         <template #actions>
-            <button type="button" class="px-4 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="openAdd">
+            <button type="button" class="px-4 py-2 rounded-lg bg-[var(--ui-accent)] text-white text-sm hover:bg-[var(--ui-accent-hover)]" @click="openAdd">
                 {{ meta.addLabel }}
             </button>
         </template>
 
-        <div class="p-6 space-y-4">
-            <div class="kb-toolbar flex flex-col gap-3 rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
-                <div class="flex flex-wrap items-end gap-3">
-                    <label class="field kb-toolbar-field">
-                        <span>Компания для предпросмотра</span>
-                        <select v-model.number="previewCompanyId">
-                            <option v-for="c in companies" :key="c.id" :value="c.id">{{ c.name }}</option>
-                        </select>
-                    </label>
-                    <button
-                        type="button"
-                        class="px-4 py-2 rounded-lg border border-[var(--wa-border)] text-sm text-[var(--wa-text)]"
-                        :disabled="previewCompanyId == null || previewLoading"
-                        @click="loadPreview"
-                    >
-                        {{ previewLoading ? 'Загрузка…' : 'Предпросмотр для AI' }}
-                    </button>
-                </div>
-                <div v-if="selectedIds.length > 0" class="flex flex-wrap items-center gap-2">
-                    <span class="text-sm text-[var(--wa-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
-                    <button type="button" class="px-3 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="bulkSetPrompt(true)">В промпте: да</button>
-                    <button type="button" class="px-3 py-2 rounded-lg border border-[var(--wa-border)] text-sm" @click="bulkSetPrompt(false)">В промпте: нет</button>
-                    <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
-                </div>
-            </div>
-
-            <div class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
-                <button
-                    type="button"
-                    class="flex w-full items-center justify-between gap-3 text-left"
-                    @click="toggleAudit"
-                >
-                    <div>
-                        <h3 class="text-sm font-semibold text-[var(--wa-text)]">История изменений</h3>
-                        <p class="text-xs text-[var(--wa-text-secondary)]">
-                            Аудит по выбранной компании для этого раздела (создание, правки, удаление, массовое «В промпте»).
+        <div class="p-4 md:p-6 space-y-4">
+            <section class="kb-hero rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4 md:p-5">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div class="max-w-3xl">
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ui-accent)]">Каталог для AI</p>
+                        <h2 class="mt-1 text-xl font-semibold text-[var(--wa-text)]">{{ meta.title }}</h2>
+                        <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
+                            Заполняйте короткие факты: что это, цена, условия и важные ограничения. AI будет использовать данные точечно в ответе клиенту, а не рисовать одинаковые карточки.
                         </p>
                     </div>
-                    <span class="text-xs text-[var(--wa-text-secondary)] shrink-0">{{ auditOpen ? '▼' : '▶' }}</span>
-                </button>
-                <div v-if="auditOpen" class="mt-3 space-y-2">
-                    <p v-if="previewCompanyId == null" class="text-xs text-[var(--wa-text-secondary)]">Выберите компанию в блоке выше.</p>
-                    <p v-else-if="auditLoading" class="text-xs text-[var(--wa-text-secondary)]">Загрузка…</p>
-                    <ul v-else class="wa-scrollbar max-h-72 space-y-2 overflow-y-auto text-xs">
-                        <li
-                            v-for="row in auditEntries"
-                            :key="row.id"
-                            class="rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2"
-                        >
-                            <div class="flex flex-wrap items-baseline justify-between gap-2">
-                                <span class="font-medium text-[var(--wa-text)]">
-                                    {{ formatAuditAction(row.action) }}
-                                    <span class="font-normal text-[var(--wa-text-secondary)]"> · {{ row.entity_label || '#' + row.entity_id }}</span>
-                                </span>
-                                <span class="text-[var(--wa-text-secondary)]">{{ formatAuditWhen(row.created_at) }}</span>
-                            </div>
-                            <div class="mt-0.5 text-[var(--wa-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
-                            <pre
-                                v-if="summarizeAuditChanges(row)"
-                                class="mt-1 max-h-28 overflow-auto rounded bg-black/5 p-2 text-[10px] leading-snug text-[var(--wa-text)]"
-                            >{{ summarizeAuditChanges(row) }}</pre>
-                        </li>
-                    </ul>
-                    <p
-                        v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0"
-                        class="text-xs text-[var(--wa-text-secondary)]"
-                    >
-                        Пока нет записей аудита.
-                    </p>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[520px]">
+                        <div class="kb-stat">
+                            <span>Всего</span>
+                            <strong>{{ localItems.length }}</strong>
+                        </div>
+                        <div class="kb-stat">
+                            <span>Активны</span>
+                            <strong>{{ activeCount }}</strong>
+                        </div>
+                        <div class="kb-stat">
+                            <span>В AI</span>
+                            <strong>{{ promptCount }}</strong>
+                        </div>
+                        <div class="kb-stat" :class="missingDescriptionCount + missingPriceCount > 0 ? 'warn' : ''">
+                            <span>Пробелы</span>
+                            <strong>{{ missingDescriptionCount + missingPriceCount }}</strong>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-                <section class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
+            <section class="kb-control-panel rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-3 md:p-4">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="grid flex-1 gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
+                        <label class="kb-search">
+                            <svg class="h-4 w-4 shrink-0 text-[var(--wa-text-secondary)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
+                            </svg>
+                            <input v-model="searchQuery" type="search" placeholder="Поиск по названию, цене, описанию, характеристикам" />
+                        </label>
+                        <select v-model="statusFilter" class="kb-filter">
+                            <option value="all">Все статусы</option>
+                            <option value="active">Только активные</option>
+                            <option value="inactive">Отключённые</option>
+                        </select>
+                        <select v-model="promptFilter" class="kb-filter">
+                            <option value="all">AI: все</option>
+                            <option value="included">В промпте</option>
+                            <option value="excluded">Не в промпте</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            :disabled="previewCompanyId == null || previewLoading"
+                            @click="() => loadPreview()"
+                        >
+                            {{ previewLoading ? 'Загрузка…' : 'Что увидит AI' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            @click="aiToolsOpen = !aiToolsOpen"
+                        >
+                            {{ aiToolsOpen ? 'Скрыть проверку' : 'Проверка AI' }}
+                        </button>
+                        <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="openAdd">
+                            {{ meta.addLabel }}
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="selectedIds.length > 0" class="kb-selection-bar mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2">
+                    <span class="text-sm text-[var(--wa-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
+                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-3 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="bulkSetPrompt(true)">Добавить в AI</button>
+                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]" @click="bulkSetPrompt(false)">Убрать из AI</button>
+                    <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
+                </div>
+            </section>
+
+            <section v-if="aiToolsOpen" class="grid gap-4 lg:grid-cols-3">
+                <div class="kb-card rounded-2xl border p-4">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <div>
                             <h3 class="text-sm font-semibold text-[var(--wa-text)]">Готовность AI</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Быстрая проверка, увидит ли AI полезные данные.</p>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Минимальная проверка качества данных.</p>
                         </div>
-                        <span class="rounded-full px-2.5 py-1 text-xs" :class="readinessChecks.every((check) => check.ok) ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'">
+                        <span
+                            class="rounded-full px-2.5 py-1 text-xs"
+                            :class="readinessChecks.every((check) => check.ok) ? 'bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]' : 'bg-amber-500/15 text-amber-500'"
+                        >
                             {{ readinessChecks.every((check) => check.ok) ? 'Готово' : 'Нужно внимание' }}
                         </span>
                     </div>
                     <div class="space-y-2">
-                        <div v-for="check in readinessChecks" :key="check.label" class="flex gap-2 rounded-lg bg-[var(--wa-bg)] px-3 py-2">
-                            <span class="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full" :class="check.ok ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                        <div v-for="check in readinessChecks" :key="check.label" class="kb-inset flex gap-2 rounded-lg px-3 py-2">
+                            <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="check.ok ? 'bg-[var(--ui-accent)]' : 'bg-amber-500'"></span>
                             <div>
                                 <p class="text-sm text-[var(--wa-text)]">{{ check.label }}</p>
                                 <p class="text-xs text-[var(--wa-text-secondary)]">{{ check.hint }}</p>
                             </div>
                         </div>
                     </div>
-                    <div v-if="dataWarnings.length > 0" class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
-                        <p class="mb-2 text-xs font-semibold text-amber-700">Предупреждения по данным</p>
-                        <ul class="space-y-1 text-xs text-[var(--wa-text)]">
-                            <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
-                        </ul>
-                    </div>
-                </section>
+                </div>
 
-                <section class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4">
-                    <h3 class="text-sm font-semibold text-[var(--wa-text)]">Тестовый вопрос</h3>
-                    <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">
-                        Проверьте, есть ли в AI-контексте данные для типичного вопроса клиента.
+                <div class="kb-card rounded-2xl border p-4">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">RAG-поиск</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Embeddings для подбора релевантных записей в промпт.</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--wa-text)]"
+                            :disabled="previewCompanyId == null || reindexLoading"
+                            @click="reindexEmbeddings"
+                        >
+                            {{ reindexLoading ? 'Индексация…' : 'Переиндексировать' }}
+                        </button>
+                    </div>
+                    <p v-if="ragStatus" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
+                        <span v-if="!ragStatus.enabled">RAG отключён.</span>
+                        <span v-else-if="ragStatus.ready">Готово: {{ ragStatus.with_embedding }} фрагментов с embeddings.</span>
+                        <span v-else>Нужна индексация (в базе {{ ragStatus.indexed }} фрагментов, с embeddings: {{ ragStatus.with_embedding }}).</span>
                     </p>
+                    <p
+                        v-if="ragReindexSuggested && ragStatus?.enabled"
+                        class="kb-inset mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+                    >
+                        Каталог изменён: индекс обновится в фоне. Для немедленной проверки RAG нажмите «Переиндексировать».
+                    </p>
+                </div>
+
+                <div class="kb-card rounded-2xl border p-4">
+                    <h3 class="text-sm font-semibold text-[var(--wa-text)]">Тестовый вопрос</h3>
+                    <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">Проверьте RAG: вопрос подберёт релевантные записи в предпросмотре.</p>
                     <div class="mt-3 flex gap-2">
                         <input
                             v-model="testQuestion"
-                            class="flex-1 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            class="flex-1 rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
                             type="text"
                             placeholder="Например: сколько стоит доставка?"
                             @keydown.enter.prevent="runTestQuestion"
                         />
-                        <button
-                            type="button"
-                            class="rounded-lg border border-[var(--wa-border)] px-3 py-2 text-sm text-[var(--wa-text)]"
-                            :disabled="previewCompanyId == null || previewLoading"
-                            @click="runTestQuestion"
-                        >
+                        <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
                             Проверить
                         </button>
                     </div>
-                    <p v-if="testQuestionResult" class="mt-3 rounded-lg bg-[var(--wa-bg)] px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
-                        {{ testQuestionResult }}
+                    <p v-if="testQuestionResult" class="kb-inset mt-3 rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">{{ testQuestionResult }}</p>
+                </div>
+
+                <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">Аудит каталога</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Дубли, цены, пробелы и противоречия.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <label class="flex items-center gap-1.5 text-xs text-[var(--wa-text-secondary)]">
+                                <input v-model="catalogAuditUseLlm" type="checkbox" class="rounded" />
+                                AI-анализ
+                            </label>
+                            <button
+                                type="button"
+                                class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--wa-text)]"
+                                :disabled="previewCompanyId == null || catalogAuditLoading"
+                                @click="loadCatalogAudit"
+                            >
+                                {{ catalogAuditLoading ? 'Проверка…' : 'Обновить' }}
+                            </button>
+                        </div>
+                    </div>
+                    <p v-if="catalogAuditLlmUsed" class="mb-2 text-xs text-[var(--ui-accent)]">В отчёт добавлен AI-анализ формулировок.</p>
+                    <p v-if="catalogAuditSummary && catalogAuditSummary.total === 0" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
+                        Замечаний не найдено.
                     </p>
-                </section>
+                    <ul v-else-if="catalogAuditFindings.length > 0" class="wa-scrollbar max-h-64 space-y-2 overflow-y-auto">
+                        <li v-for="item in catalogAuditFindings" :key="item.key" class="kb-inset rounded-lg border px-3 py-2 text-xs">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full px-2 py-0.5 font-medium" :class="catalogSeverityClass(item.severity)">{{ item.severity }}</span>
+                                <span class="text-[var(--wa-text-secondary)]">{{ item.category }}</span>
+                            </div>
+                            <p class="mt-1 font-medium text-[var(--wa-text)]">{{ item.title }}</p>
+                            <p class="mt-0.5 text-[var(--wa-text-secondary)]">{{ item.description }}</p>
+                            <p class="mt-1 text-[var(--wa-text)]">{{ item.action }}</p>
+                        </li>
+                    </ul>
+                    <p v-else-if="!catalogAuditLoading" class="text-xs text-[var(--wa-text-secondary)]">Нажмите «Обновить» для проверки.</p>
+                </div>
+
+                <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
+                    <button type="button" class="flex w-full items-center justify-between gap-3 text-left" @click="toggleAudit">
+                        <div>
+                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">История изменений</h3>
+                            <p class="text-xs text-[var(--wa-text-secondary)]">Создание, правки, удаление и массовые изменения видимости для AI.</p>
+                        </div>
+                        <span class="text-xs text-[var(--wa-text-secondary)] shrink-0">{{ auditOpen ? 'Скрыть' : 'Показать' }}</span>
+                    </button>
+                    <div v-if="auditOpen" class="mt-3 space-y-2">
+                        <p v-if="previewCompanyId == null" class="text-xs text-[var(--wa-text-secondary)]">История изменений пока недоступна.</p>
+                        <p v-else-if="auditLoading" class="text-xs text-[var(--wa-text-secondary)]">Загрузка…</p>
+                        <ul v-else class="wa-scrollbar max-h-56 space-y-2 overflow-y-auto text-xs">
+                            <li v-for="row in auditEntries" :key="row.id" class="kb-inset rounded-lg border px-3 py-2">
+                                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span class="font-medium text-[var(--wa-text)]">{{ formatAuditAction(row.action) }} <span class="font-normal text-[var(--wa-text-secondary)]">· {{ row.entity_label || '#' + row.entity_id }}</span></span>
+                                    <span class="text-[var(--wa-text-secondary)]">{{ formatAuditWhen(row.created_at) }}</span>
+                                </div>
+                                <div class="mt-0.5 text-[var(--wa-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
+                            </li>
+                        </ul>
+                        <p v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0" class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей аудита.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div v-if="dataWarnings.length > 0" class="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3">
+                <p class="mb-2 text-xs font-semibold text-amber-500">Что мешает AI отвечать точно</p>
+                <ul class="space-y-1 text-xs text-[var(--wa-text)]">
+                    <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
+                </ul>
             </div>
 
-            <div v-if="localItems.length === 0" class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] px-6 py-10 text-center">
+            <div v-if="localItems.length === 0" class="kb-card rounded-2xl border px-6 py-10 text-center">
                 <p class="text-[15px] text-[var(--wa-text)]">Пока нет записей в этом разделе.</p>
                 <p class="mx-auto mt-2 max-w-xl text-sm text-[var(--wa-text-secondary)]">
-                    Добавьте данные: в промпт попадают только активные записи с включённым «В промпте» — их можно посмотреть кнопкой «Предпросмотр для AI».
+                    Начните с реальных фактов: название, цена, условия, ограничения. Не нужно писать рекламную карточку — AI сам сформулирует ответ под вопрос клиента.
                 </p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
-                    <button type="button" class="px-4 py-2 rounded-lg bg-[var(--wa-green)] text-white text-sm" @click="openAdd">{{ meta.addLabel }}</button>
+                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="openAdd">{{ meta.addLabel }}</button>
                 </div>
                 <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
                     <Link v-for="link in emptyCrossLinks" :key="link.href" :href="link.href" class="link-btn">{{ link.label }}</Link>
                 </div>
             </div>
 
-            <div v-else class="overflow-hidden rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)]">
-                <table class="w-full text-sm">
-                    <thead class="text-left text-[var(--wa-text-secondary)] border-b border-[var(--wa-border)]">
-                        <tr>
-                            <th class="w-10 px-3 py-3">
-                                <input type="checkbox" class="kb-checkbox" :checked="allSelected" @click.prevent="toggleSelectAll" />
-                            </th>
-                            <th class="px-4 py-3">Название</th>
-                            <th class="px-4 py-3">Компания</th>
-                            <th class="px-4 py-3">Цена, ₸</th>
-                            <th class="px-4 py-3">В промпте</th>
-                            <th class="px-4 py-3">Статус</th>
-                            <th class="px-4 py-3 text-right">Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="item in localItems" :key="item.id" class="border-b border-[var(--wa-border)] last:border-0">
-                            <td class="px-3 py-3 align-top">
-                                <input
-                                    type="checkbox"
-                                    class="kb-checkbox"
-                                    :checked="selectedIds.includes(item.id)"
-                                    @click.prevent="toggleRowSelection(item.id)"
-                                />
-                            </td>
-                            <td class="px-4 py-3 text-[var(--wa-text)]">
-                                <div class="font-medium">{{ itemTitle(item) }}</div>
-                                <div class="max-w-[520px] truncate text-xs text-[var(--wa-text-secondary)]">
-                                    {{ item.description || item.content || item.sku || '—' }}
-                                </div>
-                            </td>
-                            <td class="px-4 py-3 text-[var(--wa-text-secondary)]">{{ item.company?.name || `#${item.company_id}` }}</td>
-                            <td class="px-4 py-3 text-[var(--wa-text-secondary)]">{{ formatTenge(item.price) }}</td>
-                            <td class="px-4 py-3">
-                                <button type="button" class="switch" :class="{ on: item.include_in_prompt }" @click="togglePrompt(item)">
-                                    {{ item.include_in_prompt ? 'Да' : 'Нет' }}
-                                </button>
-                            </td>
-                            <td class="px-4 py-3 text-[var(--wa-text-secondary)]">{{ item.is_active ? 'Активна' : 'Отключена' }}</td>
-                            <td class="space-x-2 px-4 py-3 text-right">
-                                <button type="button" class="link-btn" @click="openEdit(item)">Изменить</button>
-                                <button type="button" class="link-btn danger" @click="destroyItem(item)">Удалить</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div v-else-if="filteredItems.length === 0" class="kb-card rounded-2xl border px-6 py-8 text-center">
+                <p class="text-sm text-[var(--wa-text)]">По текущим фильтрам ничего не найдено.</p>
+                <button type="button" class="mt-3 text-sm text-[var(--ui-accent)]" @click="searchQuery = ''; statusFilter = 'all'; promptFilter = 'all'">Сбросить фильтры</button>
             </div>
+
+            <section v-else class="kb-list-panel rounded-2xl border">
+                <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                    <label class="flex items-center gap-2 text-sm text-[var(--wa-text-secondary)]">
+                        <input type="checkbox" class="kb-checkbox" :checked="allSelected" @click.prevent="toggleSelectAll" />
+                        Выбрать показанные
+                    </label>
+                    <span class="text-xs text-[var(--wa-text-secondary)]">Показано {{ filteredItems.length }} из {{ localItems.length }}</span>
+                </div>
+
+                <div class="divide-y divide-[var(--ui-border)]">
+                    <article v-for="item in filteredItems" :key="item.id" class="kb-row">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" class="kb-checkbox mt-1" :checked="selectedIds.includes(item.id)" @click.prevent="toggleRowSelection(item.id)" />
+                            <div v-if="section === 'products'" class="kb-product-thumb">
+                                <img v-if="item.image_url" :src="item.image_url" :alt="itemTitle(item)" />
+                                <span v-else>Фото</span>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="min-w-0 truncate text-sm font-semibold text-[var(--wa-text)]">{{ itemTitle(item) }}</h3>
+                                    <span v-if="item.sku" class="kb-chip">{{ item.sku }}</span>
+                                    <span v-for="flag in itemQualityFlags(item)" :key="flag" class="kb-chip warn">{{ flag }}</span>
+                                </div>
+                                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--wa-text-secondary)]">{{ itemDescription(item) }}</p>
+                                <div v-if="compactDetails(item).length" class="mt-2 flex flex-wrap gap-1.5">
+                                    <span v-for="detail in compactDetails(item)" :key="detail" class="kb-detail">{{ detail }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kb-row-side">
+                            <div class="text-right">
+                                <div v-if="section !== 'rules'" class="text-sm font-semibold text-[var(--wa-text)]">{{ formatTenge(item.price) }}</div>
+                                <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--wa-text-secondary)]">{{ item.duration_minutes }} мин.</div>
+                            </div>
+                            <button type="button" class="switch" :class="{ on: item.include_in_prompt }" @click="togglePrompt(item)">
+                                {{ item.include_in_prompt ? 'В AI' : 'Не в AI' }}
+                            </button>
+                            <button type="button" class="link-btn text-sm" @click="openEdit(item)">Изменить</button>
+                            <button type="button" class="link-btn danger text-sm" @click="destroyItem(item)">Удалить</button>
+                        </div>
+                    </article>
+                </div>
+            </section>
         </div>
 
         <div v-if="deleteTarget" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4" @click.self="closeDeleteModal">
-            <div class="w-full max-w-md rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-5 shadow-xl">
+            <div class="kb-modal-card w-full max-w-md rounded-2xl border p-5 shadow-xl">
                 <h3 class="text-lg text-[var(--wa-text)]">Удалить запись?</h3>
                 <p class="mt-2 text-sm text-[var(--wa-text-secondary)]">
                     Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
@@ -838,125 +1264,188 @@ async function confirmDelete(): Promise<void> {
                 <input
                     v-model="deleteConfirmInput"
                     type="text"
-                    class="mt-4 w-full rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                    class="mt-4 w-full rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
                     placeholder="Название для подтверждения"
                     autocomplete="off"
                 />
                 <div class="mt-4 flex justify-end gap-2">
-                    <button type="button" class="px-4 py-2 rounded-lg border border-[var(--wa-border)] text-sm" @click="closeDeleteModal">Отмена</button>
+                    <button type="button" class="px-4 py-2 rounded-lg border border-[var(--ui-border-strong)] text-sm" @click="closeDeleteModal">Отмена</button>
                     <button type="button" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm" @click="confirmDelete">Удалить</button>
                 </div>
             </div>
         </div>
 
         <div v-if="previewOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @click.self="closePreview">
-            <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-[var(--wa-panel)] shadow-xl">
-                <div class="flex shrink-0 items-center justify-between border-b border-[var(--wa-border)] px-5 py-4">
+            <div class="kb-modal-card flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border shadow-xl">
+                <div class="flex shrink-0 items-center justify-between border-b border-[var(--ui-border)] px-5 py-4">
                     <div>
                         <h3 class="text-lg text-[var(--wa-text)]">Предпросмотр блока для AI</h3>
                         <p v-if="previewCounts" class="mt-1 text-xs text-[var(--wa-text-secondary)]">
                             Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
+                            <span v-if="previewUsedRag"> · RAG</span>
                             <span v-if="previewTruncated"> · показ обрезан для экрана</span>
                         </p>
                     </div>
                     <button type="button" class="text-[var(--wa-text-secondary)]" @click="closePreview">Закрыть</button>
                 </div>
-                <p v-if="previewHint" class="border-b border-[var(--wa-border)] px-5 py-2 text-xs text-[var(--wa-text-secondary)]">{{ previewHint }}</p>
+                <p v-if="previewHint" class="border-b border-[var(--ui-border)] px-5 py-2 text-xs text-[var(--wa-text-secondary)]">{{ previewHint }}</p>
                 <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
                     <pre class="kb-pre">{{ previewText }}</pre>
                 </div>
             </div>
         </div>
 
-        <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[var(--wa-panel)] shadow-xl">
-                <div class="flex shrink-0 items-center justify-between border-b border-[var(--wa-border)] px-5 py-4">
-                    <h3 class="text-lg text-[var(--wa-text)]">{{ editing ? 'Редактировать' : meta.addLabel }}</h3>
-                    <button type="button" class="text-[var(--wa-text-secondary)]" @click="showForm = false">Закрыть</button>
+        <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 md:p-4">
+            <div class="kb-modal-card flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl">
+                <div class="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--ui-border)] px-5 py-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-[var(--wa-text)]">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
+                        <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                            Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
+                        </p>
+                    </div>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-[var(--wa-text-secondary)] hover:bg-[var(--ui-surface-muted)]" @click="closeForm">Закрыть</button>
                 </div>
 
-                <div class="grid flex-1 grid-cols-2 gap-3 overflow-y-auto px-5 py-4 wa-scrollbar">
-                    <label class="field col-span-2">
-                        <span>Компания</span>
-                        <select v-model="form.company_id">
-                            <option v-for="company in companies" :key="company.id" :value="company.id">{{ company.name }}</option>
-                        </select>
-                    </label>
+                <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
+                    <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+                        <section class="space-y-4">
+                            <div class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--wa-text)]">Основное</h4>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <label v-if="section !== 'rules'" class="field sm:col-span-2">
+                                        <span>{{ section === 'services' ? 'Название услуги' : 'Название товара' }}</span>
+                                        <input v-model="form.name" type="text" placeholder="Например: Кухня на заказ" />
+                                    </label>
 
-                    <label v-if="section !== 'rules'" class="field col-span-2">
-                        <span>Название</span>
-                        <input v-model="form.name" type="text" />
-                    </label>
+                                    <label v-if="section === 'rules'" class="field sm:col-span-2">
+                                        <span>Заголовок правила</span>
+                                        <input v-model="form.title" type="text" placeholder="Например: Как отвечать про сроки" />
+                                    </label>
 
-                    <label v-if="section === 'rules'" class="field col-span-2">
-                        <span>Заголовок</span>
-                        <input v-model="form.title" type="text" />
-                    </label>
+                                    <label v-if="section === 'products'" class="field">
+                                        <span>Артикул <small>необязательно</small></span>
+                                        <input v-model="form.sku" type="text" placeholder="Например: KITCHEN-CUSTOM" />
+                                    </label>
 
-                    <label v-if="section === 'products'" class="field">
-                        <span>Артикул <small>необязательно</small></span>
-                        <input v-model="form.sku" type="text" placeholder="Например: ART-001" />
-                        <p class="field-help">Внутренний код товара. Если не используете артикулы, оставьте пустым.</p>
-                    </label>
+                                    <label v-if="section === 'rules'" class="field">
+                                        <span>Тип</span>
+                                        <input v-model="form.type" type="text" placeholder="sales, delivery, tone" />
+                                    </label>
 
-                    <label v-if="section === 'rules'" class="field">
-                        <span>Тип</span>
-                        <input v-model="form.type" type="text" />
-                    </label>
+                                    <label v-if="section === 'rules'" class="field">
+                                        <span>Приоритет</span>
+                                        <input v-model.number="form.priority" type="number" min="1" />
+                                    </label>
 
-                    <label v-if="section === 'rules'" class="field">
-                        <span>Приоритет</span>
-                        <input v-model.number="form.priority" type="number" min="1" />
-                    </label>
+                                    <label v-if="section !== 'rules'" class="field">
+                                        <span>Цена, ₸</span>
+                                        <input v-model="form.price" type="number" min="0" step="0.01" placeholder="Если цена договорная, оставьте пустым" />
+                                    </label>
 
-                    <label v-if="section !== 'rules'" class="field">
-                        <span>Цена, ₸</span>
-                        <input v-model="form.price" type="number" min="0" step="0.01" />
-                    </label>
+                                    <label v-if="section === 'services'" class="field">
+                                        <span>Длительность, мин.</span>
+                                        <input v-model="form.duration_minutes" type="number" min="1" placeholder="Например: 90" />
+                                    </label>
+                                </div>
+                            </div>
 
-                    <label v-if="section === 'services'" class="field">
-                        <span>Длительность, мин.</span>
-                        <input v-model="form.duration_minutes" type="number" min="1" />
-                    </label>
-
-                    <label class="field col-span-2">
-                        <span>{{ section === 'rules' ? 'Содержание правила' : 'Описание' }}</span>
-                        <textarea v-if="section === 'rules'" v-model="form.content" rows="5"></textarea>
-                        <textarea v-else v-model="form.description" rows="5"></textarea>
-                    </label>
-
-                    <details v-if="section !== 'rules'" class="advanced col-span-2">
-                        <summary>Дополнительно</summary>
-                        <div class="advanced-body">
-                            <label class="field">
-                                <span>Сортировка</span>
-                                <input v-model.number="form.sort_order" type="number" min="0" />
-                                <p class="field-help">Чем меньше число, тем выше запись в списке. Обычно можно оставить 0.</p>
-                            </label>
-
-                            <label class="field">
-                                <span>{{ section === 'services' ? 'Условия' : 'Характеристики' }} <small>необязательно</small></span>
-                                <textarea v-model="detailsText" rows="5" spellcheck="false" :placeholder="detailsPlaceholder"></textarea>
-                                <p class="field-help">
-                                    Пишите обычным текстом по строкам. Например: "цвет: черный". Система сама сохранит это в правильном формате для AI.
+                            <div class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">
+                                    {{ section === 'rules' ? 'Текст правила' : 'Как объяснять клиенту' }}
+                                </h4>
+                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                    {{ section === 'rules' ? 'Конкретное правило поведения AI.' : '1-3 предложения: что это, кому подходит, важные ограничения. Без маркетинговой воды.' }}
                                 </p>
-                            </label>
-                        </div>
-                    </details>
+                                <label class="field">
+                                    <textarea
+                                        v-if="section === 'rules'"
+                                        v-model="form.content"
+                                        rows="7"
+                                        placeholder="Например: если клиент спрашивает про сроки, сначала уточни город и объём, затем дай диапазон."
+                                    ></textarea>
+                                    <textarea
+                                        v-else
+                                        v-model="form.description"
+                                        rows="7"
+                                        placeholder="Например: Индивидуальное изготовление кухни под размеры клиента. Цена зависит от материалов, фурнитуры и сложности проекта. Перед расчётом нужен замер."
+                                    ></textarea>
+                                </label>
+                            </div>
 
-                    <label class="check">
-                        <input v-model="form.include_in_prompt" type="checkbox" />
-                        <span>Учитывать в промпте</span>
-                    </label>
-                    <label class="check">
-                        <input v-model="form.is_active" type="checkbox" />
-                        <span>Активна</span>
-                    </label>
+                            <div v-if="section === 'products'" class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">Фото товара</h4>
+                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                    Покажите внешний вид товара в карточке. Поддерживаются JPG, PNG и WebP до 5 МБ.
+                                </p>
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                    <div class="kb-product-photo-preview">
+                                        <img v-if="productImagePreview" :src="productImagePreview" alt="Фото товара" />
+                                        <span v-else>Нет фото</span>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <label class="cursor-pointer rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)] hover:border-[var(--ui-accent-border)]">
+                                            Выбрать фото
+                                            <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductImage" />
+                                        </label>
+                                        <button
+                                            v-if="productImagePreview || editing?.image_url"
+                                            type="button"
+                                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text-secondary)]"
+                                            @click="removeProductImage"
+                                        >
+                                            Убрать фото
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="section !== 'rules'" class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">Факты для AI</h4>
+                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                    Каждая строка: ключ и значение. Это не карточка для клиента, а быстрые факты для точного ответа.
+                                </p>
+                                <label class="field">
+                                    <textarea v-model="detailsText" rows="6" spellcheck="false" :placeholder="detailsPlaceholder"></textarea>
+                                </label>
+                            </div>
+                        </section>
+
+                        <aside class="space-y-4">
+                            <div class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--wa-text)]">Публикация</h4>
+                                <div class="space-y-3">
+                                    <label class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                        <span>Учитывать в AI</span>
+                                        <input v-model="form.include_in_prompt" type="checkbox" />
+                                    </label>
+                                    <label class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                        <span>Активна</span>
+                                        <input v-model="form.is_active" type="checkbox" />
+                                    </label>
+                                    <label v-if="section !== 'rules'" class="field">
+                                        <span>Сортировка</span>
+                                        <input v-model.number="form.sort_order" type="number" min="0" />
+                                        <p class="field-help">Меньше число - выше в списке.</p>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="kb-form-section rounded-xl border p-4">
+                                <h4 class="mb-2 text-sm font-semibold text-[var(--wa-text)]">Подсказка</h4>
+                                <ul class="space-y-2 text-xs leading-relaxed text-[var(--wa-text-secondary)]">
+                                    <li>• Название должно быть коротким и узнаваемым.</li>
+                                    <li>• Описание отвечает на вопрос клиента, а не продаёт всё сразу.</li>
+                                    <li>• Если цены нет, прямо напишите, от чего она зависит.</li>
+                                </ul>
+                            </div>
+                        </aside>
+                    </div>
                 </div>
 
-                <div class="flex shrink-0 justify-end gap-2 border-t border-[var(--wa-border)] px-5 py-4">
-                    <button type="button" class="px-4 py-2 rounded-lg border border-[var(--wa-border)]" @click="showForm = false">Отмена</button>
-                    <button type="button" class="px-4 py-2 rounded-lg bg-[var(--wa-green)] text-white" @click="save">Сохранить</button>
+                <div class="flex shrink-0 justify-end gap-2 border-t border-[var(--ui-border)] px-5 py-4">
+                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-4 py-2 text-sm text-[var(--wa-text)]" @click="closeForm">Отмена</button>
+                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]" @click="save">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -964,8 +1453,37 @@ async function confirmDelete(): Promise<void> {
 </template>
 
 <style scoped>
+.kb-hero,
+.kb-control-panel,
+.kb-card,
+.kb-list-panel,
+.kb-modal-card {
+    background: var(--ui-surface);
+    border-color: var(--ui-border);
+    box-shadow: var(--ui-shadow-soft);
+}
+
+.kb-hero {
+    background: color-mix(in srgb, var(--ui-accent) 4%, var(--ui-surface-raised));
+    border-color: var(--ui-accent-border);
+    box-shadow: var(--ui-shadow-soft), inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 28%, transparent);
+}
+
+.kb-control-panel,
+.kb-list-header {
+    background: var(--ui-surface-raised);
+    border-color: var(--ui-border);
+}
+
+.kb-selection-bar,
+.kb-inset,
+.kb-form-section {
+    background: var(--ui-surface-inset);
+    border-color: var(--ui-border);
+}
+
 .link-btn {
-    color: var(--wa-green);
+    color: var(--ui-accent);
 }
 
 .link-btn.danger {
@@ -973,15 +1491,151 @@ async function confirmDelete(): Promise<void> {
 }
 
 .switch {
-    border: 1px solid var(--wa-border);
+    border: 1px solid var(--ui-border-strong);
     border-radius: 999px;
     color: var(--wa-text-secondary);
     padding: 4px 10px;
 }
 
 .switch.on {
-    background: color-mix(in srgb, var(--wa-green) 16%, transparent);
-    color: var(--wa-green);
+    background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent);
+}
+
+.kb-stat {
+    border: 1px solid var(--ui-border);
+    border-radius: 14px;
+    background: var(--ui-surface-inset);
+    padding: 12px 14px;
+}
+
+.kb-stat span {
+    display: block;
+    color: var(--wa-text-secondary);
+    font-size: 11px;
+}
+
+.kb-stat strong {
+    color: var(--wa-text);
+    display: block;
+    font-size: 20px;
+    line-height: 1.1;
+    margin-top: 4px;
+}
+
+.kb-stat.warn strong {
+    color: #f59e0b;
+}
+
+.kb-stat:hover {
+    border-color: var(--ui-accent-border);
+}
+
+.kb-search {
+    align-items: center;
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-border-strong);
+    border-radius: 10px;
+    display: flex;
+    gap: 8px;
+    padding: 0 10px;
+}
+
+.kb-search input,
+.kb-filter {
+    background: transparent;
+    border: 0;
+    color: var(--wa-text);
+    min-height: 40px;
+    outline: none;
+    width: 100%;
+}
+
+.kb-filter {
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-border-strong);
+    border-radius: 10px;
+    padding: 0 10px;
+}
+
+.kb-row {
+    background: var(--ui-surface);
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 14px 16px;
+    transition: background-color 0.15s ease;
+}
+
+.kb-row:hover {
+    background: color-mix(in srgb, var(--ui-accent) 7%, var(--ui-surface-raised));
+}
+
+.kb-row-side {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.kb-product-thumb {
+    align-items: center;
+    background: var(--ui-surface-inset);
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    color: var(--wa-text-secondary);
+    display: flex;
+    font-size: 10px;
+    height: 56px;
+    justify-content: center;
+    overflow: hidden;
+    width: 56px;
+}
+
+.kb-product-thumb img,
+.kb-product-photo-preview img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.kb-product-photo-preview {
+    align-items: center;
+    background: var(--ui-surface);
+    border: 1px dashed var(--ui-border-strong);
+    border-radius: 14px;
+    color: var(--wa-text-secondary);
+    display: flex;
+    font-size: 12px;
+    height: 112px;
+    justify-content: center;
+    overflow: hidden;
+    width: 150px;
+}
+
+.kb-chip,
+.kb-detail {
+    border: 1px solid var(--ui-border);
+    border-radius: 999px;
+    color: var(--wa-text-secondary);
+    display: inline-flex;
+    max-width: 260px;
+    overflow: hidden;
+    padding: 3px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kb-chip.warn {
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #f59e0b;
+}
+
+.kb-detail {
+    background: var(--ui-surface-inset);
+    font-size: 11px;
 }
 
 .field {
@@ -1007,11 +1661,20 @@ async function confirmDelete(): Promise<void> {
 .field input,
 .field select,
 .field textarea {
-    background: var(--wa-bg);
-    border: 1px solid var(--wa-border);
+    background: var(--ui-input-bg);
+    border: 1px solid var(--ui-border-strong);
     border-radius: 10px;
     color: var(--wa-text);
     padding: 10px 12px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
+    outline: none;
 }
 
 .kb-toolbar-field {
@@ -1028,7 +1691,7 @@ async function confirmDelete(): Promise<void> {
 }
 
 .kb-checkbox {
-    accent-color: var(--wa-green);
+    accent-color: var(--ui-accent);
     height: 16px;
     width: 16px;
 }
@@ -1041,7 +1704,7 @@ async function confirmDelete(): Promise<void> {
 }
 
 .advanced {
-    border: 1px solid var(--wa-border);
+    border: 1px solid var(--ui-border);
     border-radius: 12px;
     color: var(--wa-text);
     padding: 10px 12px;

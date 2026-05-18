@@ -4,6 +4,9 @@ import { Head } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import axios from 'axios';
 
+const slaEnabledKey = 'chats.sla_reminders.enabled';
+const slaMinutesKey = 'chats.sla_reminder_minutes';
+
 const props = defineProps<{
     settings: Record<string, string>;
 }>();
@@ -130,6 +133,14 @@ function toggleReminders(): void {
     form.value['appointment_reminders.enabled'] = remindersEnabled() ? 'off' : 'on';
 }
 
+function slaRemindersEnabled(): boolean {
+    return (form.value[slaEnabledKey] ?? 'on') !== 'off';
+}
+
+function toggleSlaReminders(): void {
+    form.value[slaEnabledKey] = slaRemindersEnabled() ? 'off' : 'on';
+}
+
 async function save() {
     isSaving.value = true;
     saved.value = false;
@@ -206,6 +217,46 @@ async function save() {
                 <p class="mt-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
                     Лучше ставить по одному эмодзи в каждое поле. Кнопка “+” для полного выбора эмодзи останется в чате отдельно.
                 </p>
+            </div>
+
+            <!-- SLA в чатах -->
+            <div
+                class="rounded-lg border p-6 max-w-3xl"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+            >
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--wa-text)' }">SLA в чатах</h2>
+                <p class="text-xs mb-4" :style="{ color: 'var(--wa-text-secondary)' }">
+                    Внутренние напоминания в ленте организации, если клиент ждёт ответ дольше заданного времени.
+                </p>
+                <div class="space-y-4">
+                    <div class="module-row" :class="{ 'module-row-on': slaRemindersEnabled() }">
+                        <div class="module-info">
+                            <span class="module-label">SLA-напоминания</span>
+                            <span class="module-desc">Создавать задачу в организации при долгом ожидании клиента.</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="toggle-btn"
+                            :class="{ 'toggle-btn-on': slaRemindersEnabled() }"
+                            @click="toggleSlaReminders"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Клиент ждёт ответ более (минут)</label>
+                        <input
+                            v-model="form[slaMinutesKey]"
+                            type="number"
+                            min="5"
+                            max="120"
+                            step="1"
+                            class="settings-input max-w-[10rem]"
+                            :disabled="!slaRemindersEnabled()"
+                        />
+                        <p class="mt-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                            От 5 до 120 минут. Cron проверяет чаты каждые 5 минут.
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <!-- Записи и напоминания -->

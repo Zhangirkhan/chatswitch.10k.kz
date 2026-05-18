@@ -25,7 +25,8 @@ const isTeamChatUrl = computed(() => typeof page.url === 'string' && page.url.st
                 :class="{ 'hidden md:flex': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
             />
             <div
-                class="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--wa-border)]"
+                class="flex min-h-0 min-w-0 flex-1 flex-col border-l"
+                :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
                 :class="{ 'hidden md:flex': !selectedDepartmentId && !archiveActive && !isTeamChatUrl }"
             >
                 <slot />

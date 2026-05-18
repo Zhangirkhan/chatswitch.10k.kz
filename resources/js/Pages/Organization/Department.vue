@@ -553,7 +553,7 @@ function initial(name: string): string {
 }
 .status-open { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #f59e0b; }
 .status-in_progress { background: color-mix(in srgb, #3b82f6 22%, transparent); color: #3b82f6; }
-.status-done { background: color-mix(in srgb, #22c55e 22%, transparent); color: #22c55e; }
+.status-done { background: color-mix(in srgb, var(--wa-accent) 22%, transparent); color: var(--wa-accent); }
 
 .org-modal-backdrop {
     position: fixed;
@@ -641,9 +641,9 @@ function initial(name: string): string {
     transition: background-color 0.12s, border-color 0.12s, color 0.12s;
 }
 .archive-link:hover {
-    background: color-mix(in srgb, #22c55e 8%, var(--wa-panel));
-    border-color: color-mix(in srgb, #22c55e 45%, var(--wa-border));
-    color: #22c55e;
+    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+    color: var(--wa-accent);
 }
 .archive-link-count {
     display: inline-flex;
@@ -653,8 +653,8 @@ function initial(name: string): string {
     height: 20px;
     padding: 0 0.4rem;
     border-radius: 999px;
-    background: color-mix(in srgb, #22c55e 20%, transparent);
-    color: #22c55e;
+    background: color-mix(in srgb, var(--wa-accent) 20%, transparent);
+    color: var(--wa-accent);
     font-size: 0.72rem;
     font-weight: 600;
 }

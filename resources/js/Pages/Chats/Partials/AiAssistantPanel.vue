@@ -35,6 +35,18 @@ type AiStatus = {
         trigger_message_id: number | null;
         updated_at: string | null;
     }>;
+    orchestrator_history?: Array<{
+        id: number;
+        status: string;
+        label: string;
+        reason: string | null;
+        confidence: number | null;
+        target_stage: string | null;
+        customer_reply: string | null;
+        task_title: string | null;
+        trigger_message_id: number | null;
+        completed_at: string | null;
+    }>;
 };
 
 const props = defineProps<{
@@ -140,6 +152,7 @@ const aiKnowledgeContextLabel = computed(() => {
 });
 const aiToneSourceLabel = computed(() => props.aiStatus?.tone_source?.label || 'Тон: не собран');
 const aiStatusHistory = computed(() => props.aiStatus?.history ?? []);
+const aiOrchestratorHistory = computed(() => props.aiStatus?.orchestrator_history ?? []);
 
 const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
     {
@@ -350,7 +363,7 @@ watch(() => props.chatId, () => {
 <template>
     <aside
         class="w-[420px] shrink-0 h-full flex flex-col border-l overflow-hidden"
-        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-sidebar-divider)' }"
     >
         <div
             class="min-h-[60px] py-2 px-4 flex items-center gap-3 shrink-0"
@@ -447,6 +460,10 @@ watch(() => props.chatId, () => {
                             Копировать черновик
                         </button>
                     </div>
+                    <p class="mt-2 text-[11px] leading-4 opacity-70">
+                        Если вы сильно меняете черновик перед отправкой, система может автоматически подстроить тон ответов
+                        под ваш стиль.
+                    </p>
                 </div>
 
                 <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">
@@ -479,6 +496,42 @@ watch(() => props.chatId, () => {
                                 <summary class="cursor-pointer">Технически</summary>
                                 <pre class="mt-1 whitespace-pre-wrap break-words">{{ item.technical_error }}</pre>
                             </details>
+                        </div>
+                    </div>
+                </details>
+
+                <details v-if="aiOrchestratorHistory.length > 0" class="mt-3 text-[11.5px] opacity-85">
+                    <summary class="cursor-pointer font-semibold">
+                        История оркестратора: {{ aiOrchestratorHistory.length }}
+                    </summary>
+                    <div class="mt-2 space-y-2">
+                        <div
+                            v-for="item in aiOrchestratorHistory"
+                            :key="item.id"
+                            class="rounded-lg px-2.5 py-2"
+                            :style="{ background: 'color-mix(in srgb, var(--wa-bg) 48%, transparent)' }"
+                        >
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="font-semibold">{{ item.label }}</span>
+                                <span v-if="item.completed_at" class="opacity-65">
+                                    {{ formatTime(new Date(item.completed_at).getTime()) }}
+                                </span>
+                            </div>
+                            <p v-if="item.reason" class="mt-1 leading-4 opacity-80">{{ item.reason }}</p>
+                            <div class="mt-1 flex flex-wrap gap-1.5 opacity-75">
+                                <span v-if="item.target_stage" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
+                                    Этап: {{ item.target_stage }}
+                                </span>
+                                <span v-if="item.task_title" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
+                                    Задача: {{ item.task_title }}
+                                </span>
+                                <span v-if="item.confidence !== null" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
+                                    Уверенность: {{ Math.round(item.confidence * 100) }}%
+                                </span>
+                            </div>
+                            <p v-if="item.customer_reply" class="mt-2 whitespace-pre-wrap rounded-lg px-2 py-1.5 leading-4" :style="{ background: 'var(--wa-panel)' }">
+                                {{ item.customer_reply }}
+                            </p>
                         </div>
                     </div>
                 </details>
@@ -707,8 +760,8 @@ watch(() => props.chatId, () => {
 }
 
 .ai-status-card-busy {
-    background: color-mix(in srgb, #2563eb 10%, var(--wa-panel));
-    border-color: color-mix(in srgb, #2563eb 32%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 32%, var(--wa-border));
 }
 
 .ai-status-card-warning {

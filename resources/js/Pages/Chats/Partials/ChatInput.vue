@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue';
 import axios from 'axios';
-import type { Message } from '@/types';
+import { useToastStore } from '@/stores/toast';
+import type { Message, MessageProductAttachment } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 
@@ -17,6 +18,8 @@ const emit = defineEmits<{
     (e: 'messageSent', message: any): void;
     (e: 'cancelReply'): void;
 }>();
+
+const { show: showToast } = useToastStore();
 
 // Plain text that will be sent to backend/WhatsApp.
 const messageText = ref('');
@@ -40,7 +43,72 @@ const showAttach = ref(false);
 let typingTimeout: ReturnType<typeof setTimeout>;
 
 const hasText = computed(() => messageText.value.trim().length > 0);
+const canSend = computed(() => hasText.value || selectedProduct.value !== null);
 const aiActionBusy = computed(() => aiActionLoading.value !== null);
+
+type ChatProductPickerItem = MessageProductAttachment;
+
+const productPickerOpen = ref(false);
+const productSearch = ref('');
+const productItems = ref<ChatProductPickerItem[]>([]);
+const productsLoading = ref(false);
+const productsError = ref<string | null>(null);
+const selectedProduct = ref<ChatProductPickerItem | null>(null);
+let productSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function loadProducts(): Promise<void> {
+    productsLoading.value = true;
+    productsError.value = null;
+    try {
+        const { data } = await axios.get(route('chats.products', props.chatId), {
+            params: productSearch.value.trim() ? { q: productSearch.value.trim() } : {},
+        });
+        productItems.value = Array.isArray(data?.products) ? data.products : [];
+    } catch {
+        productItems.value = [];
+        productsError.value = 'Не удалось загрузить каталог товаров';
+    } finally {
+        productsLoading.value = false;
+    }
+}
+
+function openProductPicker(): void {
+    showAttach.value = false;
+    productPickerOpen.value = true;
+    void loadProducts();
+}
+
+function closeProductPicker(): void {
+    productPickerOpen.value = false;
+    productSearch.value = '';
+}
+
+function scheduleProductSearch(): void {
+    if (productSearchTimer !== null) {
+        clearTimeout(productSearchTimer);
+    }
+    productSearchTimer = setTimeout(() => {
+        productSearchTimer = null;
+        void loadProducts();
+    }, 250);
+}
+
+function selectProduct(product: ChatProductPickerItem): void {
+    selectedProduct.value = product;
+    closeProductPicker();
+}
+
+function clearSelectedProduct(): void {
+    selectedProduct.value = null;
+}
+
+watch(
+    () => props.chatId,
+    () => {
+        clearSelectedProduct();
+        closeProductPicker();
+    },
+);
 
 type AiInputAction = 'reply' | 'improve' | 'shorter' | 'polite';
 
@@ -440,6 +508,11 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
             return;
         }
 
+        const product = data?.product;
+        if (product && typeof product === 'object' && product.id) {
+            selectedProduct.value = product as ChatProductPickerItem;
+        }
+
         setEditorPlainText(reply);
         editorRef.value?.focus();
     } catch (e: any) {
@@ -467,7 +540,8 @@ async function sendMessage() {
     const displayText = editorRef.value
         ? serializeEditorForDisplay(editorRef.value).replace(/\s+$/g, '').trim()
         : '';
-    if (!sendText || isSending.value) return;
+    const product = selectedProduct.value;
+    if ((!sendText && !product) || isSending.value) return;
 
     isSending.value = true;
     const mentions = extractMentionIdsFromText(sendText);
@@ -484,11 +558,16 @@ async function sendMessage() {
         });
     }
     const prevText = sendText;
+    const prevProduct = product;
     messageText.value = '';
+    clearSelectedProduct();
     clearEditor();
 
     try {
         const payload: Record<string, unknown> = { message: sendText };
+        if (product?.id) {
+            payload.product_id = product.id;
+        }
         if (displayText && displayText !== sendText) {
             payload.display_message = displayText;
         }
@@ -506,9 +585,16 @@ async function sendMessage() {
             emit('messageSent', data.message);
             emit('cancelReply');
         }
+        if (data.tone_profile_learning_scheduled) {
+            showToast({
+                message: 'Черновик AI был заметно изменён — профиль тона обновится в фоне.',
+                duration: 5000,
+            });
+        }
     } catch (err) {
         console.error('Send failed:', err);
         messageText.value = prevText;
+        selectedProduct.value = prevProduct;
         // restore editor text for user convenience
         setEditorPlainText(prevText);
     } finally {
@@ -1203,6 +1289,43 @@ watch(anyOverlayOpen, (open) => {
     </div>
 
     <div v-else class="relative shrink-0">
+        <div
+            v-if="selectedProduct"
+            class="px-4 pt-2 pb-1 flex items-stretch gap-2 border-t"
+            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }"
+        >
+            <div
+                class="flex-1 flex items-center gap-3 rounded-md pl-2 pr-3 py-2 border-l-4 min-w-0"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-accent)' }"
+            >
+                <img
+                    v-if="selectedProduct.image_url"
+                    :src="selectedProduct.image_url"
+                    alt=""
+                    class="w-12 h-12 rounded object-cover shrink-0"
+                />
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-medium" :style="{ color: 'var(--wa-accent)' }">Товар</div>
+                    <div class="text-sm font-medium truncate" :style="{ color: 'var(--wa-text)' }">
+                        {{ selectedProduct.name }}
+                    </div>
+                    <div v-if="selectedProduct.price_formatted" class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                        {{ selectedProduct.price_formatted }}
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[var(--wa-panel-hover)]"
+                    title="Убрать товар"
+                    @click="clearSelectedProduct"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
         <!-- Reply preview -->
         <div
             v-if="replyTo"
@@ -1337,6 +1460,14 @@ watch(anyOverlayOpen, (open) => {
                                 </span>
                                 Опрос
                             </button>
+                            <button class="attach-item" @click="openProductPicker" type="button">
+                                <span class="attach-icon" style="background: var(--wa-accent);">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                </span>
+                                Товар из каталога
+                            </button>
                         </div>
                     </transition>
                 </div>
@@ -1421,7 +1552,7 @@ watch(anyOverlayOpen, (open) => {
                 />
 
                 <button
-                    v-if="hasText"
+                    v-if="canSend"
                     @click="sendMessage"
                     :disabled="isSending"
                     class="wa-input-btn"
@@ -1864,6 +1995,71 @@ watch(anyOverlayOpen, (open) => {
                             >
                                 <span v-if="isSendingPoll" class="att-spinner" aria-hidden="true"></span>
                                 <span v-else>Создать</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <Teleport to="body">
+            <transition name="attach">
+                <div
+                    v-if="productPickerOpen"
+                    class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4"
+                    @click.self="closeProductPicker"
+                >
+                    <div
+                        class="w-full sm:max-w-md max-h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl border flex flex-col overflow-hidden"
+                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
+                    >
+                        <div class="px-4 py-3 border-b flex items-center justify-between gap-3" :style="{ borderColor: 'var(--wa-border)' }">
+                            <div class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">Товар из каталога</div>
+                            <button type="button" class="wa-input-btn" title="Закрыть" @click="closeProductPicker">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="px-4 py-2 border-b" :style="{ borderColor: 'var(--wa-border)' }">
+                            <input
+                                v-model="productSearch"
+                                type="search"
+                                placeholder="Поиск по названию, артикулу…"
+                                class="w-full rounded-lg px-3 py-2 text-sm border outline-none"
+                                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)', color: 'var(--wa-text)' }"
+                                @input="scheduleProductSearch"
+                            />
+                        </div>
+                        <div class="flex-1 overflow-y-auto wa-scrollbar px-2 py-2">
+                            <div v-if="productsLoading" class="px-3 py-6 text-sm text-center opacity-70">Загрузка…</div>
+                            <div v-else-if="productsError" class="px-3 py-6 text-sm text-center text-red-400">{{ productsError }}</div>
+                            <div v-else-if="productItems.length === 0" class="px-3 py-6 text-sm text-center opacity-70">Товары не найдены</div>
+                            <button
+                                v-for="item in productItems"
+                                :key="item.id"
+                                type="button"
+                                class="w-full text-left flex items-center gap-3 rounded-lg px-3 py-2.5 hover:brightness-110 transition"
+                                @click="selectProduct(item)"
+                            >
+                                <img
+                                    v-if="item.image_url"
+                                    :src="item.image_url"
+                                    alt=""
+                                    class="w-11 h-11 rounded object-cover shrink-0"
+                                />
+                                <div
+                                    v-else
+                                    class="w-11 h-11 rounded shrink-0 flex items-center justify-center text-xs font-semibold"
+                                    :style="{ background: 'color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel))', color: 'var(--wa-accent)' }"
+                                >
+                                    {{ (item.name || '?').charAt(0).toUpperCase() }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-sm font-medium truncate" :style="{ color: 'var(--wa-text)' }">{{ item.name }}</div>
+                                    <div v-if="item.price_formatted" class="text-xs" :style="{ color: 'var(--wa-accent)' }">{{ item.price_formatted }}</div>
+                                    <div v-if="item.sku" class="text-[11px] truncate opacity-70">SKU: {{ item.sku }}</div>
+                                </div>
                             </button>
                         </div>
                     </div>

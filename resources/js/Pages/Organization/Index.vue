@@ -278,7 +278,7 @@ function initial(name: string): string {
 }
 .kpi-card-active-open     { border-color: #f59e0b !important; background: color-mix(in srgb, #f59e0b 8%, var(--wa-panel)); }
 .kpi-card-active-progress { border-color: #3b82f6 !important; background: color-mix(in srgb, #3b82f6 8%, var(--wa-panel)); }
-.kpi-card-active-done     { border-color: #22c55e !important; background: color-mix(in srgb, #22c55e 8%, var(--wa-panel)); }
+.kpi-card-active-done     { border-color: var(--wa-accent) !important; background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel)); }
 
 .kpi-icon {
     width: 30px;
@@ -292,7 +292,7 @@ function initial(name: string): string {
 .kpi-icon-all      { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); color: var(--wa-accent); }
 .kpi-icon-open     { background: color-mix(in srgb, #f59e0b 15%, var(--wa-panel-header)); color: #f59e0b; }
 .kpi-icon-progress { background: color-mix(in srgb, #3b82f6 15%, var(--wa-panel-header)); color: #3b82f6; }
-.kpi-icon-done     { background: color-mix(in srgb, #22c55e 15%, var(--wa-panel-header)); color: #22c55e; }
+.kpi-icon-done     { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); color: var(--wa-accent); }
 
 .kpi-value {
     font-size: 1.65rem;
@@ -338,7 +338,7 @@ function initial(name: string): string {
 .filter-btn-active.filter-btn-all      { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); border-color: var(--wa-accent); color: var(--wa-accent); font-weight: 700; }
 .filter-btn-active.filter-btn-open     { background: color-mix(in srgb, #f59e0b 15%, var(--wa-panel-header)); border-color: #f59e0b; color: #f59e0b; font-weight: 700; }
 .filter-btn-active.filter-btn-progress { background: color-mix(in srgb, #3b82f6 15%, var(--wa-panel-header)); border-color: #3b82f6; color: #3b82f6; font-weight: 700; }
-.filter-btn-active.filter-btn-done     { background: color-mix(in srgb, #22c55e 15%, var(--wa-panel-header)); border-color: #22c55e; color: #22c55e; font-weight: 700; }
+.filter-btn-active.filter-btn-done     { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); border-color: var(--wa-accent); color: var(--wa-accent); font-weight: 700; }
 
 /* ── Empty states ────────────────────────────────────────────────────────── */
 .empty-state {
@@ -462,9 +462,9 @@ function initial(name: string): string {
     border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--wa-border));
 }
 .task-badge-done {
-    background: color-mix(in srgb, #22c55e 15%, var(--wa-panel-header));
-    color: #22c55e;
-    border: 1px solid color-mix(in srgb, #22c55e 30%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header));
+    color: var(--wa-accent);
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 30%, var(--wa-border));
 }
 .task-badge-empty {
     background: var(--wa-panel-header);

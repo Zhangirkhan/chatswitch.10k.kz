@@ -70,7 +70,7 @@ const statusLabels: Record<SessionStatus, string> = {
 };
 
 const statusClasses: Record<SessionStatus, string> = {
-    connected: 'bg-[#25d366]',
+    connected: 'bg-[var(--wa-accent)]',
     connecting: 'bg-amber-500',
     qr_pending: 'bg-amber-500',
     disconnected: 'bg-red-500',
@@ -436,7 +436,7 @@ function reloadPage(): void {
                                     @keyup.enter="saveDisplayName(session)"
                                 />
                                 <input
-                                    :value="editedDisplayColor || '#25d366'"
+                                    :value="editedDisplayColor || '#01b964'"
                                     type="color"
                                     class="h-[38px] w-[42px] rounded-md border"
                                     :style="{ borderColor: 'var(--wa-border)', background: 'transparent' }"

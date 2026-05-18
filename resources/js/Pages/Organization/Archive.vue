@@ -164,8 +164,8 @@ function bodyPreview(body: string | null): string {
     line-height: 1.4;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    background: color-mix(in srgb, #22c55e 22%, transparent);
-    color: #22c55e;
+    background: color-mix(in srgb, var(--wa-accent) 22%, transparent);
+    color: var(--wa-accent);
 }
 .dept-label {
     font-size: 0.75rem;

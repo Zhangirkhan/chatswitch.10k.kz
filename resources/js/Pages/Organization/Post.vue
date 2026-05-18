@@ -648,7 +648,7 @@ async function deleteAttachment(a: OrgAttachment) {
 }
 .status-open { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #f59e0b; }
 .status-in_progress { background: color-mix(in srgb, #3b82f6 22%, transparent); color: #3b82f6; }
-.status-done { background: color-mix(in srgb, #22c55e 22%, transparent); color: #22c55e; }
+.status-done { background: color-mix(in srgb, var(--wa-accent) 22%, transparent); color: var(--wa-accent); }
 
 .post-edit {
     display: flex;

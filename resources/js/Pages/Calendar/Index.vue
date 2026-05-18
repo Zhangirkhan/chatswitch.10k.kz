@@ -52,7 +52,7 @@ const filterAssigneeId = ref('');
 
 // ─── Modal form ──────────────────────────────────────────────────────────────
 
-const PALETTE = ['#25d366','#34d399','#22d3ee','#3b82f6','#6366f1','#8b5cf6','#ec4899','#ef4444','#f97316','#f59e0b','#84cc16'];
+const PALETTE = ['#01b964','#34d399','#22d3ee','#3b82f6','#6366f1','#8b5cf6','#ec4899','#ef4444','#f97316','#f59e0b','#84cc16'];
 
 const showModal  = ref(false);
 const editingId  = ref<number | null>(null);
@@ -64,7 +64,7 @@ const formError  = ref<string | null>(null);
 const form = ref({
     title: '',
     description: '',
-    color: '#25d366',
+    color: '#01b964',
     starts_at: '',
     ends_at: '',
     all_day: false,
@@ -87,7 +87,7 @@ function emptyForm(date?: Date) {
     return {
         title: '',
         description: '',
-        color: '#25d366',
+        color: '#01b964',
         starts_at: local(start),
         ends_at: local(end),
         all_day: false,

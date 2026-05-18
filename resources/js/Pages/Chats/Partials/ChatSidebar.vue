@@ -4,6 +4,7 @@ import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
+import SkeletonBlock from '@/Components/SkeletonBlock.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
@@ -13,6 +14,7 @@ import axios from 'axios';
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
 type SegmentKey = 'favorites' | 'clients' | 'staff';
+type ListFilterKey = 'attention' | null;
 
 const props = withDefaults(
     defineProps<{
@@ -36,6 +38,10 @@ const isManager = computed(() => roles.value.includes('manager'));
 const canFilterByOwnership = computed(() => isAdmin.value || isManager.value);
 
 const listOwnership = computed(() => (page.props.listOwnership === 'mine' ? 'mine' : 'all'));
+const listFilter = computed<ListFilterKey>(() =>
+    page.props.listFilter === 'attention' ? 'attention' : null,
+);
+const attentionChatsTotal = computed(() => Number(page.props.attentionChatsTotal ?? 0));
 
 function chatsListRoute(): string {
     return props.scope === 'archived' ? route('chats.archived') : route('chats.index');
@@ -48,6 +54,9 @@ function chatsListQuery(overrides: Record<string, string | undefined> = {}): Rec
     }
     if (listOwnership.value === 'mine') {
         q.ownership = 'mine';
+    }
+    if (listFilter.value === 'attention') {
+        q.filter = 'attention';
     }
     return q;
 }
@@ -117,7 +126,7 @@ function applyIncomingMessage(chatId: number, msg: {
     const idx = localChats.value.findIndex((c) => c.id === chatId);
     if (idx < 0) {
         // Неизвестный чат — подгрузим список
-        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
+        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
         return;
     }
 
@@ -167,6 +176,7 @@ async function onChatListScroll(e: Event): Promise<void> {
                 search: props.search || undefined,
                 archived: props.scope === 'archived' ? 1 : 0,
                 ownership: listOwnership.value === 'mine' ? 'mine' : undefined,
+                filter: listFilter.value === 'attention' ? 'attention' : undefined,
             },
         });
         const seen = new Set(localChats.value.map((c) => c.id));
@@ -209,7 +219,7 @@ function setupListEcho(): void {
         listEchoChannel.listen('.chats.notify', (e: any) => {
             if (!e?.chat_id) return;
             // Для назначений/звонков перезагружаем список
-            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
+            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
         });
     } catch {
         listEchoChannel = null;
@@ -292,7 +302,7 @@ onMounted(async () => {
             return;
         }
         if (hiddenAt !== null && Date.now() - hiddenAt > 3000) {
-            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
+            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
         }
         hiddenAt = null;
     };
@@ -301,7 +311,7 @@ onMounted(async () => {
 
     try {
         await axios.post(route('chats.sync-groups'));
-        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
+        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
     } catch {
         // ignore (offline / service not ready)
     }
@@ -343,7 +353,7 @@ watch(searchQuery, (val) => {
         router.get(chatsListRoute(), chatsListQuery({ search: val || undefined }), {
             preserveState: true,
             preserveScroll: true,
-            only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'],
+            only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
         });
     }, 300);
 });
@@ -352,6 +362,13 @@ const ownershipFilteredChats = computed(() => localChats.value);
 
 const filteredChats = computed(() => {
     let list = ownershipFilteredChats.value;
+    if (listFilter.value === 'attention') {
+        return [...list].sort((a, b) => {
+            const ad = new Date((a.last_message_at || (a as any).created_at || '') as any).getTime() || 0;
+            const bd = new Date((b.last_message_at || (b as any).created_at || '') as any).getTime() || 0;
+            return bd - ad;
+        });
+    }
     if (activeSegment.value === 'favorites') {
         list = list.filter((c) => c.is_pinned || c.is_favorite);
     } else if (activeSegment.value === 'clients') {
@@ -385,6 +402,21 @@ const mineChatsTotal = computed(() => Number(page.props.mineChatsTotal ?? 0));
 
 function setSegment(key: SegmentKey) {
     activeSegment.value = key;
+    if (listFilter.value === 'attention') {
+        router.get(chatsListRoute(), chatsListQuery({ filter: undefined }), {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
+        });
+    }
+}
+
+function setAttentionFilter(): void {
+    router.get(chatsListRoute(), chatsListQuery({ filter: 'attention' }), {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
+    });
 }
 
 function setOwnership(key: OwnershipKey) {
@@ -398,7 +430,7 @@ function setOwnership(key: OwnershipKey) {
     router.get(chatsListRoute(), q, {
         preserveState: true,
         preserveScroll: true,
-        only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'],
+        only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
     });
 }
 
@@ -449,7 +481,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="w-[400px] h-full relative shrink-0 overflow-hidden">
+    <div
+        class="w-[400px] h-full relative shrink-0 overflow-hidden border-r"
+        :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
+    >
         <!-- New-chat panel slides in from the left -->
         <Transition name="slide-left">
             <NewChatPanel
@@ -459,7 +494,7 @@ onBeforeUnmount(() => {
             />
         </Transition>
 
-    <div class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)]">
+    <div class="w-full h-full flex flex-col bg-[var(--wa-panel)]">
         <!-- Panel header -->
         <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
             <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
@@ -694,10 +729,26 @@ onBeforeUnmount(() => {
             >
                 Сотрудники<span v-if="staffTotal" class="ml-1.5">{{ staffTotal }}</span>
             </button>
+            <button
+                type="button"
+                class="subtab subtab-attention"
+                :class="{ 'subtab-active': listFilter === 'attention' }"
+                @click="setAttentionFilter"
+            >
+                Внимание<span v-if="attentionChatsTotal" class="ml-1.5">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>
+            </button>
         </div>
 
         <div
-            v-if="scope === 'active' && activeSegment === 'staff' && filteredChats.length === 0 && ownershipFilteredChats.length > 0"
+            v-if="scope === 'active' && listFilter === 'attention' && filteredChats.length === 0"
+            class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
+            :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
+        >
+            Сейчас нет чатов, требующих внимания.
+        </div>
+
+        <div
+            v-if="scope === 'active' && activeSegment === 'staff' && listFilter !== 'attention' && filteredChats.length === 0 && ownershipFilteredChats.length > 0"
             class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
         >
@@ -797,12 +848,7 @@ onBeforeUnmount(() => {
                 :chat="chat"
                 :is-selected="chat.id === selectedChatId"
             />
-            <div
-                v-if="loadingMore"
-                class="py-3 text-center text-xs text-[var(--wa-text-secondary)]"
-            >
-                Загрузка…
-            </div>
+            <SkeletonBlock v-if="loadingMore" :lines="4" class="px-3 py-3" />
         </div>
 
     </div>
@@ -850,6 +896,13 @@ onBeforeUnmount(() => {
 }
 .subtab-active:hover {
     color: var(--wa-accent);
+}
+.subtab-attention.subtab-active {
+    color: #ef4444;
+    border-bottom-color: #ef4444;
+}
+.subtab-attention:not(.subtab-active):hover {
+    color: #f87171;
 }
 @keyframes filter-menu-pop {
     from { opacity: 0; transform: translateY(-4px) scale(0.98); }

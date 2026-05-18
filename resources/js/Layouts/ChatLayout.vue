@@ -21,7 +21,8 @@ defineProps<{
                 :class="{ 'hidden sm:flex': selectedChatId }"
             />
             <div
-                class="flex min-h-0 min-w-0 flex-1 flex-col border-l border-[var(--wa-border)]"
+                class="flex min-h-0 min-w-0 flex-1 flex-col border-l"
+                :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
                 :class="{ 'hidden sm:flex': !selectedChatId }"
             >
                 <slot />

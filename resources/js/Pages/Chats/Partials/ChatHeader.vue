@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { ref, onBeforeUnmount, computed, watch } from 'vue';
+import { ref, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
+import FunnelStageWheelPicker from '@/Components/FunnelStageWheelPicker.vue';
+import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
+import AiSimulatorModal from './AiSimulatorModal.vue';
 
 type MenuPos = { top: number; right: number };
 type AiStatus = {
@@ -318,6 +321,25 @@ const aiStatusTitle = computed(() => {
     return lines.join('\n');
 });
 
+const orchestratorStatusLabel = computed(() => {
+    const status = props.chat.ai_orchestrator_status;
+    if (status === 'running' || status === 'pending') return 'AI ведёт';
+    if (status === 'needs_manager') return 'Нужен менеджер';
+    if (status === 'completed') return 'AI шаг';
+    if (status === 'failed') return 'AI ошибка';
+    if (status === 'skipped') return 'AI пропуск';
+    return '';
+});
+
+const orchestratorStatusTitle = computed(() => {
+    const lines = [
+        orchestratorStatusLabel.value ? `AI-оркестратор: ${orchestratorStatusLabel.value}` : '',
+        props.chat.ai_orchestrator_last_summary,
+    ].filter(Boolean);
+
+    return lines.join('\n');
+});
+
 /** У руководителя — как раньше; у админа кнопка видна всегда, но без отделов у чата неактивна. */
 const showAssignUsersBlock = computed(() => {
     if (isManager.value) {
@@ -385,26 +407,72 @@ function roleLabel(roles: string[]): string {
     return '';
 }
 
+async function patchAiSettings(payload: Record<string, unknown>): Promise<void> {
+    await axios.patch(route('chats.ai.update', props.chat.id), {
+        ai_enabled: aiEnabled.value,
+        ai_mode: aiMode.value,
+        ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
+        company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
+        ...payload,
+    });
+    router.reload({ only: ['chat', 'aiStatus'] });
+}
+
 async function toggleAi(): Promise<void> {
     if (!canManageAi.value || aiSaving.value) {
         return;
     }
 
+    const enabling = !aiEnabled.value;
     closeAiModeMenu();
     closeAiResponderMenu();
     aiSaving.value = true;
     try {
-        await axios.patch(route('chats.ai.update', props.chat.id), {
-            ai_enabled: !aiEnabled.value,
-            ai_mode: aiMode.value,
-            ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
-            company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
-        });
-        router.reload({ only: ['chat', 'aiStatus'] });
+        await patchAiSettings({ ai_enabled: enabling });
     } catch (e: any) {
-        alert(e?.response?.data?.message || 'Не удалось переключить AI.');
+        const data = e?.response?.data;
+        if (enabling && data?.requires_confirmation) {
+            const warnings = Array.isArray(data.warnings) ? data.warnings.join('\n• ') : '';
+            const readinessScore = data.readiness?.score;
+            const scoreLine = typeof readinessScore === 'number' ? `\n\nГотовность AI: ${readinessScore}%.` : '';
+            const settingsUrl = typeof data.settings_url === 'string' ? data.settings_url : route('settings.ai-quality');
+            const proceed = window.confirm(
+                `${data.message || 'Перед включением AI проверьте готовность.'}${scoreLine}\n\n• ${warnings}\n\nВключить AI всё равно?`,
+            );
+            if (!proceed) {
+                return;
+            }
+            try {
+                await patchAiSettings({ ai_enabled: true, confirm_risky_enable: true });
+            } catch (retryError: any) {
+                alert(retryError?.response?.data?.message || 'Не удалось включить AI.');
+            }
+            return;
+        }
+        alert(data?.message || 'Не удалось переключить AI.');
     } finally {
         aiSaving.value = false;
+    }
+}
+
+const quickTaskLoading = ref(false);
+const aiSimulatorOpen = ref(false);
+
+async function createQuickTask(): Promise<void> {
+    if (quickTaskLoading.value) {
+        return;
+    }
+    quickTaskLoading.value = true;
+    try {
+        await axios.post(route('chats.quick-task', props.chat.id), {
+            title: 'Проверить следующий шаг по клиенту',
+            body: 'Создано из шапки чата. Проверьте переписку, статус воронки и следующий шаг.',
+        });
+        router.reload({ only: ['sidebarInsights', 'chat'] });
+    } catch (e: any) {
+        alert(e?.response?.data?.message || 'Не удалось создать задачу.');
+    } finally {
+        quickTaskLoading.value = false;
     }
 }
 
@@ -415,14 +483,7 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
 
     aiSaving.value = true;
     try {
-        await axios.patch(route('chats.ai.update', props.chat.id), {
-            ai_enabled: aiEnabled.value,
-            ai_mode: aiMode.value,
-            ai_responder_user_id: props.chat.ai_responder_user_id || null,
-            company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
-            ...payload,
-        });
-        router.reload({ only: ['chat', 'aiStatus'] });
+        await patchAiSettings(payload);
     } catch (e: any) {
         alert(e?.response?.data?.message || 'Не удалось обновить настройки AI.');
     } finally {
@@ -836,27 +897,133 @@ const funnelModuleVisible = computed(
     () => Boolean(page.props.modules?.funnels) && !props.chat.is_group,
 );
 
-const funnelBarPercent = computed(() => {
-    const p = props.chat.funnel_progress_percent;
-    if (typeof p === 'number' && Number.isFinite(p)) {
-        return Math.min(100, Math.max(0, p));
-    }
-    return 0;
+const funnelBarColor = computed(() => {
+    return props.chat.funnel_stage?.color || props.chat.funnel?.color || '#01b964';
 });
 
-const funnelBarColor = computed(() => {
-    return props.chat.funnel_stage?.color || props.chat.funnel?.color || '#22c55e';
+const funnelBarStages = computed(() => {
+    const funnelId = props.chat.funnel?.id;
+    if (funnelId == null) {
+        return [];
+    }
+    const entry = funnelCatalogList.value.find((x) => x.id === funnelId);
+    if (!entry?.stages?.length) {
+        return [];
+    }
+    return [...entry.stages].sort((a, b) => a.position - b.position);
 });
+
+const funnelBarCurrentIndex = computed(() => {
+    const progress = props.chat.funnel_progress;
+    if (progress?.stage_index != null && progress.stage_index >= 0) {
+        return progress.stage_index;
+    }
+    const stageId = props.chat.funnel_stage?.id;
+    if (stageId == null) {
+        return -1;
+    }
+    const idx = funnelBarStages.value.findIndex((s) => s.id === stageId);
+    return idx >= 0 ? idx : -1;
+});
+
+/** One cell per funnel stage for the header progress strip. */
+const funnelBarCells = computed(() => {
+    if (funnelBarStages.value.length > 0) {
+        return funnelBarStages.value.map((stage, index) => ({
+            id: stage.id,
+            name: stage.name,
+            color: stage.color || funnelBarColor.value,
+            stage_type: stage.stage_type,
+            index,
+        }));
+    }
+
+    const count = props.chat.funnel_progress?.stages_count ?? 0;
+    if (count <= 0) {
+        return [];
+    }
+
+    return Array.from({ length: count }, (_, index) => ({
+        id: index,
+        name: `Этап ${index + 1}`,
+        color: funnelBarColor.value,
+        index,
+    }));
+});
+
+function funnelBarCellStyle(cellIndex: number, color: string): Record<string, string> {
+    const current = funnelBarCurrentIndex.value;
+    if (current < 0) {
+        return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 28%, transparent)' };
+    }
+    if (cellIndex <= current) {
+        return { backgroundColor: color };
+    }
+    return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 22%, transparent)' };
+}
 
 const funnelBarTitle = computed(() => {
     if (!funnelModuleVisible.value) return '';
     const fn = props.chat.funnel?.name;
     const st = props.chat.funnel_stage?.name;
     const reason = props.chat.funnel_ai_last_reason;
+    const total = funnelBarCells.value.length;
+    const pos = funnelBarCurrentIndex.value;
+    const stepLabel =
+        total > 0 && pos >= 0 ? `Этап ${pos + 1} из ${total}` : total > 0 ? `${total} этапов` : '';
     if (fn && st) {
-        return reason ? `${fn} — ${st}. ${reason}` : `${fn} — ${st}`;
+        const base = stepLabel ? `${fn} — ${st} (${stepLabel})` : `${fn} — ${st}`;
+        return reason ? `${base}. ${reason}` : base;
     }
-    return 'Воронка продаж: нажмите, чтобы выбрать этап';
+    return stepLabel
+        ? `Воронка продаж: ${stepLabel}. Нажмите, чтобы изменить`
+        : 'Воронка продаж: нажмите, чтобы выбрать этап';
+});
+
+const funnelProgressPercent = computed(() => {
+    const total = funnelBarCells.value.length;
+    const current = funnelBarCurrentIndex.value;
+    if (total <= 0 || current < 0) {
+        return 0;
+    }
+
+    return Math.round(((current + 1) / total) * 100);
+});
+
+const funnelSnapshotTitle = computed(() => props.chat.funnel_stage?.name || 'Воронка не выбрана');
+
+const nextFunnelStageName = computed(() => {
+    const next = funnelBarStages.value[funnelBarCurrentIndex.value + 1];
+
+    return next?.name ?? null;
+});
+
+const aiSnapshotTone = computed(() => {
+    if (props.chat.ai_orchestrator_status === 'failed' || props.aiStatus?.status === 'failed') {
+        return 'error';
+    }
+    if (props.chat.ai_orchestrator_status === 'needs_manager' || props.aiStatus?.status === 'blocked') {
+        return 'warning';
+    }
+    if (props.chat.ai_orchestrator_status === 'running' || props.aiStatus?.status === 'generating' || props.aiStatus?.status === 'pending') {
+        return 'busy';
+    }
+    if (aiEnabled.value) {
+        return 'ready';
+    }
+
+    return 'idle';
+});
+
+const aiSnapshotLabel = computed(() => {
+    if (orchestratorStatusLabel.value) {
+        return orchestratorStatusLabel.value;
+    }
+    if (props.aiStatus?.label) {
+        return props.aiStatus.label;
+    }
+
+    return aiEnabled.value ? aiModeLabel.value : 'AI выключен';
 });
 
 const funnelModalOpen = ref(false);
@@ -901,6 +1068,37 @@ const modalStages = computed(() => {
     return f?.stages ?? [];
 });
 
+const modalStagesOrdered = computed(() =>
+    [...modalStages.value].sort((a, b) => a.position - b.position),
+);
+
+const modalStageIndex = computed(() => {
+    const id = funnelModalStageId.value;
+    if (id == null) {
+        return -1;
+    }
+    return modalStagesOrdered.value.findIndex((s) => s.id === id);
+});
+
+const modalFunnelColor = computed(() => {
+    const fid = funnelModalFunnelId.value;
+    const entry = funnelCatalogList.value.find((x) => x.id === fid);
+    return entry?.color || '#01b964';
+});
+
+function modalFunnelSegmentStyle(cellIndex: number, color: string): Record<string, string> {
+    const current = modalStageIndex.value;
+    if (current < 0) {
+        return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 28%, transparent)' };
+    }
+    if (cellIndex <= current) {
+        return { backgroundColor: color || modalFunnelColor.value };
+    }
+    return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 22%, transparent)' };
+}
+
+const funnelWheelRef = ref<InstanceType<typeof FunnelStageWheelPicker> | null>(null);
+
 watch(funnelModalFunnelId, (fid) => {
     if (fid == null) return;
     const f = funnelCatalogList.value.find((x) => x.id === fid);
@@ -929,6 +1127,7 @@ async function loadFunnelHistory() {
 watch(funnelModalOpen, (open) => {
     if (open) {
         void loadFunnelHistory();
+        void nextTick(() => funnelWheelRef.value?.refresh());
     }
 });
 
@@ -1006,6 +1205,35 @@ async function saveFunnelModal() {
                 <span v-if="sessionLine.name" class="ml-1">· {{ sessionLine.name }}</span>
             </p>
         </div>
+
+        <button
+            v-if="funnelModuleVisible || aiEnabled || orchestratorStatusLabel"
+            type="button"
+            class="header-deal-snapshot hidden xl:flex"
+            :class="`header-deal-snapshot-${aiSnapshotTone}`"
+            :title="funnelBarTitle || aiStatusTitle"
+            @click="funnelModuleVisible ? openFunnelModal() : emit('open-ai')"
+        >
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                    <span
+                        class="header-deal-dot flex items-center justify-center"
+                        :style="{ background: `${funnelBarColor}22`, color: funnelBarColor }"
+                    >
+                        <FunnelStageIcon :type="chat.funnel_stage?.stage_type" :size="12" />
+                    </span>
+                    <span class="truncate font-semibold">{{ funnelSnapshotTitle }}</span>
+                    <span v-if="funnelProgressPercent > 0" class="shrink-0 tabular-nums opacity-70">{{ funnelProgressPercent }}%</span>
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5 text-[11px] opacity-75">
+                    <span class="truncate">{{ aiSnapshotLabel }}</span>
+                    <span v-if="nextFunnelStageName" class="truncate">→ {{ nextFunnelStageName }}</span>
+                </div>
+            </div>
+            <div class="header-deal-meter" aria-hidden="true">
+                <span :style="{ width: `${funnelProgressPercent}%`, background: funnelBarColor }"></span>
+            </div>
+        </button>
 
         <div class="chat-header-toolbar flex flex-nowrap items-center gap-2 min-w-0 shrink">
             <!-- Отделы: сотрудник только видит свой; админ/руководитель — выбор -->
@@ -1141,6 +1369,26 @@ async function saveFunnelModal() {
                 </template>
             </div>
 
+            <button
+                type="button"
+                class="header-quick-task-btn"
+                :disabled="quickTaskLoading"
+                title="Создать задачу по этому чату"
+                @click="createQuickTask"
+            >
+                {{ quickTaskLoading ? '…' : 'Задача' }}
+            </button>
+
+            <button
+                v-if="canManageAi"
+                type="button"
+                class="header-quick-task-btn"
+                title="Симулятор: как AI ответил бы на сообщение клиента"
+                @click="aiSimulatorOpen = true"
+            >
+                Симулятор
+            </button>
+
             <div class="header-action-group header-ai-group header-ai-control" :class="{ 'header-ai-group-on': aiEnabled }">
                 <button
                     v-if="canManageAi"
@@ -1206,6 +1454,19 @@ async function saveFunnelModal() {
                     </svg>
                     <span class="label-pill-ai-text">{{ aiAssistantButtonText }}</span>
                 </button>
+            </div>
+
+            <div
+                v-if="orchestratorStatusLabel"
+                class="label-pill label-pill-orchestrator"
+                :class="{
+                    'label-pill-orchestrator-wait': chat.ai_orchestrator_status === 'needs_manager',
+                    'label-pill-orchestrator-error': chat.ai_orchestrator_status === 'failed',
+                }"
+                :title="orchestratorStatusTitle"
+            >
+                <span class="ai-state-dot ai-state-dot-on"></span>
+                <span class="truncate">{{ orchestratorStatusLabel }}</span>
             </div>
 
             <Teleport to="body">
@@ -2080,16 +2341,33 @@ async function saveFunnelModal() {
             type="button"
             class="absolute inset-x-0 bottom-0 z-[5] h-3 w-full border-0 p-0 m-0 bg-transparent cursor-pointer group"
             :title="funnelBarTitle"
-            aria-label="Воронка продаж — открыть настройку"
+            :aria-label="funnelBarTitle || 'Воронка продаж — открыть настройку'"
+            :aria-valuenow="funnelBarCurrentIndex >= 0 ? funnelBarCurrentIndex + 1 : 0"
+            :aria-valuemin="0"
+            :aria-valuemax="funnelBarCells.length"
+            role="progressbar"
             @click="openFunnelModal"
         >
             <span
-                class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-black/10 dark:bg-white/10"
+                v-if="funnelBarCells.length"
+                class="pointer-events-none absolute inset-x-0 bottom-0 flex h-[3px] gap-px px-px group-hover:opacity-95"
                 aria-hidden="true"
-            />
+            >
+                <span
+                    v-for="cell in funnelBarCells"
+                    :key="cell.id"
+                    class="min-w-0 flex-1 rounded-[1px] transition-colors duration-500 ease-out"
+                    :class="{
+                        'ring-1 ring-inset ring-white/35 dark:ring-black/25':
+                            cell.index === funnelBarCurrentIndex && funnelBarCurrentIndex >= 0,
+                    }"
+                    :style="funnelBarCellStyle(cell.index, cell.color)"
+                    :title="cell.name"
+                />
+            </span>
             <span
-                class="pointer-events-none absolute left-0 bottom-0 h-[3px] rounded-r transition-[width] duration-700 ease-out group-hover:opacity-90"
-                :style="{ width: funnelBarPercent + '%', backgroundColor: funnelBarColor }"
+                v-else
+                class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] rounded-sm bg-black/10 dark:bg-white/10"
                 aria-hidden="true"
             />
         </button>
@@ -2143,27 +2421,70 @@ async function saveFunnelModal() {
                                 </select>
                             </div>
 
-                            <div>
-                                <div class="text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">Этап</div>
-                                <div class="flex flex-wrap gap-2">
-                                    <button
-                                        v-for="s in modalStages"
-                                        :key="s.id"
-                                        type="button"
-                                        class="px-3 py-1.5 rounded-full text-xs border transition"
-                                        :class="funnelModalStageId === s.id ? 'ring-2 ring-offset-1 ring-[var(--wa-accent)]' : ''"
-                                        :style="{
-                                            borderColor: 'var(--wa-border)',
-                                            background: funnelModalStageId === s.id ? 'var(--wa-panel-hover)' : 'var(--wa-panel-header)',
-                                            color: 'var(--wa-text)',
-                                        }"
-                                        @click="funnelModalStageId = s.id"
+                            <div v-if="funnelModalFunnelId != null && modalStagesOrdered.length">
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                    <div class="text-xs font-semibold text-[var(--wa-text-secondary)]">Этап воронки</div>
+                                    <span
+                                        v-if="modalStageIndex >= 0"
+                                        class="text-xs font-medium tabular-nums text-[var(--wa-text-secondary)]"
                                     >
-                                        {{ s.name }}
-                                    </button>
+                                        {{ modalStageIndex + 1 }} / {{ modalStagesOrdered.length }}
+                                    </span>
                                 </div>
-                            </div>
 
+                                <div
+                                    v-if="modalStageIndex >= 0"
+                                    class="mb-3 rounded-xl border px-3 py-2 text-sm font-medium text-[var(--wa-text)]"
+                                    :style="{
+                                        borderColor: 'var(--wa-border)',
+                                        background: 'color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel-header))',
+                                    }"
+                                >
+                                    <span class="inline-flex items-center gap-2">
+                                        <FunnelStageIcon
+                                            :type="modalStagesOrdered[modalStageIndex]?.stage_type"
+                                            :size="16"
+                                        />
+                                        {{ modalStagesOrdered[modalStageIndex]?.name }}
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="mb-4 flex h-2 gap-px overflow-hidden rounded-md px-px"
+                                    role="presentation"
+                                    aria-hidden="true"
+                                >
+                                    <span
+                                        v-for="(s, i) in modalStagesOrdered"
+                                        :key="`seg-${s.id}`"
+                                        class="min-w-0 flex-1 rounded-[2px] transition-colors duration-300"
+                                        :class="{
+                                            'ring-1 ring-inset ring-white/40 dark:ring-black/30':
+                                                i === modalStageIndex,
+                                        }"
+                                        :style="modalFunnelSegmentStyle(i, s.color || modalFunnelColor)"
+                                        :title="s.name"
+                                    />
+                                </div>
+
+                                <FunnelStageWheelPicker
+                                    ref="funnelWheelRef"
+                                    v-model="funnelModalStageId"
+                                    :stages="modalStagesOrdered"
+                                    :accent-color="modalFunnelColor"
+                                />
+
+                                <p class="mt-2 text-[11px] text-[var(--wa-text-secondary)]">
+                                    Крутите барабан или нажмите этап — выбранный окажется в центре.
+                                </p>
+                            </div>
+                            <div
+                                v-else-if="funnelModalFunnelId != null"
+                                class="text-sm text-[var(--wa-text-secondary)] rounded-xl border px-4 py-3"
+                                :style="{ borderColor: 'var(--wa-border)' }"
+                            >
+                                У выбранной воронки нет этапов.
+                            </div>
                             <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
                                 <input v-model="funnelModalTracking" type="checkbox" class="rounded border-[var(--wa-border)]" />
                                 Авто-оценка этапа по входящим сообщениям
@@ -2220,6 +2541,13 @@ async function saveFunnelModal() {
             :chat-id="chat.id"
             @close="scheduledMessagesOpen = false"
         />
+
+        <AiSimulatorModal
+            :show="aiSimulatorOpen"
+            :chat-id="chat.id"
+            :chat-name="chat.chat_name"
+            @close="aiSimulatorOpen = false"
+        />
     </div>
 </template>
 
@@ -2248,6 +2576,66 @@ async function saveFunnelModal() {
 
 .header-menu-control {
     order: 4;
+}
+
+.header-deal-snapshot {
+    width: min(24vw, 18rem);
+    min-width: 13rem;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 1rem;
+    border: 1px solid var(--wa-border-strong);
+    color: var(--wa-text);
+    background: color-mix(in srgb, var(--wa-panel) 90%, var(--wa-bg) 10%);
+    text-align: left;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.header-deal-snapshot:hover {
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border-strong));
+    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
+    transform: translateY(-1px);
+}
+
+.header-deal-snapshot-warning {
+    border-color: color-mix(in srgb, #f59e0b 45%, var(--wa-border-strong));
+}
+
+.header-deal-snapshot-error {
+    border-color: color-mix(in srgb, var(--wa-danger) 45%, var(--wa-border-strong));
+}
+
+.header-deal-snapshot-busy {
+    border-color: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
+}
+
+.header-deal-snapshot-ready {
+    border-color: color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border-strong));
+}
+
+.header-deal-dot {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.header-deal-meter {
+    position: relative;
+    width: 3.2rem;
+    height: 0.35rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+}
+
+.header-deal-meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.25s ease;
 }
 
 .wa-header-btn {
@@ -2297,6 +2685,22 @@ async function saveFunnelModal() {
     border-color: color-mix(in srgb, var(--wa-accent) 60%, transparent);
     background-color: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
 }
+.label-pill-orchestrator {
+    order: 3;
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, transparent);
+    background-color: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
+}
+.label-pill-orchestrator-wait {
+    color: #f59e0b;
+    border-color: color-mix(in srgb, #f59e0b 50%, transparent);
+    background-color: color-mix(in srgb, #f59e0b 12%, var(--wa-panel));
+}
+.label-pill-orchestrator-error {
+    color: var(--wa-danger);
+    border-color: color-mix(in srgb, var(--wa-danger) 50%, transparent);
+    background-color: color-mix(in srgb, var(--wa-danger) 12%, var(--wa-panel));
+}
 .label-pill-active:hover {
     background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
 }
@@ -2329,15 +2733,15 @@ async function saveFunnelModal() {
 }
 
 .label-pill-scheduled {
-    color: var(--wa-header-pill-sched-text);
-    border-color: color-mix(in srgb, #3b82f6 45%, var(--wa-border-strong));
-    background-color: color-mix(in srgb, #3b82f6 10%, var(--wa-panel));
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border-strong));
+    background-color: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
     max-width: none;
     padding-inline: 0.75rem;
 }
 .label-pill-scheduled:hover {
-    background-color: var(--wa-header-pill-sched-bg-hover);
-    border-color: color-mix(in srgb, #3b82f6 60%, var(--wa-border-strong));
+    background-color: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 60%, var(--wa-border-strong));
 }
 
 .header-action-group {
@@ -2357,6 +2761,29 @@ async function saveFunnelModal() {
 
 .header-ai-group-on {
     border-color: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
+}
+
+.header-quick-task-btn {
+    height: 2rem;
+    padding: 0 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid var(--wa-border-strong);
+    background: var(--wa-panel-header);
+    color: var(--wa-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.header-quick-task-btn:hover:not(:disabled) {
+    background: var(--wa-panel-hover);
+    color: var(--wa-text);
+}
+
+.header-quick-task-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 .header-ai-toggle,
@@ -2432,11 +2859,11 @@ async function saveFunnelModal() {
 }
 
 .header-ai-assistant-btn-busy {
-    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    background: var(--wa-accent);
 }
 
 .header-ai-assistant-btn-busy:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
+    background: var(--wa-accent-hover);
 }
 
 .label-pill-ai-text {

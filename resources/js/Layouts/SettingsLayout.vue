@@ -1,23 +1,80 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue';
+import { router } from '@inertiajs/vue3';
 import AuthenticatedLayout from './AuthenticatedLayout.vue';
 import SettingsSidebar from '@/Pages/Settings/Partials/SettingsSidebar.vue';
+import SettingsContentSkeleton from '@/Components/Settings/SettingsContentSkeleton.vue';
 
 defineProps<{
     title?: string;
     subtitle?: string;
 }>();
+
+type SkeletonVariant = 'default' | 'table' | 'cards' | 'form';
+
+const navigating = ref(false);
+const skeletonVariant = ref<SkeletonVariant>('default');
+
+function variantForUrl(url: string): SkeletonVariant {
+    if (url.includes('/settings/clients')) {
+        return 'table';
+    }
+    if (url.includes('/settings/funnels') || url.includes('/settings/connections')) {
+        return 'cards';
+    }
+    if (url.includes('/settings/onboarding') || url.includes('/settings/ai-quality') || url.includes('/settings/system')) {
+        return 'form';
+    }
+    if (url.includes('/settings/users') || url.includes('/settings/departments')) {
+        return 'table';
+    }
+
+    return 'default';
+}
+
+function visitPath(url: string | URL): string {
+    if (typeof url === 'string') {
+        return url;
+    }
+
+    return url.pathname;
+}
+
+let removeStart: (() => void) | undefined;
+let removeFinish: (() => void) | undefined;
+
+onMounted(() => {
+    removeStart = router.on('start', (event) => {
+        const path = visitPath(event.detail.visit.url);
+        if (!path.includes('/settings')) {
+            return;
+        }
+        skeletonVariant.value = variantForUrl(path);
+        navigating.value = true;
+    });
+    removeFinish = router.on('finish', () => {
+        navigating.value = false;
+    });
+});
+
+onUnmounted(() => {
+    removeStart?.();
+    removeFinish?.();
+});
 </script>
 
 <template>
     <AuthenticatedLayout>
-        <div class="flex h-full w-full bg-[var(--wa-bg)]">
+        <div
+            class="flex h-full w-full bg-[var(--ui-bg)]"
+            :style="{ '--wa-accent': 'var(--ui-accent)', '--wa-accent-hover': 'var(--ui-accent-hover)', '--wa-accent-soft': 'var(--ui-accent-soft)' }"
+        >
             <SettingsSidebar class="shrink-0" />
 
-            <div class="flex-1 flex flex-col min-w-0 border-l border-[var(--wa-border)] bg-[var(--wa-bg)]">
-                <!-- Page header -->
+            <div class="flex-1 flex flex-col min-w-0 border-l border-[var(--ui-border-strong)] bg-[var(--ui-bg)]">
                 <div
                     class="h-[60px] px-6 flex items-center justify-between shrink-0"
-                    :style="{ background: 'var(--wa-panel-header)', borderBottom: '1px solid var(--wa-border)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', borderBottom: '1px solid var(--ui-border-strong)' }"
                 >
                     <div class="min-w-0">
                         <h2 class="text-[17px] font-normal text-[var(--wa-text)] truncate">
@@ -30,9 +87,16 @@ defineProps<{
                     <slot name="actions" />
                 </div>
 
-                <!-- Scrollable content -->
-                <div class="flex-1 overflow-y-auto wa-scrollbar">
+                <div class="flex-1 overflow-y-auto wa-scrollbar relative">
                     <slot />
+                    <div
+                        v-if="navigating"
+                        class="absolute inset-0 z-10 bg-[var(--ui-bg)]"
+                        aria-busy="true"
+                        aria-live="polite"
+                    >
+                        <SettingsContentSkeleton :variant="skeletonVariant" />
+                    </div>
                 </div>
             </div>
         </div>

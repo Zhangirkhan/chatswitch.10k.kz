@@ -243,7 +243,7 @@ function sessionLabel(s: WhatsappSession): string {
 }
 
 function sessionStatusColor(status: string): string {
-    if (status === 'connected') return '#25d366';
+    if (status === 'connected') return '#01b964';
     if (status === 'qr_pending' || status === 'connecting') return '#f59e0b';
     return '#ef4444';
 }
@@ -489,7 +489,7 @@ async function remove(user: User) {
                                 <span class="inline-flex items-center gap-2">
                                     <span
                                         class="w-2 h-2 rounded-full"
-                                        :class="user.is_active ? 'bg-[#25d366]' : 'bg-red-400'"
+                                        :class="user.is_active ? 'bg-[var(--wa-accent)]' : 'bg-red-400'"
                                     ></span>
                                     <span class="text-xs text-[var(--wa-text-secondary)]">
                                         {{ user.is_active ? 'Активен' : 'Отключён' }}
@@ -584,15 +584,6 @@ async function remove(user: User) {
                                 <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
                                 <select v-model="form.role" class="settings-input">
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Компания</label>
-                                <select v-model="form.company_id" class="settings-input">
-                                    <option :value="null">Не выбрана</option>
-                                    <option v-for="company in companies" :key="company.id" :value="company.id">
-                                        {{ company.name }}
-                                    </option>
                                 </select>
                             </div>
                         </div>

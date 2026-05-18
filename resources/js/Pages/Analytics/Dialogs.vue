@@ -169,7 +169,7 @@ const contextLabel = computed(() => {
 const pageTitle = computed(() => analyticsType.value === 'dialogs' ? 'Аналитика диалогов' : 'Аналитика воронок продаж');
 const pageSubtitle = computed(() => analyticsType.value === 'dialogs'
     ? `Здесь собраны ответы и нагрузка по выбранному периоду. SLA первого ответа в системе: ${props.filterOptions.sla_seconds} с.`
-    : 'Сводка по подключённым воронкам продаж, этапам и отделам, которые с ними работают.');
+    : 'Конверсия по этапам, отвал и движение чатов за выбранный период. Ниже — настройка покрытия этапов отделами.');
 
 const rankingsData = computed<Partial<RankingsPayload>>(() => payload.value?.rankings || {});
 
@@ -251,7 +251,10 @@ async function fetchAnalytics() {
             })
             : await axios.get(route('api.analytics.funnels'), {
                 params: {
+                    from: from.value,
+                    to: to.value,
                     department_id: departmentId.value || undefined,
+                    employee_id: employeeId.value || undefined,
                 },
             });
         payload.value = data;
@@ -311,6 +314,19 @@ function fmtPct(p: number | null | undefined): string {
 const summary = computed(() => payload.value?.summary || {});
 const chartData = computed(() => payload.value?.chart_data || {});
 const funnelRows = computed<any[]>(() => payload.value?.funnels || []);
+const conversionPayload = computed(() => payload.value?.conversion || null);
+const conversionFunnels = computed<any[]>(() => conversionPayload.value?.funnels || []);
+
+function fmtHours(h: number | null | undefined): string {
+    if (h === null || h === undefined) {
+        return '—';
+    }
+    if (h < 1) {
+        return `${Math.round(h * 60)} мин`;
+    }
+
+    return `${h.toFixed(1)} ч`;
+}
 
 const lineChartData = computed(() => {
     const rows = chartData.value.dialogs_over_time || [];
@@ -367,7 +383,7 @@ const doughnutStatus = computed(() => {
         datasets: [
             {
                 data: [d.active || 0, d.closed || 0, d.waiting || 0],
-                backgroundColor: ['#22c55e', '#94a3b8', '#eab308'],
+                backgroundColor: ['#01b964', '#94a3b8', '#eab308'],
             },
         ],
     };
@@ -597,7 +613,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             </button>
                         </div>
                     </div>
-                    <div v-if="analyticsType === 'dialogs'" class="mb-5 flex flex-wrap items-center gap-2">
+                    <div class="mb-5 flex flex-wrap items-center gap-2">
                         <span class="mr-1 text-xs text-[var(--wa-text-secondary)]">Период</span>
                         <div class="inline-flex flex-wrap gap-1 rounded-xl p-1" :style="{ background: 'var(--wa-surface-inset)' }">
                             <button
@@ -638,7 +654,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 <option v-for="d in filterOptions.departments" :key="d.id" :value="String(d.id)">{{ d.name }}</option>
                             </select>
                         </label>
-                        <label v-if="analyticsType === 'dialogs'" class="analytics-field">
+                        <label class="analytics-field">
                             <span class="analytics-field-label">Сотрудник</span>
                             <select v-model="employeeId" class="analytics-input w-full" :disabled="isEmployee">
                                 <option value="">{{ departmentId ? 'Все в этом отделе' : 'Все сотрудники' }}</option>
@@ -731,6 +747,96 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                         <div class="kpi-label">Отделов в срезе</div>
                                         <div class="kpi-value">{{ summary.departments_in_scope ?? 0 }}</div>
                                     </div>
+                                    <div class="kpi-card" style="border-color: rgba(34, 197, 94, 0.35)">
+                                        <div class="kpi-label">Чатов в срезе</div>
+                                        <div class="kpi-value">{{ summary.tracked_chats ?? 0 }}</div>
+                                    </div>
+                                    <div class="kpi-card" style="border-color: rgba(59, 130, 246, 0.45)">
+                                        <div class="kpi-label">Переходов этапов</div>
+                                        <div class="kpi-value">{{ summary.total_transitions ?? 0 }}</div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section
+                                v-if="conversionFunnels.length > 0"
+                                class="rounded-2xl border p-5 md:p-6"
+                                :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
+                            >
+                                <h2 class="text-base font-semibold text-[var(--wa-text)]">Конверсия по этапам</h2>
+                                <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
+                                    Сколько чатов вошло на этап, сколько перешло на следующий, среднее время на этапе и отвал.
+                                </p>
+                                <div class="mt-5 space-y-6">
+                                    <article
+                                        v-for="funnel in conversionFunnels"
+                                        :key="`conv-${funnel.id}`"
+                                        class="rounded-xl border p-4"
+                                        :style="{ borderColor: 'var(--wa-border)' }"
+                                    >
+                                        <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="h-2.5 w-2.5 rounded-full" :style="{ background: funnel.color }"></span>
+                                                <h3 class="font-medium text-[var(--wa-text)]">{{ funnel.name }}</h3>
+                                            </div>
+                                            <span
+                                                v-if="funnel.overall_conversion_percent != null"
+                                                class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                                                :style="{ background: 'var(--wa-selected)', color: 'var(--wa-accent)' }"
+                                            >
+                                                Сквозная: {{ fmtPct(funnel.overall_conversion_percent) }}
+                                            </span>
+                                        </div>
+                                        <div class="overflow-x-auto">
+                                            <table class="w-full min-w-[760px] text-left text-sm">
+                                                <thead>
+                                                    <tr class="text-[var(--wa-text-secondary)]">
+                                                        <th class="px-2 py-2">Этап</th>
+                                                        <th class="px-2 py-2">Сейчас</th>
+                                                        <th class="px-2 py-2">Вошли</th>
+                                                        <th class="px-2 py-2">Дальше</th>
+                                                        <th class="px-2 py-2">Конверсия</th>
+                                                        <th class="px-2 py-2">Отвал</th>
+                                                        <th class="px-2 py-2">Ср. время</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr
+                                                        v-for="stage in funnel.stages"
+                                                        :key="stage.id"
+                                                        class="border-t"
+                                                        :style="{ borderColor: 'var(--wa-border)' }"
+                                                    >
+                                                        <td class="px-2 py-2">
+                                                            <div class="flex items-center gap-2">
+                                                                <span class="h-2 w-2 rounded-full" :style="{ background: stage.color }"></span>
+                                                                <span class="text-[var(--wa-text)]">{{ stage.name }}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.current_chats }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.entries }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : stage.forward_exits }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : fmtPct(stage.conversion_percent) }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : stage.drop_off }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]">{{ fmtHours(stage.avg_hours_on_stage) }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="mt-4 flex items-end gap-1">
+                                            <div
+                                                v-for="stage in funnel.stages"
+                                                :key="`bar-${stage.id}`"
+                                                class="flex-1 rounded-t"
+                                                :style="{
+                                                    background: stage.color,
+                                                    height: `${Math.max(8, Math.min(72, (stage.entries || stage.current_chats) * 6))}px`,
+                                                    opacity: (stage.entries || stage.current_chats) > 0 ? 1 : 0.25,
+                                                }"
+                                                :title="`${stage.name}: ${stage.entries} входов`"
+                                            />
+                                        </div>
+                                    </article>
                                 </div>
                             </section>
 
@@ -739,7 +845,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                             >
                                 <h3 class="border-b px-5 py-4 text-base font-semibold text-[var(--wa-text)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                    Воронки продаж
+                                    Покрытие воронок отделами
                                 </h3>
                                 <div class="overflow-x-auto">
                                     <table class="w-full min-w-[900px] text-left text-sm">
@@ -788,7 +894,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                 <td class="px-3 py-3">
                                                     <span
                                                         class="rounded px-2 py-0.5 text-xs"
-                                                        :class="funnel.is_active ? 'text-emerald-500' : 'text-red-400'"
+                                                        :class="funnel.is_active ? 'text-[var(--wa-accent)]' : 'text-red-400'"
                                                         :style="{ background: 'var(--wa-selected)' }"
                                                     >
                                                         {{ funnel.is_active ? 'Активна' : 'Неактивна' }}

@@ -194,7 +194,7 @@ async function generateVariants(): Promise<void> {
         suggestions.value = items.map((item: AiFunnelSuggestion) => ({
             name: String(item.name ?? ''),
             description: String(item.description ?? ''),
-            color: String(item.color ?? '#25d366'),
+            color: String(item.color ?? '#01b964'),
             rationale: String(item.rationale ?? ''),
             stages: Array.isArray(item.stages)
                 ? item.stages

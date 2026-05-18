@@ -7,7 +7,7 @@ import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
 import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
 import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, MessageReaction, Paginated } from '@/types';
@@ -50,11 +50,48 @@ const props = defineProps<{
             trigger_message_id: number | null;
             updated_at: string | null;
         }>;
+        orchestrator_history?: Array<{
+            id: number;
+            status: string;
+            label: string;
+            reason: string | null;
+            confidence: number | null;
+            target_stage: string | null;
+            customer_reply: string | null;
+            task_title: string | null;
+            trigger_message_id: number | null;
+            completed_at: string | null;
+        }>;
     } | null;
+    sidebarInsights?: {
+        events: Array<{
+            id: number;
+            title: string;
+            starts_at: string | null;
+            ends_at: string | null;
+            assignee: string | null;
+            source: string | null;
+        }>;
+        tasks: Array<{
+            id: number;
+            title: string;
+            body: string | null;
+            status: string;
+            created_at: string | null;
+        }>;
+    };
     funnelCatalog?: FunnelCatalogEntry[];
+    aiReadinessBanner?: {
+        score: number;
+        threshold: number;
+        status: string;
+        label: string;
+    } | null;
 }>();
 
 const { show: showToast } = useToastStore();
+
+const readinessBannerDismissed = ref(false);
 
 const funnelRealtime = ref<Partial<Chat>>({});
 
@@ -67,6 +104,7 @@ watch(
     () => props.chat.id,
     () => {
         funnelRealtime.value = {};
+        readinessBannerDismissed.value = false;
     },
 );
 
@@ -260,6 +298,11 @@ function toggleSearch() {
 function toggleContactInfo() {
     contactInfoOpen.value = !contactInfoOpen.value;
     if (contactInfoOpen.value) aiPanelOpen.value = false;
+}
+
+function openAiFromContactPanel() {
+    contactInfoOpen.value = false;
+    aiPanelOpen.value = true;
 }
 
 function openAiPanel() {
@@ -499,6 +542,7 @@ function setupEcho() {
 
     echoChannel.listen('.funnel.updated', (e: any) => {
         funnelRealtime.value = {
+            ...funnelRealtime.value,
             funnel: e.funnel ?? null,
             funnel_stage: e.stage ?? null,
             funnel_progress_percent: typeof e.progress_percent === 'number' ? e.progress_percent : undefined,
@@ -506,6 +550,16 @@ function setupEcho() {
             funnel_ai_last_reason: e.reason ?? null,
             funnel_tracking_enabled: e.funnel_tracking_enabled,
             funnel_stage_locked: e.funnel_stage_locked,
+        };
+    });
+
+    echoChannel.listen('.ai-orchestrator.updated', (e: any) => {
+        funnelRealtime.value = {
+            ...funnelRealtime.value,
+            ai_orchestrator_status: e.ai_orchestrator_status ?? null,
+            ai_orchestrator_last_run_id: e.ai_orchestrator_last_run_id ?? null,
+            ai_orchestrator_last_action_at: e.ai_orchestrator_last_action_at ?? null,
+            ai_orchestrator_last_summary: e.ai_orchestrator_last_summary ?? null,
         };
     });
 }
@@ -523,6 +577,39 @@ function cleanupEcho() {
     <ChatLayout :chats="localChats" :selected-chat-id="headerChat.id">
         <div class="flex h-full w-full min-h-0">
             <div class="flex flex-col flex-1 min-w-0 min-h-0">
+                <div
+                    v-if="aiReadinessBanner && !readinessBannerDismissed"
+                    class="shrink-0 px-4 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[13px] leading-snug border-b"
+                    :style="{
+                        background: 'color-mix(in srgb, var(--wa-accent-soft) 42%, var(--wa-panel-header))',
+                        borderColor: 'var(--wa-border)',
+                        color: 'var(--wa-text)',
+                    }"
+                >
+                    <div class="min-w-0">
+                        <span class="font-medium">Готовность AI: {{ aiReadinessBanner.score }}%</span>
+                        <span class="opacity-80">
+                            (цель {{ aiReadinessBanner.threshold }}%). Откройте чеклист — меньше сюрпризов для клиентов.
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <Link
+                            :href="route('settings.ai-quality')"
+                            class="rounded-lg px-3 py-1.5 text-xs font-semibold no-underline"
+                            :style="{ background: 'var(--wa-accent)', color: 'var(--wa-accent-on)' }"
+                        >
+                            Проверка готовности
+                        </Link>
+                        <button
+                            type="button"
+                            class="rounded p-1 text-xs opacity-70 hover:opacity-100"
+                            aria-label="Скрыть напоминание"
+                            @click="readinessBannerDismissed = true"
+                        >
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </div>
+                </div>
                 <ChatHeader
                     :chat="headerChat"
                     :typing-users="typingUsers"
@@ -707,7 +794,10 @@ function cleanupEcho() {
                 v-if="contactInfoOpen"
                 :chat="chat"
                 :messages="localMessages"
+                :ai-status="aiStatus"
+                :sidebar-insights="sidebarInsights"
                 @close="toggleContactInfo"
+                @open-ai="openAiFromContactPanel"
                 @open-search="() => { contactInfoOpen = false; searchOpen = true; }"
             />
 

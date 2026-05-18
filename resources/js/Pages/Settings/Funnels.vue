@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import FunnelAiWizard, { type AiFunnelSuggestion } from '@/Pages/Settings/Partials/FunnelAiWizard.vue';
+import { FUNNEL_STAGE_TYPES, guessStageTypeFromName, type FunnelStageTypeValue } from '@/utils/funnelStageTypes';
+import {
+    stageHintToneStyle,
+    stageInlineHints,
+    stageRuleIssues as collectStageRuleIssues,
+    type StageHint,
+} from '@/utils/funnelStageHints';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -11,8 +19,36 @@ interface FunnelStage {
     funnel_id: number;
     name: string;
     color: string;
+    stage_type: string;
     position: number;
     is_active: boolean;
+    ai_rule?: FunnelStageAiRule | null;
+}
+
+interface FunnelAiScenario {
+    id?: number;
+    enabled: boolean;
+    customer_identity: string;
+    booking_horizon_days: number;
+    fallback_manager_user_id: number | null;
+    fallback_department_id: number | null;
+    manager_confirmation_required: boolean;
+}
+
+interface FunnelStageAiRule {
+    id?: number;
+    goal: string | null;
+    required_questions: string[] | null;
+    transition_conditions: string | null;
+    allowed_actions: string[] | null;
+    assignee_user_ids: number[] | null;
+    assignee_department_id: number | null;
+    require_manager_confirmation: boolean;
+    follow_up_enabled: boolean;
+    follow_up_delay_hours: number;
+    follow_up_message: string | null;
+    follow_up_cooldown_hours: number;
+    follow_up_max_count: number;
 }
 
 interface Funnel {
@@ -24,16 +60,30 @@ interface Funnel {
     position: number;
     stages: FunnelStage[];
     stages_count?: number;
+    ai_scenario?: FunnelAiScenario | null;
+}
+
+interface FunnelTemplate {
+    key: string;
+    industry: string;
+    name: string;
+    description: string;
+    color: string;
+    stages: Array<{ name: string; color: string }>;
 }
 
 const props = defineProps<{
     funnels: Funnel[];
+    funnelTemplates?: FunnelTemplate[];
+    aiScenarioUsers?: Array<{ id: number; name: string; department_id: number | null }>;
+    aiScenarioDepartments?: Array<{ id: number; name: string }>;
 }>();
 
 const { show: showToast } = useToastStore();
 
 const localFunnels = ref<Funnel[]>([...props.funnels]);
 const aiWizardRef = ref<InstanceType<typeof FunnelAiWizard> | null>(null);
+const creatingTemplateKey = ref<string | null>(null);
 
 watch(
     () => props.funnels,
@@ -45,9 +95,18 @@ watch(
 
 /** Палитра для цветовых пресетов и в воронке, и в этапе. */
 const palette = [
-    '#25d366', '#34d399', '#22d3ee', '#3b82f6', '#6366f1',
+    '#01b964', '#34d399', '#22d3ee', '#3b82f6', '#6366f1',
     '#8b5cf6', '#a855f7', '#ec4899', '#ef4444', '#f97316',
     '#f59e0b', '#facc15', '#84cc16', '#9ca3af', '#64748b',
+];
+
+const aiActionOptions = [
+    { id: 'reply_customer', label: 'Писать клиенту' },
+    { id: 'move_funnel_stage', label: 'Двигать этап' },
+    { id: 'create_appointment', label: 'Создавать запись' },
+    { id: 'assign_employee', label: 'Назначать сотрудника' },
+    { id: 'notify_manager', label: 'Уведомлять менеджера' },
+    { id: 'create_task', label: 'Создавать задачу' },
 ];
 
 /* ============================================================
@@ -66,7 +125,7 @@ const funnelMode = ref<FunnelMode>('manual');
 const funnelForm = ref({
     name: '',
     description: '',
-    color: '#25d366',
+    color: '#01b964',
     is_active: true,
 });
 const savingFunnel = ref(false);
@@ -89,7 +148,7 @@ function openCreateFunnel(mode: FunnelMode = 'manual') {
     funnelForm.value = {
         name: '',
         description: '',
-        color: '#25d366',
+        color: '#01b964',
         is_active: true,
     };
     funnelErrors.value = {};
@@ -103,7 +162,7 @@ function openEditFunnel(funnel: Funnel) {
     funnelForm.value = {
         name: funnel.name,
         description: funnel.description ?? '',
-        color: funnel.color || '#25d366',
+        color: funnel.color || '#01b964',
         is_active: funnel.is_active !== false,
     };
     funnelErrors.value = {};
@@ -133,7 +192,7 @@ function onWizardSelect(suggestion: AiFunnelSuggestion) {
     funnelForm.value = {
         name: String(suggestion.name ?? '').slice(0, 255) || 'Новая воронка',
         description: String(suggestion.description ?? ''),
-        color: String(suggestion.color ?? '#25d366'),
+            color: String(suggestion.color ?? '#01b964'),
         is_active: true,
     };
     aiStages.value = suggestion.stages.map((s) => ({
@@ -261,6 +320,7 @@ const stageContext = ref<{ funnel: Funnel | null; editingStageId: number | null 
 const stageForm = ref({
     name: '',
     color: '#9ca3af',
+    stage_type: 'other' as FunnelStageTypeValue,
     is_active: true,
 });
 const savingStage = ref(false);
@@ -268,7 +328,7 @@ const stageErrors = ref<Record<string, string>>({});
 
 function openCreateStage(funnel: Funnel) {
     stageContext.value = { funnel, editingStageId: null };
-    stageForm.value = { name: '', color: '#9ca3af', is_active: true };
+    stageForm.value = { name: '', color: '#9ca3af', stage_type: 'other', is_active: true };
     stageErrors.value = {};
     stageModalOpen.value = true;
 }
@@ -278,6 +338,7 @@ function openEditStage(funnel: Funnel, stage: FunnelStage) {
     stageForm.value = {
         name: stage.name,
         color: stage.color || '#9ca3af',
+        stage_type: (stage.stage_type || 'other') as FunnelStageTypeValue,
         is_active: stage.is_active !== false,
     };
     stageErrors.value = {};
@@ -304,6 +365,7 @@ async function saveStage() {
         const payload = {
             name: stageForm.value.name.trim(),
             color: stageForm.value.color,
+            stage_type: stageForm.value.stage_type,
             is_active: stageForm.value.is_active,
         };
 
@@ -348,17 +410,21 @@ async function deleteStage(funnel: Funnel, stage: FunnelStage) {
 }
 
 /* ============================================================
- * Manual reorder of stages (move up/down)
+ * Reorder stages (DnD + move up/down)
  * ============================================================ */
-async function moveStage(funnel: Funnel, stage: FunnelStage, direction: -1 | 1) {
-    const stages = [...funnel.stages].sort((a, b) => a.position - b.position);
-    const idx = stages.findIndex((s) => s.id === stage.id);
-    const swapIdx = idx + direction;
-    if (idx === -1 || swapIdx < 0 || swapIdx >= stages.length) return;
+const draggingStage = ref<{ funnelId: number; stageId: number } | null>(null);
+const dragOverStageId = ref<number | null>(null);
+const reorderingStages = ref(false);
 
-    [stages[idx], stages[swapIdx]] = [stages[swapIdx], stages[idx]];
-    const orderedIds = stages.map((s) => s.id);
+function sortedStages(funnel: Funnel): FunnelStage[] {
+    return [...funnel.stages].sort((a, b) => a.position - b.position);
+}
 
+async function persistStageOrder(funnel: Funnel, orderedIds: number[]): Promise<void> {
+    if (reorderingStages.value) {
+        return;
+    }
+    reorderingStages.value = true;
     try {
         await axios.post(route('settings.funnels.stages.reorder', funnel.id), {
             stage_ids: orderedIds,
@@ -367,10 +433,250 @@ async function moveStage(funnel: Funnel, stage: FunnelStage, direction: -1 | 1) 
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
         showToast({ message: e.response?.data?.message || 'Не удалось переставить этап', duration: 6000 });
+    } finally {
+        reorderingStages.value = false;
+        draggingStage.value = null;
+        dragOverStageId.value = null;
     }
 }
 
+async function moveStage(funnel: Funnel, stage: FunnelStage, direction: -1 | 1) {
+    const stages = sortedStages(funnel);
+    const idx = stages.findIndex((s) => s.id === stage.id);
+    const swapIdx = idx + direction;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= stages.length) {
+        return;
+    }
+
+    [stages[idx], stages[swapIdx]] = [stages[swapIdx], stages[idx]];
+    await persistStageOrder(funnel, stages.map((s) => s.id));
+}
+
+function onStageDragStart(funnel: Funnel, stage: FunnelStage, event: DragEvent) {
+    draggingStage.value = { funnelId: funnel.id, stageId: stage.id };
+    event.dataTransfer?.setData('text/plain', String(stage.id));
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+    }
+}
+
+function onStageDragOver(stageId: number, event: DragEvent) {
+    event.preventDefault();
+    dragOverStageId.value = stageId;
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+    }
+}
+
+function onStageDragEnd() {
+    draggingStage.value = null;
+    dragOverStageId.value = null;
+}
+
+async function onStageDrop(funnel: Funnel, targetStageId: number, event: DragEvent) {
+    event.preventDefault();
+    const from = draggingStage.value;
+    dragOverStageId.value = null;
+    if (!from || from.funnelId !== funnel.id || from.stageId === targetStageId) {
+        draggingStage.value = null;
+        return;
+    }
+
+    const stages = sortedStages(funnel);
+    const fromIdx = stages.findIndex((s) => s.id === from.stageId);
+    const toIdx = stages.findIndex((s) => s.id === targetStageId);
+    if (fromIdx === -1 || toIdx === -1) {
+        draggingStage.value = null;
+        return;
+    }
+
+    const [item] = stages.splice(fromIdx, 1);
+    stages.splice(toIdx, 0, item);
+    await persistStageOrder(funnel, stages.map((s) => s.id));
+}
+
+function scenarioDraft(funnel: Funnel): FunnelAiScenario {
+    return {
+        enabled: funnel.ai_scenario?.enabled ?? false,
+        customer_identity: funnel.ai_scenario?.customer_identity ?? 'company',
+        booking_horizon_days: funnel.ai_scenario?.booking_horizon_days ?? 30,
+        fallback_manager_user_id: funnel.ai_scenario?.fallback_manager_user_id ?? null,
+        fallback_department_id: funnel.ai_scenario?.fallback_department_id ?? null,
+        manager_confirmation_required: funnel.ai_scenario?.manager_confirmation_required ?? false,
+    };
+}
+
+async function saveAiScenario(funnel: Funnel, patch: Partial<FunnelAiScenario>): Promise<void> {
+    const payload = { ...scenarioDraft(funnel), ...patch };
+    try {
+        const { data } = await axios.put(route('settings.funnels.ai-scenario.update', funnel.id), payload);
+        funnel.ai_scenario = data.scenario as FunnelAiScenario;
+        showToast({ message: 'AI-сценарий сохранён', duration: 2500 });
+    } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } } };
+        showToast({ message: e.response?.data?.message || 'Не удалось сохранить AI-сценарий', duration: 6000 });
+    }
+}
+
+function stageRuleDraft(stage: FunnelStage): FunnelStageAiRule {
+    return {
+        goal: stage.ai_rule?.goal ?? '',
+        required_questions: stage.ai_rule?.required_questions ?? [],
+        transition_conditions: stage.ai_rule?.transition_conditions ?? '',
+        allowed_actions: stage.ai_rule?.allowed_actions ?? aiActionOptions.map((a) => a.id),
+        assignee_user_ids: stage.ai_rule?.assignee_user_ids ?? [],
+        assignee_department_id: stage.ai_rule?.assignee_department_id ?? null,
+        require_manager_confirmation: stage.ai_rule?.require_manager_confirmation ?? false,
+        follow_up_enabled: stage.ai_rule?.follow_up_enabled ?? false,
+        follow_up_delay_hours: stage.ai_rule?.follow_up_delay_hours ?? 24,
+        follow_up_message: stage.ai_rule?.follow_up_message ?? '',
+        follow_up_cooldown_hours: stage.ai_rule?.follow_up_cooldown_hours ?? 72,
+        follow_up_max_count: stage.ai_rule?.follow_up_max_count ?? 2,
+    };
+}
+
+async function saveStageAiRule(funnel: Funnel, stage: FunnelStage, patch: Partial<FunnelStageAiRule>): Promise<void> {
+    const payload = { ...stageRuleDraft(stage), ...patch };
+    try {
+        const { data } = await axios.put(route('settings.funnels.stages.ai-rule.update', [funnel.id, stage.id]), payload);
+        stage.ai_rule = data.rule as FunnelStageAiRule;
+        showToast({ message: 'Правила этапа сохранены', duration: 2500 });
+    } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } } };
+        showToast({ message: e.response?.data?.message || 'Не удалось сохранить правила этапа', duration: 6000 });
+    }
+}
+
+async function applySuggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, total: number): Promise<void> {
+    await saveStageAiRule(funnel, stage, suggestedStageRule(funnel, stage, index, total));
+}
+
+function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, total: number): Partial<FunnelStageAiRule> {
+    const name = stage.name.toLowerCase();
+    const isFinal = total > 0 && index >= total - 1;
+    const current = stageRuleDraft(stage);
+    const baseActions = ['reply_customer', 'move_funnel_stage', 'notify_manager', 'create_task'];
+
+    if (name.includes('запись') || name.includes('приём') || name.includes('замер') || name.includes('показ') || name.includes('созвон')) {
+        return {
+            goal: current.goal || 'Согласовать с клиентом удобную дату, время и ответственного.',
+            required_questions: current.required_questions?.length ? current.required_questions : ['Удобная дата и время', 'Адрес или формат встречи', 'Контактное лицо'],
+            transition_conditions: current.transition_conditions || 'Перейти дальше, когда клиент подтвердил дату и время. Если данных не хватает, задать один короткий уточняющий вопрос.',
+            allowed_actions: [...baseActions, 'create_appointment', 'assign_employee'],
+            assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+            require_manager_confirmation: current.require_manager_confirmation ?? false,
+        };
+    }
+
+    if (name.includes('оплат') || name.includes('предоплат')) {
+        return {
+            goal: current.goal || 'Корректно обработать оплату, реквизиты или перенос оплаты без повторных вопросов.',
+            required_questions: current.required_questions?.length ? current.required_questions : ['Нужны ли реквизиты?', 'Когда удобно оплатить?'],
+            transition_conditions: current.transition_conditions || 'Если клиент сообщил, что оплатил, перейти к следующему этапу. Если просит реквизиты или оплатит позже, создать задачу менеджеру.',
+            allowed_actions: baseActions,
+            assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+            require_manager_confirmation: false,
+        };
+    }
+
+    if (name.includes('достав') || name.includes('монтаж') || name.includes('готов')) {
+        return {
+            goal: current.goal || 'Согласовать финальную доставку, монтаж, выдачу или подтвердить выполнение.',
+            required_questions: current.required_questions?.length ? current.required_questions : ['Удобный день и время', 'Адрес и контакт на месте', 'Есть ли ограничения по доступу'],
+            transition_conditions: current.transition_conditions || 'Перейти дальше, когда клиент указал дату и время или подтвердил успешное выполнение.',
+            allowed_actions: baseActions,
+            assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+            require_manager_confirmation: false,
+        };
+    }
+
+    if (isFinal || name.includes('закрыто') || name.includes('выполн')) {
+        return {
+            goal: current.goal || 'Финальный этап. Поблагодарить клиента и не продолжать активные касания без нового вопроса.',
+            required_questions: [],
+            transition_conditions: current.transition_conditions || 'Финальный этап. Если клиент задаёт новый вопрос, обработать его как новый запрос.',
+            allowed_actions: ['reply_customer', 'notify_manager'],
+            assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+            require_manager_confirmation: false,
+        };
+    }
+
+    return {
+        goal: current.goal || 'Понять запрос клиента и продвинуть его к следующему шагу воронки.',
+        required_questions: current.required_questions?.length ? current.required_questions : ['Что именно интересует?', 'Какие сроки удобны?', 'Есть ли важные условия или ограничения?'],
+        transition_conditions: current.transition_conditions || 'Перейти дальше, когда собраны ключевые данные для следующего этапа. Не спрашивать повторно то, что клиент уже написал.',
+        allowed_actions: baseActions,
+        assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+        require_manager_confirmation: false,
+    };
+}
+
+function csvToList(value: string): string[] {
+    return value
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 20);
+}
+
+function toggleStageAction(stage: FunnelStage, action: string): string[] {
+    const current = new Set(stageRuleDraft(stage).allowed_actions ?? []);
+    if (current.has(action)) {
+        current.delete(action);
+    } else {
+        current.add(action);
+    }
+
+    return [...current];
+}
+
 const totalFunnels = computed(() => localFunnels.value.length);
+const funnelTemplates = computed(() => props.funnelTemplates ?? []);
+
+function stageRuleIssues(stage: FunnelStage, index = 0, total = 0): string[] {
+    return collectStageRuleIssues(stage.ai_rule, index, total);
+}
+
+function stageHints(stage: FunnelStage, index: number, total: number): StageHint[] {
+    return stageInlineHints(stage.ai_rule, stage.stage_type, index, total);
+}
+
+function stageRuleHealthLabel(stage: FunnelStage, index = 0, total = 0): string {
+    const count = stageRuleIssues(stage, index, total).length;
+
+    return count === 0 ? 'AI ok' : `AI: ${count}`;
+}
+
+function stageRuleHealthColor(stage: FunnelStage, index = 0, total = 0): string {
+    const count = stageRuleIssues(stage, index, total).length;
+    if (count === 0) return '#16a34a';
+    if (count <= 2) return '#d97706';
+
+    return '#dc2626';
+}
+
+function funnelIssueCount(funnel: Funnel): number {
+    return funnel.stages.reduce(
+        (total, stage, index) => total + stageRuleIssues(stage, index, funnel.stages.length).length,
+        0,
+    );
+}
+
+async function createFromTemplate(template: FunnelTemplate): Promise<void> {
+    if (creatingTemplateKey.value !== null) return;
+    creatingTemplateKey.value = template.key;
+    try {
+        await axios.post(route('settings.funnels.templates.store'), {
+            template_key: template.key,
+        });
+        showToast({ message: `Шаблон «${template.industry}» создан`, duration: 3000 });
+        await router.reload({ only: ['funnels'] });
+    } catch (e: any) {
+        showToast({ message: e.response?.data?.message || 'Не удалось создать воронку из шаблона', duration: 6000 });
+    } finally {
+        creatingTemplateKey.value = null;
+    }
+}
 </script>
 
 <template>
@@ -388,32 +694,88 @@ const totalFunnels = computed(() => localFunnels.value.length);
                 <button
                     @click="openCreateFunnel('manual')"
                     class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 >
                     + Новая воронка
                 </button>
             </div>
         </template>
 
-        <div class="w-full px-6 py-6 space-y-4">
-            <p class="text-sm text-[var(--wa-text-secondary)] max-w-3xl">
+        <div class="funnels-page w-full px-6 py-6 space-y-5">
+            <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
                 Создавайте воронки вручную или через AI-конструктор. Можно вести несколько воронок одновременно.
             </p>
 
-            <div
-                v-if="totalFunnels === 0"
-                class="rounded-lg border px-6 py-12 text-center"
+            <section
+                v-if="funnelTemplates.length"
+                class="rounded-2xl border p-4"
                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
             >
-                <div class="text-[var(--wa-text)] text-base font-medium mb-1">Воронок пока нет</div>
-                <div class="text-sm text-[var(--wa-text-secondary)] mb-4">
+                <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h2 class="text-sm font-semibold text-[var(--ui-text)]">Отраслевые шаблоны</h2>
+                        <p class="text-xs text-[var(--ui-text-secondary)]">
+                            Быстрый старт: создаёт воронку, этапы, AI-сценарий и правила.
+                        </p>
+                    </div>
+                    <span class="text-xs font-medium text-[var(--ui-text-secondary)]">{{ funnelTemplates.length }} шаблонов</span>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <article
+                        v-for="template in funnelTemplates"
+                        :key="template.key"
+                        class="rounded-xl border p-3"
+                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: template.color }"></span>
+                                    <h3 class="truncate text-sm font-semibold text-[var(--ui-text)]">{{ template.industry }}</h3>
+                                </div>
+                                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">{{ template.description }}</p>
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:brightness-95 disabled:opacity-60"
+                                :disabled="creatingTemplateKey !== null"
+                                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                                @click="createFromTemplate(template)"
+                            >
+                                {{ creatingTemplateKey === template.key ? 'Создаём…' : 'Создать' }}
+                            </button>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="stage in template.stages.slice(0, 4)"
+                                :key="`${template.key}-${stage.name}`"
+                                class="rounded-full px-2 py-0.5 text-[11px]"
+                                :style="{ background: 'var(--wa-panel)', color: 'var(--ui-text-secondary)' }"
+                            >
+                                {{ stage.name }}
+                            </span>
+                            <span v-if="template.stages.length > 4" class="rounded-full px-2 py-0.5 text-[11px]" :style="{ background: 'var(--wa-panel)', color: 'var(--ui-text-secondary)' }">
+                                +{{ template.stages.length - 4 }}
+                            </span>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <div
+                v-if="totalFunnels === 0"
+                class="funnel-empty-card rounded-2xl border px-6 py-12 text-center"
+            >
+                <div class="text-[var(--ui-text)] text-base font-semibold mb-1">Воронок пока нет</div>
+                <div class="text-sm text-[var(--ui-text-secondary)] mb-4">
                     Пройдите AI-онбординг — система предложит несколько вариантов воронок под ваш бизнес.
                 </div>
                 <div class="flex flex-wrap justify-center gap-2">
                     <button
                         @click="openCreateFunnel('ai')"
                         class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     >
                         Создать с AI
                     </button>
@@ -431,12 +793,10 @@ const totalFunnels = computed(() => localFunnels.value.length);
                 <div
                     v-for="funnel in localFunnels"
                     :key="funnel.id"
-                    class="rounded-lg border overflow-hidden"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                    class="funnel-card rounded-2xl border overflow-hidden"
                 >
                     <div
-                        class="px-5 py-4 flex items-center justify-between gap-3"
-                        :style="{ background: 'var(--wa-panel-header)', borderBottom: '1px solid var(--wa-border)' }"
+                        class="funnel-card-header px-5 py-4 flex items-center justify-between gap-3"
                     >
                         <div class="flex items-center gap-3 min-w-0 flex-1">
                             <span
@@ -444,7 +804,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                 :style="{ background: funnel.color }"
                             ></span>
                             <div class="min-w-0">
-                                <div class="text-[15px] font-medium text-[var(--wa-text)] truncate flex items-center gap-2">
+                                <div class="text-[15px] font-semibold text-[var(--ui-text)] truncate flex items-center gap-2">
                                     {{ funnel.name }}
                                     <span
                                         v-if="!funnel.is_active"
@@ -452,10 +812,17 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                     >
                                         неактивна
                                     </span>
+                                    <span
+                                        v-if="funnelIssueCount(funnel) > 0"
+                                        class="text-[10px] px-1.5 py-0.5 rounded"
+                                        :style="{ color: '#d97706', background: 'rgba(217, 119, 6, .12)' }"
+                                    >
+                                        AI issues: {{ funnelIssueCount(funnel) }}
+                                    </span>
                                 </div>
                                 <div
                                     v-if="funnel.description"
-                                    class="text-xs text-[var(--wa-text-secondary)] truncate"
+                                    class="text-xs text-[var(--ui-text-secondary)] truncate"
                                 >
                                     {{ funnel.description }}
                                 </div>
@@ -465,7 +832,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             <button
                                 type="button"
                                 class="text-xs px-2.5 py-1.5 rounded-md border transition hover:brightness-95"
-                                :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                 @click="openCreateStage(funnel)"
                             >
                                 + Этап
@@ -488,6 +855,70 @@ const totalFunnels = computed(() => localFunnels.value.length);
                         </div>
                     </div>
 
+                    <div
+                        class="ai-scenario-card px-5 py-4 border-b space-y-3"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-semibold text-[var(--ui-text)]">AI-сценарий воронки</div>
+                                <div class="text-xs text-[var(--ui-text-secondary)]">
+                                    AI ведёт клиента по этапам, пишет от лица компании и передаёт спорные случаи менеджеру.
+                                </div>
+                            </div>
+                            <label class="ai-toggle inline-flex items-center gap-2 text-sm text-[var(--ui-text)]">
+                                <input
+                                    type="checkbox"
+                                    :checked="scenarioDraft(funnel).enabled"
+                                    @change="saveAiScenario(funnel, { enabled: ($event.target as HTMLInputElement).checked })"
+                                />
+                                Включить
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
+                            <label class="space-y-1">
+                                <span class="text-[var(--ui-text-secondary)]">Горизонт записи, дней</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="60"
+                                    class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                    :value="scenarioDraft(funnel).booking_horizon_days"
+                                    @change="saveAiScenario(funnel, { booking_horizon_days: Number(($event.target as HTMLInputElement).value || 30) })"
+                                />
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-[var(--ui-text-secondary)]">Fallback-менеджер</span>
+                                <select
+                                    class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                    :value="scenarioDraft(funnel).fallback_manager_user_id ?? ''"
+                                    @change="saveAiScenario(funnel, { fallback_manager_user_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
+                                >
+                                    <option value="">Не выбран</option>
+                                    <option v-for="u in aiScenarioUsers ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
+                                </select>
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-[var(--ui-text-secondary)]">Отдел для задач</span>
+                                <select
+                                    class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                    :value="scenarioDraft(funnel).fallback_department_id ?? ''"
+                                    @change="saveAiScenario(funnel, { fallback_department_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
+                                >
+                                    <option value="">Не выбран</option>
+                                    <option v-for="d in aiScenarioDepartments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
+                                </select>
+                            </label>
+                            <label class="inline-flex items-end gap-2 pb-1 text-[var(--ui-text)]">
+                                <input
+                                    type="checkbox"
+                                    :checked="scenarioDraft(funnel).manager_confirmation_required"
+                                    @change="saveAiScenario(funnel, { manager_confirmation_required: ($event.target as HTMLInputElement).checked })"
+                                />
+                                Подтверждать у менеджера
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="px-5 py-4">
                         <div
                             v-if="funnel.stages.length === 0"
@@ -497,28 +928,64 @@ const totalFunnels = computed(() => localFunnels.value.length);
                         </div>
                         <ol v-else class="space-y-2">
                             <li
-                                v-for="(stage, idx) in funnel.stages"
+                                v-for="(stage, idx) in sortedStages(funnel)"
                                 :key="stage.id"
-                                class="flex items-center gap-3 px-3 py-2 rounded-lg border"
-                                :style="{ background: 'var(--wa-bg)', borderColor: 'var(--wa-border-strong)' }"
+                                class="stage-card flex flex-col gap-3 px-3 py-3 rounded-xl border transition"
+                                :class="{
+                                    'opacity-50': draggingStage?.stageId === stage.id,
+                                    'ring-2 ring-[var(--ui-accent)]': dragOverStageId === stage.id,
+                                }"
+                                draggable="true"
+                                @dragstart="onStageDragStart(funnel, stage, $event)"
+                                @dragover="onStageDragOver(stage.id, $event)"
+                                @drop="onStageDrop(funnel, stage.id, $event)"
+                                @dragend="onStageDragEnd"
                             >
-                                <span class="text-xs font-mono text-[var(--wa-text-secondary)] w-6 text-right">
-                                    {{ idx + 1 }}.
-                                </span>
-                                <span
-                                    class="w-2.5 h-2.5 rounded-full shrink-0"
-                                    :style="{ background: stage.color }"
-                                ></span>
-                                <span class="flex-1 min-w-0 truncate text-sm text-[var(--wa-text)]">
-                                    {{ stage.name }}
-                                    <span
-                                        v-if="!stage.is_active"
-                                        class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400"
+                                <div class="flex items-center gap-3 w-full">
+                                    <button
+                                        type="button"
+                                        class="cursor-grab px-1 text-[var(--wa-text-secondary)] active:cursor-grabbing"
+                                        title="Перетащите этап"
+                                        @mousedown.stop
                                     >
-                                        неактивен
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                            <circle cx="7" cy="5" r="1.2" />
+                                            <circle cx="13" cy="5" r="1.2" />
+                                            <circle cx="7" cy="10" r="1.2" />
+                                            <circle cx="13" cy="10" r="1.2" />
+                                            <circle cx="7" cy="15" r="1.2" />
+                                            <circle cx="13" cy="15" r="1.2" />
+                                        </svg>
+                                    </button>
+                                    <span class="text-xs font-mono text-[var(--ui-text-secondary)] w-6 text-right">
+                                        {{ idx + 1 }}.
                                     </span>
-                                </span>
-                                <div class="flex items-center gap-1 shrink-0">
+                                    <span
+                                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                                        :style="{ background: `${stage.color}22`, color: stage.color }"
+                                        :title="stage.name"
+                                    >
+                                        <FunnelStageIcon :type="stage.stage_type" :size="16" />
+                                    </span>
+                                    <span class="flex-1 min-w-0 truncate text-sm font-medium text-[var(--ui-text)]">
+                                        {{ stage.name }}
+                                        <span
+                                            v-if="!stage.is_active"
+                                            class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400"
+                                        >
+                                            неактивен
+                                        </span>
+                                        <span
+                                            class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
+                                            :style="{
+                                                color: stageRuleHealthColor(stage, idx, funnel.stages.length),
+                                                background: `${stageRuleHealthColor(stage, idx, funnel.stages.length)}1A`,
+                                            }"
+                                        >
+                                            {{ stageRuleHealthLabel(stage, idx, funnel.stages.length) }}
+                                        </span>
+                                    </span>
+                                    <div class="flex items-center gap-1 shrink-0">
                                     <button
                                         type="button"
                                         class="px-1.5 py-1 rounded text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-30"
@@ -544,7 +1011,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                     <button
                                         type="button"
                                         class="text-xs px-2 py-1 rounded-md border transition hover:brightness-95"
-                                        :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                        :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                         @click="openEditStage(funnel, stage)"
                                     >
                                         Изменить
@@ -556,7 +1023,183 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                     >
                                         Удалить
                                     </button>
+                                    </div>
                                 </div>
+                                <div class="stage-hints w-full flex flex-wrap gap-1.5 pl-10 sm:pl-12">
+                                    <span
+                                        v-for="hint in stageHints(stage, idx, funnel.stages.length)"
+                                        :key="`${stage.id}-${hint.id}`"
+                                        class="stage-hint-chip inline-flex max-w-full items-start gap-1 rounded-lg border px-2 py-1 text-[11px] leading-snug"
+                                        :style="stageHintToneStyle(hint.tone)"
+                                    >
+                                        <span class="shrink-0 font-semibold" aria-hidden="true">
+                                            {{ hint.tone === 'success' ? '✓' : hint.tone === 'warn' ? '!' : '→' }}
+                                        </span>
+                                        <span>{{ hint.text }}</span>
+                                    </span>
+                                </div>
+
+                                <details class="ai-rule-panel w-full rounded-xl border px-3 py-2">
+                                    <summary class="cursor-pointer text-xs font-semibold text-[var(--ui-accent)]">
+                                        AI-правила этапа
+                                        <span
+                                            v-if="stageRuleIssues(stage, idx, funnel.stages.length).length > 0"
+                                            class="ml-2 rounded-full px-2 py-0.5 text-[10px]"
+                                            :style="{ color: stageRuleHealthColor(stage, idx, funnel.stages.length), background: `${stageRuleHealthColor(stage, idx, funnel.stages.length)}1A` }"
+                                        >
+                                            {{ stageRuleIssues(stage, idx, funnel.stages.length).length }} проблем
+                                        </span>
+                                    </summary>
+                                    <div
+                                        v-if="stageRuleIssues(stage, idx, funnel.stages.length).length > 0"
+                                        class="mt-3 rounded-lg border px-3 py-2"
+                                        :style="{ borderColor: 'rgba(217, 119, 6, .35)', background: 'rgba(217, 119, 6, .08)' }"
+                                    >
+                                        <div class="mb-1 flex items-center justify-between gap-2">
+                                            <div class="text-xs font-semibold" :style="{ color: '#d97706' }">Что поправить</div>
+                                            <button
+                                                type="button"
+                                                class="rounded-md px-2 py-1 text-[11px] font-semibold"
+                                                :style="{ background: 'rgba(217, 119, 6, .14)', color: '#d97706' }"
+                                                @click.prevent="applySuggestedStageRule(funnel, stage, idx, funnel.stages.length)"
+                                            >
+                                                Починить базово
+                                            </button>
+                                        </div>
+                                        <ul class="space-y-1 text-xs text-[var(--ui-text-secondary)]">
+                                            <li v-for="issue in stageRuleIssues(stage, idx, funnel.stages.length)" :key="issue">
+                                                • {{ issue }}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-xs">
+                                        <label class="space-y-1">
+                                            <span class="text-[var(--ui-text-secondary)]">Цель этапа</span>
+                                            <textarea
+                                                rows="2"
+                                                class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                :value="stageRuleDraft(stage).goal ?? ''"
+                                                @change="saveStageAiRule(funnel, stage, { goal: ($event.target as HTMLTextAreaElement).value })"
+                                            />
+                                        </label>
+                                        <label class="space-y-1">
+                                            <span class="text-[var(--ui-text-secondary)]">Условия перехода</span>
+                                            <textarea
+                                                rows="2"
+                                                class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                :value="stageRuleDraft(stage).transition_conditions ?? ''"
+                                                @change="saveStageAiRule(funnel, stage, { transition_conditions: ($event.target as HTMLTextAreaElement).value })"
+                                            />
+                                        </label>
+                                        <label class="space-y-1">
+                                            <span class="text-[var(--ui-text-secondary)]">Вопросы клиенту, по одному в строке</span>
+                                            <textarea
+                                                rows="3"
+                                                class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                :value="(stageRuleDraft(stage).required_questions ?? []).join('\n')"
+                                                @change="saveStageAiRule(funnel, stage, { required_questions: csvToList(($event.target as HTMLTextAreaElement).value) })"
+                                            />
+                                        </label>
+                                        <div class="space-y-1">
+                                            <span class="text-[var(--ui-text-secondary)]">Разрешённые действия</span>
+                                            <div class="flex flex-wrap gap-2">
+                                                <label
+                                                    v-for="action in aiActionOptions"
+                                                    :key="action.id"
+                                                    class="action-chip inline-flex items-center gap-1 text-[var(--ui-text)]"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        :checked="(stageRuleDraft(stage).allowed_actions ?? []).includes(action.id)"
+                                                        @change="saveStageAiRule(funnel, stage, { allowed_actions: toggleStageAction(stage, action.id) })"
+                                                    />
+                                                    {{ action.label }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <label class="space-y-1">
+                                            <span class="text-[var(--ui-text-secondary)]">Отдел исполнителей</span>
+                                            <select
+                                                class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                :value="stageRuleDraft(stage).assignee_department_id ?? ''"
+                                                @change="saveStageAiRule(funnel, stage, { assignee_department_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
+                                            >
+                                                <option value="">Не выбран</option>
+                                                <option v-for="d in aiScenarioDepartments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
+                                            </select>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2 text-[var(--ui-text)]">
+                                            <input
+                                                type="checkbox"
+                                                :checked="stageRuleDraft(stage).require_manager_confirmation"
+                                                @change="saveStageAiRule(funnel, stage, { require_manager_confirmation: ($event.target as HTMLInputElement).checked })"
+                                            />
+                                            Спорные действия подтверждает менеджер
+                                        </label>
+                                        <div
+                                            class="md:col-span-2 rounded-xl border px-3 py-3 space-y-3"
+                                            :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-inset)' }"
+                                        >
+                                            <label class="inline-flex items-center gap-2 text-[var(--ui-text)] font-medium">
+                                                <input
+                                                    type="checkbox"
+                                                    :checked="stageRuleDraft(stage).follow_up_enabled"
+                                                    @change="saveStageAiRule(funnel, stage, { follow_up_enabled: ($event.target as HTMLInputElement).checked })"
+                                                />
+                                                Авто follow-up клиенту
+                                            </label>
+                                            <p class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]">
+                                                Если клиент не ответил после вашего последнего сообщения, система отправит мягкое напоминание через отложенное сообщение.
+                                                Плейсхолдеры: <code>{chat_name}</code>, <code>{stage_name}</code>.
+                                            </p>
+                                            <div v-if="stageRuleDraft(stage).follow_up_enabled" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Ждать (часов)</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="720"
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_delay_hours"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_delay_hours: Number(($event.target as HTMLInputElement).value) || 24 })"
+                                                    />
+                                                </label>
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Пауза (часов)</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="720"
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_cooldown_hours"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_cooldown_hours: Number(($event.target as HTMLInputElement).value) || 72 })"
+                                                    />
+                                                </label>
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Макс. за период</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="10"
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_max_count"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_max_count: Number(($event.target as HTMLInputElement).value) || 2 })"
+                                                    />
+                                                </label>
+                                            </div>
+                                            <label v-if="stageRuleDraft(stage).follow_up_enabled" class="block space-y-1">
+                                                <span class="text-[var(--ui-text-secondary)]">Текст сообщения</span>
+                                                <textarea
+                                                    rows="3"
+                                                    class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                    :value="stageRuleDraft(stage).follow_up_message ?? ''"
+                                                    placeholder="Добрый день, {chat_name}! Вы ещё рассматриваете предложение?"
+                                                    @change="saveStageAiRule(funnel, stage, { follow_up_message: ($event.target as HTMLTextAreaElement).value })"
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </details>
                             </li>
                         </ol>
                     </div>
@@ -608,7 +1251,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                 type="button"
                                 class="px-3 py-1.5 rounded-md transition"
                                 :style="funnelMode === 'manual'
-                                    ? { background: 'var(--wa-accent)', color: '#fff' }
+                                    ? { background: 'var(--ui-accent)', color: '#fff' }
                                     : { color: 'var(--wa-text-secondary)' }"
                                 @click="switchFunnelMode('manual')"
                             >
@@ -618,7 +1261,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                 type="button"
                                 class="px-3 py-1.5 rounded-md transition flex items-center gap-1.5"
                                 :style="funnelMode === 'ai'
-                                    ? { background: 'var(--wa-accent)', color: '#fff' }
+                                    ? { background: 'var(--ui-accent)', color: '#fff' }
                                     : { color: 'var(--wa-text-secondary)' }"
                                 @click="switchFunnelMode('ai')"
                             >
@@ -707,7 +1350,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                                 <button
                                     type="button"
                                     class="text-xs px-2 py-1 rounded-md border transition hover:brightness-95"
-                                    :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                    :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                     @click="addAiStage"
                                 >
                                     + Этап
@@ -793,7 +1436,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                         <button
                             type="button"
                             class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
                             @click="saveFunnel"
                         >
@@ -880,6 +1523,36 @@ const totalFunnels = computed(() => localFunnels.value.length);
                             </div>
                         </div>
 
+                        <div>
+                            <div class="mb-2 flex items-center justify-between gap-2">
+                                <label class="block text-sm text-[var(--wa-text-secondary)]">Тип этапа</label>
+                                <button
+                                    type="button"
+                                    class="text-xs text-[var(--ui-accent)] hover:underline"
+                                    @click="stageForm.stage_type = guessStageTypeFromName(stageForm.name)"
+                                >
+                                    Подобрать по названию
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <button
+                                    v-for="option in FUNNEL_STAGE_TYPES"
+                                    :key="option.value"
+                                    type="button"
+                                    class="flex items-center gap-2 rounded-lg border px-2 py-2 text-left text-xs transition"
+                                    :style="{
+                                        borderColor: stageForm.stage_type === option.value ? 'var(--ui-accent)' : 'var(--wa-border)',
+                                        background: stageForm.stage_type === option.value ? 'var(--ui-accent-soft)' : 'var(--wa-panel-header)',
+                                        color: 'var(--wa-text)',
+                                    }"
+                                    @click="stageForm.stage_type = option.value"
+                                >
+                                    <FunnelStageIcon :type="option.value" :size="16" />
+                                    <span>{{ option.label }}</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="flex items-center gap-2 pt-1">
                             <input
                                 id="stage-active"
@@ -907,7 +1580,7 @@ const totalFunnels = computed(() => localFunnels.value.length);
                         <button
                             type="button"
                             class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             :disabled="savingStage"
                             @click="saveStage"
                         >
@@ -921,21 +1594,76 @@ const totalFunnels = computed(() => localFunnels.value.length);
 </template>
 
 <style scoped>
+.funnel-empty-card,
+.funnel-card {
+    background: var(--ui-surface);
+    border-color: var(--ui-border);
+    box-shadow: var(--ui-shadow-card);
+}
+
+.funnel-card-header {
+    background: var(--ui-surface-raised);
+    border-bottom: 1px solid var(--ui-border);
+}
+
+.ai-scenario-card {
+    background: color-mix(in srgb, var(--ui-accent) 6%, var(--ui-surface));
+    border-color: var(--ui-accent-border);
+}
+
+.stage-card {
+    background: var(--ui-surface-muted);
+    border-color: var(--ui-border);
+    box-shadow: var(--ui-shadow-soft);
+}
+
+.ai-rule-panel {
+    background: color-mix(in srgb, var(--ui-surface) 78%, var(--ui-surface-muted) 22%);
+    border-color: var(--ui-border);
+}
+
+.ui-field,
 .settings-input {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    background: var(--wa-bg);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
-    transition: border-color 0.15s ease;
+    background: var(--ui-input-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border-strong);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
+.ui-field:focus,
 .settings-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .settings-input-error {
     border-color: #f87171 !important;
+}
+
+.ai-toggle,
+.action-chip {
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--ui-border);
+    border-radius: 999px;
+    background: var(--ui-surface);
+}
+
+.funnels-page input[type='checkbox'] {
+    accent-color: var(--ui-accent);
+}
+
+.funnels-page select,
+.funnels-page input,
+.funnels-page textarea {
+    color-scheme: light;
+}
+
+[data-theme='dark'] .funnels-page select,
+[data-theme='dark'] .funnels-page input,
+[data-theme='dark'] .funnels-page textarea {
+    color-scheme: dark;
 }
 </style>

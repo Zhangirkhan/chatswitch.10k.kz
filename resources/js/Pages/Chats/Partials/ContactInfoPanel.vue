@@ -2,14 +2,61 @@
 import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
+import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
 import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 
+type AiStatus = {
+    label: string;
+    status: string;
+    message: string;
+    hint: string | null;
+    knowledge_context: {
+        rules: number;
+        products: number;
+        services: number;
+    } | null;
+    tone_source: {
+        label: string;
+        hint: string;
+    } | null;
+    orchestrator_history?: Array<{
+        id: number;
+        label: string;
+        reason: string | null;
+        target_stage: string | null;
+        task_title: string | null;
+        confidence: number | null;
+        completed_at: string | null;
+    }>;
+};
+
+type SidebarInsights = {
+    events: Array<{
+        id: number;
+        title: string;
+        starts_at: string | null;
+        ends_at: string | null;
+        assignee: string | null;
+        source: string | null;
+    }>;
+    tasks: Array<{
+        id: number;
+        title: string;
+        body: string | null;
+        status: string;
+        created_at: string | null;
+    }>;
+};
+
 const props = defineProps<{
     chat: Chat;
     messages?: Message[];
+    aiStatus?: AiStatus | null;
+    sidebarInsights?: SidebarInsights;
     /**
      * Другие чаты этого же контакта на ЛЮБЫХ других WA-номерах.
      * Используется для UI «общались на WA #1 и WA #2» —
@@ -21,6 +68,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'open-search'): void;
+    (e: 'open-ai'): void;
 }>();
 
 const page = usePage<any>();
@@ -34,6 +82,7 @@ const editOpen = ref(false);
 const editName = ref('');
 const savingContact = ref(false);
 const saveError = ref<string | null>(null);
+const quickActionLoading = ref<string | null>(null);
 
 type ContactCardPayload = {
     identity: {
@@ -68,6 +117,7 @@ type ContactCardPayload = {
         is_archived: boolean;
         open_url: string;
     }>;
+    crm: ContactCrmPayload;
 };
 
 const contactCard = ref<ContactCardPayload | null>(null);
@@ -86,6 +136,81 @@ const displayName = computed(() =>
 // For group chats there is no "phone number" to display; showing a numeric WA group id is confusing.
 const phoneLabel = computed(() => (isGroup.value ? '' : formatPhone(props.chat.contact?.phone_number)));
 
+const funnelProgressPercent = computed(() => {
+    const progress = props.chat.funnel_progress as { stage_index?: number; stages_count?: number } | null | undefined;
+    const stageIndex = Number(progress?.stage_index ?? -1);
+    const stagesCount = Number(progress?.stages_count ?? 0);
+    if (stageIndex < 0 || stagesCount <= 0) {
+        return 0;
+    }
+
+    return Math.round(((stageIndex + 1) / stagesCount) * 100);
+});
+
+const aiPanelTone = computed(() => {
+    if (props.chat.ai_orchestrator_status === 'failed' || props.aiStatus?.status === 'failed') {
+        return 'error';
+    }
+    if (props.chat.ai_orchestrator_status === 'needs_manager' || props.aiStatus?.status === 'blocked') {
+        return 'warning';
+    }
+    if (props.chat.ai_orchestrator_status === 'running' || props.chat.ai_orchestrator_status === 'pending') {
+        return 'busy';
+    }
+    if (props.aiStatus?.status === 'generating' || props.aiStatus?.status === 'pending') {
+        return 'busy';
+    }
+    if (props.chat.ai_enabled) {
+        return 'ready';
+    }
+
+    return 'idle';
+});
+
+const aiPanelStatusLabel = computed(() => {
+    if (props.chat.ai_orchestrator_status === 'needs_manager') return 'Нужен менеджер';
+    if (props.chat.ai_orchestrator_status === 'running' || props.chat.ai_orchestrator_status === 'pending') return 'AI ведёт сделку';
+    if (props.chat.ai_orchestrator_status === 'failed') return 'Ошибка оркестратора';
+    if (props.aiStatus?.label) return props.aiStatus.label;
+
+    return props.chat.ai_enabled ? 'AI включён' : 'AI выключен';
+});
+
+const latestOrchestratorStep = computed(() => props.aiStatus?.orchestrator_history?.[0] ?? null);
+const sidebarEvents = computed(() => props.sidebarInsights?.events ?? []);
+const sidebarTasks = computed(() => props.sidebarInsights?.tasks ?? []);
+
+async function requestManagerAttention(): Promise<void> {
+    if (quickActionLoading.value) return;
+    quickActionLoading.value = 'manager';
+    try {
+        await axios.post(route('chats.manager-attention', props.chat.id), {
+            note: 'Оператор вручную передал чат менеджеру из панели клиента.',
+        });
+        await router.reload({ only: ['sidebarInsights', 'chat'] });
+    } catch (e: any) {
+        alert(e?.response?.data?.message || 'Не удалось передать чат менеджеру.');
+    } finally {
+        quickActionLoading.value = null;
+    }
+}
+
+async function createQuickTask(): Promise<void> {
+    if (quickActionLoading.value) return;
+    quickActionLoading.value = 'task';
+    try {
+        await axios.post(route('chats.quick-task', props.chat.id), {
+            title: 'Проверить следующий шаг по клиенту',
+            body: 'Создано из правой панели чата. Проверьте переписку, статус воронки и следующий шаг.',
+        });
+        await router.reload({ only: ['sidebarInsights', 'chat'] });
+    } catch (e: any) {
+        alert(e?.response?.data?.message || 'Не удалось создать задачу.');
+    } finally {
+        quickActionLoading.value = null;
+    }
+}
+
 const firstInitial = computed(() => (displayName.value || '?').charAt(0).toUpperCase());
 
 async function loadContactCard() {
@@ -96,7 +221,9 @@ async function loadContactCard() {
     contactCardLoading.value = true;
     contactCardError.value = null;
     try {
-        const { data } = await axios.get(route('contacts.card', props.chat.contact_id));
+        const { data } = await axios.get(route('contacts.card', props.chat.contact_id), {
+            params: { chat_id: props.chat.id },
+        });
         contactCard.value = data as ContactCardPayload;
     } catch (e: any) {
         contactCard.value = null;
@@ -124,6 +251,19 @@ function formatChatTime(dateStr?: string | null): string {
         return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     }
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function formatDateTime(dateStr?: string | null): string {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '—';
+
+    return d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }
 
 const mediaCount = computed(() => {
@@ -701,6 +841,45 @@ async function saveContactName() {
                 </div>
             </div>
 
+            <div class="px-4 pb-4">
+                <div class="deal-card" :class="`deal-card-${aiPanelTone}`">
+                    <div class="deal-card__head">
+                        <div>
+                            <div class="deal-card__eyebrow">AI и воронка</div>
+                            <div class="deal-card__title">{{ aiPanelStatusLabel }}</div>
+                        </div>
+                        <span class="deal-card__badge">{{ funnelProgressPercent }}%</span>
+                    </div>
+
+                    <div class="deal-card__meter" aria-hidden="true">
+                        <span :style="{ width: `${funnelProgressPercent}%`, background: chat.funnel_stage?.color || chat.funnel?.color || 'var(--wa-accent)' }"></span>
+                    </div>
+
+                    <div class="deal-card__facts">
+                        <div>
+                            <span>Воронка</span>
+                            <strong>{{ chat.funnel?.name || 'Не выбрана' }}</strong>
+                        </div>
+                        <div>
+                            <span>Этап</span>
+                            <strong>{{ chat.funnel_stage?.name || 'Не выбран' }}</strong>
+                        </div>
+                        <div>
+                            <span>Режим AI</span>
+                            <strong>{{ chat.ai_enabled ? (chat.ai_mode === 'draft' ? 'Черновик' : 'Автоответ') : 'Выключен' }}</strong>
+                        </div>
+                    </div>
+
+                    <div v-if="chat.ai_orchestrator_last_summary || latestOrchestratorStep" class="deal-card__note">
+                        {{ latestOrchestratorStep?.reason || chat.ai_orchestrator_last_summary }}
+                    </div>
+                    <div v-if="latestOrchestratorStep?.target_stage || latestOrchestratorStep?.task_title" class="deal-card__chips">
+                        <span v-if="latestOrchestratorStep?.target_stage">Этап: {{ latestOrchestratorStep.target_stage }}</span>
+                        <span v-if="latestOrchestratorStep?.task_title">Задача: {{ latestOrchestratorStep.task_title }}</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Auto contact card -->
             <div v-if="!isGroup" class="px-4 pb-4">
                 <div class="contact-card">
@@ -722,7 +901,7 @@ async function saveContactName() {
                         </button>
                     </div>
 
-                    <div v-if="contactCardLoading" class="contact-card__muted">Загрузка карточки…</div>
+                    <ContactCardSkeleton v-if="contactCardLoading" :show-deal="false" />
                     <div v-else-if="contactCardError" class="contact-card__error">{{ contactCardError }}</div>
                     <div v-else-if="contactCard" class="space-y-3">
                         <div class="contact-card__grid">
@@ -779,6 +958,12 @@ async function saveContactName() {
                                 {{ name }}
                             </span>
                         </div>
+
+                        <ContactCrmSections
+                            v-if="contactCard.crm"
+                            :crm="contactCard.crm"
+                            :current-chat-id="chat.id"
+                        />
                     </div>
                     <div v-else class="contact-card__muted">Нет данных для карточки.</div>
                 </div>
@@ -804,7 +989,7 @@ async function saveContactName() {
                     >
                         <span
                             class="w-2 h-2 rounded-full shrink-0"
-                            :class="c.whatsapp_session?.status === 'connected' ? 'bg-[#25d366]' : 'bg-gray-400'"
+                            :class="c.whatsapp_session?.status === 'connected' ? 'bg-[var(--wa-accent)]' : 'bg-gray-400'"
                         ></span>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-1.5">
@@ -836,6 +1021,72 @@ async function saveContactName() {
                             </span>
                         </div>
                     </Link>
+                </div>
+            </div>
+
+            <div class="px-4 pb-4">
+                <div class="quick-actions-card">
+                    <div class="quick-actions-card__title">Быстрые действия</div>
+                    <div class="quick-actions-card__grid">
+                        <button type="button" class="quick-action-btn" @click="emit('open-ai')">
+                            Открыть AI
+                        </button>
+                        <button
+                            type="button"
+                            class="quick-action-btn"
+                            :disabled="quickActionLoading !== null"
+                            @click="requestManagerAttention"
+                        >
+                            {{ quickActionLoading === 'manager' ? 'Передаём…' : 'Передать менеджеру' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="quick-action-btn quick-action-btn-primary"
+                            :disabled="quickActionLoading !== null"
+                            @click="createQuickTask"
+                        >
+                            {{ quickActionLoading === 'task' ? 'Создаём…' : 'Создать задачу' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="sidebarEvents.length || sidebarTasks.length" class="px-4 pb-4">
+                <div class="ops-card">
+                    <div class="ops-card__head">
+                        <div>
+                            <div class="ops-card__title">Операционный контекст</div>
+                            <div class="ops-card__subtitle">События календаря и задачи AI по этому чату</div>
+                        </div>
+                    </div>
+
+                    <div v-if="sidebarEvents.length" class="ops-card__section">
+                        <div class="ops-card__section-title">Календарь</div>
+                        <div class="ops-card__list">
+                            <div v-for="event in sidebarEvents" :key="`event-${event.id}`" class="ops-card__row">
+                                <div class="ops-card__row-main">
+                                    <div class="ops-card__row-title">{{ event.title }}</div>
+                                    <div class="ops-card__row-meta">
+                                        {{ formatDateTime(event.starts_at) }}<span v-if="event.assignee"> · {{ event.assignee }}</span>
+                                    </div>
+                                </div>
+                                <span v-if="event.source === 'ai_auto'" class="ops-card__tag">AI</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="sidebarTasks.length" class="ops-card__section">
+                        <div class="ops-card__section-title">Задачи AI</div>
+                        <div class="ops-card__list">
+                            <div v-for="task in sidebarTasks" :key="`task-${task.id}`" class="ops-card__row ops-card__row-task">
+                                <div class="ops-card__row-main">
+                                    <div class="ops-card__row-title">{{ task.title }}</div>
+                                    <div v-if="task.body" class="ops-card__row-body">{{ task.body }}</div>
+                                    <div class="ops-card__row-meta">{{ formatDateTime(task.created_at) }} · {{ task.status }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1095,6 +1346,226 @@ async function saveContactName() {
     border: 1px solid var(--wa-border);
     background: var(--wa-panel-header);
     padding: 0.875rem;
+}
+.deal-card {
+    border: 1px solid var(--wa-border);
+    border-radius: 1.125rem;
+    padding: 0.875rem;
+    background: color-mix(in srgb, var(--wa-panel-header) 82%, var(--wa-panel) 18%);
+}
+.deal-card-ready {
+    border-color: color-mix(in srgb, var(--wa-accent) 38%, var(--wa-border));
+}
+.deal-card-busy {
+    border-color: color-mix(in srgb, #8b5cf6 42%, var(--wa-border));
+}
+.deal-card-warning {
+    border-color: color-mix(in srgb, #f59e0b 48%, var(--wa-border));
+}
+.deal-card-error {
+    border-color: color-mix(in srgb, var(--wa-danger) 48%, var(--wa-border));
+}
+.deal-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.deal-card__eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--wa-accent);
+}
+.deal-card__title {
+    margin-top: 0.125rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    color: var(--wa-text);
+}
+.deal-card__badge {
+    border-radius: 999px;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--wa-text);
+    background: color-mix(in srgb, var(--wa-accent) 14%, transparent);
+}
+.deal-card__meter {
+    height: 0.4375rem;
+    overflow: hidden;
+    border-radius: 999px;
+    margin-top: 0.75rem;
+    background: color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+}
+.deal-card__meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    transition: width .25s ease;
+}
+.deal-card__facts {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.deal-card__facts div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+}
+.deal-card__facts span {
+    color: var(--wa-text-secondary);
+}
+.deal-card__facts strong {
+    min-width: 0;
+    max-width: 13rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--wa-text);
+    font-weight: 650;
+}
+.deal-card__note {
+    margin-top: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.5625rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--wa-text-secondary);
+    background: var(--wa-panel);
+}
+.deal-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.625rem;
+}
+.deal-card__chips span {
+    border-radius: 999px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+    color: var(--wa-text);
+    background: var(--wa-panel);
+}
+.ops-card {
+    border-radius: 1.125rem;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    padding: 0.875rem;
+}
+.quick-actions-card {
+    border-radius: 1.125rem;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
+    padding: 0.875rem;
+}
+.quick-actions-card__title {
+    margin-bottom: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 650;
+    color: var(--wa-text);
+}
+.quick-actions-card__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+.quick-action-btn {
+    border-radius: 0.75rem;
+    border: 1px solid var(--wa-border);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--wa-text);
+    background: var(--wa-panel);
+    transition: background-color .15s ease, transform .15s ease;
+}
+.quick-action-btn:hover:not(:disabled) {
+    background: var(--wa-panel-hover);
+    transform: translateY(-1px);
+}
+.quick-action-btn:disabled {
+    opacity: .6;
+    cursor: default;
+}
+.quick-action-btn-primary {
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+    color: #fff;
+    background: var(--wa-accent);
+}
+.quick-action-btn-primary:hover:not(:disabled) {
+    background: var(--wa-accent-hover);
+}
+.ops-card__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.ops-card__title {
+    font-size: 0.875rem;
+    font-weight: 650;
+    color: var(--wa-text);
+}
+.ops-card__subtitle {
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+}
+.ops-card__section {
+    margin-top: 0.875rem;
+}
+.ops-card__section-title {
+    margin-bottom: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--wa-text-secondary);
+}
+.ops-card__list {
+    display: grid;
+    gap: 0.5rem;
+}
+.ops-card__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 0.75rem;
+    padding: 0.625rem;
+    background: var(--wa-panel);
+}
+.ops-card__row-title {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--wa-text);
+}
+.ops-card__row-body {
+    margin-top: 0.25rem;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: var(--wa-text-secondary);
+}
+.ops-card__row-meta {
+    margin-top: 0.1875rem;
+    font-size: 0.6875rem;
+    color: var(--wa-text-secondary);
+}
+.ops-card__tag {
+    flex-shrink: 0;
+    border-radius: 999px;
+    padding: 0.125rem 0.45rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 12%, transparent);
 }
 .contact-card__head {
     display: flex;

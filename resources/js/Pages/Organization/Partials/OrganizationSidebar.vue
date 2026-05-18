@@ -397,8 +397,11 @@ function clearSearch() {
 </script>
 
 <template>
-    <div class="w-[400px] h-full relative shrink-0 overflow-hidden">
-        <div class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)]">
+    <div
+        class="w-[400px] h-full relative shrink-0 overflow-hidden border-r"
+        :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
+    >
+        <div class="w-full h-full flex flex-col bg-[var(--wa-panel)]">
             <!-- Header -->
             <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
                 <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
@@ -799,11 +802,11 @@ function clearSearch() {
     margin-top: 2px;
 }
 .archive-icon {
-    background: color-mix(in srgb, #22c55e 15%, var(--wa-panel-header));
-    color: #22c55e;
+    background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header));
+    color: var(--wa-accent);
 }
 .archive-badge {
-    background: color-mix(in srgb, #22c55e 80%, transparent);
+    background: color-mix(in srgb, var(--wa-accent) 80%, transparent);
     color: #fff;
 }
 .org-subnav-link {
