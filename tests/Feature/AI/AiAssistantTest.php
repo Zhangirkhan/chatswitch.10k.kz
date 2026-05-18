@@ -362,6 +362,29 @@ final class AiAssistantTest extends TestCase
         $this->assertSame(['Да, конечно', 'Сейчас уточню'], $profile->phrases);
     }
 
+    public function test_enabling_ai_without_readiness_requires_confirmation(): void
+    {
+        Bus::fake();
+
+        $company = Company::create(['name' => 'Company']);
+        /** @var User $employee */
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $employee->assignRole('employee');
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id, 'company_id' => $company->id]);
+        ChatAssignment::create(['chat_id' => $chat->id, 'user_id' => $employee->id, 'assigned_by' => $employee->id]);
+
+        $this->actingAs($employee)
+            ->patchJson(route('chats.ai.update', $chat), [
+                'ai_enabled' => true,
+                'ai_mode' => 'auto',
+                'ai_responder_user_id' => $employee->id,
+                'company_id' => $company->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('requires_confirmation', true);
+    }
+
     public function test_assigned_employee_can_enable_ai_for_chat(): void
     {
         Bus::fake();
@@ -380,6 +403,7 @@ final class AiAssistantTest extends TestCase
                 'ai_mode' => 'auto',
                 'ai_responder_user_id' => $employee->id,
                 'company_id' => $company->id,
+                'confirm_risky_enable' => true,
             ])
             ->assertOk()
             ->assertJsonPath('chat.ai_enabled', true);

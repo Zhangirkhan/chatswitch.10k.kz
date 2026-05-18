@@ -47,6 +47,7 @@ final class SendMessageTest extends TestCase
             ->postJson("/chats/{$chat->id}/send-message", ['message' => 'Hello']);
 
         $response->assertOk();
+        $response->assertJsonPath('tone_profile_learning_scheduled', false);
         $this->assertTrue(
             Message::query()
                 ->where('chat_id', $chat->id)
