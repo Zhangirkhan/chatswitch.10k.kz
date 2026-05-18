@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Services\Company\CompanyOnboardingService;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class CompanyController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CompanyOnboardingService $onboarding): JsonResponse
     {
-        $company = Company::create($this->validatedPayload($request));
+        $company = TenantCompany::ensureExists();
+        $company->update($this->validatedPayload($request));
+        $onboarding->bootstrap($company);
 
         return response()->json([
             'success' => true,
@@ -22,6 +26,8 @@ final class CompanyController extends Controller
 
     public function update(Request $request, Company $company): JsonResponse
     {
+        abort_unless((int) $company->id === TenantCompany::id(), 404);
+
         $company->update($this->validatedPayload($request));
 
         return response()->json([
@@ -32,6 +38,9 @@ final class CompanyController extends Controller
 
     public function destroy(Company $company): JsonResponse
     {
+        abort_unless((int) $company->id === TenantCompany::id(), 404);
+        abort(403, 'Текущую компанию нельзя удалить.');
+
         $company->delete();
 
         return response()->json(['success' => true]);

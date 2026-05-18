@@ -35,7 +35,7 @@ final class ChatAiAssistantController extends Controller
         $message = (string) ($data['message'] ?? '');
 
         try {
-            $reply = $assistant->reply(
+            $result = $assistant->reply(
                 $chat,
                 $request->user(),
                 $history,
@@ -65,7 +65,8 @@ final class ChatAiAssistantController extends Controller
         }
 
         return response()->json([
-            'reply' => $reply,
+            'reply' => $result['reply'],
+            'product' => $result['product'],
         ]);
     }
 

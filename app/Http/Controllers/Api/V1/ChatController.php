@@ -117,7 +117,7 @@ final class ChatController extends Controller
 
     public function storeMessage(SendChatMessageRequest $request, Chat $chat): JsonResponse
     {
-        $message = $this->outboundDispatcher->sendTextMessage(
+        $result = $this->outboundDispatcher->sendTextMessage(
             $request->user(),
             $chat,
             array_merge($request->validated(), [
@@ -127,7 +127,8 @@ final class ChatController extends Controller
         );
 
         return response()->json([
-            'message' => new MessageResource($message),
+            'message' => new MessageResource($result->message),
+            'tone_profile_learning_scheduled' => $result->toneProfileLearningScheduled,
         ]);
     }
 

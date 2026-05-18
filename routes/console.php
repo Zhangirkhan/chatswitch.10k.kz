@@ -53,6 +53,16 @@ Schedule::command('scheduled-messages:send')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('funnel-follow-ups:schedule')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('chats:sla-reminders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // После полуночи (по timezone приложения): в архив — диалоги, где последнее
 // сообщение — ответ сотрудника (исходящее с sent_by_user_id). Закреплённые не трогаем.
 Schedule::command('chats:auto-archive-answered')
@@ -62,5 +72,12 @@ Schedule::command('chats:auto-archive-answered')
 
 Schedule::command('ai:tone-profiles-refresh')
     ->dailyAt('03:10')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// RAG: ночная синхронизация embeddings по всем компаниям (команда сама no-op при KNOWLEDGE_RAG_ENABLED=false).
+Schedule::command('knowledge:index-embeddings')
+    ->dailyAt('04:30')
+    ->when(fn (): bool => (bool) config('knowledge.rag.enabled', true))
     ->withoutOverlapping()
     ->runInBackground();

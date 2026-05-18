@@ -32,7 +32,8 @@ final class MediaController extends Controller
             session_write_close();
         }
 
-        $disk = Storage::disk('local');
+        $diskName = Storage::disk('local')->exists($media->disk_path) ? 'local' : 'public';
+        $disk = Storage::disk($diskName);
         if (! $disk->exists($media->disk_path)) {
             abort(404);
         }

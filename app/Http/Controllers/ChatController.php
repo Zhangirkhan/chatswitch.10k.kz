@@ -15,12 +15,16 @@ use App\Http\Requests\Chat\SyncDepartmentsRequest;
 use App\Http\Requests\Chat\ToggleMuteRequest;
 use App\Http\Requests\Chat\UploadFileRequest;
 use App\Jobs\SendOutboundMessageJob;
+use App\Models\AiOrchestratorRun;
 use App\Models\AiResponseLog;
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
 use App\Models\Department;
+use App\Models\DepartmentPost;
 use App\Models\EmployeeToneProfile;
+use App\Models\FunnelStage;
 use App\Models\KnowledgeRule;
 use App\Models\Message;
 use App\Models\MessageMedia;
@@ -29,8 +33,13 @@ use App\Models\Service;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\AiReadinessService;
+use App\Services\AI\AiSimulationService;
+use App\Services\AI\ChatAttentionService;
+use App\Services\AI\MessageAiDecisionService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
+use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
@@ -43,9 +52,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 final class ChatController extends Controller
 {
@@ -56,19 +67,33 @@ final class ChatController extends Controller
         private readonly ChatService $chatService,
         private readonly WhatsappService $whatsappService,
         private readonly OutboundChatMessageDispatcher $outboundDispatcher,
+        private readonly ChatAttentionService $chatAttention,
+        private readonly MessageAiDecisionService $messageAiDecisions,
+        private readonly AiSimulationService $aiSimulation,
+        private readonly AiReadinessService $aiReadiness,
     ) {}
 
     public function index(Request $request): Response
     {
         $listOwnership = $this->chatListOwnership($request);
-        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'), $listOwnership)
+        $listFilter = $this->chatListFilter($request);
+        $chats = $this->chatService->getChatsForUser(
+            $request->user(),
+            $request->input('search'),
+            $listOwnership,
+            $listFilter,
+        )
             ->where('is_archived', false)
             ->paginate(self::CHAT_LIST_PER_PAGE);
+
+        $this->chatService->enrichAttentionMeta($chats->items());
 
         return Inertia::render('Chats/Index', [
             'chats' => $chats,
             'search' => $request->input('search'),
             'listOwnership' => $listOwnership,
+            'listFilter' => $listFilter,
+            'attentionChatsTotal' => $this->chatAttention->countEligible(),
             'mineChatsTotal' => $this->mineChatsListTotal($request->user(), false),
         ]);
     }
@@ -76,14 +101,24 @@ final class ChatController extends Controller
     public function archivedIndex(Request $request): Response
     {
         $listOwnership = $this->chatListOwnership($request);
-        $chats = $this->chatService->getChatsForUser($request->user(), $request->input('search'), $listOwnership)
+        $listFilter = $this->chatListFilter($request);
+        $chats = $this->chatService->getChatsForUser(
+            $request->user(),
+            $request->input('search'),
+            $listOwnership,
+            $listFilter,
+        )
             ->where('is_archived', true)
             ->paginate(self::CHAT_LIST_PER_PAGE);
+
+        $this->chatService->enrichAttentionMeta($chats->items());
 
         return Inertia::render('Chats/Archived', [
             'chats' => $chats,
             'search' => $request->input('search'),
             'listOwnership' => $listOwnership,
+            'listFilter' => $listFilter,
+            'attentionChatsTotal' => $this->chatAttention->countEligible(),
             'mineChatsTotal' => $this->mineChatsListTotal($request->user(), true),
         ]);
     }
@@ -102,9 +137,12 @@ final class ChatController extends Controller
         }
 
         $listOwnership = $this->chatListOwnership($request);
-        $paginator = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership)
+        $listFilter = $this->chatListFilter($request);
+        $paginator = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership, $listFilter)
             ->where('is_archived', $archived)
             ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
+
+        $this->chatService->enrichAttentionMeta($paginator->items());
 
         return response()->json([
             'data' => $paginator->items(),
@@ -158,8 +196,11 @@ final class ChatController extends Controller
             ->orderByDesc('message_timestamp')
             ->paginate(50);
 
+        $this->messageAiDecisions->attachToMessages(collect($messages->items()));
+
         $listOwnership = $this->chatListOwnership($request);
-        $allChats = $this->chatService->getChatsForUser($request->user(), null, $listOwnership)
+        $listFilter = $this->chatListFilter($request);
+        $allChats = $this->chatService->getChatsForUser($request->user(), null, $listOwnership, $listFilter)
             ->where(function (Builder $q) use ($chat): void {
                 $q->where('is_archived', false);
                 if ($chat->is_archived) {
@@ -167,6 +208,8 @@ final class ChatController extends Controller
                 }
             })
             ->paginate(self::CHAT_LIST_PER_PAGE);
+
+        $this->chatService->enrichAttentionMeta($allChats->items());
 
         // «Единая клиентская база»: все чаты того же клиента (contact), включая разные WA-номера.
         // Нужен, чтобы в панели контакта показывать: с этим человеком общались с WA #1 и WA #2.
@@ -181,6 +224,24 @@ final class ChatController extends Controller
                 ])
             : collect();
 
+        $aiReadinessBanner = null;
+        $companyId = (int) ($chat->company_id ?? $request->user()->company_id ?? 0);
+        if (
+            SystemSetting::getValue('module_ai_quality', 'on') === 'on'
+            && $companyId > 0
+            && $request->user()->can('manageAi', $chat)
+        ) {
+            $readiness = $this->aiReadiness->evaluate($companyId);
+            if ($readiness['score'] < AiReadinessService::READY_SCORE) {
+                $aiReadinessBanner = [
+                    'score' => $readiness['score'],
+                    'threshold' => AiReadinessService::READY_SCORE,
+                    'status' => $readiness['status'],
+                    'label' => $readiness['label'],
+                ];
+            }
+        }
+
         return Inertia::render('Chats/Show', [
             'chat' => $chat,
             'messages' => $messages,
@@ -189,13 +250,86 @@ final class ChatController extends Controller
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
             'aiStatus' => $this->latestAiStatus($chat, $request->user()),
+            'sidebarInsights' => $this->sidebarInsights($chat),
             'listOwnership' => $listOwnership,
+            'listFilter' => $listFilter,
+            'attentionChatsTotal' => $this->chatAttention->countEligible(),
             'mineChatsTotal' => $this->mineChatsListTotal($request->user(), false),
             'funnelCatalog' => $funnelCatalog,
+            'aiReadinessBanner' => $aiReadinessBanner,
         ]);
     }
 
+    /**
+     * @return array{
+     *     events: list<array{id: int, title: string, starts_at: string|null, ends_at: string|null, assignee: string|null, source: string|null}>,
+     *     tasks: list<array{id: int, title: string, body: string|null, status: string, created_at: string|null}>
+     * }
+     */
+    private function sidebarInsights(Chat $chat): array
+    {
+        $events = CalendarEvent::query()
+            ->with('assignee:id,name')
+            ->where('chat_id', $chat->id)
+            ->where('starts_at', '>=', now()->subDay())
+            ->orderBy('starts_at')
+            ->limit(5)
+            ->get(['id', 'title', 'starts_at', 'ends_at', 'assignee_user_id', 'source'])
+            ->map(fn (CalendarEvent $event): array => [
+                'id' => $event->id,
+                'title' => $event->title,
+                'starts_at' => $event->starts_at?->toIso8601String(),
+                'ends_at' => $event->ends_at?->toIso8601String(),
+                'assignee' => $event->assignee?->name,
+                'source' => $event->source,
+            ])
+            ->values()
+            ->all();
+
+        $tasks = AiOrchestratorRun::query()
+            ->where('chat_id', $chat->id)
+            ->whereNotNull('plan')
+            ->latest('id')
+            ->limit(12)
+            ->get(['id', 'status', 'plan', 'created_at'])
+            ->map(function (AiOrchestratorRun $run): ?array {
+                $title = data_get($run->plan, 'task.title');
+                if (! is_string($title) || trim($title) === '') {
+                    return null;
+                }
+
+                $body = data_get($run->plan, 'task.body');
+
+                return [
+                    'id' => $run->id,
+                    'title' => mb_substr(trim($title), 0, 160),
+                    'body' => is_string($body) ? mb_substr(trim($body), 0, 320) : null,
+                    'status' => (string) $run->status,
+                    'created_at' => $run->created_at?->toIso8601String(),
+                ];
+            })
+            ->filter()
+            ->take(5)
+            ->values()
+            ->all();
+
+        return [
+            'events' => $events,
+            'tasks' => $tasks,
+        ];
+    }
+
     /** «Все» / «Мои» в списке чатов — только администратор и руководитель; синхронизируется через query `ownership`. */
+    private function chatListFilter(Request $request): ?string
+    {
+        $filter = $request->input('filter');
+        if ($filter === ChatAttentionService::FILTER_ATTENTION) {
+            return ChatAttentionService::FILTER_ATTENTION;
+        }
+
+        return null;
+    }
+
     private function chatListOwnership(Request $request): string
     {
         $user = $request->user();
@@ -223,6 +357,7 @@ final class ChatController extends Controller
      */
     private function latestAiStatus(Chat $chat, ?User $viewer): ?array
     {
+        $orchestratorHistory = $this->aiOrchestratorHistory($chat);
         $logs = AiResponseLog::query()
             ->where('chat_id', $chat->id)
             ->whereIn('mode', ['auto', 'draft'])
@@ -231,8 +366,28 @@ final class ChatController extends Controller
             ->get(['id', 'mode', 'status', 'error', 'metadata', 'message_id', 'trigger_message_id', 'created_at', 'updated_at']);
         $log = $logs->first();
 
-        if ($log === null) {
+        if ($log === null && $orchestratorHistory === []) {
             return null;
+        }
+        if ($log === null) {
+            return [
+                'id' => 0,
+                'mode' => 'orchestrator',
+                'status' => 'completed',
+                'label' => 'AI вёл сделку',
+                'message' => 'AI-оркестратор уже выполнял действия по этому чату.',
+                'hint' => 'Откройте историю ниже, чтобы увидеть причины и результаты шагов.',
+                'knowledge_context' => $this->aiKnowledgeContextCounts($chat, $viewer),
+                'tone_source' => $this->aiToneSource($chat, $viewer),
+                'draft_reply' => null,
+                'technical_error' => null,
+                'message_id' => null,
+                'trigger_message_id' => $orchestratorHistory[0]['trigger_message_id'] ?? null,
+                'created_at' => $orchestratorHistory[0]['completed_at'] ?? null,
+                'updated_at' => $orchestratorHistory[0]['completed_at'] ?? null,
+                'history' => [],
+                'orchestrator_history' => $orchestratorHistory,
+            ];
         }
 
         $status = (string) $log->status;
@@ -268,7 +423,64 @@ final class ChatController extends Controller
                 ])
                 ->values()
                 ->all(),
+            'orchestrator_history' => $orchestratorHistory,
         ];
+    }
+
+    /**
+     * @return list<array{id: int, status: string, label: string, reason: string|null, confidence: float|null, target_stage: string|null, customer_reply: string|null, task_title: string|null, trigger_message_id: int|null, completed_at: string|null}>
+     */
+    private function aiOrchestratorHistory(Chat $chat): array
+    {
+        return AiOrchestratorRun::query()
+            ->where('chat_id', $chat->id)
+            ->latest('id')
+            ->limit(8)
+            ->get(['id', 'status', 'reason', 'confidence', 'plan', 'trigger_message_id', 'completed_at', 'updated_at'])
+            ->map(fn (AiOrchestratorRun $run): array => [
+                'id' => $run->id,
+                'status' => (string) $run->status,
+                'label' => $this->aiOrchestratorStatusLabel((string) $run->status),
+                'reason' => $run->reason,
+                'confidence' => $run->confidence,
+                'target_stage' => $this->targetStageNameFromPlan($run->plan),
+                'customer_reply' => is_string(data_get($run->plan, 'customer_reply')) ? data_get($run->plan, 'customer_reply') : null,
+                'task_title' => is_string(data_get($run->plan, 'task.title')) ? data_get($run->plan, 'task.title') : null,
+                'trigger_message_id' => $run->trigger_message_id,
+                'completed_at' => ($run->completed_at ?: $run->updated_at)?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function aiOrchestratorStatusLabel(string $status): string
+    {
+        return match ($status) {
+            AiOrchestratorRun::STATUS_PENDING => 'AI ждёт обработки',
+            AiOrchestratorRun::STATUS_RUNNING => 'AI выполняет шаг',
+            AiOrchestratorRun::STATUS_COMPLETED => 'AI выполнил шаг',
+            AiOrchestratorRun::STATUS_NEEDS_MANAGER => 'Нужен менеджер',
+            AiOrchestratorRun::STATUS_SKIPPED => 'AI пропустил шаг',
+            AiOrchestratorRun::STATUS_FAILED => 'AI-оркестратор упал',
+            default => 'AI-оркестратор: '.$status,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $plan
+     */
+    private function targetStageNameFromPlan(?array $plan): ?string
+    {
+        $stageId = (int) data_get($plan, 'target_funnel_stage_id', 0);
+        if ($stageId <= 0) {
+            return null;
+        }
+
+        $stageName = FunnelStage::query()
+            ->whereKey($stageId)
+            ->value('name');
+
+        return is_string($stageName) && trim($stageName) !== '' ? $stageName : 'Этап #'.$stageId;
     }
 
     private function aiStatusLabel(string $status): string
@@ -465,9 +677,123 @@ final class ChatController extends Controller
         ]);
     }
 
+    public function requestManagerAttention(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $note = trim((string) ($data['note'] ?? ''));
+        if ($note === '') {
+            $note = 'Нужно проверить чат клиента.';
+        }
+
+        $this->chatService->logSystemMessage($chat, "Передано менеджеру: {$note} Автор: ".$request->user()->name.'.');
+        $post = $this->createChatTask($request, $chat, 'Проверить клиентский чат', $note);
+
+        return response()->json([
+            'success' => true,
+            'task_id' => $post?->id,
+        ]);
+    }
+
+    public function simulateAi(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'min:2', 'max:2000'],
+            'history' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $message = trim((string) $data['message']);
+        $history = trim((string) ($data['history'] ?? ''));
+
+        try {
+            $result = $this->aiSimulation->simulateForChat($chat, $message, $history);
+        } catch (Throwable $e) {
+            Log::warning('[chat] ai simulation failed', [
+                'chat_id' => $chat->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'AI-симулятор временно недоступен. Попробуйте позже.',
+                'technical_error' => $request->user()?->hasRole('administrator') === true ? $e->getMessage() : null,
+            ], 502);
+        }
+
+        return response()->json([
+            'result' => $result,
+        ]);
+    }
+
+    public function createQuickTask(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $data = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'body' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $title = trim((string) ($data['title'] ?? ''));
+        $body = trim((string) ($data['body'] ?? ''));
+        $title = $title !== '' ? $title : 'Задача по клиентскому чату';
+        $body = $body !== '' ? $body : 'Проверьте чат и выполните следующий шаг по клиенту.';
+
+        $post = $this->createChatTask($request, $chat, $title, $body);
+        $this->chatService->logSystemMessage($chat, "Создана задача: {$title}. Автор: ".$request->user()->name.'.');
+
+        return response()->json([
+            'success' => true,
+            'task_id' => $post?->id,
+        ]);
+    }
+
+    private function createChatTask(Request $request, Chat $chat, string $title, string $body): ?DepartmentPost
+    {
+        $department = $this->taskDepartmentFor($request->user(), $chat);
+        if (! $department instanceof Department) {
+            return null;
+        }
+
+        $post = DepartmentPost::query()->create([
+            'department_id' => $department->id,
+            'author_id' => $request->user()->id,
+            'title' => $title,
+            'body' => $body."\n\nЧат: ".route('chats.show', $chat),
+            'status' => DepartmentPost::STATUS_OPEN,
+            'due_at' => null,
+        ]);
+
+        $assigneeIds = $chat->assignments()->pluck('user_id')->all();
+        if ($assigneeIds !== []) {
+            $post->assignees()->sync($assigneeIds);
+        }
+
+        return $post;
+    }
+
+    private function taskDepartmentFor(User $user, Chat $chat): ?Department
+    {
+        $department = $chat->departments()->where('is_active', true)->orderBy('departments.id')->first();
+        if ($department instanceof Department) {
+            return $department;
+        }
+
+        if ($user->department instanceof Department && $user->department->is_active) {
+            return $user->department;
+        }
+
+        return Department::query()->where('is_active', true)->orderBy('id')->first();
+    }
+
     public function sendMessage(SendMessageRequest $request, Chat $chat): JsonResponse
     {
-        $message = $this->outboundDispatcher->sendTextMessage(
+        $result = $this->outboundDispatcher->sendTextMessage(
             $request->user(),
             $chat,
             [
@@ -476,10 +802,28 @@ final class ChatController extends Controller
                 'quoted_message_id' => $request->input('quoted_message_id'),
                 'mentions' => $request->input('mentions'),
                 'mentions_meta' => $request->input('mentions_meta'),
+                'product_id' => $request->input('product_id'),
             ],
         );
 
-        return response()->json(['success' => true, 'message' => $message]);
+        return response()->json([
+            'success' => true,
+            'message' => $result->message,
+            'tone_profile_learning_scheduled' => $result->toneProfileLearningScheduled,
+        ]);
+    }
+
+    public function products(Request $request, Chat $chat, ProductMessageAttachmentService $products): JsonResponse
+    {
+        $this->authorize('view', $chat);
+
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        return response()->json([
+            'products' => $products->listForChat($chat, $data['q'] ?? null),
+        ]);
     }
 
     public function typing(Request $request, Chat $chat): JsonResponse

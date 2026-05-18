@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\KnowledgeBase\KnowledgeItemRequest;
-use App\Models\Company;
+use App\Jobs\IndexKnowledgeEmbeddingsJob;
 use App\Models\KnowledgeAuditLog;
 use App\Models\KnowledgeRule;
 use App\Models\Product;
@@ -13,11 +13,16 @@ use App\Models\Service;
 use App\Models\SystemSetting;
 use App\Services\AI\KnowledgeContextTextFormatter;
 use App\Services\Knowledge\KnowledgeAuditRecorder;
+use App\Services\Knowledge\KnowledgeCatalogAuditService;
+use App\Services\Knowledge\KnowledgeEmbeddingIndexer;
+use App\Services\Knowledge\KnowledgeRagRetriever;
+use App\Support\TenantCompany;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,6 +31,9 @@ final class KnowledgeBaseController extends Controller
     public function __construct(
         private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
         private readonly KnowledgeAuditRecorder $knowledgeAudit,
+        private readonly KnowledgeRagRetriever $knowledgeRag,
+        private readonly KnowledgeEmbeddingIndexer $knowledgeIndexer,
+        private readonly KnowledgeCatalogAuditService $catalogAudit,
     ) {}
 
     public function products(): Response
@@ -53,7 +61,10 @@ final class KnowledgeBaseController extends Controller
     {
         $this->ensureSectionEnabled('products');
         $product = Product::create($this->productPayload($request->validated()));
+        $this->syncProductImage($request, $product);
+        $product->refresh();
         $this->knowledgeAudit->recordCreated($product->fresh(), 'product', $request->user());
+        $this->queueKnowledgeIndexing((int) $product->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($product)]);
     }
@@ -63,9 +74,11 @@ final class KnowledgeBaseController extends Controller
         $this->ensureSectionEnabled('products');
         $before = $this->knowledgeAudit->snapshot($product, 'product');
         $product->update($this->productPayload($request->validated()));
+        $this->syncProductImage($request, $product);
         $product->refresh();
         $after = $this->knowledgeAudit->snapshot($product, 'product');
         $this->knowledgeAudit->recordUpdated($product, 'product', $request->user(), $before, $after);
+        $this->queueKnowledgeIndexing((int) $product->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($product)]);
     }
@@ -74,7 +87,10 @@ final class KnowledgeBaseController extends Controller
     {
         $this->ensureSectionEnabled('products');
         $this->knowledgeAudit->recordDeleted($product, 'product', $request->user());
+        $this->deleteProductImage($product);
+        $companyId = (int) $product->company_id;
         $product->delete();
+        $this->queueKnowledgeIndexing($companyId);
 
         return response()->json(['success' => true]);
     }
@@ -84,6 +100,7 @@ final class KnowledgeBaseController extends Controller
         $this->ensureSectionEnabled('services');
         $service = Service::create($this->servicePayload($request->validated()));
         $this->knowledgeAudit->recordCreated($service->fresh(), 'service', $request->user());
+        $this->queueKnowledgeIndexing((int) $service->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($service)]);
     }
@@ -96,6 +113,7 @@ final class KnowledgeBaseController extends Controller
         $service->refresh();
         $after = $this->knowledgeAudit->snapshot($service, 'service');
         $this->knowledgeAudit->recordUpdated($service, 'service', $request->user(), $before, $after);
+        $this->queueKnowledgeIndexing((int) $service->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($service)]);
     }
@@ -104,7 +122,9 @@ final class KnowledgeBaseController extends Controller
     {
         $this->ensureSectionEnabled('services');
         $this->knowledgeAudit->recordDeleted($service, 'service', $request->user());
+        $companyId = (int) $service->company_id;
         $service->delete();
+        $this->queueKnowledgeIndexing($companyId);
 
         return response()->json(['success' => true]);
     }
@@ -114,6 +134,7 @@ final class KnowledgeBaseController extends Controller
         $this->ensureSectionEnabled('rules');
         $rule = KnowledgeRule::create($this->rulePayload($request->validated()));
         $this->knowledgeAudit->recordCreated($rule->fresh(), 'rule', $request->user());
+        $this->queueKnowledgeIndexing((int) $rule->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($rule)]);
     }
@@ -126,6 +147,7 @@ final class KnowledgeBaseController extends Controller
         $rule->refresh();
         $after = $this->knowledgeAudit->snapshot($rule, 'rule');
         $this->knowledgeAudit->recordUpdated($rule, 'rule', $request->user(), $before, $after);
+        $this->queueKnowledgeIndexing((int) $rule->company_id);
 
         return response()->json(['success' => true, 'item' => $this->transform($rule)]);
     }
@@ -134,7 +156,9 @@ final class KnowledgeBaseController extends Controller
     {
         $this->ensureSectionEnabled('rules');
         $this->knowledgeAudit->recordDeleted($rule, 'rule', $request->user());
+        $companyId = (int) $rule->company_id;
         $rule->delete();
+        $this->queueKnowledgeIndexing($companyId);
 
         return response()->json(['success' => true]);
     }
@@ -158,7 +182,7 @@ final class KnowledgeBaseController extends Controller
         ]);
 
         $query = KnowledgeAuditLog::query()
-            ->where('company_id', (int) $validated['company_id'])
+            ->where('company_id', TenantCompany::id())
             ->with('user:id,name')
             ->orderByDesc('id');
 
@@ -171,14 +195,78 @@ final class KnowledgeBaseController extends Controller
         return response()->json($paginator);
     }
 
+    public function catalogAudit(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'llm' => ['nullable', 'boolean'],
+            'refresh_llm' => ['nullable', 'boolean'],
+        ]);
+
+        $result = $this->catalogAudit->audit(
+            TenantCompany::id(),
+            (bool) ($validated['llm'] ?? false),
+            (bool) ($validated['refresh_llm'] ?? false),
+        );
+
+        return response()->json($result);
+    }
+
+    public function ragStatus(Request $request): JsonResponse
+    {
+        $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+        ]);
+
+        $companyId = TenantCompany::id();
+
+        return response()->json([
+            'rag' => $this->knowledgeRag->companyStatus($companyId),
+        ]);
+    }
+
+    public function reindexEmbeddings(Request $request): JsonResponse
+    {
+        $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+        ]);
+
+        $companyId = TenantCompany::id();
+
+        if (! config('knowledge.rag.enabled', true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'RAG отключён в конфигурации.',
+            ], 422);
+        }
+
+        if ((string) config('services.openai.api_key') === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Не задан OPENAI_API_KEY для embeddings.',
+            ], 422);
+        }
+
+        $stats = $this->knowledgeIndexer->syncCompany($companyId);
+
+        return response()->json([
+            'success' => true,
+            'stats' => $stats,
+            'rag' => $this->knowledgeRag->companyStatus($companyId),
+        ]);
+    }
+
     public function promptPreview(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'query' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $companyId = (int) $validated['company_id'];
-        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId);
+        $companyId = TenantCompany::id();
+        $query = isset($validated['query']) ? trim((string) $validated['query']) : null;
+        $query = $query !== '' ? $query : null;
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query);
         $full = implode("\n", $lines);
         $displayMax = 45000;
         $truncated = mb_strlen($full) > $displayMax;
@@ -186,11 +274,17 @@ final class KnowledgeBaseController extends Controller
             ? mb_substr($full, 0, $displayMax)."\n\n… (показ обрезан до {$displayMax} символов; в запросе к модели действует отдельный лимит, при большом объёме возможна суммаризация.)"
             : $full;
 
+        $usedRag = $query !== null
+            && $this->knowledgeRag->shouldUseForQuery($query)
+            && str_contains($full, 'Подбор записей: RAG');
+
         return response()->json([
             'text' => $text,
             'truncated' => $truncated,
             'counts' => $this->knowledgeTextFormatter->promptEntryCounts($companyId),
             'hint' => 'Учитываются только активные записи с включённым «В промпте».',
+            'used_rag' => $usedRag,
+            'rag' => $this->knowledgeRag->companyStatus($companyId),
         ]);
     }
 
@@ -226,6 +320,7 @@ final class KnowledgeBaseController extends Controller
             ];
         }
         $this->knowledgeAudit->recordBulkPromptFlag('product', $request->user(), $bulkRows);
+        $this->queueKnowledgeIndexing(TenantCompany::id());
 
         return $this->bulkPromptResponse(
             Product::query()
@@ -268,6 +363,7 @@ final class KnowledgeBaseController extends Controller
             ];
         }
         $this->knowledgeAudit->recordBulkPromptFlag('service', $request->user(), $bulkRows);
+        $this->queueKnowledgeIndexing(TenantCompany::id());
 
         return $this->bulkPromptResponse(
             Service::query()
@@ -310,6 +406,7 @@ final class KnowledgeBaseController extends Controller
             ];
         }
         $this->knowledgeAudit->recordBulkPromptFlag('rule', $request->user(), $bulkRows);
+        $this->queueKnowledgeIndexing(TenantCompany::id());
 
         return $this->bulkPromptResponse(
             KnowledgeRule::query()
@@ -350,15 +447,8 @@ final class KnowledgeBaseController extends Controller
 
     private function render(string $section): Response
     {
-        $companies = Company::query()->orderBy('name')->get(['id', 'name']);
-        if ($companies->isEmpty()) {
-            $companies = collect([
-                Company::create([
-                    'name' => 'Тестовая компания',
-                    'description' => 'Компания по умолчанию для тестовой базы знаний',
-                ])->only(['id', 'name']),
-            ]);
-        }
+        $company = TenantCompany::ensureExists();
+        $companies = collect([$company->only(['id', 'name'])]);
 
         return Inertia::render('Settings/KnowledgeBase', [
             'section' => $section,
@@ -380,6 +470,7 @@ final class KnowledgeBaseController extends Controller
 
         return $query
             ->with('company:id,name')
+            ->where('company_id', TenantCompany::id())
             ->orderBy('company_id')
             ->orderBy($section === 'rules' ? 'priority' : 'sort_order')
             ->orderBy('id')
@@ -393,7 +484,7 @@ final class KnowledgeBaseController extends Controller
     private function productPayload(array $data): array
     {
         return [
-            'company_id' => (int) $data['company_id'],
+            'company_id' => TenantCompany::id(),
             'name' => trim((string) $data['name']),
             'sku' => $this->nullableString($data['sku'] ?? null),
             'description' => $this->nullableString($data['description'] ?? null),
@@ -409,7 +500,7 @@ final class KnowledgeBaseController extends Controller
     private function servicePayload(array $data): array
     {
         return [
-            'company_id' => (int) $data['company_id'],
+            'company_id' => TenantCompany::id(),
             'name' => trim((string) $data['name']),
             'description' => $this->nullableString($data['description'] ?? null),
             'duration_minutes' => $data['duration_minutes'] ?? null,
@@ -425,7 +516,7 @@ final class KnowledgeBaseController extends Controller
     private function rulePayload(array $data): array
     {
         return [
-            'company_id' => (int) $data['company_id'],
+            'company_id' => TenantCompany::id(),
             'title' => trim((string) $data['title']),
             'type' => $this->nullableString($data['type'] ?? null) ?? 'general',
             'content' => trim((string) ($data['content'] ?? '')),
@@ -446,8 +537,42 @@ final class KnowledgeBaseController extends Controller
 
         return [
             ...$item->toArray(),
+            'image_url' => $item instanceof Product && $item->image_path
+                ? Storage::disk('public')->url($item->image_path)
+                : null,
             'company' => $item->getRelation('company'),
         ];
+    }
+
+    private function syncProductImage(KnowledgeItemRequest $request, Product $product): void
+    {
+        if ($request->boolean('remove_image')) {
+            $this->deleteProductImage($product);
+        }
+
+        if (! $request->hasFile('image')) {
+            return;
+        }
+
+        $this->deleteProductImage($product);
+
+        $path = $request
+            ->file('image')
+            ?->store("knowledge/products/{$product->id}", 'public');
+
+        if ($path !== null && $path !== false) {
+            $product->forceFill(['image_path' => $path])->save();
+        }
+    }
+
+    private function deleteProductImage(Product $product): void
+    {
+        if (! $product->image_path) {
+            return;
+        }
+
+        Storage::disk('public')->delete($product->image_path);
+        $product->forceFill(['image_path' => null])->save();
     }
 
     private function nullableString(mixed $value): ?string
@@ -455,5 +580,14 @@ final class KnowledgeBaseController extends Controller
         $value = trim((string) ($value ?? ''));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function queueKnowledgeIndexing(int $companyId): void
+    {
+        if (! config('knowledge.rag.enabled', true)) {
+            return;
+        }
+
+        IndexKnowledgeEmbeddingsJob::dispatch($companyId);
     }
 }

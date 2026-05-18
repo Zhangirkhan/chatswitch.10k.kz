@@ -9,7 +9,9 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Models\MessageMedia;
+use App\Services\Contact\ContactCardCrmService;
 use App\Support\PhoneFormatter;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -23,9 +25,7 @@ final class ContactController extends Controller
     public function settingsIndex(Request $request): Response
     {
         $search = trim((string) $request->input('search', ''));
-        $activeTab = in_array($request->input('tab'), ['clients', 'companies'], true)
-            ? (string) $request->input('tab')
-            : 'clients';
+        $activeTab = 'clients';
         $clientsPage = max(1, (int) $request->input('clients_page', 1));
         $companiesPage = max(1, (int) $request->input('companies_page', 1));
         $clientsPerPage = 20;
@@ -67,6 +67,7 @@ final class ContactController extends Controller
             ]);
 
         $companiesQuery = Company::query()
+            ->whereKey(TenantCompany::id())
             ->with(['contacts:id,name,push_name,phone_number'])
             ->withCount('contacts')
             ->orderBy('name');
@@ -112,6 +113,7 @@ final class ContactController extends Controller
         ]);
 
         $companyOptions = Company::query()
+            ->whereKey(TenantCompany::id())
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Company $company) => [
@@ -284,8 +286,15 @@ final class ContactController extends Controller
 
         $contactIds = $this->contactBucketIds($contact);
 
+        $preferredChatId = $request->filled('chat_id') ? $request->integer('chat_id') : null;
+
         $chats = Chat::query()
-            ->with('whatsappSession:id,session_name,display_name,phone_number,status')
+            ->with([
+                'whatsappSession:id,session_name,display_name,phone_number,status',
+                'funnel:id,name,color',
+                'funnelStage:id,name,color,position,funnel_id',
+                'assignments.user:id,name',
+            ])
             ->whereIn('contact_id', $contactIds)
             ->where('is_group', false)
             ->orderByDesc('last_message_at')
@@ -299,6 +308,13 @@ final class ContactController extends Controller
                 'last_message_direction',
                 'is_archived',
                 'unread_count',
+                'funnel_id',
+                'funnel_stage_id',
+                'ai_enabled',
+                'ai_mode',
+                'ai_orchestrator_status',
+                'ai_orchestrator_last_summary',
+                'funnel_ai_last_reason',
             ])
             ->filter(fn (Chat $chat): bool => $user->can('view', $chat))
             ->values();
@@ -344,9 +360,17 @@ final class ContactController extends Controller
                         ->where('mime_type', 'not like', 'video/%');
                 })
                 ->count();
-            $mediaCounts['links'] = (clone $messagesBase)
-                ->where('body', 'regexp', 'https?://|www\\.')
-                ->count();
+            $linksQuery = clone $messagesBase;
+            if (DB::connection()->getDriverName() === 'sqlite') {
+                $linksQuery->where(function ($q): void {
+                    $q->where('body', 'like', '%http://%')
+                        ->orWhere('body', 'like', '%https://%')
+                        ->orWhere('body', 'like', '%www.%');
+                });
+            } else {
+                $linksQuery->where('body', 'regexp', 'https?://|www\\.');
+            }
+            $mediaCounts['links'] = $linksQuery->count();
         }
 
         $contacts = Contact::query()
@@ -409,6 +433,7 @@ final class ContactController extends Controller
                     'open_url' => route('chats.show', $chat->id),
                 ];
             })->all(),
+            'crm' => app(ContactCardCrmService::class)->build($chats, $contactIds, $preferredChatId ?: null),
         ]);
     }
 
@@ -459,6 +484,7 @@ final class ContactController extends Controller
 
         $contactIds = $this->contactBucketIds($contact);
         $payload = collect($data['companies'] ?? [])
+            ->filter(fn (array $row): bool => (int) $row['company_id'] === TenantCompany::id())
             ->mapWithKeys(function (array $row): array {
                 $position = trim((string) ($row['position'] ?? ''));
 
@@ -480,6 +506,7 @@ final class ContactController extends Controller
         return response()->json([
             'success' => true,
             'companies' => Company::query()
+                ->whereKey(TenantCompany::id())
                 ->whereIn('id', array_keys($payload))
                 ->orderBy('name')
                 ->get(['id', 'name'])

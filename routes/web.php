@@ -24,6 +24,7 @@ use App\Http\Controllers\LinkPreviewController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MessageTranslationController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationTeamChatController;
 use App\Http\Controllers\ProfileController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WhatsappSessionController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -47,8 +49,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', fn () => redirect()->route('chats.index'))->name('dashboard');
 
     // Visual stubs (WhatsApp Web parity)
-    Route::get('/status', fn () => Inertia::render('Status/Index'))->name('status.index');
-    Route::get('/channels', fn () => Inertia::render('Channels/Index'))->name('channels.index');
+    Route::get('/status', function (Request $request) {
+        return Inertia::render('Status/Index', [
+            'canManageConnections' => $request->user()?->hasRole('administrator') === true,
+        ]);
+    })->name('status.index');
+    Route::get('/channels', function (Request $request) {
+        return Inertia::render('Channels/Index', [
+            'canManageConnections' => $request->user()?->hasRole('administrator') === true,
+        ]);
+    })->name('channels.index');
 
     Route::middleware('role:administrator,manager,employee')->group(function (): void {
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
@@ -65,6 +75,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats/{chat}/participants', [ChatController::class, 'groupParticipants'])->name('chats.group-participants');
         Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chats.show');
         Route::post('/chats/{chat}/send-message', [ChatController::class, 'sendMessage'])->name('chats.send-message');
+        Route::get('/chats/{chat}/products', [ChatController::class, 'products'])->name('chats.products');
         Route::get('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'index'])->name('chats.scheduled-messages.index');
         Route::post('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'store'])->name('chats.scheduled-messages.store');
         Route::put('/chats/{chat}/scheduled-messages/{scheduledMessage}', [ScheduledMessageController::class, 'update'])->name('chats.scheduled-messages.update');
@@ -80,6 +91,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/chats/{chat}/toggle-unread', [ChatController::class, 'toggleUnread'])->name('chats.toggle-unread');
         Route::post('/chats/{chat}/clear', [ChatController::class, 'clear'])->name('chats.clear');
         Route::post('/chats/{chat}/save-contact', [ChatController::class, 'saveContact'])->name('chats.save-contact');
+        Route::post('/chats/{chat}/manager-attention', [ChatController::class, 'requestManagerAttention'])->name('chats.manager-attention');
+        Route::post('/chats/{chat}/quick-task', [ChatController::class, 'createQuickTask'])->name('chats.quick-task');
         Route::get('/chats/{chat}/media-links-documents', [ChatController::class, 'mediaLinksDocuments'])->name('chats.media-links-documents');
         Route::post('/chats/{chat}/departments', [ChatController::class, 'syncDepartments'])->name('chats.departments.sync');
         Route::get('/chats/{chat}/departments/history', [ChatController::class, 'departmentHistory'])->name('chats.departments.history');
@@ -89,6 +102,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->middleware('throttle:30,1')
             ->name('chats.ai.chat');
         Route::patch('/chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])->name('chats.ai.update');
+        Route::post('/chats/{chat}/ai-simulate', [ChatController::class, 'simulateAi'])
+            ->middleware('throttle:20,1')
+            ->name('chats.ai-simulate');
 
         Route::post('/chats/{chat}/upload-file', [ChatController::class, 'uploadFile'])->name('chats.upload-file');
         Route::post('/chats/{chat}/send-contact', [ChatController::class, 'sendContact'])->name('chats.send-contact');
@@ -181,11 +197,14 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/funnels', [FunnelController::class, 'index'])->name('settings.funnels');
         Route::post('/funnels/ai-suggest', [FunnelController::class, 'aiSuggest'])->name('settings.funnels.ai-suggest');
         Route::post('/funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest'])->name('settings.funnels.ai-onboarding-suggest');
+        Route::post('/funnels/from-template', [FunnelController::class, 'storeTemplate'])->name('settings.funnels.templates.store');
         Route::post('/funnels', [FunnelController::class, 'store'])->name('settings.funnels.store');
         Route::put('/funnels/{funnel}', [FunnelController::class, 'update'])->name('settings.funnels.update');
+        Route::put('/funnels/{funnel}/ai-scenario', [FunnelController::class, 'updateAiScenario'])->name('settings.funnels.ai-scenario.update');
         Route::delete('/funnels/{funnel}', [FunnelController::class, 'destroy'])->name('settings.funnels.destroy');
         Route::post('/funnels/{funnel}/stages', [FunnelController::class, 'storeStage'])->name('settings.funnels.stages.store');
         Route::put('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'updateStage'])->name('settings.funnels.stages.update');
+        Route::put('/funnels/{funnel}/stages/{stage}/ai-rule', [FunnelController::class, 'updateStageAiRule'])->name('settings.funnels.stages.ai-rule.update');
         Route::delete('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'destroyStage'])->name('settings.funnels.stages.destroy');
         Route::post('/funnels/{funnel}/stages/reorder', [FunnelController::class, 'reorderStages'])->name('settings.funnels.stages.reorder');
 
@@ -200,8 +219,17 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('settings.companies.update');
         Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('settings.companies.destroy');
 
+        Route::get('/onboarding', [OnboardingController::class, 'index'])->name('settings.onboarding');
+        Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('settings.onboarding.complete');
+
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
+        Route::post('/ai-quality/simulate', [AiInsightsController::class, 'simulate'])
+            ->middleware('throttle:20,1')
+            ->name('settings.ai-quality.simulate');
         Route::get('/knowledge/prompt-preview', [KnowledgeBaseController::class, 'promptPreview'])->name('settings.knowledge.prompt-preview');
+        Route::get('/knowledge/catalog-audit', [KnowledgeBaseController::class, 'catalogAudit'])->name('settings.knowledge.catalog-audit');
+        Route::get('/knowledge/rag-status', [KnowledgeBaseController::class, 'ragStatus'])->name('settings.knowledge.rag-status');
+        Route::post('/knowledge/reindex-embeddings', [KnowledgeBaseController::class, 'reindexEmbeddings'])->name('settings.knowledge.reindex-embeddings');
         Route::get('/knowledge/audit', [KnowledgeBaseController::class, 'audit'])->name('settings.knowledge.audit');
         Route::get('/knowledge/products', [KnowledgeBaseController::class, 'products'])->name('settings.knowledge.products');
         Route::post('/knowledge/products', [KnowledgeBaseController::class, 'storeProduct'])->name('settings.knowledge.products.store');

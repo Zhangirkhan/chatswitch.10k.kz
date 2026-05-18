@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\SystemSetting;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Support\QuickReactions;
+use App\Support\SlaReminderSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,7 @@ final class SettingsController extends Controller
     {
         $settings = collect(AppointmentReminderSettings::defaults())
             ->merge(QuickReactions::defaults())
+            ->merge(SlaReminderSettings::defaults())
             ->merge(SystemSetting::all()->pluck('value', 'key'));
 
         return Inertia::render('Settings/System', [
@@ -73,6 +75,33 @@ final class SettingsController extends Controller
             }
 
             $settings[AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY] = (string) $minutes;
+        }
+
+        if (array_key_exists(SlaReminderSettings::ENABLED_KEY, $settings)) {
+            $enabled = $settings[SlaReminderSettings::ENABLED_KEY];
+            if (! in_array($enabled, ['on', 'off'], true)) {
+                throw ValidationException::withMessages([
+                    SlaReminderSettings::ENABLED_KEY => 'Выберите, включены ли SLA-напоминания.',
+                ]);
+            }
+        }
+
+        if (array_key_exists(SlaReminderSettings::MINUTES_KEY, $settings)) {
+            $raw = $settings[SlaReminderSettings::MINUTES_KEY];
+            if (! is_numeric($raw)) {
+                throw ValidationException::withMessages([
+                    SlaReminderSettings::MINUTES_KEY => 'Укажите время ожидания в минутах.',
+                ]);
+            }
+
+            $minutes = (int) $raw;
+            if ($minutes < SlaReminderSettings::MIN_MINUTES || $minutes > SlaReminderSettings::MAX_MINUTES) {
+                throw ValidationException::withMessages([
+                    SlaReminderSettings::MINUTES_KEY => 'Время ожидания: от '.SlaReminderSettings::MIN_MINUTES.' до '.SlaReminderSettings::MAX_MINUTES.' минут.',
+                ]);
+            }
+
+            $settings[SlaReminderSettings::MINUTES_KEY] = (string) $minutes;
         }
 
         if (array_key_exists(QuickReactions::KEY, $settings)) {

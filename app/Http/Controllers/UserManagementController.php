@@ -11,6 +11,7 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Support\PhoneFormatter;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -81,7 +82,7 @@ final class UserManagementController extends Controller
                 'status' => in_array($status, ['active', 'inactive'], true) ? $status : '',
             ],
             'departments' => $departments,
-            'companies' => Company::query()->orderBy('name')->get(['id', 'name']),
+            'companies' => Company::query()->whereKey(TenantCompany::id())->get(['id', 'name']),
             'whatsappSessions' => $whatsappSessions,
             'availableRoles' => ['administrator', 'manager', 'employee'],
         ]);
@@ -114,7 +115,7 @@ final class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $phonesList[0] ?? null,
             'phones' => $phonesList !== [] ? $phonesList : null,
-            'company_id' => $validated['company_id'] ?? null,
+            'company_id' => TenantCompany::id(),
             'password' => $validated['password'],
             'is_active' => true,
         ]);
@@ -137,7 +138,7 @@ final class UserManagementController extends Controller
             'email' => $validated['email'],
             'phone' => $phonesList[0] ?? null,
             'phones' => $phonesList !== [] ? $phonesList : null,
-            'company_id' => $validated['company_id'] ?? null,
+            'company_id' => TenantCompany::id(),
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ]);
 

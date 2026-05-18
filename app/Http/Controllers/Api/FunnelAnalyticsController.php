@@ -9,13 +9,19 @@ use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\Funnel\FunnelConversionAnalyticsService;
 use App\Support\TenantCompany;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 final class FunnelAnalyticsController extends Controller
 {
+    public function __construct(
+        private readonly FunnelConversionAnalyticsService $conversionAnalytics,
+    ) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         abort_unless(
@@ -29,9 +35,15 @@ final class FunnelAnalyticsController extends Controller
 
         $validated = $request->validate([
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
+            'employee_id' => ['nullable', 'integer', 'exists:users,id'],
+            'funnel_id' => ['nullable', 'integer', 'exists:funnels,id'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
         $departmentId = isset($validated['department_id']) ? (int) $validated['department_id'] : null;
+        $employeeId = isset($validated['employee_id']) ? (int) $validated['employee_id'] : null;
+        $funnelId = isset($validated['funnel_id']) ? (int) $validated['funnel_id'] : null;
         $allowedDepartmentIds = $this->allowedDepartmentIds($user);
 
         if ($departmentId !== null && ! in_array($departmentId, $allowedDepartmentIds, true)) {
@@ -115,6 +127,22 @@ final class FunnelAnalyticsController extends Controller
         $totalStages = $rows->sum('stages_count');
         $selectedStages = $rows->sum('selected_stages_count');
 
+        $from = isset($validated['from'])
+            ? Carbon::parse((string) $validated['from'])->startOfDay()
+            : now()->subDays(7)->startOfDay();
+        $to = isset($validated['to'])
+            ? Carbon::parse((string) $validated['to'])->endOfDay()
+            : now()->endOfDay();
+
+        $conversion = $this->conversionAnalytics->build(
+            $user,
+            $from,
+            $to,
+            $funnelId,
+            $departmentId,
+            $employeeId,
+        );
+
         return response()->json([
             'summary' => [
                 'total_funnels' => $rows->count(),
@@ -124,8 +152,12 @@ final class FunnelAnalyticsController extends Controller
                 'selected_stages' => $selectedStages,
                 'departments_in_scope' => count($scopeDepartmentIds),
                 'stage_coverage_percent' => $totalStages > 0 ? round($selectedStages * 100 / $totalStages, 1) : null,
+                'tracked_chats' => $conversion['summary']['tracked_chats'],
+                'total_transitions' => $conversion['summary']['total_transitions'],
+                'funnels_with_conversion_data' => $conversion['summary']['funnels_with_data'],
             ],
             'funnels' => $rows,
+            'conversion' => $conversion,
         ]);
     }
 

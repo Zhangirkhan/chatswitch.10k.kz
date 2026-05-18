@@ -9,15 +9,20 @@ use App\Jobs\AnalyzeEmployeeToneProfileJob;
 use App\Jobs\GenerateAiReplyJob;
 use App\Models\AiResponseLog;
 use App\Models\Chat;
-use App\Models\Company;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\AiReadinessService;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 final class ChatAiSettingsController extends Controller
 {
+    public function __construct(
+        private readonly AiReadinessService $readinessService,
+    ) {}
+
     public function update(Request $request, Chat $chat): JsonResponse
     {
         $this->authorize('manageAi', $chat);
@@ -27,13 +32,29 @@ final class ChatAiSettingsController extends Controller
             'ai_mode' => ['nullable', Rule::in(['auto', 'draft'])],
             'ai_responder_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'confirm_risky_enable' => ['sometimes', 'boolean'],
         ]);
 
         $user = $request->user();
         $responder = $this->resolveResponder($chat, $user, $validated['ai_responder_user_id'] ?? null);
-        $companyId = $this->resolveCompanyId($chat, $responder, $user, $validated['company_id'] ?? null);
+        $companyId = $this->resolveCompanyId();
 
         $aiEnabled = (bool) $validated['ai_enabled'];
+        $wasEnabled = (bool) $chat->ai_enabled;
+
+        if ($aiEnabled && ! $wasEnabled && ! (bool) ($validated['confirm_risky_enable'] ?? false)) {
+            $warnings = $this->enableWarnings($chat, $responder);
+            if ($warnings !== []) {
+                return response()->json([
+                    'success' => false,
+                    'requires_confirmation' => true,
+                    'message' => 'Перед включением AI проверьте готовность системы.',
+                    'warnings' => $warnings,
+                    'readiness' => $this->readinessService->evaluate($companyId),
+                    'settings_url' => route('settings.ai-quality'),
+                ], 422);
+            }
+        }
 
         $chat->forceFill([
             'ai_enabled' => $aiEnabled,
@@ -58,6 +79,20 @@ final class ChatAiSettingsController extends Controller
             'success' => true,
             'chat' => $chat,
         ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function enableWarnings(Chat $chat, ?User $responder): array
+    {
+        $warnings = $this->readinessService->enableBlockers((int) $chat->company_id);
+
+        if ($responder === null) {
+            $warnings[] = 'Не выбран ответственный сотрудник, от имени которого AI будет отвечать.';
+        }
+
+        return array_values(array_unique($warnings));
     }
 
     private function resolveResponder(Chat $chat, User $actor, mixed $requestedUserId): ?User
@@ -96,16 +131,9 @@ final class ChatAiSettingsController extends Controller
         return $chat->assignments()->with('user')->first()?->user;
     }
 
-    private function resolveCompanyId(Chat $chat, ?User $responder, User $actor, mixed $requestedCompanyId): ?int
+    private function resolveCompanyId(): int
     {
-        if ($requestedCompanyId !== null && Company::query()->whereKey((int) $requestedCompanyId)->exists()) {
-            return (int) $requestedCompanyId;
-        }
-
-        return $chat->company_id
-            ?? $responder?->company_id
-            ?? $actor->company_id
-            ?? Company::query()->orderBy('id')->value('id');
+        return TenantCompany::id();
     }
 
     private function dispatchReplyForLatestUnansweredInbound(Chat $chat): void
