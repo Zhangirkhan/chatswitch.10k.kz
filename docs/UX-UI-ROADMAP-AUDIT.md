@@ -57,7 +57,7 @@
 |---|---------|--------|----------|--------------|
 | 21 | Шаблоны отраслевых воронок | ✅ | 7 шаблонов, включая **«Мебель / кухни»** в `FunnelController::industryTemplates()`. | — |
 | 22 | Автогенерация воронки по описанию бизнеса | ✅ | `FunnelAiWizard.vue`, `POST settings/funnels/ai-onboarding-suggest`, `FunnelAiSuggestionService`. Тесты `FunnelAiOnboardingTest`. | — |
-| 23 | Автоаудит базы знаний (противоречия, дубли, цены) | 🟡 | Эвристики + опциональный **`KnowledgeCatalogLlmAuditService`** (чекбокс «AI-анализ»). API `catalog-audit?llm=1`. | Сверка цен с историей чатов; авто-аудит по расписанию. |
+| 23 | Автоаудит базы знаний (противоречия, дубли, цены) | 🟡 | Эвристики + опциональный **`KnowledgeCatalogLlmAuditService`** (чекбокс «AI-анализ»). API `catalog-audit?llm=1`. Cron `knowledge:catalog-audit` в `routes/console.php` (воскресенье 03:05, только эвристики, лог). | Сверка цен с историей чатов. |
 | 24 | RAG-поиск по БЗ | ✅ | `knowledge_chunks`, indexer/retriever, fallback на полный дамп, `PromptBuilder` с вопросом клиента; UI: переиндексация, тест вопроса, подсказка «каталог изменён» после правок. Cron `knowledge:index-embeddings` в `routes/console.php` (04:30, при `KNOWLEDGE_RAG_ENABLED`). | — |
 | 25 | Антизацикливание AI | ✅ | `AiFunnelOrchestratorService::normalizeRepeatedQuestion()` — similarity ≥0.72 → stop + задача менеджеру. | — |
 | 26 | SLA и напоминания | ✅ | `SlaReminderService`, cron `chats:sla-reminders`, organization posts. **`SlaReminderSettings`** + блок «SLA в чатах» в `Settings/System.vue` (вкл/выкл, 5–120 мин). | — |
