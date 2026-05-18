@@ -81,3 +81,9 @@ Schedule::command('knowledge:index-embeddings')
     ->when(fn (): bool => (bool) config('knowledge.rag.enabled', true))
     ->withoutOverlapping()
     ->runInBackground();
+
+// БЗ: еженедельный эвристический аудит каталога (без LLM) — сводка в лог.
+Schedule::command('knowledge:catalog-audit')
+    ->weeklyOn(0, '3:05')
+    ->withoutOverlapping()
+    ->runInBackground();
