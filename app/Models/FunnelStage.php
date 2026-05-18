@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Этап воронки продаж. Принадлежит ровно одной воронке (см. {@see Funnel}).
@@ -21,6 +22,7 @@ final class FunnelStage extends Model
         'funnel_id',
         'name',
         'color',
+        'stage_type',
         'position',
         'is_active',
     ];
@@ -49,5 +51,13 @@ final class FunnelStage extends Model
     {
         return $this->belongsToMany(Department::class, 'department_funnel_stage')
             ->withTimestamps();
+    }
+
+    /**
+     * @return HasOne<FunnelStageAiRule, $this>
+     */
+    public function aiRule(): HasOne
+    {
+        return $this->hasOne(FunnelStageAiRule::class);
     }
 }

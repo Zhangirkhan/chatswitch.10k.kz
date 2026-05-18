@@ -43,6 +43,10 @@ final class Chat extends Model
         'funnel_ai_last_analyzed_at',
         'funnel_ai_last_message_id',
         'funnel_ai_last_reason',
+        'ai_orchestrator_status',
+        'ai_orchestrator_last_run_id',
+        'ai_orchestrator_last_action_at',
+        'ai_orchestrator_last_summary',
     ];
 
     protected function casts(): array
@@ -59,6 +63,7 @@ final class Chat extends Model
             'last_message_at' => 'datetime',
             'muted_until' => 'datetime',
             'funnel_ai_last_analyzed_at' => 'datetime',
+            'ai_orchestrator_last_action_at' => 'datetime',
         ];
     }
 
@@ -151,5 +156,13 @@ final class Chat extends Model
     public function funnelTransitions(): HasMany
     {
         return $this->hasMany(ChatFunnelTransition::class)->orderByDesc('created_at');
+    }
+
+    /**
+     * @return HasMany<ScheduledMessage>
+     */
+    public function scheduledMessages(): HasMany
+    {
+        return $this->hasMany(ScheduledMessage::class);
     }
 }

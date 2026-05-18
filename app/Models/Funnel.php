@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Воронка продаж — справочник «контейнер для этапов». Этапы создаются вручную
@@ -53,6 +54,22 @@ final class Funnel extends Model
     public function stages(): HasMany
     {
         return $this->hasMany(FunnelStage::class)->orderBy('position');
+    }
+
+    /**
+     * @return HasMany<FunnelStageAiRule>
+     */
+    public function stageAiRules(): HasMany
+    {
+        return $this->hasMany(FunnelStageAiRule::class);
+    }
+
+    /**
+     * @return HasOne<FunnelAiScenario, $this>
+     */
+    public function aiScenario(): HasOne
+    {
+        return $this->hasOne(FunnelAiScenario::class);
     }
 
     /**

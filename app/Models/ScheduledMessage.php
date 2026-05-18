@@ -24,12 +24,15 @@ final class ScheduledMessage extends Model
 
     public const PURPOSE_APPOINTMENT_REMINDER = 'appointment_reminder';
 
+    public const PURPOSE_FUNNEL_FOLLOW_UP = 'funnel_follow_up';
+
     protected $fillable = [
         'chat_id',
         'whatsapp_session_id',
         'user_id',
         'calendar_event_id',
         'purpose',
+        'funnel_stage_id',
         'body',
         'display_body',
         'scheduled_at',
@@ -42,7 +45,13 @@ final class ScheduledMessage extends Model
     {
         return [
             'scheduled_at' => 'datetime',
+            'funnel_stage_id' => 'integer',
         ];
+    }
+
+    public function funnelStage(): BelongsTo
+    {
+        return $this->belongsTo(FunnelStage::class, 'funnel_stage_id');
     }
 
     public function chat(): BelongsTo
