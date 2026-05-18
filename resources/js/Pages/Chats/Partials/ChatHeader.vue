@@ -11,6 +11,13 @@ import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
 
 type MenuPos = { top: number; right: number };
+type AiRiskyEnableModalState = {
+    message: string;
+    warnings: string[];
+    readinessScore: number | null;
+    settingsUrl: string;
+};
+
 type AiStatus = {
     id: number;
     mode: string;
@@ -432,21 +439,20 @@ async function toggleAi(): Promise<void> {
     } catch (e: any) {
         const data = e?.response?.data;
         if (enabling && data?.requires_confirmation) {
-            const warnings = Array.isArray(data.warnings) ? data.warnings.join('\n• ') : '';
-            const readinessScore = data.readiness?.score;
-            const scoreLine = typeof readinessScore === 'number' ? `\n\nГотовность AI: ${readinessScore}%.` : '';
+            const rawWarnings = Array.isArray(data.warnings) ? data.warnings : [];
+            const warnings = rawWarnings.filter((w: unknown): w is string => typeof w === 'string' && w.trim() !== '');
+            const readinessScore = typeof data.readiness?.score === 'number' ? data.readiness.score : null;
             const settingsUrl = typeof data.settings_url === 'string' ? data.settings_url : route('settings.ai-quality');
-            const proceed = window.confirm(
-                `${data.message || 'Перед включением AI проверьте готовность.'}${scoreLine}\n\n• ${warnings}\n\nВключить AI всё равно?`,
-            );
-            if (!proceed) {
-                return;
-            }
-            try {
-                await patchAiSettings({ ai_enabled: true, confirm_risky_enable: true });
-            } catch (retryError: any) {
-                alert(retryError?.response?.data?.message || 'Не удалось включить AI.');
-            }
+            const message =
+                typeof data.message === 'string' && data.message.trim() !== ''
+                    ? data.message
+                    : 'Перед включением AI проверьте готовность.';
+            openAiRiskyEnableModal({
+                message,
+                warnings,
+                readinessScore,
+                settingsUrl,
+            });
             return;
         }
         alert(data?.message || 'Не удалось переключить AI.');
@@ -457,6 +463,39 @@ async function toggleAi(): Promise<void> {
 
 const quickTaskLoading = ref(false);
 const aiSimulatorOpen = ref(false);
+
+const aiRiskyEnableModalOpen = ref(false);
+const aiRiskyEnableModal = ref<AiRiskyEnableModalState | null>(null);
+const aiRiskyEnableConfirming = ref(false);
+
+function openAiRiskyEnableModal(state: AiRiskyEnableModalState): void {
+    aiRiskyEnableModal.value = state;
+    aiRiskyEnableModalOpen.value = true;
+}
+
+function closeAiRiskyEnableModal(): void {
+    if (aiRiskyEnableConfirming.value) {
+        return;
+    }
+    aiRiskyEnableModalOpen.value = false;
+    aiRiskyEnableModal.value = null;
+}
+
+async function confirmAiRiskyEnable(): Promise<void> {
+    if (!aiRiskyEnableModal.value) {
+        return;
+    }
+    aiRiskyEnableConfirming.value = true;
+    try {
+        await patchAiSettings({ ai_enabled: true, confirm_risky_enable: true });
+        aiRiskyEnableModalOpen.value = false;
+        aiRiskyEnableModal.value = null;
+    } catch (retryError: any) {
+        alert(retryError?.response?.data?.message || 'Не удалось включить AI.');
+    } finally {
+        aiRiskyEnableConfirming.value = false;
+    }
+}
 
 async function createQuickTask(): Promise<void> {
     if (quickTaskLoading.value) {
@@ -734,6 +773,10 @@ function toggleMenu() {
 
 function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+        if (aiRiskyEnableModalOpen.value) {
+            closeAiRiskyEnableModal();
+            return;
+        }
         if (assignmentHistoryModalOpen.value) {
             closeAssignmentHistoryModal();
             return;
@@ -2531,6 +2574,83 @@ async function saveFunnelModal() {
                                 <div v-else class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей</div>
                             </div>
                         </template>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
+            <div
+                v-if="aiRiskyEnableModalOpen && aiRiskyEnableModal"
+                class="fixed inset-0 z-[1210] flex items-center justify-center bg-black/55 p-4"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="ai-risky-enable-title"
+                @click.self="closeAiRiskyEnableModal"
+            >
+                <div
+                    class="w-full max-w-[480px] max-h-[min(90vh,640px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                >
+                    <div class="px-5 py-4 flex items-start justify-between gap-3 border-b" :style="{ borderColor: 'var(--wa-border)' }">
+                        <div class="min-w-0">
+                            <h3 id="ai-risky-enable-title" class="text-base font-semibold text-[var(--wa-text)]">
+                                Включить AI при низкой готовности?
+                            </h3>
+                            <p v-if="aiRiskyEnableModal.readinessScore != null" class="mt-1 text-sm text-[var(--wa-text-secondary)]">
+                                Готовность AI: {{ aiRiskyEnableModal.readinessScore }}%
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] disabled:opacity-40"
+                            aria-label="Закрыть"
+                            :disabled="aiRiskyEnableConfirming"
+                            @click="closeAiRiskyEnableModal"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="px-5 py-4 space-y-4 overflow-y-auto wa-scrollbar text-sm text-[var(--wa-text)]">
+                        <p class="leading-relaxed">{{ aiRiskyEnableModal.message }}</p>
+                        <div v-if="aiRiskyEnableModal.warnings.length > 0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-secondary)] mb-2">Замечания</p>
+                            <ul class="list-disc pl-5 space-y-1.5 text-[var(--wa-text)]">
+                                <li v-for="(w, i) in aiRiskyEnableModal.warnings" :key="i">{{ w }}</li>
+                            </ul>
+                        </div>
+                        <Link
+                            :href="aiRiskyEnableModal.settingsUrl"
+                            class="inline-flex text-sm font-medium text-[var(--wa-accent)] hover:underline"
+                            @click="closeAiRiskyEnableModal"
+                        >
+                            Открыть проверку готовности AI
+                        </Link>
+                    </div>
+
+                    <div
+                        class="px-5 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t"
+                        :style="{ borderColor: 'var(--wa-border)' }"
+                    >
+                        <button
+                            type="button"
+                            class="py-2.5 px-4 rounded-xl text-sm font-medium border border-[var(--wa-border)] text-[var(--wa-text)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-50"
+                            :disabled="aiRiskyEnableConfirming"
+                            @click="closeAiRiskyEnableModal"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            class="py-2.5 px-4 rounded-xl text-sm font-medium text-white bg-[var(--wa-accent)] hover:opacity-95 disabled:opacity-50"
+                            :disabled="aiRiskyEnableConfirming"
+                            @click="confirmAiRiskyEnable"
+                        >
+                            {{ aiRiskyEnableConfirming ? 'Включение…' : 'Включить AI всё равно' }}
+                        </button>
                     </div>
                 </div>
             </div>
