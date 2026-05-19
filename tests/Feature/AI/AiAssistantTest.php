@@ -25,15 +25,14 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\AI\AiAppointmentIntentService;
-use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\PromptBuilder;
 use App\Services\AI\ToneProfileAnalyzer;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
-use App\Services\OutboundChatMessageDispatcher;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -150,6 +149,53 @@ final class AiAssistantTest extends TestCase
         $this->assertStringContainsString('Полная история чата', $prompt);
         $this->assertStringContainsString('full-history-message-1', $prompt);
         $this->assertStringContainsString('full-history-message-45', $prompt);
+    }
+
+    public function test_prompt_compression_caches_long_conversation_summary(): void
+    {
+        Cache::flush();
+
+        $company = Company::create(['name' => 'Company']);
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        $longBody = str_repeat('Длинное сообщение клиента о товаре и цене. ', 40);
+        for ($i = 1; $i <= 120; $i++) {
+            Message::create([
+                'chat_id' => $chat->id,
+                'whatsapp_session_id' => $session->id,
+                'direction' => $i % 2 === 0 ? 'outbound' : 'inbound',
+                'type' => 'chat',
+                'body' => "{$longBody} #{$i}",
+                'sent_by_user_id' => $i % 2 === 0 ? $user->id : null,
+                'ack' => 'delivered',
+                'message_timestamp' => now()->addSeconds($i),
+            ]);
+        }
+
+        $openAiCalls = 0;
+        Http::fake(function () use (&$openAiCalls) {
+            $openAiCalls++;
+
+            return Http::response([
+                'choices' => [
+                    ['message' => ['content' => 'Сжатая сводка переписки для теста.']],
+                ],
+            ], 200);
+        });
+
+        $builder = app(PromptBuilder::class);
+        $builder->build($chat, $user, 'Ответь');
+        $callsAfterFirst = $openAiCalls;
+        $builder->build($chat, $user, 'Ответь снова');
+        $callsAfterSecond = $openAiCalls;
+
+        $this->assertGreaterThan(0, $callsAfterFirst);
+        $this->assertSame($callsAfterFirst, $callsAfterSecond);
     }
 
     public function test_prompt_builder_excludes_previous_ai_replies_from_history(): void
@@ -483,8 +529,8 @@ final class AiAssistantTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $this->assertDatabaseHas('ai_response_logs', [
             'chat_id' => $chat->id,
@@ -539,8 +585,8 @@ final class AiAssistantTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $this->assertDatabaseHas('ai_response_logs', [
             'chat_id' => $chat->id,
@@ -607,8 +653,8 @@ final class AiAssistantTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $event = CalendarEvent::query()->where('trigger_message_id', $trigger->id)->first();
         $this->assertNotNull($event);
@@ -674,6 +720,47 @@ final class AiAssistantTest extends TestCase
         $this->assertTrue($booking['reminder']->scheduled_at->equalTo(Carbon::parse('2026-05-13T12:30:00+05:00')));
     }
 
+    public function test_appointment_reminder_uses_client_requested_lead_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
+        config()->set('app.timezone', 'Asia/Almaty');
+        SystemSetting::setValue(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, '60');
+
+        $company = Company::create(['name' => 'Company']);
+        $employee = User::factory()->create(['company_id' => $company->id]);
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::create(['whatsapp_id' => '77010000001@c.us', 'name' => 'Айжан', 'phone_number' => '77010000001']);
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Да, запишите на 13:00, предупредите за 2 часа',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $booking = app(AppointmentBookingService::class)->book(
+            $chat,
+            $employee,
+            $trigger,
+            'Массаж',
+            Carbon::parse('2026-05-13T13:00:00+05:00'),
+            60,
+            null,
+            null,
+            120,
+        );
+
+        $this->assertNotNull($booking['reminder']);
+        $this->assertTrue($booking['reminder']->scheduled_at->equalTo(Carbon::parse('2026-05-13T11:00:00+05:00')));
+    }
+
     public function test_ai_does_not_book_without_explicit_service_date_and_time_confirmation(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
@@ -717,8 +804,8 @@ final class AiAssistantTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $this->assertDatabaseCount('calendar_events', 0);
         $this->assertDatabaseCount('scheduled_messages', 0);
@@ -780,8 +867,8 @@ final class AiAssistantTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $this->assertSame(1, CalendarEvent::query()->count());
         $this->assertDatabaseMissing('calendar_events', [

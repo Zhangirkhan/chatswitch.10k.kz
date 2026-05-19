@@ -13,6 +13,7 @@ final class KnowledgeCatalogAuditService
 {
     public function __construct(
         private readonly KnowledgeCatalogLlmAuditService $llmAudit,
+        private readonly KnowledgeCatalogChatPriceAuditService $chatPriceAudit,
     ) {}
 
     /**
@@ -47,6 +48,7 @@ final class KnowledgeCatalogAuditService
             $this->auditServices($services),
             $this->auditRules($rules),
             $this->auditCrossCatalog($companyId, $products, $services, $rules),
+            $this->chatPriceAudit->audit($companyId),
         );
 
         $llmUsed = false;

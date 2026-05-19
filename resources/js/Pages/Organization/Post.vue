@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
@@ -59,6 +60,90 @@ const attachments = ref<OrgAttachment[]>([...(props.post.attachments ?? [])]);
 const uploading = ref(false);
 const uploadError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+type PostDangerKind = 'post' | 'comment' | 'attachment';
+
+const postDangerOpen = ref(false);
+const postDangerKind = ref<PostDangerKind | null>(null);
+const postDangerComment = ref<OrgComment | null>(null);
+const postDangerAttachment = ref<OrgAttachment | null>(null);
+const postDangerBusy = ref(false);
+
+const postDangerTitle = computed(() => {
+    if (postDangerKind.value === 'post') return 'Удалить пост?';
+    if (postDangerKind.value === 'comment') return 'Удалить комментарий?';
+    return 'Удалить файл?';
+});
+
+const postDangerDescription = computed(() => {
+    if (postDangerKind.value === 'post') return 'Пост и всё обсуждение под ним будут удалены.';
+    if (postDangerKind.value === 'comment') return 'Комментарий будет удалён без возможности восстановления.';
+    if (postDangerKind.value === 'attachment' && postDangerAttachment.value) {
+        return `Удалить файл «${postDangerAttachment.value.original_name}»?`;
+    }
+    return '';
+});
+
+function closePostDanger(): void {
+    if (postDangerBusy.value) return;
+    postDangerOpen.value = false;
+    postDangerKind.value = null;
+    postDangerComment.value = null;
+    postDangerAttachment.value = null;
+}
+
+function requestDeletePost(): void {
+    postDangerKind.value = 'post';
+    postDangerComment.value = null;
+    postDangerAttachment.value = null;
+    postDangerOpen.value = true;
+}
+
+function requestDeleteComment(c: OrgComment): void {
+    postDangerKind.value = 'comment';
+    postDangerComment.value = c;
+    postDangerAttachment.value = null;
+    postDangerOpen.value = true;
+}
+
+function requestDeleteAttachment(a: OrgAttachment): void {
+    postDangerKind.value = 'attachment';
+    postDangerComment.value = null;
+    postDangerAttachment.value = a;
+    postDangerOpen.value = true;
+}
+
+async function confirmPostDanger(): Promise<void> {
+    const kind = postDangerKind.value;
+    if (!kind) return;
+    postDangerBusy.value = true;
+    try {
+        if (kind === 'post') {
+            await axios.delete(route('organization.posts.destroy', localPost.value.id));
+            await router.visit(route('organization.departments.show', localPost.value.department_id));
+            return;
+        }
+        if (kind === 'comment' && postDangerComment.value) {
+            const c = postDangerComment.value;
+            await axios.delete(route('organization.posts.comments.destroy', [localPost.value.id, c.id]));
+            localComments.value = localComments.value.filter((x) => x.id !== c.id);
+            localPost.value = { ...localPost.value, comments_count: Math.max(0, localPost.value.comments_count - 1) };
+        } else if (kind === 'attachment' && postDangerAttachment.value) {
+            const a = postDangerAttachment.value;
+            await axios.delete(route('organization.posts.attachments.destroy', [localPost.value.id, a.id]));
+            attachments.value = attachments.value.filter((x) => x.id !== a.id);
+        }
+        closePostDanger();
+    } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+            alert(e.response?.data?.message || 'Не удалось выполнить действие.');
+        } else {
+            alert('Не удалось выполнить действие.');
+        }
+    } finally {
+        postDangerBusy.value = false;
+    }
+}
 
 function toLocalDateTime(iso: string): string {
     try {
@@ -138,20 +223,6 @@ async function saveEdit() {
     }
 }
 
-async function deletePost() {
-    if (!confirm('Удалить пост и все обсуждение под ним?')) return;
-    try {
-        await axios.delete(route('organization.posts.destroy', localPost.value.id));
-        router.visit(route('organization.departments.show', localPost.value.department_id));
-    } catch (e: unknown) {
-        if (axios.isAxiosError(e)) {
-            alert(e.response?.data?.message || 'Не удалось удалить.');
-        } else {
-            alert('Не удалось удалить.');
-        }
-    }
-}
-
 async function submitComment() {
     if (sendingComment.value) return;
     if (newComment.value.trim() === '') return;
@@ -178,21 +249,6 @@ async function submitComment() {
 
 function canDeleteComment(c: OrgComment): boolean {
     return isAdmin.value || (c.author?.id === currentUserId.value);
-}
-
-async function deleteComment(c: OrgComment) {
-    if (!confirm('Удалить комментарий?')) return;
-    try {
-        await axios.delete(route('organization.posts.comments.destroy', [localPost.value.id, c.id]));
-        localComments.value = localComments.value.filter((x) => x.id !== c.id);
-        localPost.value = { ...localPost.value, comments_count: Math.max(0, localPost.value.comments_count - 1) };
-    } catch (e: unknown) {
-        if (axios.isAxiosError(e)) {
-            alert(e.response?.data?.message || 'Не удалось удалить.');
-        } else {
-            alert('Не удалось удалить.');
-        }
-    }
 }
 
 function authorInitial(name: string | undefined | null): string {
@@ -242,20 +298,6 @@ async function onFilesSelected(event: Event) {
 function canDeleteAttachment(a: OrgAttachment): boolean {
     return isAdmin.value || a.uploaded_by === currentUserId.value;
 }
-
-async function deleteAttachment(a: OrgAttachment) {
-    if (!confirm(`Удалить файл «${a.original_name}»?`)) return;
-    try {
-        await axios.delete(route('organization.posts.attachments.destroy', [localPost.value.id, a.id]));
-        attachments.value = attachments.value.filter((x) => x.id !== a.id);
-    } catch (e: unknown) {
-        if (axios.isAxiosError(e)) {
-            alert(e.response?.data?.message || 'Не удалось удалить файл.');
-        } else {
-            alert('Не удалось удалить файл.');
-        }
-    }
-}
 </script>
 
 <template>
@@ -282,7 +324,7 @@ async function deleteAttachment(a: OrgAttachment) {
                 </div>
                 <div v-if="canEditPost && !editing" class="flex items-center gap-2">
                     <button type="button" class="secondary-btn" @click="startEdit">Редактировать</button>
-                    <button type="button" class="danger-btn" @click="deletePost">Удалить</button>
+                    <button type="button" class="danger-btn" @click="requestDeletePost">Удалить</button>
                 </div>
             </div>
 
@@ -455,7 +497,7 @@ async function deleteAttachment(a: OrgAttachment) {
                                 type="button"
                                 class="attach-delete"
                                 title="Удалить"
-                                @click="deleteAttachment(a)"
+                                @click="requestDeleteAttachment(a)"
                             >×</button>
                         </div>
                     </div>
@@ -477,7 +519,7 @@ async function deleteAttachment(a: OrgAttachment) {
                                 type="button"
                                 class="attach-delete-sm"
                                 title="Удалить"
-                                @click="deleteAttachment(a)"
+                                @click="requestDeleteAttachment(a)"
                             >×</button>
                         </div>
                     </div>
@@ -502,7 +544,7 @@ async function deleteAttachment(a: OrgAttachment) {
                                     v-if="canDeleteComment(c)"
                                     type="button"
                                     class="comment-delete"
-                                    @click="deleteComment(c)"
+                                    @click="requestDeleteComment(c)"
                                     aria-label="Удалить"
                                 >×</button>
                             </div>
@@ -535,6 +577,17 @@ async function deleteAttachment(a: OrgAttachment) {
             </div>
         </div>
     </OrganizationLayout>
+
+    <DangerConfirmModal
+        :open="postDangerOpen"
+        :title="postDangerTitle"
+        :description="postDangerDescription"
+        confirm-label="Удалить"
+        :busy="postDangerBusy"
+        confirm-variant="danger"
+        @close="closePostDanger"
+        @confirm="confirmPostDanger"
+    />
 </template>
 
 <style scoped>

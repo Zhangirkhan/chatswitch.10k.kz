@@ -15,6 +15,31 @@ final class Chat extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        self::creating(function (Chat $chat): void {
+            if ($chat->is_group) {
+                if (! array_key_exists('ai_enabled', $chat->getAttributes())) {
+                    $chat->ai_enabled = false;
+                }
+
+                return;
+            }
+
+            if (! array_key_exists('ai_enabled', $chat->getAttributes())) {
+                $chat->ai_enabled = true;
+            }
+
+            if (! array_key_exists('ai_mode', $chat->getAttributes())) {
+                $chat->ai_mode = 'auto';
+            }
+
+            if (! array_key_exists('funnel_tracking_enabled', $chat->getAttributes())) {
+                $chat->funnel_tracking_enabled = true;
+            }
+        });
+    }
+
     protected $fillable = [
         'whatsapp_chat_id',
         'whatsapp_session_id',
@@ -164,5 +189,13 @@ final class Chat extends Model
     public function scheduledMessages(): HasMany
     {
         return $this->hasMany(ScheduledMessage::class);
+    }
+
+    /**
+     * @return BelongsTo<AiOrchestratorRun, $this>
+     */
+    public function lastOrchestratorRun(): BelongsTo
+    {
+        return $this->belongsTo(AiOrchestratorRun::class, 'ai_orchestrator_last_run_id');
     }
 }

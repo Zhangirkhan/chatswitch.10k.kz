@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { ScheduledMessage } from '@/types';
 
 const props = defineProps<{
@@ -21,6 +22,9 @@ const body = ref('');
 const scheduledAt = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const activeTab = ref<'create' | 'pending' | 'sent' | 'archive'>('create');
+const cancelDialogOpen = ref(false);
+const cancelTarget = ref<ScheduledMessage | null>(null);
+const cancelBusy = ref(false);
 
 const pendingItems = computed(() => items.value.filter((m) => m.status === 'pending' || m.status === 'sending'));
 const sentItems = computed(() => items.value.filter((m) => m.status === 'sent'));
@@ -107,17 +111,35 @@ function edit(item: ScheduledMessage): void {
     nextTick(() => textareaRef.value?.focus());
 }
 
-async function cancel(item: ScheduledMessage): Promise<void> {
+function requestCancel(item: ScheduledMessage): void {
     if (item.status !== 'pending' && item.status !== 'failed') return;
-    if (!confirm('Отменить это отложенное сообщение?')) return;
+    cancelTarget.value = item;
+    cancelDialogOpen.value = true;
+}
+
+async function confirmCancelScheduled(): Promise<void> {
+    const item = cancelTarget.value;
+    if (!item) return;
+    if (item.status !== 'pending' && item.status !== 'failed') return;
     error.value = null;
+    cancelBusy.value = true;
     try {
         await axios.delete(route('chats.scheduled-messages.destroy', [props.chatId, item.id]));
         if (editingId.value === item.id) resetForm();
         await load();
+        cancelDialogOpen.value = false;
+        cancelTarget.value = null;
     } catch (e: any) {
         error.value = e?.response?.data?.message || 'Не удалось отменить сообщение.';
+    } finally {
+        cancelBusy.value = false;
     }
+}
+
+function closeCancelDialog(): void {
+    if (cancelBusy.value) return;
+    cancelDialogOpen.value = false;
+    cancelTarget.value = null;
 }
 
 function close(): void {
@@ -244,7 +266,7 @@ watch(
                                 <div v-if="item.error" class="sched-card-error">{{ item.error }}</div>
                                 <div class="sched-card-actions">
                                     <button type="button" @click="edit(item)">Редактировать</button>
-                                    <button type="button" class="sched-danger" @click="cancel(item)">Отменить</button>
+                                    <button type="button" class="sched-danger" @click="requestCancel(item)">Отменить</button>
                                 </div>
                             </div>
                         </div>
@@ -285,7 +307,7 @@ watch(
                                 <div v-if="item.error" class="sched-card-error">{{ item.error }}</div>
                                 <div v-if="item.status === 'failed'" class="sched-card-actions">
                                     <button type="button" @click="edit(item)">Редактировать</button>
-                                    <button type="button" class="sched-danger" @click="cancel(item)">Отменить</button>
+                                    <button type="button" class="sched-danger" @click="requestCancel(item)">Отменить</button>
                                 </div>
                             </div>
                         </div>
@@ -294,6 +316,17 @@ watch(
             </div>
         </transition>
     </Teleport>
+
+    <DangerConfirmModal
+        :open="cancelDialogOpen"
+        title="Отменить отложенное сообщение?"
+        description="Сообщение не будет отправлено в запланированное время."
+        confirm-label="Отменить отправку"
+        :busy="cancelBusy"
+        confirm-variant="danger"
+        @close="closeCancelDialog"
+        @confirm="confirmCancelScheduled"
+    />
 </template>
 
 <style scoped>

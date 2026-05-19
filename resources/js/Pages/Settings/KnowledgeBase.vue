@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -967,12 +968,12 @@ async function confirmDelete(): Promise<void> {
         </template>
 
         <div class="p-4 md:p-6 space-y-4">
-            <section class="kb-hero rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4 md:p-5">
+            <section class="kb-hero rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-4 md:p-5">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                     <div class="max-w-3xl">
                         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ui-accent)]">Каталог для AI</p>
-                        <h2 class="mt-1 text-xl font-semibold text-[var(--wa-text)]">{{ meta.title }}</h2>
-                        <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
+                        <h2 class="mt-1 text-xl font-semibold text-[var(--ui-text)]">{{ meta.title }}</h2>
+                        <p class="mt-1 text-sm text-[var(--ui-text-secondary)]">
                             Заполняйте короткие факты: что это, цена, условия и важные ограничения. AI будет использовать данные точечно в ответе клиенту, а не рисовать одинаковые карточки.
                         </p>
                     </div>
@@ -997,11 +998,11 @@ async function confirmDelete(): Promise<void> {
                 </div>
             </section>
 
-            <section class="kb-control-panel rounded-2xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-3 md:p-4">
+            <section class="kb-control-panel rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3 md:p-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div class="grid flex-1 gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
                         <label class="kb-search">
-                            <svg class="h-4 w-4 shrink-0 text-[var(--wa-text-secondary)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <svg class="h-4 w-4 shrink-0 text-[var(--ui-text-secondary)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
                             </svg>
                             <input v-model="searchQuery" type="search" placeholder="Поиск по названию, цене, описанию, характеристикам" />
@@ -1021,7 +1022,7 @@ async function confirmDelete(): Promise<void> {
                     <div class="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]"
                             :disabled="previewCompanyId == null || previewLoading"
                             @click="() => loadPreview()"
                         >
@@ -1029,7 +1030,7 @@ async function confirmDelete(): Promise<void> {
                         </button>
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]"
                             @click="aiToolsOpen = !aiToolsOpen"
                         >
                             {{ aiToolsOpen ? 'Скрыть проверку' : 'Проверка AI' }}
@@ -1041,9 +1042,9 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
                 <div v-if="selectedIds.length > 0" class="kb-selection-bar mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2">
-                    <span class="text-sm text-[var(--wa-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
                     <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-3 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="bulkSetPrompt(true)">Добавить в AI</button>
-                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]" @click="bulkSetPrompt(false)">Убрать из AI</button>
+                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]" @click="bulkSetPrompt(false)">Убрать из AI</button>
                     <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
                 </div>
             </section>
@@ -1052,8 +1053,8 @@ async function confirmDelete(): Promise<void> {
                 <div class="kb-card rounded-2xl border p-4">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">Готовность AI</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Минимальная проверка качества данных.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">Готовность AI</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">Минимальная проверка качества данных.</p>
                         </div>
                         <span
                             class="rounded-full px-2.5 py-1 text-xs"
@@ -1066,8 +1067,8 @@ async function confirmDelete(): Promise<void> {
                         <div v-for="check in readinessChecks" :key="check.label" class="kb-inset flex gap-2 rounded-lg px-3 py-2">
                             <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="check.ok ? 'bg-[var(--ui-accent)]' : 'bg-amber-500'"></span>
                             <div>
-                                <p class="text-sm text-[var(--wa-text)]">{{ check.label }}</p>
-                                <p class="text-xs text-[var(--wa-text-secondary)]">{{ check.hint }}</p>
+                                <p class="text-sm text-[var(--ui-text)]">{{ check.label }}</p>
+                                <p class="text-xs text-[var(--ui-text-secondary)]">{{ check.hint }}</p>
                             </div>
                         </div>
                     </div>
@@ -1076,19 +1077,19 @@ async function confirmDelete(): Promise<void> {
                 <div class="kb-card rounded-2xl border p-4">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">RAG-поиск</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Embeddings для подбора релевантных записей в промпт.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">RAG-поиск</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">Embeddings для подбора релевантных записей в промпт.</p>
                         </div>
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--wa-text)]"
+                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--ui-text)]"
                             :disabled="previewCompanyId == null || reindexLoading"
                             @click="reindexEmbeddings"
                         >
                             {{ reindexLoading ? 'Индексация…' : 'Переиндексировать' }}
                         </button>
                     </div>
-                    <p v-if="ragStatus" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
+                    <p v-if="ragStatus" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">
                         <span v-if="!ragStatus.enabled">RAG отключён.</span>
                         <span v-else-if="ragStatus.ready">Готово: {{ ragStatus.with_embedding }} фрагментов с embeddings.</span>
                         <span v-else>Нужна индексация (в базе {{ ragStatus.indexed }} фрагментов, с embeddings: {{ ragStatus.with_embedding }}).</span>
@@ -1102,37 +1103,37 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
                 <div class="kb-card rounded-2xl border p-4">
-                    <h3 class="text-sm font-semibold text-[var(--wa-text)]">Тестовый вопрос</h3>
-                    <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">Проверьте RAG: вопрос подберёт релевантные записи в предпросмотре.</p>
+                    <h3 class="text-sm font-semibold text-[var(--ui-text)]">Тестовый вопрос</h3>
+                    <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">Проверьте RAG: вопрос подберёт релевантные записи в предпросмотре.</p>
                     <div class="mt-3 flex gap-2">
                         <input
                             v-model="testQuestion"
-                            class="flex-1 rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                            class="flex-1 rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--ui-text)]"
                             type="text"
                             placeholder="Например: сколько стоит доставка?"
                             @keydown.enter.prevent="runTestQuestion"
                         />
-                        <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)]" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
+                        <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
                             Проверить
                         </button>
                     </div>
-                    <p v-if="testQuestionResult" class="kb-inset mt-3 rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">{{ testQuestionResult }}</p>
+                    <p v-if="testQuestionResult" class="kb-inset mt-3 rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">{{ testQuestionResult }}</p>
                 </div>
 
                 <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">Аудит каталога</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Дубли, цены, пробелы и противоречия.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">Аудит каталога</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">Дубли, цены, пробелы и противоречия.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <label class="flex items-center gap-1.5 text-xs text-[var(--wa-text-secondary)]">
-                                <input v-model="catalogAuditUseLlm" type="checkbox" class="rounded" />
+                            <label class="flex items-center gap-1.5 text-xs text-[var(--ui-text-secondary)]">
+                                <UiCheckbox v-model="catalogAuditUseLlm" size="sm" />
                                 AI-анализ
                             </label>
                             <button
                                 type="button"
-                                class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--wa-text)]"
+                                class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--ui-text)]"
                                 :disabled="previewCompanyId == null || catalogAuditLoading"
                                 @click="loadCatalogAudit"
                             >
@@ -1141,58 +1142,58 @@ async function confirmDelete(): Promise<void> {
                         </div>
                     </div>
                     <p v-if="catalogAuditLlmUsed" class="mb-2 text-xs text-[var(--ui-accent)]">В отчёт добавлен AI-анализ формулировок.</p>
-                    <p v-if="catalogAuditSummary && catalogAuditSummary.total === 0" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--wa-text-secondary)]">
+                    <p v-if="catalogAuditSummary && catalogAuditSummary.total === 0" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">
                         Замечаний не найдено.
                     </p>
                     <ul v-else-if="catalogAuditFindings.length > 0" class="wa-scrollbar max-h-64 space-y-2 overflow-y-auto">
                         <li v-for="item in catalogAuditFindings" :key="item.key" class="kb-inset rounded-lg border px-3 py-2 text-xs">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="rounded-full px-2 py-0.5 font-medium" :class="catalogSeverityClass(item.severity)">{{ item.severity }}</span>
-                                <span class="text-[var(--wa-text-secondary)]">{{ item.category }}</span>
+                                <span class="text-[var(--ui-text-secondary)]">{{ item.category }}</span>
                             </div>
-                            <p class="mt-1 font-medium text-[var(--wa-text)]">{{ item.title }}</p>
-                            <p class="mt-0.5 text-[var(--wa-text-secondary)]">{{ item.description }}</p>
-                            <p class="mt-1 text-[var(--wa-text)]">{{ item.action }}</p>
+                            <p class="mt-1 font-medium text-[var(--ui-text)]">{{ item.title }}</p>
+                            <p class="mt-0.5 text-[var(--ui-text-secondary)]">{{ item.description }}</p>
+                            <p class="mt-1 text-[var(--ui-text)]">{{ item.action }}</p>
                         </li>
                     </ul>
-                    <p v-else-if="!catalogAuditLoading" class="text-xs text-[var(--wa-text-secondary)]">Нажмите «Обновить» для проверки.</p>
+                    <p v-else-if="!catalogAuditLoading" class="text-xs text-[var(--ui-text-secondary)]">Нажмите «Обновить» для проверки.</p>
                 </div>
 
                 <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
                     <button type="button" class="flex w-full items-center justify-between gap-3 text-left" @click="toggleAudit">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--wa-text)]">История изменений</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Создание, правки, удаление и массовые изменения видимости для AI.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">История изменений</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">Создание, правки, удаление и массовые изменения видимости для AI.</p>
                         </div>
-                        <span class="text-xs text-[var(--wa-text-secondary)] shrink-0">{{ auditOpen ? 'Скрыть' : 'Показать' }}</span>
+                        <span class="text-xs text-[var(--ui-text-secondary)] shrink-0">{{ auditOpen ? 'Скрыть' : 'Показать' }}</span>
                     </button>
                     <div v-if="auditOpen" class="mt-3 space-y-2">
-                        <p v-if="previewCompanyId == null" class="text-xs text-[var(--wa-text-secondary)]">История изменений пока недоступна.</p>
-                        <p v-else-if="auditLoading" class="text-xs text-[var(--wa-text-secondary)]">Загрузка…</p>
+                        <p v-if="previewCompanyId == null" class="text-xs text-[var(--ui-text-secondary)]">История изменений пока недоступна.</p>
+                        <p v-else-if="auditLoading" class="text-xs text-[var(--ui-text-secondary)]">Загрузка…</p>
                         <ul v-else class="wa-scrollbar max-h-56 space-y-2 overflow-y-auto text-xs">
                             <li v-for="row in auditEntries" :key="row.id" class="kb-inset rounded-lg border px-3 py-2">
                                 <div class="flex flex-wrap items-baseline justify-between gap-2">
-                                    <span class="font-medium text-[var(--wa-text)]">{{ formatAuditAction(row.action) }} <span class="font-normal text-[var(--wa-text-secondary)]">· {{ row.entity_label || '#' + row.entity_id }}</span></span>
-                                    <span class="text-[var(--wa-text-secondary)]">{{ formatAuditWhen(row.created_at) }}</span>
+                                    <span class="font-medium text-[var(--ui-text)]">{{ formatAuditAction(row.action) }} <span class="font-normal text-[var(--ui-text-secondary)]">· {{ row.entity_label || '#' + row.entity_id }}</span></span>
+                                    <span class="text-[var(--ui-text-secondary)]">{{ formatAuditWhen(row.created_at) }}</span>
                                 </div>
-                                <div class="mt-0.5 text-[var(--wa-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
+                                <div class="mt-0.5 text-[var(--ui-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
                             </li>
                         </ul>
-                        <p v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0" class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей аудита.</p>
+                        <p v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0" class="text-xs text-[var(--ui-text-secondary)]">Пока нет записей аудита.</p>
                     </div>
                 </div>
             </section>
 
             <div v-if="dataWarnings.length > 0" class="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3">
                 <p class="mb-2 text-xs font-semibold text-amber-500">Что мешает AI отвечать точно</p>
-                <ul class="space-y-1 text-xs text-[var(--wa-text)]">
+                <ul class="space-y-1 text-xs text-[var(--ui-text)]">
                     <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
                 </ul>
             </div>
 
             <div v-if="localItems.length === 0" class="kb-card rounded-2xl border px-6 py-10 text-center">
-                <p class="text-[15px] text-[var(--wa-text)]">Пока нет записей в этом разделе.</p>
-                <p class="mx-auto mt-2 max-w-xl text-sm text-[var(--wa-text-secondary)]">
+                <p class="text-[15px] text-[var(--ui-text)]">Пока нет записей в этом разделе.</p>
+                <p class="mx-auto mt-2 max-w-xl text-sm text-[var(--ui-text-secondary)]">
                     Начните с реальных фактов: название, цена, условия, ограничения. Не нужно писать рекламную карточку — AI сам сформулирует ответ под вопрос клиента.
                 </p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
@@ -1204,34 +1205,44 @@ async function confirmDelete(): Promise<void> {
             </div>
 
             <div v-else-if="filteredItems.length === 0" class="kb-card rounded-2xl border px-6 py-8 text-center">
-                <p class="text-sm text-[var(--wa-text)]">По текущим фильтрам ничего не найдено.</p>
+                <p class="text-sm text-[var(--ui-text)]">По текущим фильтрам ничего не найдено.</p>
                 <button type="button" class="mt-3 text-sm text-[var(--ui-accent)]" @click="searchQuery = ''; statusFilter = 'all'; promptFilter = 'all'">Сбросить фильтры</button>
             </div>
 
             <section v-else class="kb-list-panel rounded-2xl border">
                 <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-                    <label class="flex items-center gap-2 text-sm text-[var(--wa-text-secondary)]">
-                        <input type="checkbox" class="kb-checkbox" :checked="allSelected" @click.prevent="toggleSelectAll" />
+                    <div
+                        class="flex items-center gap-2 text-sm text-[var(--ui-text-secondary)] cursor-pointer"
+                        role="button"
+                        tabindex="0"
+                        @click="toggleSelectAll"
+                        @keydown.enter.prevent="toggleSelectAll"
+                    >
+                        <UiCheckbox :checked="allSelected" aria-label="Выбрать показанные" @click.stop.prevent="toggleSelectAll" />
                         Выбрать показанные
-                    </label>
-                    <span class="text-xs text-[var(--wa-text-secondary)]">Показано {{ filteredItems.length }} из {{ localItems.length }}</span>
+                    </div>
+                    <span class="text-xs text-[var(--ui-text-secondary)]">Показано {{ filteredItems.length }} из {{ localItems.length }}</span>
                 </div>
 
                 <div class="divide-y divide-[var(--ui-border)]">
                     <article v-for="item in filteredItems" :key="item.id" class="kb-row">
                         <div class="flex items-start gap-3">
-                            <input type="checkbox" class="kb-checkbox mt-1" :checked="selectedIds.includes(item.id)" @click.prevent="toggleRowSelection(item.id)" />
+                            <UiCheckbox
+                                class="mt-0.5"
+                                :checked="selectedIds.includes(item.id)"
+                                @click.prevent="toggleRowSelection(item.id)"
+                            />
                             <div v-if="section === 'products'" class="kb-product-thumb">
                                 <img v-if="item.image_url" :src="item.image_url" :alt="itemTitle(item)" />
                                 <span v-else>Фото</span>
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h3 class="min-w-0 truncate text-sm font-semibold text-[var(--wa-text)]">{{ itemTitle(item) }}</h3>
+                                    <h3 class="min-w-0 truncate text-sm font-semibold text-[var(--ui-text)]">{{ itemTitle(item) }}</h3>
                                     <span v-if="item.sku" class="kb-chip">{{ item.sku }}</span>
                                     <span v-for="flag in itemQualityFlags(item)" :key="flag" class="kb-chip warn">{{ flag }}</span>
                                 </div>
-                                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--wa-text-secondary)]">{{ itemDescription(item) }}</p>
+                                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">{{ itemDescription(item) }}</p>
                                 <div v-if="compactDetails(item).length" class="mt-2 flex flex-wrap gap-1.5">
                                     <span v-for="detail in compactDetails(item)" :key="detail" class="kb-detail">{{ detail }}</span>
                                 </div>
@@ -1240,8 +1251,8 @@ async function confirmDelete(): Promise<void> {
 
                         <div class="kb-row-side">
                             <div class="text-right">
-                                <div v-if="section !== 'rules'" class="text-sm font-semibold text-[var(--wa-text)]">{{ formatTenge(item.price) }}</div>
-                                <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--wa-text-secondary)]">{{ item.duration_minutes }} мин.</div>
+                                <div v-if="section !== 'rules'" class="text-sm font-semibold text-[var(--ui-text)]">{{ formatTenge(item.price) }}</div>
+                                <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--ui-text-secondary)]">{{ item.duration_minutes }} мин.</div>
                             </div>
                             <button type="button" class="switch" :class="{ on: item.include_in_prompt }" @click="togglePrompt(item)">
                                 {{ item.include_in_prompt ? 'В AI' : 'Не в AI' }}
@@ -1256,15 +1267,15 @@ async function confirmDelete(): Promise<void> {
 
         <div v-if="deleteTarget" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4" @click.self="closeDeleteModal">
             <div class="kb-modal-card w-full max-w-md rounded-2xl border p-5 shadow-xl">
-                <h3 class="text-lg text-[var(--wa-text)]">Удалить запись?</h3>
-                <p class="mt-2 text-sm text-[var(--wa-text-secondary)]">
+                <h3 class="text-lg text-[var(--ui-text)]">Удалить запись?</h3>
+                <p class="mt-2 text-sm text-[var(--ui-text-secondary)]">
                     Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
-                    <span class="font-medium text-[var(--wa-text)]">{{ itemTitle(deleteTarget) }}</span>
+                    <span class="font-medium text-[var(--ui-text)]">{{ itemTitle(deleteTarget) }}</span>
                 </p>
                 <input
                     v-model="deleteConfirmInput"
                     type="text"
-                    class="mt-4 w-full rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--wa-text)]"
+                    class="mt-4 w-full rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--ui-text)]"
                     placeholder="Название для подтверждения"
                     autocomplete="off"
                 />
@@ -1279,16 +1290,16 @@ async function confirmDelete(): Promise<void> {
             <div class="kb-modal-card flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border shadow-xl">
                 <div class="flex shrink-0 items-center justify-between border-b border-[var(--ui-border)] px-5 py-4">
                     <div>
-                        <h3 class="text-lg text-[var(--wa-text)]">Предпросмотр блока для AI</h3>
-                        <p v-if="previewCounts" class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                        <h3 class="text-lg text-[var(--ui-text)]">Предпросмотр блока для AI</h3>
+                        <p v-if="previewCounts" class="mt-1 text-xs text-[var(--ui-text-secondary)]">
                             Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
                             <span v-if="previewUsedRag"> · RAG</span>
                             <span v-if="previewTruncated"> · показ обрезан для экрана</span>
                         </p>
                     </div>
-                    <button type="button" class="text-[var(--wa-text-secondary)]" @click="closePreview">Закрыть</button>
+                    <button type="button" class="text-[var(--ui-text-secondary)]" @click="closePreview">Закрыть</button>
                 </div>
-                <p v-if="previewHint" class="border-b border-[var(--ui-border)] px-5 py-2 text-xs text-[var(--wa-text-secondary)]">{{ previewHint }}</p>
+                <p v-if="previewHint" class="border-b border-[var(--ui-border)] px-5 py-2 text-xs text-[var(--ui-text-secondary)]">{{ previewHint }}</p>
                 <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
                     <pre class="kb-pre">{{ previewText }}</pre>
                 </div>
@@ -1299,19 +1310,19 @@ async function confirmDelete(): Promise<void> {
             <div class="kb-modal-card flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl">
                 <div class="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--ui-border)] px-5 py-4">
                     <div>
-                        <h3 class="text-lg font-semibold text-[var(--wa-text)]">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
-                        <p class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                        <h3 class="text-lg font-semibold text-[var(--ui-text)]">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
+                        <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
                             Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
                         </p>
                     </div>
-                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-[var(--wa-text-secondary)] hover:bg-[var(--ui-surface-muted)]" @click="closeForm">Закрыть</button>
+                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-muted)]" @click="closeForm">Закрыть</button>
                 </div>
 
                 <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
                     <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
                         <section class="space-y-4">
                             <div class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-3 text-sm font-semibold text-[var(--wa-text)]">Основное</h4>
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Основное</h4>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label v-if="section !== 'rules'" class="field sm:col-span-2">
                                         <span>{{ section === 'services' ? 'Название услуги' : 'Название товара' }}</span>
@@ -1351,10 +1362,10 @@ async function confirmDelete(): Promise<void> {
                             </div>
 
                             <div class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">
                                     {{ section === 'rules' ? 'Текст правила' : 'Как объяснять клиенту' }}
                                 </h4>
-                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
                                     {{ section === 'rules' ? 'Конкретное правило поведения AI.' : '1-3 предложения: что это, кому подходит, важные ограничения. Без маркетинговой воды.' }}
                                 </p>
                                 <label class="field">
@@ -1374,8 +1385,8 @@ async function confirmDelete(): Promise<void> {
                             </div>
 
                             <div v-if="section === 'products'" class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">Фото товара</h4>
-                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Фото товара</h4>
+                                <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
                                     Покажите внешний вид товара в карточке. Поддерживаются JPG, PNG и WebP до 5 МБ.
                                 </p>
                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1384,14 +1395,14 @@ async function confirmDelete(): Promise<void> {
                                         <span v-else>Нет фото</span>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <label class="cursor-pointer rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text)] hover:border-[var(--ui-accent-border)]">
+                                        <label class="cursor-pointer rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)] hover:border-[var(--ui-accent-border)]">
                                             Выбрать фото
                                             <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductImage" />
                                         </label>
                                         <button
                                             v-if="productImagePreview || editing?.image_url"
                                             type="button"
-                                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--wa-text-secondary)]"
+                                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text-secondary)]"
                                             @click="removeProductImage"
                                         >
                                             Убрать фото
@@ -1401,8 +1412,8 @@ async function confirmDelete(): Promise<void> {
                             </div>
 
                             <div v-if="section !== 'rules'" class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-1 text-sm font-semibold text-[var(--wa-text)]">Факты для AI</h4>
-                                <p class="mb-3 text-xs text-[var(--wa-text-secondary)]">
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Факты для AI</h4>
+                                <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
                                     Каждая строка: ключ и значение. Это не карточка для клиента, а быстрые факты для точного ответа.
                                 </p>
                                 <label class="field">
@@ -1413,16 +1424,16 @@ async function confirmDelete(): Promise<void> {
 
                         <aside class="space-y-4">
                             <div class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-3 text-sm font-semibold text-[var(--wa-text)]">Публикация</h4>
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Публикация</h4>
                                 <div class="space-y-3">
-                                    <label class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                    <div class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
                                         <span>Учитывать в AI</span>
-                                        <input v-model="form.include_in_prompt" type="checkbox" />
-                                    </label>
-                                    <label class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                        <UiCheckbox v-model="form.include_in_prompt" aria-label="Учитывать в AI" />
+                                    </div>
+                                    <div class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
                                         <span>Активна</span>
-                                        <input v-model="form.is_active" type="checkbox" />
-                                    </label>
+                                        <UiCheckbox v-model="form.is_active" aria-label="Активна" />
+                                    </div>
                                     <label v-if="section !== 'rules'" class="field">
                                         <span>Сортировка</span>
                                         <input v-model.number="form.sort_order" type="number" min="0" />
@@ -1432,8 +1443,8 @@ async function confirmDelete(): Promise<void> {
                             </div>
 
                             <div class="kb-form-section rounded-xl border p-4">
-                                <h4 class="mb-2 text-sm font-semibold text-[var(--wa-text)]">Подсказка</h4>
-                                <ul class="space-y-2 text-xs leading-relaxed text-[var(--wa-text-secondary)]">
+                                <h4 class="mb-2 text-sm font-semibold text-[var(--ui-text)]">Подсказка</h4>
+                                <ul class="space-y-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">
                                     <li>• Название должно быть коротким и узнаваемым.</li>
                                     <li>• Описание отвечает на вопрос клиента, а не продаёт всё сразу.</li>
                                     <li>• Если цены нет, прямо напишите, от чего она зависит.</li>
@@ -1444,7 +1455,7 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
                 <div class="flex shrink-0 justify-end gap-2 border-t border-[var(--ui-border)] px-5 py-4">
-                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-4 py-2 text-sm text-[var(--wa-text)]" @click="closeForm">Отмена</button>
+                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-4 py-2 text-sm text-[var(--ui-text)]" @click="closeForm">Отмена</button>
                     <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]" @click="save">Сохранить</button>
                 </div>
             </div>
@@ -1487,13 +1498,13 @@ async function confirmDelete(): Promise<void> {
 }
 
 .link-btn.danger {
-    color: var(--wa-danger);
+    color: var(--ui-danger);
 }
 
 .switch {
     border: 1px solid var(--ui-border-strong);
     border-radius: 999px;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     padding: 4px 10px;
 }
 
@@ -1512,12 +1523,12 @@ async function confirmDelete(): Promise<void> {
 
 .kb-stat span {
     display: block;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     font-size: 11px;
 }
 
 .kb-stat strong {
-    color: var(--wa-text);
+    color: var(--ui-text);
     display: block;
     font-size: 20px;
     line-height: 1.1;
@@ -1546,7 +1557,7 @@ async function confirmDelete(): Promise<void> {
 .kb-filter {
     background: transparent;
     border: 0;
-    color: var(--wa-text);
+    color: var(--ui-text);
     min-height: 40px;
     outline: none;
     width: 100%;
@@ -1585,7 +1596,7 @@ async function confirmDelete(): Promise<void> {
     background: var(--ui-surface-inset);
     border: 1px solid var(--ui-border);
     border-radius: 12px;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     display: flex;
     font-size: 10px;
     height: 56px;
@@ -1606,7 +1617,7 @@ async function confirmDelete(): Promise<void> {
     background: var(--ui-surface);
     border: 1px dashed var(--ui-border-strong);
     border-radius: 14px;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     display: flex;
     font-size: 12px;
     height: 112px;
@@ -1619,7 +1630,7 @@ async function confirmDelete(): Promise<void> {
 .kb-detail {
     border: 1px solid var(--ui-border);
     border-radius: 999px;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     display: inline-flex;
     max-width: 260px;
     overflow: hidden;
@@ -1642,18 +1653,18 @@ async function confirmDelete(): Promise<void> {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     font-size: 13px;
 }
 
 .field small {
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     font-size: 11px;
     font-weight: 400;
 }
 
 .field-help {
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
     font-size: 12px;
     line-height: 1.35;
 }
@@ -1664,7 +1675,7 @@ async function confirmDelete(): Promise<void> {
     background: var(--ui-input-bg);
     border: 1px solid var(--ui-border-strong);
     border-radius: 10px;
-    color: var(--wa-text);
+    color: var(--ui-text);
     padding: 10px 12px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1683,22 +1694,16 @@ async function confirmDelete(): Promise<void> {
 }
 
 .kb-pre {
-    color: var(--wa-text);
+    color: var(--ui-text);
     font-size: 12px;
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
 }
 
-.kb-checkbox {
-    accent-color: var(--ui-accent);
-    height: 16px;
-    width: 16px;
-}
-
 .check {
     align-items: center;
-    color: var(--wa-text);
+    color: var(--ui-text);
     display: flex;
     gap: 8px;
 }
@@ -1706,12 +1711,12 @@ async function confirmDelete(): Promise<void> {
 .advanced {
     border: 1px solid var(--ui-border);
     border-radius: 12px;
-    color: var(--wa-text);
+    color: var(--ui-text);
     padding: 10px 12px;
 }
 
 .advanced summary {
-    color: var(--wa-text);
+    color: var(--ui-text);
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;

@@ -60,6 +60,9 @@ final class ChatFunnelStateService
     {
         $catalog = $this->catalogBuilder->forChat($chat);
 
+        $fromFunnelId = $chat->funnel_id;
+        $fromStageId = $chat->funnel_stage_id;
+
         $funnelId = array_key_exists('funnel_id', $data) ? $data['funnel_id'] : $chat->funnel_id;
         $stageId = array_key_exists('funnel_stage_id', $data) ? $data['funnel_stage_id'] : $chat->funnel_stage_id;
 
@@ -67,15 +70,23 @@ final class ChatFunnelStateService
             $funnelId = (int) $funnelId;
             $stageId = (int) $stageId;
             if (! $this->catalogBuilder->isPairInCatalog($catalog, $funnelId, $stageId)) {
+                $mappedStageId = $this->catalogBuilder->mapStagePreservingIndex(
+                    $catalog,
+                    $fromFunnelId !== null ? (int) $fromFunnelId : null,
+                    $fromStageId !== null ? (int) $fromStageId : null,
+                    $funnelId,
+                );
+                if ($mappedStageId !== null && $this->catalogBuilder->isPairInCatalog($catalog, $funnelId, $mappedStageId)) {
+                    $stageId = $mappedStageId;
+                }
+            }
+            if (! $this->catalogBuilder->isPairInCatalog($catalog, $funnelId, $stageId)) {
                 abort(422, 'Выбранная воронка или этап не доступны для этого чата (отделы и настройки воронок).');
             }
         } else {
             $funnelId = null;
             $stageId = null;
         }
-
-        $fromFunnelId = $chat->funnel_id;
-        $fromStageId = $chat->funnel_stage_id;
 
         $tracking = array_key_exists('funnel_tracking_enabled', $data)
             ? (bool) $data['funnel_tracking_enabled']

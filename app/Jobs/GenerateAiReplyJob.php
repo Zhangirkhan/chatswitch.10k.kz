@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\AiReplyGenerator;
+use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,12 +29,26 @@ final class GenerateAiReplyJob implements ShouldQueue
         public readonly int $triggerMessageId,
     ) {}
 
-    public function handle(AiReplyGenerator $generator, OutboundChatMessageDispatcher $dispatcher): void
-    {
+    public function handle(
+        AiReplyGenerator $generator,
+        OutboundChatMessageDispatcher $dispatcher,
+        WhatsappAiTypingService $typing,
+    ): void {
         $chat = Chat::query()->with('aiResponder')->whereKey($this->chatId)->first();
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
+            return;
+        }
+
+        $latestInboundId = Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'inbound')
+            ->latest('message_timestamp')
+            ->latest('id')
+            ->value('id');
+
+        if ((int) $latestInboundId !== (int) $trigger->id) {
             return;
         }
 
@@ -65,7 +80,7 @@ final class GenerateAiReplyJob implements ShouldQueue
 
         try {
             $log->forceFill(['status' => 'generating', 'error' => null])->save();
-            $generated = $generator->generate($chat, $responder, $trigger, $log);
+            $generated = $typing->whileGenerating($chat, fn (): array => $generator->generate($chat, $responder, $trigger, $log));
             if ($mode === 'draft') {
                 $log->forceFill([
                     'status' => 'drafted',

@@ -18,6 +18,7 @@ final readonly class AppointmentIntent
         public string $clientReply,
         public array $missingFields = [],
         public ?string $clientNote = null,
+        public ?int $reminderLeadMinutes = null,
     ) {}
 
     /**
@@ -42,6 +43,7 @@ final readonly class AppointmentIntent
                 $missing,
             ))),
             clientNote: self::nullableString($data['client_note'] ?? null),
+            reminderLeadMinutes: self::positiveInt($data['reminder_lead_minutes'] ?? null),
         );
     }
 

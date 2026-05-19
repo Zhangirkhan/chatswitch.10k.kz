@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -48,6 +49,9 @@ const filters = ref<UserFilters>({
 });
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
+const userDeleteDialogOpen = ref(false);
+const userDeleteTarget = ref<User | null>(null);
+const userDeleting = ref(false);
 const form = ref({
     name: '',
     email: '',
@@ -313,16 +317,39 @@ async function save() {
     }
 }
 
-async function remove(user: User) {
-    if (!confirm(`Удалить пользователя "${user.name}"?`)) return;
+function closeUserDeleteDialog(): void {
+    if (userDeleting.value) return;
+    userDeleteDialogOpen.value = false;
+    userDeleteTarget.value = null;
+}
+
+function requestRemoveUser(user: User): void {
+    userDeleteTarget.value = user;
+    userDeleteDialogOpen.value = true;
+}
+
+async function confirmRemoveUser(): Promise<void> {
+    const user = userDeleteTarget.value;
+    if (!user) return;
+    userDeleting.value = true;
     try {
         await axios.delete(route('settings.users.destroy', user.id));
         showToast({ message: 'Пользователь удалён', duration: 3000 });
+        userDeleteDialogOpen.value = false;
+        userDeleteTarget.value = null;
         await router.reload({ only: ['users'] });
     } catch (err: unknown) {
         showToast({ message: validationMessage(err), duration: 6000 });
+    } finally {
+        userDeleting.value = false;
     }
 }
+
+const userDeleteDescription = computed(() => {
+    const u = userDeleteTarget.value;
+    if (!u) return '';
+    return `Удалить пользователя «${u.name}»? Это действие необратимо.`;
+});
 </script>
 
 <template>
@@ -332,20 +359,20 @@ async function remove(user: User) {
             <button
                 @click="openAdd"
                 class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
             >
                 + Добавить пользователя
             </button>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
-            <p class="text-sm text-[var(--wa-text-secondary)] max-w-3xl">
+            <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
                 Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
             </p>
 
             <div
                 class="rounded-lg border p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_220px_160px_auto]"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
                 <input
                     v-model="filters.search"
@@ -373,14 +400,14 @@ async function remove(user: User) {
                 <button
                     type="button"
                     class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                     @click="resetFilters"
                 >
                     Сбросить
                 </button>
             </div>
 
-            <div class="flex items-center justify-between gap-3 text-xs text-[var(--wa-text-secondary)]">
+            <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
                 <span>Показано {{ props.users.from || 0 }}–{{ props.users.to || 0 }} из {{ props.users.total }}</span>
                 <span>Страница {{ props.users.current_page }} из {{ props.users.last_page }}</span>
             </div>
@@ -388,43 +415,43 @@ async function remove(user: User) {
             <!-- Users table: действия сразу после имени, чтобы кнопки не уезжали за край экрана -->
             <div
                 class="rounded-lg border overflow-x-auto"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
                 <table class="w-full text-sm min-w-[720px]">
-                    <thead :style="{ background: 'var(--wa-panel-header)' }">
+                    <thead :style="{ background: 'var(--ui-surface-muted)' }">
                         <tr>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Имя</th>
-                            <th class="text-right px-5 py-3 font-medium text-[var(--wa-text-secondary)] whitespace-nowrap w-[1%]">
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Имя</th>
+                            <th class="text-right px-5 py-3 font-medium text-[var(--ui-text-secondary)] whitespace-nowrap w-[1%]">
                                 Действия
                             </th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Email</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Телефон</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Роль</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Отделы</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">WhatsApp</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--wa-text-secondary)]">Статус</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Email</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Телефон</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Роль</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Отделы</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">WhatsApp</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Статус</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="local.length === 0">
-                            <td colspan="8" class="px-5 py-10 text-center text-[var(--wa-text-secondary)]">
+                            <td colspan="8" class="px-5 py-10 text-center text-[var(--ui-text-secondary)]">
                                 Нет пользователей
                             </td>
                         </tr>
                         <tr
                             v-for="user in local"
                             :key="user.id"
-                            class="border-t transition-colors hover:bg-[color-mix(in_srgb,var(--wa-panel-hover)_65%,transparent)] cursor-pointer"
-                            :style="{ borderColor: 'var(--wa-border)' }"
+                            class="border-t transition-colors hover:bg-[color-mix(in_srgb,var(--ui-surface-hover)_65%,transparent)] cursor-pointer"
+                            :style="{ borderColor: 'var(--ui-border)' }"
                             title="Нажмите строку, чтобы редактировать"
                             @click="openEdit(user)"
                         >
-                            <td class="px-5 py-3 font-medium text-[var(--wa-text)]">{{ user.name }}</td>
+                            <td class="px-5 py-3 font-medium text-[var(--ui-text)]">{{ user.name }}</td>
                             <td class="px-5 py-3 text-right whitespace-nowrap align-middle" @click.stop>
                                 <button
                                     type="button"
                                     class="text-xs px-2 py-1 rounded-md border mr-2 transition hover:brightness-95"
-                                    :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border-strong)' }"
+                                    :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-border-strong)' }"
                                     @click="openEdit(user)"
                                 >
                                     Изменить
@@ -432,13 +459,13 @@ async function remove(user: User) {
                                 <button
                                     type="button"
                                     class="text-xs px-2 py-1 rounded-md border border-red-500/40 text-red-400 transition hover:bg-red-500/10"
-                                    @click="remove(user)"
+                                    @click="requestRemoveUser(user)"
                                 >
                                     Удалить
                                 </button>
                             </td>
-                            <td class="px-5 py-3 text-[var(--wa-text-secondary)]">{{ user.email }}</td>
-                            <td class="px-5 py-3 text-[var(--wa-text-secondary)] text-xs font-mono">{{ userPrimaryPhone(user) }}</td>
+                            <td class="px-5 py-3 text-[var(--ui-text-secondary)]">{{ user.email }}</td>
+                            <td class="px-5 py-3 text-[var(--ui-text-secondary)] text-xs font-mono">{{ userPrimaryPhone(user) }}</td>
                             <td class="px-5 py-3">
                                 <span
                                     class="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -457,12 +484,12 @@ async function remove(user: User) {
                                         v-for="name in userDepartmentNames(user)"
                                         :key="name"
                                         class="text-xs px-2 py-0.5 rounded-full"
-                                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                     >
                                         {{ name }}
                                     </span>
                                 </div>
-                                <span v-else class="text-xs text-[var(--wa-text-secondary)]">—</span>
+                                <span v-else class="text-xs text-[var(--ui-text-secondary)]">—</span>
                             </td>
                             <td class="px-5 py-3">
                                 <div
@@ -473,7 +500,7 @@ async function remove(user: User) {
                                         v-for="s in user.whatsapp_sessions"
                                         :key="s.id"
                                         class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full"
-                                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                         :title="sessionLabel(s)"
                                     >
                                         <span
@@ -483,15 +510,15 @@ async function remove(user: User) {
                                         {{ sessionLabel(s) }}
                                     </span>
                                 </div>
-                                <span v-else class="text-xs text-[var(--wa-text-secondary)]">—</span>
+                                <span v-else class="text-xs text-[var(--ui-text-secondary)]">—</span>
                             </td>
                             <td class="px-5 py-3">
                                 <span class="inline-flex items-center gap-2">
                                     <span
                                         class="w-2 h-2 rounded-full"
-                                        :class="user.is_active ? 'bg-[var(--wa-accent)]' : 'bg-red-400'"
+                                        :class="user.is_active ? 'bg-[var(--ui-accent)]' : 'bg-red-400'"
                                     ></span>
-                                    <span class="text-xs text-[var(--wa-text-secondary)]">
+                                    <span class="text-xs text-[var(--ui-text-secondary)]">
                                         {{ user.is_active ? 'Активен' : 'Отключён' }}
                                     </span>
                                 </span>
@@ -505,19 +532,19 @@ async function remove(user: User) {
                 <button
                     type="button"
                     class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                     :disabled="props.users.current_page <= 1"
                     @click="goToPage(props.users.current_page - 1)"
                 >
                     Назад
                 </button>
-                <div class="text-sm text-[var(--wa-text-secondary)]">
+                <div class="text-sm text-[var(--ui-text-secondary)]">
                     {{ props.users.current_page }} / {{ props.users.last_page }}
                 </div>
                 <button
                     type="button"
                     class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                     :disabled="props.users.current_page >= props.users.last_page"
                     @click="goToPage(props.users.current_page + 1)"
                 >
@@ -537,16 +564,16 @@ async function remove(user: User) {
             >
                 <div
                     class="w-full max-w-xl max-h-[min(90vh,800px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border-strong)' }"
                     @click.stop
                 >
-                    <div class="px-5 py-4 border-b shrink-0 flex items-center justify-between gap-3" :style="{ borderColor: 'var(--wa-border)' }">
-                        <h3 class="text-base font-medium text-[var(--wa-text)]">
+                    <div class="px-5 py-4 border-b shrink-0 flex items-center justify-between gap-3" :style="{ borderColor: 'var(--ui-border)' }">
+                        <h3 class="text-base font-medium text-[var(--ui-text)]">
                             {{ editingId ? 'Редактировать пользователя' : 'Новый пользователь' }}
                         </h3>
                         <button
                             type="button"
-                            class="text-sm text-[var(--wa-text-secondary)] hover:text-[var(--wa-text)] px-2 py-1 rounded"
+                            class="text-sm text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)] px-2 py-1 rounded"
                             aria-label="Закрыть"
                             @click="closeModal"
                         >
@@ -557,15 +584,15 @@ async function remove(user: User) {
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="sm:col-span-2">
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Имя</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Имя</label>
                                 <input v-model="form.name" type="text" class="settings-input" autocomplete="name" />
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Email</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Email</label>
                                 <input v-model="form.email" type="email" class="settings-input" autocomplete="email" />
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Телефон</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Телефон</label>
                                 <input
                                     v-model="form.phone"
                                     type="tel"
@@ -575,13 +602,13 @@ async function remove(user: User) {
                                 />
                             </div>
                             <div class="sm:col-span-2">
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
                                     Пароль {{ editingId ? '(оставьте пустым, если не меняете)' : '' }}
                                 </label>
                                 <input v-model="form.password" type="password" class="settings-input" autocomplete="new-password" />
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Роль</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Роль</label>
                                 <select v-model="form.role" class="settings-input">
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
                                 </select>
@@ -589,13 +616,13 @@ async function remove(user: User) {
                         </div>
 
                         <div class="pt-1">
-                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Отделы</label>
-                            <p class="text-xs text-[var(--wa-text-secondary)] mb-2">
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Отделы</label>
+                            <p class="text-xs text-[var(--ui-text-secondary)] mb-2">
                                 Сотрудник может состоять в нескольких отделах одновременно — отметьте все нужные.
                             </p>
                             <div
                                 v-if="departmentTree.length === 0"
-                                class="text-xs text-[var(--wa-text-secondary)] italic"
+                                class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
                                 Отделов пока нет. Создайте их в разделе «Отделы».
                             </div>
@@ -605,8 +632,8 @@ async function remove(user: User) {
                                     :key="node.dept.id"
                                     class="flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition hover:brightness-95"
                                     :style="{
-                                        background: form.department_ids.includes(node.dept.id) ? 'var(--wa-selected)' : 'var(--wa-bg)',
-                                        borderColor: form.department_ids.includes(node.dept.id) ? 'var(--wa-accent)' : 'var(--wa-border-strong)',
+                                        background: form.department_ids.includes(node.dept.id) ? 'var(--ui-selected)' : 'var(--ui-bg)',
+                                        borderColor: form.department_ids.includes(node.dept.id) ? 'var(--ui-accent)' : 'var(--ui-border-strong)',
                                         paddingLeft: `${0.75 + node.depth * 1}rem`,
                                     }"
                                 >
@@ -616,10 +643,10 @@ async function remove(user: User) {
                                         class="w-4 h-4 rounded shrink-0"
                                         @change="toggleDepartment(node.dept.id)"
                                     />
-                                    <span class="text-sm text-[var(--wa-text)] truncate">
+                                    <span class="text-sm text-[var(--ui-text)] truncate">
                                         {{ node.dept.name }}<span
                                             v-if="node.dept.is_active === false"
-                                            class="text-xs text-[var(--wa-text-secondary)]"
+                                            class="text-xs text-[var(--ui-text-secondary)]"
                                         >
                                             (неактивен)
                                         </span>
@@ -629,13 +656,13 @@ async function remove(user: User) {
                         </div>
 
                         <div class="pt-1">
-                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Подключения WhatsApp</label>
-                            <p class="text-xs text-[var(--wa-text-secondary)] mb-2">
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Подключения WhatsApp</label>
+                            <p class="text-xs text-[var(--ui-text-secondary)] mb-2">
                                 Названия из раздела «Подключения». Номер аккаунта WhatsApp здесь не показывается.
                             </p>
                             <div
                                 v-if="whatsappSessions.length === 0"
-                                class="text-xs text-[var(--wa-text-secondary)] italic"
+                                class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
                                 Пока нет сессий. Добавьте их в «Подключения».
                             </div>
@@ -645,8 +672,8 @@ async function remove(user: User) {
                                     :key="s.id"
                                     class="flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition hover:brightness-95"
                                     :style="{
-                                        background: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-selected)' : 'var(--wa-bg)',
-                                        borderColor: form.whatsapp_session_ids.includes(s.id) ? 'var(--wa-accent)' : 'var(--wa-border-strong)',
+                                        background: form.whatsapp_session_ids.includes(s.id) ? 'var(--ui-selected)' : 'var(--ui-bg)',
+                                        borderColor: form.whatsapp_session_ids.includes(s.id) ? 'var(--ui-accent)' : 'var(--ui-border-strong)',
                                     }"
                                 >
                                     <input
@@ -661,7 +688,7 @@ async function remove(user: User) {
                                         :title="s.status"
                                     ></span>
                                     <div class="min-w-0 flex-1">
-                                        <div class="text-sm font-medium text-[var(--wa-text)] truncate">
+                                        <div class="text-sm font-medium text-[var(--ui-text)] truncate">
                                             {{ sessionLabel(s) }}
                                         </div>
                                     </div>
@@ -671,14 +698,14 @@ async function remove(user: User) {
 
                         <div v-if="editingId" class="flex items-center gap-2 pt-1">
                             <input id="user-active" v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
-                            <label for="user-active" class="text-sm text-[var(--wa-text)] cursor-pointer">Активен (может входить в систему)</label>
+                            <label for="user-active" class="text-sm text-[var(--ui-text)] cursor-pointer">Активен (может входить в систему)</label>
                         </div>
                     </div>
 
-                    <div class="flex justify-end gap-2 px-5 py-3 border-t shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
+                    <div class="flex justify-end gap-2 px-5 py-3 border-t shrink-0" :style="{ borderColor: 'var(--ui-border)' }">
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                            class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
                             @click="closeModal"
                         >
                             Отмена
@@ -686,7 +713,7 @@ async function remove(user: User) {
                         <button
                             type="button"
                             class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             @click="save"
                         >
                             Сохранить
@@ -696,6 +723,17 @@ async function remove(user: User) {
             </div>
         </Teleport>
     </SettingsLayout>
+
+    <DangerConfirmModal
+        :open="userDeleteDialogOpen"
+        title="Удалить пользователя?"
+        :description="userDeleteDescription"
+        confirm-label="Удалить"
+        :busy="userDeleting"
+        confirm-variant="danger"
+        @close="closeUserDeleteDialog"
+        @confirm="confirmRemoveUser"
+    />
 </template>
 
 <style scoped>
@@ -704,13 +742,13 @@ async function remove(user: User) {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    background: var(--wa-bg);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border-strong);
     transition: border-color 0.15s ease;
 }
 .settings-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
 }
 </style>

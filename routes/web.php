@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\AiInsightsController;
 use App\Http\Controllers\AiMessageFeedbackController;
+use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\Analytics\DialogAnalyticsPageController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\EntityMemoryController;
 use App\Http\Controllers\FunnelController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\LinkPreviewController;
@@ -30,11 +32,10 @@ use App\Http\Controllers\OrganizationTeamChatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ToneProfileController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\WhatsappSessionController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', fn () => redirect()->route('login'));
 
@@ -48,19 +49,15 @@ Route::prefix('docs/api')->group(function (): void {
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', fn () => redirect()->route('chats.index'))->name('dashboard');
 
-    // Visual stubs (WhatsApp Web parity)
-    Route::get('/status', function (Request $request) {
-        return Inertia::render('Status/Index', [
-            'canManageConnections' => $request->user()?->hasRole('administrator') === true,
-        ]);
-    })->name('status.index');
-    Route::get('/channels', function (Request $request) {
-        return Inertia::render('Channels/Index', [
-            'canManageConnections' => $request->user()?->hasRole('administrator') === true,
-        ]);
-    })->name('channels.index');
+    Route::redirect('/status', '/settings/connections')->name('status.index');
+    Route::redirect('/channels', '/settings/connections')->name('channels.index');
 
     Route::middleware('role:administrator,manager,employee')->group(function (): void {
+        Route::get('/ai-chat', [AiWorkspaceController::class, 'index'])->name('ai-chat.index');
+        Route::post('/ai-chat/query', [AiWorkspaceController::class, 'query'])
+            ->middleware('throttle:30,1')
+            ->name('ai-chat.query');
+
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/feed', [ChatController::class, 'feed'])->name('chats.feed');
         Route::get('/chats/archived', [ChatController::class, 'archivedIndex'])->name('chats.archived');
@@ -98,6 +95,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats/{chat}/departments/history', [ChatController::class, 'departmentHistory'])->name('chats.departments.history');
         Route::patch('/chats/{chat}/funnel', [ChatFunnelController::class, 'update'])->name('chats.funnel.update');
         Route::get('/chats/{chat}/funnel/history', [ChatFunnelController::class, 'history'])->name('chats.funnel.history');
+        Route::get('/entity-memory/{subjectType}/{subjectId}', [EntityMemoryController::class, 'show'])->name('entity-memory.show');
+        Route::put('/entity-memory/{subjectType}/{subjectId}', [EntityMemoryController::class, 'update'])->name('entity-memory.update');
+        Route::get('/entity-memory/{subjectType}/{subjectId}/backups', [EntityMemoryController::class, 'backups'])->name('entity-memory.backups');
+        Route::post('/entity-memory/{subjectType}/{subjectId}/backups/{backupId}/restore', [EntityMemoryController::class, 'restore'])->name('entity-memory.restore');
         Route::post('/chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
             ->middleware('throttle:30,1')
             ->name('chats.ai.chat');
@@ -176,7 +177,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('/media/{media}', [MediaController::class, 'show'])->name('media.show');
 
-    Route::middleware('role:administrator')->prefix('settings')->group(function (): void {
+    Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
         Route::get('/connections', [WhatsappSessionController::class, 'index'])->name('settings.connections');
         Route::post('/connections', [WhatsappSessionController::class, 'store'])->name('settings.connections.store');
         Route::patch('/connections/{session}', [WhatsappSessionController::class, 'update'])->name('settings.connections.update');
@@ -223,6 +224,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('settings.onboarding.complete');
 
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
+        Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
+        Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');
+        Route::post('/tone-profile/reanalyze', [ToneProfileController::class, 'reanalyze'])->name('settings.tone-profile.reanalyze');
         Route::post('/ai-quality/simulate', [AiInsightsController::class, 'simulate'])
             ->middleware('throttle:20,1')
             ->name('settings.ai-quality.simulate');

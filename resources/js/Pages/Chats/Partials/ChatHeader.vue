@@ -7,6 +7,7 @@ import FunnelStageWheelPicker from '@/Components/FunnelStageWheelPicker.vue';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { stageIdAtPreservedIndex } from '@/utils/funnelStageMapping';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
 
@@ -261,6 +262,11 @@ const aiResponderBtnRef = ref<HTMLButtonElement | null>(null);
 const aiResponderMenuPos = ref<MenuPos>({ top: 0, right: 0 });
 const aiResponderSearchQuery = ref('');
 
+const aiSettingsMenuOpen = ref(false);
+const aiSettingsBtnRef = ref<HTMLButtonElement | null>(null);
+const aiSettingsMenuPos = ref<MenuPos>({ top: 0, right: 0 });
+const aiSettingsMenuPanelRef = ref<HTMLElement | null>(null);
+
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
@@ -280,20 +286,60 @@ const aiStatusLabel = computed(() => {
 
 const aiModeLabel = computed(() => {
     if (!aiEnabled.value) {
-        return 'AI выключен';
+        return 'AI';
     }
 
-    return aiMode.value === 'draft' ? 'AI черновик' : 'AI авто';
+    return aiMode.value === 'draft' ? 'Черн.' : 'AI';
 });
 
-const aiAssistantButtonText = computed(() => {
-    const status = props.aiStatus?.status;
-    if (status === 'failed') return 'AI ошибка';
-    if (status === 'generating' || status === 'pending') return 'AI думает';
-    if (status === 'drafted') return 'AI черновик';
-    if (status === 'blocked') return 'AI стоп';
-    return 'AI';
+const aiSettingsSummary = computed(() => {
+    if (!aiEnabled.value) {
+        return '';
+    }
+    const mode = aiMode.value === 'draft' ? 'Черновик' : 'Авто';
+    const who = aiResponderMenuButtonLabel.value;
+
+    return `${mode} · ${who}`;
 });
+
+/** Единый компактный статус AI в шапке (5 состояний). */
+const aiHeaderBadge = computed(() => {
+    if (!aiEnabled.value) {
+        return { label: 'Выкл', tone: 'off' as const, title: 'AI выключен для этого чата' };
+    }
+    if (props.chat.ai_orchestrator_status === 'failed' || props.aiStatus?.status === 'failed') {
+        return { label: 'Ошибка', tone: 'error' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
+    }
+    if (props.chat.ai_orchestrator_status === 'needs_manager' || props.aiStatus?.status === 'blocked') {
+        return { label: 'Менеджер', tone: 'warning' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
+    }
+    if (
+        props.chat.ai_orchestrator_status === 'running'
+        || props.chat.ai_orchestrator_status === 'pending'
+        || props.aiStatus?.status === 'generating'
+        || props.aiStatus?.status === 'pending'
+    ) {
+        return { label: 'Думает', tone: 'busy' as const, title: aiStatusTitle.value };
+    }
+    if (props.aiStatus?.status === 'drafted' || aiMode.value === 'draft') {
+        return { label: 'Черновик', tone: 'idle' as const, title: aiStatusTitle.value };
+    }
+    if (orchestratorStatusLabel.value) {
+        return {
+            label: orchestratorStatusLabel.value,
+            tone: aiSnapshotTone.value === 'ready' ? 'idle' as const : (aiSnapshotTone.value as 'busy' | 'warning' | 'error' | 'idle'),
+            title: orchestratorStatusTitle.value,
+        };
+    }
+
+    return {
+        label: 'Авто',
+        tone: 'idle' as const,
+        title: aiStatusTitle.value,
+    };
+});
+
+const aiAssistantButtonText = computed(() => aiHeaderBadge.value.label);
 
 const aiModePickerLabel = computed(() => (aiMode.value === 'draft' ? 'Черновик' : 'Автоответ'));
 
@@ -555,10 +601,12 @@ function toggleAiModeMenu(): void {
 async function pickAiMode(mode: 'auto' | 'draft'): Promise<void> {
     if (aiMode.value === mode) {
         closeAiModeMenu();
+        closeAiSettingsMenu();
         return;
     }
     await updateAiSettings({ ai_mode: mode });
     closeAiModeMenu();
+    closeAiSettingsMenu();
 }
 
 function toggleAiResponderMenu(): void {
@@ -578,10 +626,30 @@ async function pickAiResponder(userId: number | null): Promise<void> {
     const current = props.chat.ai_responder_user_id ?? null;
     if (current === userId) {
         closeAiResponderMenu();
+        closeAiSettingsMenu();
         return;
     }
     await updateAiSettings({ ai_responder_user_id: userId });
     closeAiResponderMenu();
+    closeAiSettingsMenu();
+}
+
+function closeAiSettingsMenu(): void {
+    aiSettingsMenuOpen.value = false;
+}
+
+function toggleAiSettingsMenu(): void {
+    if (aiSettingsMenuOpen.value) {
+        closeAiSettingsMenu();
+        return;
+    }
+    closeMenu();
+    closeDepartmentsMenu();
+    closeUsersMenu();
+    closeAiModeMenu();
+    closeAiResponderMenu();
+    aiSettingsMenuPos.value = computeMenuPosition(aiSettingsBtnRef.value, 4);
+    aiSettingsMenuOpen.value = true;
 }
 
 /** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
@@ -767,6 +835,7 @@ function toggleMenu() {
     closeUsersMenu();
     closeAiModeMenu();
     closeAiResponderMenu();
+    closeAiSettingsMenu();
     menuPos.value = computeMenuPosition(menuBtnRef.value, 4);
     menuOpen.value = true;
 }
@@ -791,6 +860,7 @@ function onEscape(e: KeyboardEvent) {
         closeUsersMenu();
         closeAiModeMenu();
         closeAiResponderMenu();
+        closeAiSettingsMenu();
         closeAssignmentModal();
         scheduledMessagesOpen.value = false;
     }
@@ -811,6 +881,9 @@ function onViewportChange() {
     if (aiResponderMenuOpen.value) {
         aiResponderMenuPos.value = computeMenuPosition(aiResponderBtnRef.value);
     }
+    if (aiSettingsMenuOpen.value) {
+        aiSettingsMenuPos.value = computeMenuPosition(aiSettingsBtnRef.value, 4);
+    }
     if (menuOpen.value) {
         menuPos.value = computeMenuPosition(menuBtnRef.value, 4);
     }
@@ -825,6 +898,7 @@ function scrollTargetInsideOpenHeaderMenu(target: EventTarget | null): boolean {
         overflowMenuPanelRef.value,
         aiModeMenuPanelRef.value,
         aiResponderMenuPanelRef.value,
+        aiSettingsMenuPanelRef.value,
     ];
     return roots.some((root) => root != null && root.contains(target));
 }
@@ -839,6 +913,7 @@ function onViewportScroll(e: Event) {
     closeUsersMenu();
     closeAiModeMenu();
     closeAiResponderMenu();
+    closeAiSettingsMenu();
 }
 
 window.addEventListener('keydown', onEscape);
@@ -1041,6 +1116,27 @@ const nextFunnelStageName = computed(() => {
     return next?.name ?? null;
 });
 
+/** Одна строка под именем контакта вместо широкой карточки в тулбаре. */
+const funnelCompactLine = computed(() => {
+    const parts: string[] = [];
+    if (funnelModuleVisible.value && props.chat.funnel_stage?.name) {
+        parts.push(props.chat.funnel_stage.name);
+        if (funnelProgressPercent.value > 0) {
+            parts.push(`${funnelProgressPercent.value}%`);
+        }
+    }
+    if (aiEnabled.value || orchestratorStatusLabel.value) {
+        parts.push(aiHeaderBadge.value.label);
+    }
+    if (nextFunnelStageName.value && funnelModuleVisible.value) {
+        parts.push(`→ ${nextFunnelStageName.value}`);
+    }
+
+    return parts.length > 0 ? parts.join(' · ') : null;
+});
+
+const funnelCompactTitle = computed(() => funnelBarTitle.value || aiStatusTitle.value);
+
 const aiSnapshotTone = computed(() => {
     if (props.chat.ai_orchestrator_status === 'failed' || props.aiStatus?.status === 'failed') {
         return 'error';
@@ -1142,16 +1238,25 @@ function modalFunnelSegmentStyle(cellIndex: number, color: string): Record<strin
 
 const funnelWheelRef = ref<InstanceType<typeof FunnelStageWheelPicker> | null>(null);
 
-watch(funnelModalFunnelId, (fid) => {
-    if (fid == null) return;
-    const f = funnelCatalogList.value.find((x) => x.id === fid);
-    if (!f?.stages?.length) {
+watch(funnelModalFunnelId, (newFid, oldFid) => {
+    if (newFid == null) {
         funnelModalStageId.value = null;
         return;
     }
-    if (!f.stages.some((s) => s.id === funnelModalStageId.value)) {
-        funnelModalStageId.value = f.stages[0]!.id;
+
+    const newFunnel = funnelCatalogList.value.find((x) => x.id === newFid);
+    if (!newFunnel?.stages?.length) {
+        funnelModalStageId.value = null;
+        return;
     }
+
+    if (newFunnel.stages.some((s) => s.id === funnelModalStageId.value)) {
+        return;
+    }
+
+    const oldFunnel = oldFid != null ? funnelCatalogList.value.find((x) => x.id === oldFid) : undefined;
+    const preserved = stageIdAtPreservedIndex(oldFunnel, funnelModalStageId.value, newFunnel);
+    funnelModalStageId.value = preserved ?? newFunnel.stages[0]!.id;
 });
 
 async function loadFunnelHistory() {
@@ -1247,38 +1352,34 @@ async function saveFunnelModal() {
                 <span v-if="sessionLine.phone" class="ml-1 font-medium tabular-nums">{{ sessionLine.phone }}</span>
                 <span v-if="sessionLine.name" class="ml-1">· {{ sessionLine.name }}</span>
             </p>
+            <button
+                v-if="funnelCompactLine"
+                type="button"
+                class="header-funnel-compact mt-0.5 w-full text-left"
+                :class="`header-funnel-compact-${aiSnapshotTone}`"
+                :title="funnelCompactTitle"
+                @click.stop="funnelModuleVisible ? openFunnelModal() : emit('open-ai')"
+            >
+                <span
+                    v-if="funnelModuleVisible && chat.funnel_stage"
+                    class="header-funnel-compact-dot shrink-0"
+                    :style="{ background: `${funnelBarColor}22`, color: funnelBarColor }"
+                >
+                    <FunnelStageIcon :type="chat.funnel_stage?.stage_type" :size="10" />
+                </span>
+                <span class="truncate">{{ funnelCompactLine }}</span>
+                <span
+                    v-if="funnelModuleVisible && funnelProgressPercent > 0"
+                    class="header-funnel-compact-bar shrink-0"
+                    aria-hidden="true"
+                >
+                    <span :style="{ width: `${funnelProgressPercent}%`, background: funnelBarColor }"></span>
+                </span>
+            </button>
         </div>
 
-        <button
-            v-if="funnelModuleVisible || aiEnabled || orchestratorStatusLabel"
-            type="button"
-            class="header-deal-snapshot hidden xl:flex"
-            :class="`header-deal-snapshot-${aiSnapshotTone}`"
-            :title="funnelBarTitle || aiStatusTitle"
-            @click="funnelModuleVisible ? openFunnelModal() : emit('open-ai')"
-        >
-            <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5">
-                    <span
-                        class="header-deal-dot flex items-center justify-center"
-                        :style="{ background: `${funnelBarColor}22`, color: funnelBarColor }"
-                    >
-                        <FunnelStageIcon :type="chat.funnel_stage?.stage_type" :size="12" />
-                    </span>
-                    <span class="truncate font-semibold">{{ funnelSnapshotTitle }}</span>
-                    <span v-if="funnelProgressPercent > 0" class="shrink-0 tabular-nums opacity-70">{{ funnelProgressPercent }}%</span>
-                </div>
-                <div class="mt-0.5 flex items-center gap-1.5 text-[11px] opacity-75">
-                    <span class="truncate">{{ aiSnapshotLabel }}</span>
-                    <span v-if="nextFunnelStageName" class="truncate">→ {{ nextFunnelStageName }}</span>
-                </div>
-            </div>
-            <div class="header-deal-meter" aria-hidden="true">
-                <span :style="{ width: `${funnelProgressPercent}%`, background: funnelBarColor }"></span>
-            </div>
-        </button>
 
-        <div class="chat-header-toolbar flex flex-nowrap items-center gap-2 min-w-0 shrink">
+        <div class="chat-header-toolbar flex flex-nowrap items-center gap-1.5 min-w-0 shrink">
             <!-- Отделы: сотрудник только видит свой; админ/руководитель — выбор -->
             <div class="header-dept-control relative">
                 <div
@@ -1412,26 +1513,6 @@ async function saveFunnelModal() {
                 </template>
             </div>
 
-            <button
-                type="button"
-                class="header-quick-task-btn"
-                :disabled="quickTaskLoading"
-                title="Создать задачу по этому чату"
-                @click="createQuickTask"
-            >
-                {{ quickTaskLoading ? '…' : 'Задача' }}
-            </button>
-
-            <button
-                v-if="canManageAi"
-                type="button"
-                class="header-quick-task-btn"
-                title="Симулятор: как AI ответил бы на сообщение клиента"
-                @click="aiSimulatorOpen = true"
-            >
-                Симулятор
-            </button>
-
             <div class="header-action-group header-ai-group header-ai-control" :class="{ 'header-ai-group-on': aiEnabled }">
                 <button
                     v-if="canManageAi"
@@ -1449,36 +1530,20 @@ async function saveFunnelModal() {
 
                 <button
                     v-if="canManageAi && aiEnabled"
-                    ref="aiModeBtnRef"
+                    ref="aiSettingsBtnRef"
                     type="button"
-                    class="ai-menu-trigger"
+                    class="ai-menu-trigger ai-settings-trigger"
                     :disabled="aiSaving"
-                    title="Режим AI: автоответ или черновик в поле ввода"
-                    aria-haspopup="listbox"
-                    :aria-expanded="aiModeMenuOpen"
-                    @click="toggleAiModeMenu"
+                    :title="`Настройки AI: ${aiSettingsSummary}`"
+                    aria-haspopup="dialog"
+                    :aria-expanded="aiSettingsMenuOpen"
+                    @click="toggleAiSettingsMenu"
                 >
-                    <span class="ai-menu-trigger-label truncate">{{ aiModePickerLabel }}</span>
-                    <svg class="ai-menu-trigger-chevron" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    <svg class="w-4 h-4 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                </button>
-
-                <button
-                    v-if="canManageAi && aiEnabled && showAiResponderSelect"
-                    ref="aiResponderBtnRef"
-                    type="button"
-                    class="ai-menu-trigger"
-                    :disabled="aiSaving"
-                    title="От чьего имени отвечает AI"
-                    aria-haspopup="listbox"
-                    :aria-expanded="aiResponderMenuOpen"
-                    @click="toggleAiResponderMenu"
-                >
-                    <span class="ai-menu-trigger-label truncate">{{ aiResponderMenuButtonLabel }}</span>
-                    <svg class="ai-menu-trigger-chevron" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <span class="ai-menu-trigger-label hidden lg:inline truncate max-w-[7.5rem]">{{ aiSettingsSummary }}</span>
                 </button>
 
                 <button
@@ -1490,17 +1555,17 @@ async function saveFunnelModal() {
                     }"
                     :title="aiStatusTitle"
                     aria-label="Открыть AI-ассистента"
-                    @click="closeAiModeMenu(); closeAiResponderMenu(); emit('open-ai')"
+                    @click="closeAiModeMenu(); closeAiResponderMenu(); closeAiSettingsMenu(); emit('open-ai')"
                 >
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <span class="label-pill-ai-text">{{ aiAssistantButtonText }}</span>
+                    <span class="label-pill-ai-text hidden xl:inline">{{ aiAssistantButtonText }}</span>
                 </button>
             </div>
 
             <div
-                v-if="orchestratorStatusLabel"
+                v-if="orchestratorStatusLabel && !funnelCompactLine"
                 class="label-pill label-pill-orchestrator"
                 :class="{
                     'label-pill-orchestrator-wait': chat.ai_orchestrator_status === 'needs_manager',
@@ -1515,22 +1580,21 @@ async function saveFunnelModal() {
             <Teleport to="body">
                 <template v-if="canManageAi && aiEnabled">
                     <div
-                        v-if="aiModeMenuOpen"
+                        v-if="aiSettingsMenuOpen"
                         class="fixed inset-0 z-[900]"
-                        @click="closeAiModeMenu"
+                        @click="closeAiSettingsMenu"
                     ></div>
                     <div
-                        v-if="aiModeMenuOpen"
-                        ref="aiModeMenuPanelRef"
-                        class="fixed z-[1000] flex max-h-[min(88vh,320px)] w-[min(92vw,300px)] flex-col overflow-hidden rounded-xl border shadow-2xl header-menu assign-popover"
+                        v-if="aiSettingsMenuOpen"
+                        ref="aiSettingsMenuPanelRef"
+                        class="fixed z-[1000] flex max-h-[min(88vh,480px)] w-[min(92vw,360px)] flex-col overflow-hidden rounded-xl border shadow-2xl header-menu assign-popover"
                         :style="{
-                            top: `${aiModeMenuPos.top}px`,
-                            right: `${aiModeMenuPos.right}px`,
+                            top: `${aiSettingsMenuPos.top}px`,
+                            right: `${aiSettingsMenuPos.right}px`,
                             background: 'var(--wa-panel-header)',
                             borderColor: 'var(--wa-border-strong)',
                         }"
-                        role="listbox"
-                        aria-label="Режим AI"
+                        aria-label="Настройки AI"
                         @click.stop
                     >
                         <div
@@ -1539,7 +1603,7 @@ async function saveFunnelModal() {
                         >
                             Режим ответа
                         </div>
-                        <div class="wa-scrollbar flex-1 overflow-y-auto py-1">
+                        <div class="wa-scrollbar py-1">
                             <button
                                 type="button"
                                 class="assign-row"
@@ -1593,33 +1657,9 @@ async function saveFunnelModal() {
                                 </svg>
                             </button>
                         </div>
-                    </div>
-                </template>
-            </Teleport>
-
-            <Teleport to="body">
-                <template v-if="canManageAi && aiEnabled && showAiResponderSelect">
-                    <div
-                        v-if="aiResponderMenuOpen"
-                        class="fixed inset-0 z-[900]"
-                        @click="closeAiResponderMenu"
-                    ></div>
-                    <div
-                        v-if="aiResponderMenuOpen"
-                        ref="aiResponderMenuPanelRef"
-                        class="fixed z-[1000] flex max-h-[min(90vh,440px)] w-[min(92vw,360px)] flex-col overflow-hidden rounded-xl border shadow-2xl header-menu assign-popover"
-                        :style="{
-                            top: `${aiResponderMenuPos.top}px`,
-                            right: `${aiResponderMenuPos.right}px`,
-                            background: 'var(--wa-panel-header)',
-                            borderColor: 'var(--wa-border-strong)',
-                        }"
-                        role="listbox"
-                        aria-label="Ответчик AI"
-                        @click.stop
-                    >
+                        <template v-if="showAiResponderSelect">
                         <div
-                            class="border-b px-3 py-2 text-xs font-semibold"
+                            class="border-t border-b px-3 py-2 text-xs font-semibold"
                             :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                         >
                             От чьего имени AI
@@ -1712,6 +1752,7 @@ async function saveFunnelModal() {
                                 Ничего не найдено
                             </div>
                         </div>
+                        </template>
                     </div>
                 </template>
             </Teleport>
@@ -1893,7 +1934,7 @@ async function saveFunnelModal() {
             </div>
 
             <div class="header-menu-control flex items-center gap-1 shrink-0">
-                <button type="button" class="wa-header-btn shrink-0" title="Поиск" @click="openSearch">
+                <button type="button" class="wa-header-btn shrink-0 hidden xl:flex" title="Поиск" @click="openSearch">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -1950,11 +1991,38 @@ async function saveFunnelModal() {
                         </svg>
                         Отложенные сообщения
                     </button>
-                    <button class="menu-item" @click="notImplemented('Выбрать сообщения')" type="button">
-                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <button
+                        v-if="funnelModuleVisible"
+                        class="menu-item"
+                        type="button"
+                        @click="openFunnelModal(); closeMenu()"
+                    >
+                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                         </svg>
-                        Выбрать сообщения
+                        Этап воронки
+                    </button>
+                    <button
+                        class="menu-item"
+                        type="button"
+                        :disabled="quickTaskLoading"
+                        @click="closeMenu(); createQuickTask()"
+                    >
+                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ quickTaskLoading ? 'Создание задачи…' : 'Задача по чату' }}
+                    </button>
+                    <button
+                        v-if="canManageAi"
+                        class="menu-item"
+                        type="button"
+                        @click="aiSimulatorOpen = true; closeMenu()"
+                    >
+                        <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17.25a2.25 2.25 0 01-2.25 2.25H7.25A2.25 2.25 0 015 17.25V14.5" />
+                        </svg>
+                        Симулятор AI
                     </button>
                     <button
                         class="menu-item menu-item-danger"
@@ -2674,7 +2742,63 @@ async function saveFunnelModal() {
 <style scoped>
 /* Правая панель действий: компактные группы вместо россыпи равнозначных кнопок. */
 .chat-header-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.chat-header-toolbar::-webkit-scrollbar {
+    display: none;
+}
+
+.header-funnel-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--wa-text-secondary);
+    cursor: pointer;
+}
+
+.header-funnel-compact:hover {
+    color: var(--wa-text);
+}
+
+.header-funnel-compact-warning {
+    color: #f59e0b;
+}
+
+.header-funnel-compact-error {
+    color: var(--wa-danger);
+}
+
+.header-funnel-compact-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 9999px;
+}
+
+.header-funnel-compact-bar {
+    position: relative;
+    width: 2.25rem;
+    height: 0.22rem;
     overflow: hidden;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+}
+
+.header-funnel-compact-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
 }
 
 .chat-header-toolbar > * {
@@ -2919,8 +3043,8 @@ async function saveFunnelModal() {
 }
 
 .header-ai-toggle {
-    min-width: 7rem;
-    padding: 0 0.82rem;
+    min-width: 3.25rem;
+    padding: 0 0.62rem;
     color: var(--wa-text-secondary);
     font-size: 0.78rem;
     font-weight: 650;
@@ -2940,7 +3064,7 @@ async function saveFunnelModal() {
 }
 
 .header-ai-toggle-text {
-    max-width: 7.2rem;
+    max-width: 3.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -2959,8 +3083,8 @@ async function saveFunnelModal() {
 }
 
 .header-ai-assistant-btn {
-    min-width: 3.95rem;
-    padding: 0 0.78rem;
+    min-width: 2.35rem;
+    padding: 0 0.55rem;
     color: #fff;
     background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
     font-weight: 700;
@@ -3004,7 +3128,7 @@ async function saveFunnelModal() {
     font-weight: 600;
     padding: 0 0.5rem 0 0.62rem;
     max-width: 9.2rem;
-    min-width: 5.4rem;
+    min-width: 2.25rem;
     cursor: pointer;
     outline: none;
 }

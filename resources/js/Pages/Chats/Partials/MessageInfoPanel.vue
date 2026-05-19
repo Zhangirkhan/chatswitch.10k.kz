@@ -4,6 +4,7 @@ import type { Message } from '@/types';
 
 const props = defineProps<{
     message: Message;
+    panelWidth?: string;
 }>();
 
 const emit = defineEmits<{
@@ -40,8 +41,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
 
 <template>
     <aside
-        class="w-[400px] shrink-0 h-full flex flex-col border-l overflow-hidden"
-        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+        class="shrink-0 h-full flex flex-col border-l overflow-hidden"
+        :style="{
+            width: props.panelWidth ?? '400px',
+            background: 'var(--wa-panel)',
+            borderColor: 'var(--wa-border)',
+        }"
     >
         <!-- Header -->
         <div

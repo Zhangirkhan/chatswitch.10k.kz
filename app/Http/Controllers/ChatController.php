@@ -54,6 +54,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -592,7 +593,7 @@ final class ChatController extends Controller
             $employeeProfile = EmployeeToneProfile::query()
                 ->where('company_id', $companyId)
                 ->where('user_id', $responderId)
-                ->first(['summary', 'metadata']);
+                ->first(['summary', 'metadata', 'phrases']);
 
             $hasEmployeeTone = $employeeProfile !== null
                 && trim((string) $employeeProfile->summary) !== ''
@@ -604,6 +605,7 @@ final class ChatController extends Controller
                     'source' => 'employee',
                     'label' => 'Тон: сотрудник',
                     'hint' => 'AI использует личный профиль тона выбранного ответчика.',
+                    'suggestion' => $this->toneProfileSuggestion($employeeProfile?->summary, $employeeProfile?->phrases),
                 ];
             }
         }
@@ -618,6 +620,7 @@ final class ChatController extends Controller
                 'source' => 'company',
                 'label' => 'Тон: компания',
                 'hint' => 'Личный тон сотрудника не собран, AI использует общий стиль компании.',
+                'suggestion' => $this->toneProfileSuggestion((string) $companySummary, null),
             ];
         }
 
@@ -625,7 +628,30 @@ final class ChatController extends Controller
             'source' => 'none',
             'label' => 'Тон: не собран',
             'hint' => 'AI использует нейтральный краткий стиль до накопления профиля тона.',
+            'suggestion' => null,
         ];
+    }
+
+    /**
+     * @param  list<string>|null  $phrases
+     */
+    private function toneProfileSuggestion(?string $summary, ?array $phrases): ?string
+    {
+        if (is_array($phrases)) {
+            foreach ($phrases as $phrase) {
+                $line = trim((string) $phrase);
+                if ($line !== '') {
+                    return 'Фраза из профиля: «'.Str::limit($line, 80, '…').'»';
+                }
+            }
+        }
+
+        $summary = trim((string) $summary);
+        if ($summary === '') {
+            return null;
+        }
+
+        return Str::limit($summary, 140, '…');
     }
 
     public function syncDepartments(SyncDepartmentsRequest $request, Chat $chat): JsonResponse
@@ -810,6 +836,7 @@ final class ChatController extends Controller
             'success' => true,
             'message' => $result->message,
             'tone_profile_learning_scheduled' => $result->toneProfileLearningScheduled,
+            'draft_edit_kind' => $result->draftEditKind,
         ]);
     }
 

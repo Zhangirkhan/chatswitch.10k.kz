@@ -218,8 +218,12 @@ final class OutboundChatMessageDispatcher
 
         ProcessOutboundFunnelSignalJob::dispatch($message->id);
 
-        $toneScheduled = $this->draftToneLearning->learnFromOutbound($user, $chat, $signedDisplayText);
+        $draftEditKind = $this->draftToneLearning->learnFromOutbound($user, $chat, $signedDisplayText);
 
-        return new OutboundTextSendResult($message, $toneScheduled);
+        return new OutboundTextSendResult(
+            $message,
+            $draftEditKind !== null,
+            $draftEditKind,
+        );
     }
 }

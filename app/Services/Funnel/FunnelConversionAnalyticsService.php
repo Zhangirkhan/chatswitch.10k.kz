@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 final class FunnelConversionAnalyticsService
 {
+    public function __construct(
+        private readonly FunnelStageResponseTimeAnalytics $responseTimeAnalytics,
+    ) {}
+
     /**
      * @return array{
      *     period: array{from: string, to: string},
@@ -65,6 +69,7 @@ final class FunnelConversionAnalyticsService
         $forwardExitsByStage = $this->forwardExitsByStage($funnels, $chatIds, $from, $to);
         $currentByStage = $this->currentChatsByStage($chatIds, $stageIds);
         $avgHoursByStage = $this->avgHoursOnStage($chatIds, $stageIds, $from, $to);
+        $responseMinutesByStage = $this->responseTimeAnalytics->avgMinutesByStage($chatIds, $stageIds, $from, $to);
 
         $totalTransitions = (int) ChatFunnelTransition::query()
             ->whereIn('chat_id', $chatIds)
@@ -115,6 +120,10 @@ final class FunnelConversionAnalyticsService
                     'avg_hours_on_stage' => isset($avgHoursByStage[$stageId])
                         ? round((float) $avgHoursByStage[$stageId], 1)
                         : null,
+                    'avg_response_minutes_ai' => $responseMinutesByStage[$stageId]['avg_response_minutes_ai'] ?? null,
+                    'avg_response_minutes_manager' => $responseMinutesByStage[$stageId]['avg_response_minutes_manager'] ?? null,
+                    'response_samples_ai' => $responseMinutesByStage[$stageId]['response_samples_ai'] ?? 0,
+                    'response_samples_manager' => $responseMinutesByStage[$stageId]['response_samples_manager'] ?? 0,
                     'is_final' => $index === $stages->count() - 1,
                 ];
             }

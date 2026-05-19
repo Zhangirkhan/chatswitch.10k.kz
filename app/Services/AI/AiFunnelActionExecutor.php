@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
+use App\Services\Funnel\FunnelStageTransitionGuard;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\TeamChatService;
 use App\Services\TeamDepartmentChatSyncService;
@@ -33,6 +34,7 @@ final class AiFunnelActionExecutor
         private readonly ChatService $chatService,
         private readonly TeamChatService $teamChatService,
         private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
+        private readonly FunnelStageTransitionGuard $stageTransitionGuard,
     ) {}
 
     /**
@@ -50,7 +52,7 @@ final class AiFunnelActionExecutor
         $allowed = $this->allowedActions($rule);
         $result = [];
 
-        if ($plan->customerReply !== null) {
+        if ($plan->customerReply !== null && $chat->ai_enabled) {
             $result['reply_customer'] = $this->runAction(
                 $run,
                 $chat,
@@ -224,6 +226,9 @@ final class AiFunnelActionExecutor
         $serviceName = trim((string) ($appointment['service_name'] ?? 'Запись'));
         $startsAt = Carbon::parse((string) ($appointment['starts_at'] ?? ''));
         $duration = max(1, (int) ($appointment['duration_minutes'] ?? 60));
+        $reminderLeadMinutes = isset($appointment['reminder_lead_minutes']) && is_numeric($appointment['reminder_lead_minutes'])
+            ? (int) $appointment['reminder_lead_minutes']
+            : null;
         $assignee = $plan->assigneeUserId
             ? User::query()->whereKey($plan->assigneeUserId)->first()
             : null;
@@ -236,6 +241,12 @@ final class AiFunnelActionExecutor
             ->first();
 
         if ($existing instanceof CalendarEvent) {
+            $metadata = $existing->metadata ?? [];
+            $aiMeta = is_array($metadata['ai'] ?? null) ? $metadata['ai'] : [];
+            if ($reminderLeadMinutes !== null) {
+                $aiMeta['reminder_lead_minutes'] = $reminderLeadMinutes;
+            }
+
             $existing->forceFill([
                 'user_id' => $actor->id,
                 'assignee_user_id' => $assignee?->id ?? $existing->assignee_user_id ?? $actor->id,
@@ -245,8 +256,9 @@ final class AiFunnelActionExecutor
                 'starts_at' => $startsAt,
                 'ends_at' => $startsAt->copy()->addMinutes($duration),
                 'metadata' => [
-                    ...($existing->metadata ?? []),
+                    ...$metadata,
                     'ai' => [
+                        ...$aiMeta,
                         'generated' => true,
                         'rescheduled' => true,
                         'service_name' => $serviceName,
@@ -256,6 +268,15 @@ final class AiFunnelActionExecutor
                     ],
                 ],
             ])->save();
+
+            $this->booking->syncReminderForEvent(
+                $existing,
+                $chat,
+                $actor,
+                $serviceName,
+                $startsAt,
+                $reminderLeadMinutes,
+            );
 
             $action->forceFill(['calendar_event_id' => $existing->id])->save();
 
@@ -271,6 +292,7 @@ final class AiFunnelActionExecutor
             $duration,
             isset($appointment['client_note']) ? (string) $appointment['client_note'] : null,
             $assignee,
+            $reminderLeadMinutes,
         );
 
         $event = $booked['event'];
@@ -323,15 +345,25 @@ final class AiFunnelActionExecutor
     /** @return array<string, mixed> */
     private function moveFunnelStage(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): array
     {
+        $funnelId = (int) $chat->funnel_id;
+        $stageId = (int) $plan->targetFunnelStageId;
+
+        if (! $this->stageTransitionGuard->canMove($chat, $funnelId, $stageId, $plan->confidence)) {
+            return [
+                'skipped' => true,
+                'reason' => $this->stageTransitionGuard->rejectReason($chat, $funnelId, $stageId, $plan->confidence),
+            ];
+        }
+
         $this->funnelState->applyFromAi(
             $chat,
-            new ChatFunnelClassification((int) $chat->funnel_id, (int) $plan->targetFunnelStageId, $plan->confidence, $plan->reason),
+            new ChatFunnelClassification($funnelId, $stageId, $plan->confidence, $plan->reason),
             $trigger->id,
         );
 
         return [
-            'funnel_id' => (int) $chat->funnel_id,
-            'funnel_stage_id' => (int) $plan->targetFunnelStageId,
+            'funnel_id' => $funnelId,
+            'funnel_stage_id' => $stageId,
         ];
     }
 

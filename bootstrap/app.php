@@ -1,8 +1,16 @@
 <?php
 
+use App\Http\Middleware\EnsureActiveUser;
+use App\Http\Middleware\EnsureApiUserActive;
+use App\Http\Middleware\EnsureSettingsReadiness;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventAuthenticatedDocumentCache;
+use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\VerifyWhatsappWebhook;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,16 +26,17 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            \App\Http\Middleware\PreventAuthenticatedDocumentCache::class,
-            \App\Http\Middleware\EnsureActiveUser::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
+            PreventAuthenticatedDocumentCache::class,
+            EnsureActiveUser::class,
         ]);
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\RoleMiddleware::class,
-            'whatsapp.webhook' => \App\Http\Middleware\VerifyWhatsappWebhook::class,
-            'api.active' => \App\Http\Middleware\EnsureApiUserActive::class,
+            'role' => RoleMiddleware::class,
+            'whatsapp.webhook' => VerifyWhatsappWebhook::class,
+            'api.active' => EnsureApiUserActive::class,
+            'settings.readiness' => EnsureSettingsReadiness::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

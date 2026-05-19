@@ -7,6 +7,8 @@ import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
 import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
 import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
+import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
+import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
@@ -214,6 +216,28 @@ const contactInfoOpen = ref(false);
 const messageInfoOpen = ref(false);
 const messageInfoMessage = ref<Message | null>(null);
 const aiPanelOpen = ref(false);
+
+const contactPanelResize = useResizablePanelWidth({
+    storageKey: 'chats.contactPanelWidth',
+    defaultWidth: 400,
+    minWidth: 300,
+    maxWidth: 640,
+    edge: 'right',
+});
+
+const aiPanelResize = useResizablePanelWidth({
+    storageKey: 'chats.aiPanelWidth',
+    defaultWidth: 420,
+    minWidth: 320,
+    maxWidth: 720,
+    edge: 'right',
+});
+
+const contactPanelWidthPx = computed(() => contactPanelResize.widthPx.value);
+const aiPanelWidthPx = computed(() => aiPanelResize.widthPx.value);
+const contactPanelResizing = computed(() => contactPanelResize.isResizing.value);
+const aiPanelResizing = computed(() => aiPanelResize.isResizing.value);
+
 const replyTo = ref<Message | null>(null);
 const forwardOpen = ref(false);
 const forwardMessage = ref<Message | null>(null);
@@ -594,11 +618,11 @@ function cleanupEcho() {
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                         <Link
-                            :href="route('settings.ai-quality')"
+                            :href="route('settings.onboarding')"
                             class="rounded-lg px-3 py-1.5 text-xs font-semibold no-underline"
                             :style="{ background: 'var(--wa-accent)', color: 'var(--wa-accent-on)' }"
                         >
-                            Проверка готовности
+                            Чеклист онбординга
                         </Link>
                         <button
                             type="button"
@@ -789,32 +813,49 @@ function cleanupEcho() {
                 </div>
             </div>
 
-            <!-- Contact info panel -->
-            <ContactInfoPanel
-                v-if="contactInfoOpen"
-                :chat="chat"
-                :messages="localMessages"
-                :ai-status="aiStatus"
-                :sidebar-insights="sidebarInsights"
-                @close="toggleContactInfo"
-                @open-ai="openAiFromContactPanel"
-                @open-search="() => { contactInfoOpen = false; searchOpen = true; }"
-            />
+            <template v-if="contactInfoOpen">
+                <PanelResizeHandle
+                    :active="contactPanelResizing"
+                    @pointerdown="contactPanelResize.onResizePointerDown"
+                />
+                <ContactInfoPanel
+                    :chat="chat"
+                    :messages="localMessages"
+                    :ai-status="aiStatus"
+                    :sidebar-insights="sidebarInsights"
+                    :panel-width="contactPanelWidthPx"
+                    @close="toggleContactInfo"
+                    @open-ai="openAiFromContactPanel"
+                    @open-search="() => { contactInfoOpen = false; searchOpen = true; }"
+                />
+            </template>
 
-            <MessageInfoPanel
-                v-if="messageInfoOpen && messageInfoMessage"
-                :message="messageInfoMessage"
-                @close="closeMessageInfo"
-            />
+            <template v-if="messageInfoOpen && messageInfoMessage">
+                <PanelResizeHandle
+                    :active="contactPanelResizing"
+                    @pointerdown="contactPanelResize.onResizePointerDown"
+                />
+                <MessageInfoPanel
+                    :message="messageInfoMessage"
+                    :panel-width="contactPanelWidthPx"
+                    @close="closeMessageInfo"
+                />
+            </template>
 
-            <AiAssistantPanel
-                v-if="aiPanelOpen"
-                :chat-id="chat.id"
-                :chat-name="chat.chat_name || chat.contact?.name || chat.contact?.push_name || null"
-                :messages="localMessages"
-                :ai-status="aiStatus"
-                @close="closeAiPanel"
-            />
+            <template v-if="aiPanelOpen">
+                <PanelResizeHandle
+                    :active="aiPanelResizing"
+                    @pointerdown="aiPanelResize.onResizePointerDown"
+                />
+                <AiAssistantPanel
+                    :chat-id="chat.id"
+                    :chat-name="chat.chat_name || chat.contact?.name || chat.contact?.push_name || null"
+                    :messages="localMessages"
+                    :ai-status="aiStatus"
+                    :panel-width="aiPanelWidthPx"
+                    @close="closeAiPanel"
+                />
+            </template>
 
             <ForwardMessageModal
                 v-if="forwardOpen && forwardWhatsappSessionId !== null"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { useToastStore } from '@/stores/toast';
 import type { Message } from '@/types';
 
@@ -20,6 +21,7 @@ type AiStatus = {
         source: string;
         label: string;
         hint: string;
+        suggestion?: string | null;
     } | null;
     draft_reply: string | null;
     technical_error: string | null;
@@ -54,6 +56,7 @@ const props = defineProps<{
     chatName?: string | null;
     messages?: Message[];
     aiStatus?: AiStatus | null;
+    panelWidth?: string;
 }>();
 
 const emit = defineEmits<{
@@ -77,6 +80,7 @@ const autoDraftError = ref<string | null>(null);
 const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
+const clearAiDialogOpen = ref(false);
 let autoDraftTimer: number | null = null;
 
 /**
@@ -271,15 +275,19 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
     }
 }
 
-function clearConversation(): void {
+function requestClearConversation(): void {
     if (turns.value.length === 0) return;
-    if (!window.confirm('Очистить переписку с AI по этому чату?')) return;
+    clearAiDialogOpen.value = true;
+}
+
+function doClearConversation(): void {
     turns.value = [];
     try {
         window.localStorage.removeItem(storageKey.value);
     } catch {
         /* noop */
     }
+    clearAiDialogOpen.value = false;
 }
 
 function copyToClipboard(text: string): void {
@@ -316,7 +324,13 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 function onEscape(e: KeyboardEvent): void {
-    if (e.key === 'Escape') emit('close');
+    if (e.key === 'Escape') {
+        if (clearAiDialogOpen.value) {
+            clearAiDialogOpen.value = false;
+            return;
+        }
+        emit('close');
+    }
 }
 
 async function scrollToBottom(): Promise<void> {
@@ -362,8 +376,12 @@ watch(() => props.chatId, () => {
 
 <template>
     <aside
-        class="w-[420px] shrink-0 h-full flex flex-col border-l overflow-hidden"
-        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-sidebar-divider)' }"
+        class="shrink-0 h-full flex flex-col border-l overflow-hidden"
+        :style="{
+            width: props.panelWidth ?? '420px',
+            background: 'var(--wa-panel)',
+            borderColor: 'var(--wa-sidebar-divider)',
+        }"
     >
         <div
             class="min-h-[60px] py-2 px-4 flex items-center gap-3 shrink-0"
@@ -397,7 +415,7 @@ watch(() => props.chatId, () => {
                 class="text-xs px-2.5 py-1.5 rounded-md hover:bg-[var(--wa-panel-hover)]"
                 :style="{ color: 'var(--wa-text-secondary)' }"
                 title="Очистить переписку с AI"
-                @click="clearConversation"
+                @click="requestClearConversation"
             >
                 Очистить
             </button>
@@ -441,6 +459,12 @@ watch(() => props.chatId, () => {
                 >
                     {{ aiToneSourceLabel }}
                 </p>
+                <p
+                    v-if="aiStatus?.tone_source?.suggestion"
+                    class="mt-1 text-[11px] leading-4 opacity-75"
+                >
+                    {{ aiStatus.tone_source.suggestion }}
+                </p>
 
                 <div
                     v-if="aiStatus?.draft_reply"
@@ -461,8 +485,8 @@ watch(() => props.chatId, () => {
                         </button>
                     </div>
                     <p class="mt-2 text-[11px] leading-4 opacity-70">
-                        Если вы сильно меняете черновик перед отправкой, система может автоматически подстроить тон ответов
-                        под ваш стиль.
+                        Даже лёгкие правки (пунктуация, формулировки) учитываются при обучении тона; сильные изменения
+                        обновляют профиль быстрее.
                     </p>
                 </div>
 
@@ -740,6 +764,16 @@ watch(() => props.chatId, () => {
             </p>
         </div>
     </aside>
+
+    <DangerConfirmModal
+        :open="clearAiDialogOpen"
+        title="Очистить переписку с AI?"
+        description="История в этой панели исчезнет. Сообщения в чате не удаляются."
+        confirm-label="Очистить"
+        confirm-variant="danger"
+        @close="clearAiDialogOpen = false"
+        @confirm="doClearConversation"
+    />
 </template>
 
 <style scoped>

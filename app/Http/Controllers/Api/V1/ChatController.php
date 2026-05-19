@@ -129,6 +129,7 @@ final class ChatController extends Controller
         return response()->json([
             'message' => new MessageResource($result->message),
             'tone_profile_learning_scheduled' => $result->toneProfileLearningScheduled,
+            'draft_edit_kind' => $result->draftEditKind,
         ]);
     }
 

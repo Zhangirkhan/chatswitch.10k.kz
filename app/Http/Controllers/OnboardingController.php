@@ -91,6 +91,15 @@ final class OnboardingController extends Controller
 
     public function complete(): RedirectResponse
     {
-        return redirect()->route('settings.ai-quality');
+        $readiness = $this->readinessService->evaluate();
+        if ($readiness['status'] !== 'ready') {
+            return redirect()
+                ->route('settings.onboarding')
+                ->with('warning', 'Завершите все шаги онбординга — готовность AI ещё не достигнута.');
+        }
+
+        return redirect()
+            ->route('settings.ai-quality')
+            ->with('success', 'Онбординг завершён. AI готов к работе.');
     }
 }

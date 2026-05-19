@@ -46,12 +46,22 @@ final class AiSimulationService
         }
 
         $result = $this->simulate($companyId, $message, $history);
+        $chat->loadMissing([
+            'funnel:id,name,color',
+            'funnelStage:id,name,color,position',
+            'funnel.stages' => fn ($query) => $query
+                ->where('is_active', true)
+                ->orderBy('position')
+                ->select(['id', 'funnel_id', 'name', 'color', 'position', 'stage_type']),
+        ]);
+
         $result['context'] = [
             'chat_id' => $chat->id,
             'chat_name' => $chat->chat_name,
             'current_funnel' => $chat->funnel?->name,
             'current_stage' => $chat->funnelStage?->name,
         ];
+        $result['stage_preview'] = $this->stagePreview($chat, $result['stage_name'] ?? null);
 
         return $result;
     }
@@ -190,6 +200,58 @@ PROMPT;
             'reason' => Str::limit(trim((string) ($raw['reason'] ?? '')), 500, '...') ?: 'AI не указал причину.',
             'risks' => $this->stringList($raw['risks'] ?? []),
             'missing_data' => $this->stringList($raw['missing_data'] ?? []),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     stages: list<array{id: int, name: string, color: string|null, stage_type: string|null}>,
+     *     from_index: int,
+     *     to_index: int|null,
+     *     funnel_color: string|null
+     * }
+     */
+    private function stagePreview(Chat $chat, ?string $targetStageName): array
+    {
+        $stages = $chat->funnel?->stages ?? collect();
+        $mapped = $stages
+            ->map(fn ($stage): array => [
+                'id' => (int) $stage->id,
+                'name' => (string) $stage->name,
+                'color' => is_string($stage->color) && $stage->color !== '' ? $stage->color : null,
+                'stage_type' => is_string($stage->stage_type) && $stage->stage_type !== '' ? $stage->stage_type : null,
+            ])
+            ->values()
+            ->all();
+
+        $fromIndex = -1;
+        if ($chat->funnel_stage_id !== null) {
+            foreach ($mapped as $index => $stage) {
+                if ($stage['id'] === (int) $chat->funnel_stage_id) {
+                    $fromIndex = $index;
+                    break;
+                }
+            }
+        }
+
+        $toIndex = null;
+        $needle = mb_strtolower(trim((string) $targetStageName));
+        if ($needle !== '') {
+            foreach ($mapped as $index => $stage) {
+                if (mb_strtolower($stage['name']) === $needle) {
+                    $toIndex = $index;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'stages' => $mapped,
+            'from_index' => $fromIndex,
+            'to_index' => $toIndex,
+            'funnel_color' => is_string($chat->funnel?->color) && $chat->funnel->color !== ''
+                ? $chat->funnel->color
+                : null,
         ];
     }
 

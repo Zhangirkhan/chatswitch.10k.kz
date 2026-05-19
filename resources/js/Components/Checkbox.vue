@@ -1,29 +1,26 @@
 <script setup lang="ts">
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { computed } from 'vue';
 
-const emit = defineEmits(['update:checked']);
+const emit = defineEmits<{
+    'update:checked': [value: boolean];
+}>();
 
 const props = defineProps<{
     checked: boolean;
-    value?: any;
+    disabled?: boolean;
 }>();
 
 const proxyChecked = computed({
     get() {
         return props.checked;
     },
-
-    set(val) {
+    set(val: boolean) {
         emit('update:checked', val);
     },
 });
 </script>
 
 <template>
-    <input
-        type="checkbox"
-        :value="value"
-        v-model="proxyChecked"
-        class="rounded border-gray-300 text-[var(--wa-accent)] shadow-sm focus:ring-[var(--wa-accent)]"
-    />
+    <UiCheckbox v-model="proxyChecked" :disabled="disabled" />
 </template>

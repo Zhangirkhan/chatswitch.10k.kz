@@ -3,6 +3,7 @@ import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ const PALETTE = ['#01b964','#34d399','#22d3ee','#3b82f6','#6366f1','#8b5cf6','#e
 
 const showModal  = ref(false);
 const editingId  = ref<number | null>(null);
+const deleteDialogOpen = ref(false);
 /** Метаданные открытой записи (AI, чат, контакт) — только для подсказки в модалке. */
 const editingMeta = ref<{ source?: string | null; chat?: CalEvent['chat']; contact?: CalEvent['contact'] } | null>(null);
 const saving     = ref(false);
@@ -160,9 +162,15 @@ async function saveEvent() {
     }
 }
 
-async function deleteEvent(id: number | null) {
+function requestDeleteEvent(): void {
+    if (!editingId.value) return;
+    deleteDialogOpen.value = true;
+}
+
+async function confirmDeleteEvent(): Promise<void> {
+    const id = editingId.value;
     if (!id) return;
-    if (!confirm('Удалить запись?')) return;
+    deleteDialogOpen.value = false;
     try {
         await axios.delete(route('calendar.events.destroy', id));
         closeModal();
@@ -698,7 +706,7 @@ const recurrenceLabels: Record<string, string> = {
                                 v-if="editingId && !form.title.includes('(копия)')"
                                 type="button"
                                 class="cal-btn-delete"
-                                @click="deleteEvent(editingId)"
+                                @click="requestDeleteEvent"
                             >Удалить</button>
                             <div class="flex gap-2 ml-auto">
                                 <button type="button" class="cal-btn-secondary" @click="closeModal">Отмена</button>
@@ -711,6 +719,16 @@ const recurrenceLabels: Record<string, string> = {
                 </div>
             </div>
         </Teleport>
+
+        <DangerConfirmModal
+            :open="deleteDialogOpen"
+            title="Удалить запись?"
+            description="Событие будет удалено из календаря без возможности восстановления."
+            confirm-label="Удалить"
+            confirm-variant="danger"
+            @close="deleteDialogOpen = false"
+            @confirm="confirmDeleteEvent"
+        />
     </AuthenticatedLayout>
 </template>
 

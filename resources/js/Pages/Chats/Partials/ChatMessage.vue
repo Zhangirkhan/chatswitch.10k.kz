@@ -117,6 +117,28 @@ const canShowAiFeedback = computed(() => showMessageBody.value && isAiGenerated.
 
 const aiDecision = computed<MessageAiDecision | null>(() => props.message.ai_decision ?? null);
 const showAiDecision = computed(() => isInternalUser.value && aiDecision.value !== null);
+const aiDecisionPlanOpen = ref(false);
+const aiDecisionPlanJson = computed(() => {
+    const plan = aiDecision.value?.plan;
+    if (!plan || typeof plan !== 'object') {
+        return '';
+    }
+    try {
+        return JSON.stringify(plan, null, 2);
+    } catch {
+        return '';
+    }
+});
+const showAiDecisionPlanToggle = computed(
+    () => showAiDecision.value && aiDecision.value?.source === 'orchestrator' && aiDecisionPlanJson.value.length > 0,
+);
+const aiDecisionConfidenceLabel = computed(() => {
+    const value = aiDecision.value?.confidence;
+    if (value == null || Number.isNaN(Number(value))) {
+        return null;
+    }
+    return `${Math.round(Number(value) * 100)}%`;
+});
 
 async function submitAiFeedback(rating: AiFeedbackRating): Promise<void> {
     if (aiFeedbackSubmitting.value) {
@@ -1374,6 +1396,13 @@ onBeforeUnmount(() => {
                     :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
                 >
                     <p class="font-semibold text-[var(--wa-text)] m-0">{{ aiDecision.label }}</p>
+                    <p
+                        v-if="aiDecisionConfidenceLabel"
+                        class="mt-0.5 text-[10px] m-0"
+                        :style="{ color: 'var(--wa-text-secondary)' }"
+                    >
+                        Уверенность: {{ aiDecisionConfidenceLabel }}
+                    </p>
                     <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
                     <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
                         <span
@@ -1385,6 +1414,20 @@ onBeforeUnmount(() => {
                             {{ chip.label }}
                         </span>
                     </div>
+                    <button
+                        v-if="showAiDecisionPlanToggle"
+                        type="button"
+                        class="mt-2 text-[10px] font-medium hover:underline"
+                        :style="{ color: 'var(--wa-accent)' }"
+                        @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
+                    >
+                        {{ aiDecisionPlanOpen ? 'Скрыть план AI' : 'Показать план AI' }}
+                    </button>
+                    <pre
+                        v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
+                        class="mt-2 max-h-48 overflow-auto rounded-md border px-2 py-1.5 text-[10px] leading-snug whitespace-pre-wrap break-words m-0"
+                        :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)', color: 'var(--wa-text-secondary)' }"
+                    >{{ aiDecisionPlanJson }}</pre>
                 </div>
                 <template v-for="(seg, i) in bodySegments" :key="i">
                     <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>

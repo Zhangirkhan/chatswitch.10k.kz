@@ -167,4 +167,101 @@ final class ChatFunnelManualUpdateTest extends TestCase
             'funnel_stage_id' => $stageB->id,
         ])->assertStatus(422);
     }
+
+    public function test_switching_funnel_preserves_stage_index(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->assignRole('employee');
+
+        $funnelA = Funnel::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Продажи',
+            'description' => null,
+            'color' => '#25d366',
+            'is_active' => true,
+            'position' => 0,
+        ]);
+        $stageA1 = FunnelStage::query()->create([
+            'funnel_id' => $funnelA->id,
+            'name' => 'Лид',
+            'color' => '#3b82f6',
+            'position' => 0,
+            'is_active' => true,
+        ]);
+        $stageA2 = FunnelStage::query()->create([
+            'funnel_id' => $funnelA->id,
+            'name' => 'КП',
+            'color' => '#6366f1',
+            'position' => 1,
+            'is_active' => true,
+        ]);
+        $stageA3 = FunnelStage::query()->create([
+            'funnel_id' => $funnelA->id,
+            'name' => 'Сделка',
+            'color' => '#8b5cf6',
+            'position' => 2,
+            'is_active' => true,
+        ]);
+
+        $funnelB = Funnel::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Сервис',
+            'description' => null,
+            'color' => '#111111',
+            'is_active' => true,
+            'position' => 1,
+        ]);
+        $stageB1 = FunnelStage::query()->create([
+            'funnel_id' => $funnelB->id,
+            'name' => 'Заявка',
+            'color' => '#222222',
+            'position' => 0,
+            'is_active' => true,
+        ]);
+        $stageB2 = FunnelStage::query()->create([
+            'funnel_id' => $funnelB->id,
+            'name' => 'В работе',
+            'color' => '#333333',
+            'position' => 1,
+            'is_active' => true,
+        ]);
+
+        $dept = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'is_active' => true,
+        ]);
+        $dept->funnels()->sync([$funnelA->id, $funnelB->id]);
+        $dept->funnelStages()->sync([
+            $stageA1->id,
+            $stageA2->id,
+            $stageA3->id,
+            $stageB1->id,
+            $stageB2->id,
+        ]);
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'company_id' => $company->id,
+            'funnel_id' => $funnelA->id,
+            'funnel_stage_id' => $stageA3->id,
+        ]);
+        $chat->departments()->sync([$dept->id]);
+        ChatAssignment::query()->create([
+            'chat_id' => $chat->id,
+            'user_id' => $user->id,
+            'assigned_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)->patchJson(route('chats.funnel.update', $chat), [
+            'funnel_id' => $funnelB->id,
+            'funnel_stage_id' => $stageA3->id,
+        ])->assertOk()->assertJsonPath('chat.funnel_stage_id', $stageB2->id);
+
+        $chat->refresh();
+        $this->assertSame($funnelB->id, $chat->funnel_id);
+        $this->assertSame($stageB2->id, $chat->funnel_stage_id);
+    }
 }

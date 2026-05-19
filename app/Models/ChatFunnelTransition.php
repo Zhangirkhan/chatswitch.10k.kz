@@ -28,6 +28,7 @@ final class ChatFunnelTransition extends Model
         'confidence',
         'reason',
         'trigger_message_id',
+        'created_at',
     ];
 
     protected function casts(): array

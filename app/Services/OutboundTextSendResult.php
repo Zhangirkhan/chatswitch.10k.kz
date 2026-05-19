@@ -11,5 +11,6 @@ final readonly class OutboundTextSendResult
     public function __construct(
         public Message $message,
         public bool $toneProfileLearningScheduled,
+        public ?string $draftEditKind = null,
     ) {}
 }

@@ -3,6 +3,8 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import type { Department } from '@/types';
 
 interface DeptUser {
@@ -82,6 +84,9 @@ watch(
 
 const modalOpen = ref(false);
 const saving = ref(false);
+const deptDeleteOpen = ref(false);
+const deptDeleteTarget = ref<DepartmentRow | null>(null);
+const deptDeleteBusy = ref(false);
 const memberSearch = ref('');
 const modalTab = ref<'members' | 'funnels'>('members');
 const departmentSearch = ref('');
@@ -424,19 +429,41 @@ async function saveModal() {
     }
 }
 
-async function removeDepartment(dept: DepartmentRow) {
+function closeDeptDelete(): void {
+    if (deptDeleteBusy.value) return;
+    deptDeleteOpen.value = false;
+    deptDeleteTarget.value = null;
+}
+
+function requestRemoveDepartment(dept: DepartmentRow): void {
+    deptDeleteTarget.value = dept;
+    deptDeleteOpen.value = true;
+}
+
+const deptDeleteDescription = computed(() => {
+    const dept = deptDeleteTarget.value;
+    if (!dept) return '';
     const childCount = localDepartments.value.filter((d) => (d.parent_id ?? null) === dept.id).length;
-    const note = childCount > 0
-        ? `\n\nВнимание: у отдела есть ${childCount} дочерних отделов — они станут корневыми (не удаляются).`
-        : '';
-    if (!confirm(`Удалить отдел «${dept.name}»? У пользователей поле отдела будет очищено.${note}`)) {
-        return;
-    }
+    const note =
+        childCount > 0
+            ? `\n\nВнимание: у отдела есть ${childCount} дочерних отделов — они станут корневыми (не удаляются).`
+            : '';
+    return `Удалить отдел «${dept.name}»? У пользователей поле отдела будет очищено.${note}`;
+});
+
+async function confirmRemoveDepartment(): Promise<void> {
+    const dept = deptDeleteTarget.value;
+    if (!dept) return;
+    deptDeleteBusy.value = true;
     try {
         await axios.delete(route('settings.departments.destroy', dept.id));
+        deptDeleteOpen.value = false;
+        deptDeleteTarget.value = null;
         router.reload({ only: ['departments', 'users'] });
     } catch (err: unknown) {
         alert(fallbackErrorMessage(err));
+    } finally {
+        deptDeleteBusy.value = false;
     }
 }
 
@@ -493,7 +520,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
             <button
                 type="button"
                 class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 @click="openCreate(null)"
             >
                 + Отдел
@@ -501,7 +528,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
-            <p class="text-sm text-[var(--wa-text-secondary)] max-w-3xl">
+            <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
                 Пользователь может состоять в нескольких отделах. Отделы могут быть вложенными — например,
                 «Продажи» → «B2B» → «Регион Алматы». Дочерние отделы наследуют логику родителя
                 только визуально (для группировки в списках); назначение пользователей и чатов
@@ -510,7 +537,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
             <div
                 class="rounded-lg border p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_180px_180px_auto]"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
                 <input
                     v-model="departmentSearch"
@@ -536,7 +563,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 <button
                     type="button"
                     class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                     :disabled="!hasDepartmentFilters"
                     @click="resetDepartmentFilters"
                 >
@@ -544,52 +571,52 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 </button>
             </div>
 
-            <div class="flex items-center justify-between gap-3 text-xs text-[var(--wa-text-secondary)]">
+            <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
                 <span>Показано {{ visibleDepartmentTree.length }} из {{ localDepartments.length }}</span>
                 <span v-if="hasDepartmentFilters">Фильтр активен</span>
             </div>
 
             <div
                 class="rounded-lg border overflow-hidden"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <div v-if="visibleDepartmentTree.length === 0" class="p-10 text-center text-[var(--wa-text-secondary)]">
+                <div v-if="visibleDepartmentTree.length === 0" class="p-10 text-center text-[var(--ui-text-secondary)]">
                     {{ hasDepartmentFilters ? 'Отделы не найдены по текущему фильтру.' : 'Нет отделов. Нажмите «+ Отдел».' }}
                 </div>
                 <div
                     v-for="node in visibleDepartmentTree"
                     :key="node.dept.id"
                     class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-4 pr-5 border-b last:border-b-0"
-                    :style="{ borderColor: 'var(--wa-border)', ...indentStyle(node.depth) }"
+                    :style="{ borderColor: 'var(--ui-border)', ...indentStyle(node.depth) }"
                 >
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span
                                 v-if="node.depth > 0"
-                                class="text-[var(--wa-text-muted)] select-none"
+                                class="text-[var(--ui-text-muted)] select-none"
                                 aria-hidden="true"
                                 title="Дочерний отдел"
                             >└─</span>
-                            <h3 class="font-medium text-[var(--wa-text)] truncate">{{ node.dept.name }}</h3>
+                            <h3 class="font-medium text-[var(--ui-text)] truncate">{{ node.dept.name }}</h3>
                             <span
                                 v-if="node.dept.is_active === false"
-                                class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--wa-text-muted)]"
-                                style="background: color-mix(in srgb, var(--wa-text-muted) 16%, transparent)"
+                                class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--ui-text-muted)]"
+                                style="background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent)"
                             >Неактивен</span>
                             <span
                                 v-if="node.depth > 0"
-                                class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--wa-text-secondary)]"
-                                style="background: color-mix(in srgb, var(--wa-text-secondary) 14%, transparent)"
+                                class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--ui-text-secondary)]"
+                                style="background: color-mix(in srgb, var(--ui-text-secondary) 14%, transparent)"
                             >Уровень {{ node.depth + 1 }}</span>
                         </div>
-                        <p v-if="node.dept.description" class="text-xs text-[var(--wa-text-secondary)] mt-0.5 line-clamp-2">
+                        <p v-if="node.dept.description" class="text-xs text-[var(--ui-text-secondary)] mt-0.5 line-clamp-2">
                             {{ node.dept.description }}
                         </p>
-                        <p class="text-xs text-[var(--wa-text-secondary)] mt-1">
+                        <p class="text-xs text-[var(--ui-text-secondary)] mt-1">
                             {{ node.dept.users_count }} {{ node.dept.users_count === 1 ? 'пользователь' : 'пользователей' }}
                             <template v-if="node.dept.users?.length">
                                 ·
-                                <span class="text-[var(--wa-text)]">{{ node.dept.users.map((u) => u.name).join(', ') }}</span>
+                                <span class="text-[var(--ui-text)]">{{ node.dept.users.map((u) => u.name).join(', ') }}</span>
                             </template>
                         </p>
                         <div
@@ -600,7 +627,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 v-for="f in funnelBadgesFor(node.dept)"
                                 :key="f.id"
                                 class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 :title="`${f.name}: этапов ${f.stagesPicked} из ${f.stagesTotal}`"
                             >
                                 <span
@@ -608,14 +635,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     :style="{ background: f.color }"
                                 ></span>
                                 {{ f.name }}
-                                <span class="text-[var(--wa-text-secondary)]">({{ f.stagesPicked }}/{{ f.stagesTotal }})</span>
+                                <span class="text-[var(--ui-text-secondary)]">({{ f.stagesPicked }}/{{ f.stagesTotal }})</span>
                             </span>
                         </div>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                         <button
                             type="button"
-                            class="px-3 py-1.5 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                            class="px-3 py-1.5 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
                             title="Создать дочерний отдел"
                             @click="openCreate(node.dept.id)"
                         >
@@ -623,8 +650,8 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </button>
                         <button
                             type="button"
-                            class="px-3 py-1.5 text-sm rounded-lg border hover:bg-[var(--wa-panel-hover)]"
-                            :style="{ borderColor: 'var(--wa-border-strong)', color: 'var(--wa-text)' }"
+                            class="px-3 py-1.5 text-sm rounded-lg border hover:bg-[var(--ui-surface-hover)]"
+                            :style="{ borderColor: 'var(--ui-border-strong)', color: 'var(--ui-text)' }"
                             @click="openEdit(node.dept)"
                         >
                             Редактировать
@@ -632,7 +659,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         <button
                             type="button"
                             class="px-3 py-1.5 text-sm rounded-lg text-red-400 border border-red-500/30 hover:bg-red-500/10"
-                            @click="removeDepartment(node.dept)"
+                            @click="requestRemoveDepartment(node.dept)"
                         >
                             Удалить
                         </button>
@@ -652,18 +679,18 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
             >
                 <div
                     class="w-full max-w-lg max-h-[min(90vh,720px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border-strong)' }"
                     @click.stop
                 >
-                    <div class="px-5 py-4 border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
-                        <h3 class="text-base font-medium text-[var(--wa-text)]">
+                    <div class="px-5 py-4 border-b shrink-0" :style="{ borderColor: 'var(--ui-border)' }">
+                        <h3 class="text-base font-medium text-[var(--ui-text)]">
                             {{ editingId === null ? 'Новый отдел' : 'Редактировать отдел' }}
                         </h3>
                     </div>
 
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-4">
                         <div>
-                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Название</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Название</label>
                             <input
                                 v-model="form.name"
                                 type="text"
@@ -677,7 +704,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <div>
-                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
                                 Родительский отдел
                             </label>
                             <select
@@ -697,13 +724,13 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                             <p v-if="validationErrors.parent_id" class="text-xs text-red-400 mt-1 whitespace-pre-line">
                                 {{ validationErrors.parent_id }}
                             </p>
-                            <p class="text-[11px] text-[var(--wa-text-secondary)] mt-1">
+                            <p class="text-[11px] text-[var(--ui-text-secondary)] mt-1">
                                 В списке нельзя выбрать сам редактируемый отдел и его дочерние — это создаст цикл.
                             </p>
                         </div>
 
                         <div>
-                            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Описание</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Описание</label>
                             <textarea
                                 v-model="form.description"
                                 rows="3"
@@ -713,18 +740,18 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
-                            <span class="text-sm text-[var(--wa-text)]">Отдел активен (участвует в чатах и списках)</span>
+                            <UiCheckbox v-model="form.is_active" />
+                            <span class="text-sm text-[var(--ui-text)]">Отдел активен (участвует в чатах и списках)</span>
                         </label>
 
-                        <div class="pt-2 border-t" :style="{ borderColor: 'var(--wa-border)' }">
-                            <div class="flex rounded-xl p-1 mb-4" :style="{ background: 'var(--wa-panel-header)' }">
+                        <div class="pt-2 border-t" :style="{ borderColor: 'var(--ui-border)' }">
+                            <div class="flex rounded-xl p-1 mb-4" :style="{ background: 'var(--ui-surface-muted)' }">
                                 <button
                                     type="button"
                                     class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition"
                                     :style="{
-                                        background: modalTab === 'members' ? 'var(--wa-accent)' : 'transparent',
-                                        color: modalTab === 'members' ? '#fff' : 'var(--wa-text)',
+                                        background: modalTab === 'members' ? 'var(--ui-accent)' : 'transparent',
+                                        color: modalTab === 'members' ? '#fff' : 'var(--ui-text)',
                                     }"
                                     @click="modalTab = 'members'"
                                 >
@@ -735,8 +762,8 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     type="button"
                                     class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition"
                                     :style="{
-                                        background: modalTab === 'funnels' ? 'var(--wa-accent)' : 'transparent',
-                                        color: modalTab === 'funnels' ? '#fff' : 'var(--wa-text)',
+                                        background: modalTab === 'funnels' ? 'var(--ui-accent)' : 'transparent',
+                                        color: modalTab === 'funnels' ? '#fff' : 'var(--ui-text)',
                                     }"
                                     @click="modalTab = 'funnels'"
                                 >
@@ -747,8 +774,8 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <div v-if="modalTab === 'funnels'" class="pt-2">
-                            <p class="text-sm font-medium text-[var(--wa-text)] mb-1">Воронки продаж</p>
-                            <p class="text-xs text-[var(--wa-text-secondary)] mb-3">
+                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">Воронки продаж</p>
+                            <p class="text-xs text-[var(--ui-text-secondary)] mb-3">
                                 Подключите одну или несколько воронок и отметьте этапы, с которыми
                                 работает этот отдел. По умолчанию при включении воронки выбираются
                                 все её этапы — снимите ненужные.
@@ -756,7 +783,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
                             <div
                                 v-if="localFunnels.length === 0"
-                                class="text-xs text-[var(--wa-text-secondary)] italic"
+                                class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
                                 Воронок пока нет. Создайте их в разделе «Воронки продаж».
                             </div>
@@ -764,26 +791,31 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                             <div
                                 v-else
                                 class="rounded-lg border divide-y wa-scrollbar overflow-y-auto max-h-72"
-                                :style="{ borderColor: 'var(--wa-border)' }"
+                                :style="{ borderColor: 'var(--ui-border)' }"
                             >
                                 <div
                                     v-for="funnel in localFunnels"
                                     :key="funnel.id"
                                     class="px-3 py-2"
-                                    :style="{ borderColor: 'var(--wa-border)' }"
+                                    :style="{ borderColor: 'var(--ui-border)' }"
                                 >
-                                    <label class="flex items-center gap-3 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            class="w-4 h-4 rounded shrink-0"
+                                    <div
+                                        class="flex items-center gap-3 cursor-pointer"
+                                        role="button"
+                                        tabindex="0"
+                                        @click="toggleFunnel(funnel)"
+                                        @keydown.enter.prevent="toggleFunnel(funnel)"
+                                    >
+                                        <UiCheckbox
                                             :checked="isFunnelChecked(funnel)"
-                                            @change="toggleFunnel(funnel)"
+                                            :aria-label="`Воронка ${funnel.name}`"
+                                            @click.stop
                                         />
                                         <span
                                             class="w-2.5 h-2.5 rounded-full shrink-0"
                                             :style="{ background: funnel.color }"
                                         ></span>
-                                        <span class="text-sm text-[var(--wa-text)] truncate flex-1">
+                                        <span class="text-sm text-[var(--ui-text)] truncate flex-1">
                                             {{ funnel.name }}
                                             <span
                                                 v-if="!funnel.is_active"
@@ -792,11 +824,11 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                         </span>
                                         <span
                                             v-if="isFunnelChecked(funnel) && funnel.stages.length > 0"
-                                            class="text-[11px] text-[var(--wa-text-secondary)] shrink-0"
+                                            class="text-[11px] text-[var(--ui-text-secondary)] shrink-0"
                                         >
                                             этапов: {{ selectedStageCount(funnel) }} / {{ funnel.stages.length }}
                                         </span>
-                                    </label>
+                                    </div>
 
                                     <div
                                         v-if="isFunnelChecked(funnel)"
@@ -804,32 +836,36 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     >
                                         <div
                                             v-if="funnel.stages.length === 0"
-                                            class="text-[11px] text-[var(--wa-text-secondary)] italic"
+                                            class="text-[11px] text-[var(--ui-text-secondary)] italic"
                                         >
                                             У воронки нет этапов — добавьте их в «Воронках продаж».
                                         </div>
-                                        <label
+                                        <div
                                             v-for="stage in funnel.stages"
                                             :key="stage.id"
                                             class="flex items-center gap-2 cursor-pointer text-xs"
+                                            role="button"
+                                            tabindex="0"
                                             :style="{ opacity: stage.is_active === false ? 0.6 : 1 }"
+                                            @click="toggleStage(funnel, stage)"
+                                            @keydown.enter.prevent="toggleStage(funnel, stage)"
                                         >
-                                            <input
-                                                type="checkbox"
-                                                class="w-3.5 h-3.5 rounded shrink-0"
+                                            <UiCheckbox
+                                                size="sm"
                                                 :checked="isStageChecked(stage)"
-                                                @change="toggleStage(funnel, stage)"
+                                                :aria-label="`Этап ${stage.name}`"
+                                                @click.stop
                                             />
                                             <span
                                                 class="w-2 h-2 rounded-full shrink-0"
                                                 :style="{ background: stage.color }"
                                             ></span>
-                                            <span class="text-[var(--wa-text)] truncate">{{ stage.name }}</span>
+                                            <span class="text-[var(--ui-text)] truncate">{{ stage.name }}</span>
                                             <span
                                                 v-if="stage.is_active === false"
-                                                class="text-[10px] text-[var(--wa-text-secondary)]"
+                                                class="text-[10px] text-[var(--ui-text-secondary)]"
                                             >(неактивен)</span>
-                                        </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -843,8 +879,8 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <div v-if="modalTab === 'members'" class="pt-2">
-                            <p class="text-sm font-medium text-[var(--wa-text)] mb-1">Сотрудники отдела</p>
-                            <p class="text-xs text-[var(--wa-text-secondary)] mb-3">
+                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">Сотрудники отдела</p>
+                            <p class="text-xs text-[var(--ui-text-secondary)] mb-3">
                                 Отмеченные пользователи входят в этот отдел. Один сотрудник может состоять
                                 одновременно в нескольких отделах.
                             </p>
@@ -859,45 +895,49 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 />
                             </div>
 
-                            <div class="max-h-52 overflow-y-auto rounded-lg border wa-scrollbar" :style="{ borderColor: 'var(--wa-border)' }">
-                                <label
+                            <div class="max-h-52 overflow-y-auto rounded-lg border wa-scrollbar" :style="{ borderColor: 'var(--ui-border)' }">
+                                <div
                                     v-for="u in filteredUsersForPicker"
                                     :key="u.id"
                                     class="flex items-start gap-3 px-3 py-2 border-b last:border-b-0 cursor-pointer hover:brightness-95"
+                                    role="button"
+                                    tabindex="0"
                                     :style="{
-                                        borderColor: 'var(--wa-border)',
+                                        borderColor: 'var(--ui-border)',
                                         opacity: u.is_active ? 1 : 0.55,
                                     }"
+                                    @click="toggleMember(u.id)"
+                                    @keydown.enter.prevent="toggleMember(u.id)"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        class="w-4 h-4 rounded mt-0.5 shrink-0"
+                                    <UiCheckbox
+                                        class="mt-0.5"
                                         :checked="selectedMemberIds.includes(u.id)"
-                                        @change="toggleMember(u.id)"
+                                        :aria-label="`Сотрудник ${u.name}`"
+                                        @click.stop
                                     />
                                     <div class="min-w-0 flex-1">
-                                        <div class="text-sm text-[var(--wa-text)] truncate">{{ u.name }}</div>
-                                        <div class="text-xs text-[var(--wa-text-secondary)] truncate">{{ u.email }}</div>
+                                        <div class="text-sm text-[var(--ui-text)] truncate">{{ u.name }}</div>
+                                        <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ u.email }}</div>
                                         <div
                                             v-if="otherDeptNamesFor(u).length > 0"
                                             class="text-[10px] mt-0.5"
-                                            :style="{ color: 'var(--wa-text-secondary)' }"
+                                            :style="{ color: 'var(--ui-text-secondary)' }"
                                         >
                                             Также состоит в: {{ otherDeptNamesFor(u).join(', ') }}
                                         </div>
                                     </div>
-                                </label>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div
                         class="flex justify-end gap-2 px-5 py-3 border-t shrink-0"
-                        :style="{ borderColor: 'var(--wa-border)' }"
+                        :style="{ borderColor: 'var(--ui-border)' }"
                     >
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                            class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
                             @click="closeModal"
                         >
                             Отмена
@@ -905,7 +945,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         <button
                             type="button"
                             class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             :disabled="saving"
                             @click="saveModal"
                         >
@@ -916,6 +956,17 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
             </div>
         </Teleport>
     </SettingsLayout>
+
+    <DangerConfirmModal
+        :open="deptDeleteOpen"
+        title="Удалить отдел?"
+        :description="deptDeleteDescription"
+        confirm-label="Удалить"
+        :busy="deptDeleteBusy"
+        confirm-variant="danger"
+        @close="closeDeptDelete"
+        @confirm="confirmRemoveDepartment"
+    />
 </template>
 
 <style scoped>
@@ -925,14 +976,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     border-radius: 0.5rem;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-bg);
-    color: var(--wa-text);
+    border: 1px solid var(--ui-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
     outline: none;
 }
 .settings-input:focus {
-    border-color: var(--wa-accent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 35%, transparent);
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
 .settings-input-error {
     border-color: rgba(248, 113, 113, 0.7);

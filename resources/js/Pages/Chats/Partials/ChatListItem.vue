@@ -3,6 +3,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, nextTick } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
 import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
 import LastMessagePreview from '@/Components/LastMessagePreview.vue';
@@ -70,6 +71,7 @@ const menuOpen = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
 const working = ref(false);
+const clearChatDialogOpen = ref(false);
 const muteDialogOpen = ref(false);
 
 const MENU_WIDTH = 240;
@@ -240,11 +242,23 @@ function toggleUnread() {
     });
 }
 
-async function clearChat() {
+function openClearChatDialog(): void {
     closeMenu();
-    if (!confirm('Очистить всю историю этого чата? Это действие необратимо.')) return;
-    await run(() => axios.post(route('chats.clear', props.chat.id)), ['chats', 'messages', 'chat']);
-    showToast({ message: 'Чат очищен' });
+    clearChatDialogOpen.value = true;
+}
+
+async function confirmClearChat(): Promise<void> {
+    if (working.value) return;
+    clearChatDialogOpen.value = false;
+    working.value = true;
+    try {
+        await axios.post(route('chats.clear', props.chat.id));
+        router.reload({ only: ['chats', 'messages', 'chat'] });
+        showToast({ message: 'Чат очищен' });
+    } finally {
+        working.value = false;
+        closeMenu();
+    }
 }
 
 function notImplemented(name: string) {
@@ -255,7 +269,13 @@ function notImplemented(name: string) {
 }
 
 function onEscape(e: KeyboardEvent) {
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape') {
+        if (clearChatDialogOpen.value) {
+            clearChatDialogOpen.value = false;
+            return;
+        }
+        closeMenu();
+    }
 }
 window.addEventListener('keydown', onEscape);
 onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
@@ -539,7 +559,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
 
                 <div class="menu-divider"></div>
 
-                <button class="menu-item" @click.prevent="clearChat" type="button">
+                <button class="menu-item" @click.prevent="openClearChatDialog" type="button">
                     <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
                     </svg>
@@ -548,6 +568,17 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
             </div>
         </div>
     </teleport>
+
+    <DangerConfirmModal
+        :open="clearChatDialogOpen"
+        title="Очистить историю чата?"
+        description="Все сообщения в этом чате будут удалены. Действие необратимо."
+        confirm-label="Очистить"
+        :busy="working"
+        confirm-variant="danger"
+        @close="clearChatDialogOpen = false"
+        @confirm="confirmClearChat"
+    />
 
     <MuteChatDialog
         :show="muteDialogOpen"

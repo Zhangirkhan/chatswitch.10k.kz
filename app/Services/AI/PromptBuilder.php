@@ -10,6 +10,7 @@ use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Services\Memory\EntityMemoryService;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -32,6 +33,9 @@ final class PromptBuilder
         private readonly OpenAiChatService $openAi,
         private readonly OperatorCalendarContextBuilder $calendarContext,
         private readonly ProductMessageAttachmentService $productAttachments,
+        private readonly EntityMemoryService $entityMemories,
+        private readonly PromptCompressionCache $compressionCache,
+        private readonly WhatsappAiTypingService $whatsappTyping,
     ) {}
 
     /**
@@ -63,13 +67,14 @@ final class PromptBuilder
     private function systemPrompt(Chat $chat, User $responder, ?int $companyId, string $clientQuestion): string
     {
         $knowledgeBlock = $companyId !== null
-            ? $this->knowledgeBlock($companyId, $clientQuestion)
+            ? $this->knowledgeBlock($chat, $companyId, $clientQuestion)
             : 'База знаний компании не выбрана.';
         $toneBlock = $companyId !== null
             ? $this->toneBlock($responder, $companyId)
             : 'Профиль тона сотрудника недоступен.';
         $calendarBlock = $this->calendarContext->buildContextBlock($responder);
         $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder);
+        $memoryBlock = $this->entityMemoryBlock($chat, $responder);
         $responderName = trim($responder->name) !== '' ? $responder->name : 'сотрудник';
 
         return <<<PROMPT
@@ -84,11 +89,12 @@ final class PromptBuilder
 6. Все цены называй только в казахстанских тенге: используй "₸" или слово "тенге". Никогда не используй рубли, доллары или другую валюту, если она не указана явно в базе знаний.
 7. Если история чата противоречит базе знаний по цене, наличию, размерам или условиям — верь базе знаний. Старые ответы в истории могли быть ошибочными или устаревшими.
 8. Если клиент спрашивает про товар или услугу и в базе знаний есть цена, называй цену вместе с наличием/размерами/условиями.
-9. Не используй шаблонные AI-фразы вроде "Здравствуйте! Спасибо за интерес", "Как я могу вам помочь?", "Если у вас есть вопросы, дайте знать", если так не пишет сотрудник в живых примерах.
-10. Подстраивай длину ответа под последние ручные сообщения сотрудника: если он пишет коротко и разговорно, отвечай коротко и разговорно, без канцелярита и длинных объяснений.
-11. Не повторяй уже сказанные клиенту цену, размеры, условия и наличие без необходимости. Если клиент уточнил деталь или подтвердил выбор — коротко подтверди следующий шаг.
-12. Блок "последние AI-ответы" используй только чтобы не повторяться и продолжать диалог. Не используй его как источник фактов: факты бери из базы знаний и ручной истории.
-13. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
+9. Не используй шаблонные AI-фразы вроде "Спасибо за интерес", "Как я могу вам помочь?", "Если у вас есть вопросы, дайте знать", если так не пишет сотрудник в живых примерах. Если клиент поздоровался — коротко отзеркаль приветствие и переходи к делу.
+10. Если клиент спрашивает, что есть в наличии / ассортимент / какие товары — перечисли позиции из базы знаний, не задавай снова «что именно хотите купить».
+11. Подстраивай длину ответа под последние ручные сообщения сотрудника: если он пишет коротко и разговорно, отвечай коротко и разговорно, без канцелярита и длинных объяснений.
+12. Не повторяй уже сказанные клиенту цену, размеры, условия и наличие без необходимости. Если клиент уточнил деталь или подтвердил выбор — коротко подтверди следующий шаг.
+13. Блок "последние AI-ответы" используй только чтобы не повторяться и продолжать диалог. Не используй его как источник фактов: факты бери из базы знаний и ручной истории.
+14. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
 {$this->productAttachments->promptInstruction()}
 
 {$knowledgeBlock}
@@ -98,10 +104,23 @@ final class PromptBuilder
 {$toneBlock}
 
 {$styleExamplesBlock}
+
+{$memoryBlock}
 PROMPT;
     }
 
-    private function knowledgeBlock(int $companyId, string $clientQuestion): string
+    private function entityMemoryBlock(Chat $chat, User $responder): string
+    {
+        $blocks = $this->entityMemories->contextBlocksForChat($chat, $responder);
+        if ($blocks === []) {
+            return 'Долгосрочная память (memory.md) для этого диалога пока не заполнена.';
+        }
+
+        return "Долгосрочная память (файлы memory.md, используй как факты о клиенте и компании):\n"
+            .implode("\n\n---\n\n", $blocks);
+    }
+
+    private function knowledgeBlock(Chat $chat, int $companyId, string $clientQuestion): string
     {
         $query = trim($clientQuestion) !== '' ? trim($clientQuestion) : null;
         $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query);
@@ -110,7 +129,13 @@ PROMPT;
             return $fullContext;
         }
 
-        return $this->summarizeLongHistory($lines);
+        $fingerprint = "company:{$companyId}:".hash('sha256', implode("\n", $lines));
+
+        return $this->compressionCache->remember(
+            'knowledge',
+            $fingerprint,
+            fn (): string => $this->summarizeLongHistory($chat, $lines, 'каталога знаний'),
+        );
     }
 
     private function toneBlock(User $responder, int $companyId): string
@@ -144,16 +169,18 @@ PROMPT;
             ->where('company_id', $companyId)
             ->first();
 
-        if ($profile === null || trim((string) $profile->summary) === '') {
+        $summary = $profile?->effectiveSummary() ?? '';
+        if ($profile === null || $summary === '') {
             return 'Профиль тона сотрудника ещё не построен, общий стиль компании тоже ещё не собран. Используй нейтральный, вежливый и краткий стиль.';
         }
 
-        $phrases = collect($profile->phrases ?? [])
-            ->filter(fn ($phrase) => is_string($phrase) && trim($phrase) !== '')
+        $phrases = collect($profile->effectivePhrases())
             ->take(12)
             ->implode('; ');
 
-        return "Личный профиль тона сотрудника ещё не собран. Временно используй общий стиль компании:\n{$profile->summary}\nТипичные формулировки компании: {$phrases}";
+        $source = $profile->use_manual_override ? 'ручная настройка' : 'автоанализ';
+
+        return "Личный профиль тона сотрудника ещё не собран. Временно используй общий стиль компании ({$source}):\n{$summary}\nТипичные формулировки компании: {$phrases}";
     }
 
     private function styleExamplesBlock(Chat $chat, User $responder): string
@@ -196,7 +223,20 @@ PROMPT;
             $lines[] = $this->formatMessage($message);
         }
 
-        return implode("\n", $lines);
+        $fullContext = implode("\n", $lines);
+        if (mb_strlen($fullContext) <= self::HISTORY_CHAR_BUDGET) {
+            return $fullContext;
+        }
+
+        $lastMessage = $messages->last();
+        $lastMessageId = $lastMessage instanceof Message ? (int) $lastMessage->id : 0;
+        $fingerprint = "chat:{$chat->id}:msg:{$lastMessageId}:".hash('sha256', implode("\n", $lines));
+
+        return $this->compressionCache->remember(
+            'conversation',
+            $fingerprint,
+            fn (): string => $this->summarizeLongHistory($chat, $lines, 'истории чата'),
+        );
     }
 
     private function aiContinuityContext(Chat $chat): string
@@ -275,12 +315,14 @@ PROMPT;
     /**
      * @param  list<string>  $lines
      */
-    private function summarizeLongHistory(array $lines): string
+    private function summarizeLongHistory(Chat $chat, array $lines, string $subjectLabel): string
     {
         $chunks = $this->chunkLines($lines, self::HISTORY_SUMMARY_CHUNK_CHARS);
         $summaries = [];
 
         foreach ($chunks as $index => $chunk) {
+            $this->whatsappTyping->refresh($chat);
+
             try {
                 $summaries[] = trim($this->openAi->chat([
                     ['role' => 'system', 'content' => 'Сожми фрагмент переписки поддержки. Сохрани факты, договоренности, цены, возражения, нерешенные вопросы и стиль сотрудника. Не выдумывай.'],
@@ -291,8 +333,8 @@ PROMPT;
             }
         }
 
-        return "Полная история чата была длинной и сжата по всем сообщениям от первого к последнему.\n"
-            ."Сводка по всей истории:\n- ".implode("\n- ", array_filter($summaries));
+        return "Длинный фрагмент {$subjectLabel} сжат для промпта.\n"
+            ."Сводка:\n- ".implode("\n- ", array_filter($summaries));
     }
 
     /**

@@ -586,10 +586,14 @@ async function sendMessage() {
             emit('cancelReply');
         }
         if (data.tone_profile_learning_scheduled) {
-            showToast({
-                message: 'Черновик AI был заметно изменён — профиль тона обновится в фоне.',
-                duration: 5000,
-            });
+            const kind = data.draft_edit_kind as string | null | undefined;
+            const message =
+                kind === 'punctuation'
+                    ? 'Правки пунктуации в черновике учтены — профиль тона обновится в фоне.'
+                    : kind === 'light'
+                      ? 'Черновик слегка изменён — профиль тона обновится в фоне.'
+                      : 'Черновик AI был заметно изменён — профиль тона обновится в фоне.';
+            showToast({ message, duration: 5000 });
         }
     } catch (err) {
         console.error('Send failed:', err);

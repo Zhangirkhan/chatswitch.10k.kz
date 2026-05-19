@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\Service;
 use App\Models\User;
 use App\Support\OperatorSignature;
+use App\Support\ReminderLeadTimeParser;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,10 @@ final class AiAppointmentIntentService
 
     private const DEFAULT_DURATION_MINUTES = 60;
 
-    public function __construct(private readonly OpenAiChatService $openAi) {}
+    public function __construct(
+        private readonly OpenAiChatService $openAi,
+        private readonly ReminderLeadTimeParser $reminderLeadParser,
+    ) {}
 
     public function shouldAnalyze(?Message $triggerMessage): bool
     {
@@ -67,7 +71,9 @@ final class AiAppointmentIntentService
             return null;
         }
 
-        return $this->withCatalogDuration($intent, $chat->company_id ?? $responder->company_id);
+        $intent = $this->withCatalogDuration($intent, $chat->company_id ?? $responder->company_id);
+
+        return $this->withReminderLeadTime($intent, $chat, $triggerMessage);
     }
 
     /**
@@ -90,7 +96,8 @@ final class AiAppointmentIntentService
   "duration_minutes": number|null,
   "missing_fields": string[],
   "client_reply": string,
-  "client_note": string|null
+  "client_note": string|null,
+  "reminder_lead_minutes": number|null
 }
 TXT;
 
@@ -107,6 +114,8 @@ TXT;
 6. Запись на замер окон/дверей, выезд на объект, монтаж, консультацию или демонстрацию — это тоже запись на услугу: service_name может быть свободной короткой формулировкой, даже если её нет в каталоге.
 7. client_reply — короткое готовое сообщение клиенту на русском от имени сотрудника. В нём не используй "сегодня", "завтра", "послезавтра"; пиши конкретную дату.
 8. Не выдумывай запись, если в переписке только интерес или вопрос о цене.
+9. Если клиент просит напомнить/предупредить за N часов или минут до визита — заполни reminder_lead_minutes (только число минут: 30 = полчаса, 120 = 2 часа). Если не просил — null.
+10. В client_reply при подтверждении записи кратко упомяни, что напомните за указанный клиентом интервал (если он просил).
 
 Каталог услуг:
 {$services}
@@ -194,6 +203,32 @@ PROMPT;
             clientReply: $intent->clientReply,
             missingFields: $intent->missingFields,
             clientNote: $intent->clientNote,
+            reminderLeadMinutes: $intent->reminderLeadMinutes,
+        );
+    }
+
+    private function withReminderLeadTime(AppointmentIntent $intent, Chat $chat, Message $triggerMessage): AppointmentIntent
+    {
+        if ($intent->reminderLeadMinutes !== null) {
+            return $intent;
+        }
+
+        $history = $this->conversationHistory($chat);
+        $parsed = $this->reminderLeadParser->parseFromText($history."\n".trim((string) $triggerMessage->body));
+        if ($parsed === null) {
+            return $intent;
+        }
+
+        return new AppointmentIntent(
+            isAppointmentRequest: $intent->isAppointmentRequest,
+            hasExplicitConfirmation: $intent->hasExplicitConfirmation,
+            serviceName: $intent->serviceName,
+            startsAt: $intent->startsAt,
+            durationMinutes: $intent->durationMinutes,
+            clientReply: $intent->clientReply,
+            missingFields: $intent->missingFields,
+            clientNote: $intent->clientNote,
+            reminderLeadMinutes: $parsed,
         );
     }
 }

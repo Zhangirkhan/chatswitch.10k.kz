@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 type ReadinessCheck = {
@@ -51,6 +51,17 @@ function readinessColor(status: Readiness['status']): string {
     }
     return '#dc2626';
 }
+
+const allStepsDone = computed(() => props.completed_steps >= props.total_steps && props.readiness.status === 'ready');
+
+const completeForm = useForm({});
+
+function submitComplete(): void {
+    if (!allStepsDone.value || completeForm.processing) {
+        return;
+    }
+    completeForm.post(route('settings.onboarding.complete'));
+}
 </script>
 
 <template>
@@ -60,38 +71,55 @@ function readinessColor(status: Readiness['status']): string {
         <div class="w-full space-y-8 px-6 py-6">
             <section
                 class="rounded-xl border p-5"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <div class="text-xs font-semibold uppercase tracking-wide" :style="{ color: readinessColor(readiness.status) }">
                             Прогресс онбординга · {{ progressPercent }}%
                         </div>
-                        <h2 class="mt-1 text-lg font-semibold" :style="{ color: 'var(--wa-text)' }">
+                        <h2 class="mt-1 text-lg font-semibold" :style="{ color: 'var(--ui-text)' }">
                             {{ completed_steps }} из {{ total_steps }} шагов
                         </h2>
-                        <p class="mt-1 max-w-2xl text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                        <p class="mt-1 max-w-2xl text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                             {{ readiness.summary }}
                         </p>
                     </div>
                     <div
                         class="h-20 w-20 rounded-full p-1"
-                        :style="{ background: `conic-gradient(${readinessColor(readiness.status)} ${progressPercent}%, var(--wa-panel-header) 0)` }"
+                        :style="{ background: `conic-gradient(${readinessColor(readiness.status)} ${progressPercent}%, var(--ui-surface-muted) 0)` }"
                     >
                         <div
                             class="flex h-full w-full items-center justify-center rounded-full text-lg font-semibold"
-                            :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
+                            :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text)' }"
                         >
                             {{ progressPercent }}
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-6 h-2 overflow-hidden rounded-full" :style="{ background: 'var(--wa-panel-header)' }">
+                <div class="mt-6 h-2 overflow-hidden rounded-full" :style="{ background: 'var(--ui-surface-muted)' }">
                     <div
                         class="h-full rounded-full transition-all"
                         :style="{ width: `${progressPercent}%`, background: readinessColor(readiness.status) }"
                     />
+                </div>
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        class="rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
+                        :style="{
+                            background: allStepsDone ? 'var(--ui-accent)' : 'var(--ui-surface-muted)',
+                            color: allStepsDone ? '#fff' : 'var(--ui-text-secondary)',
+                        }"
+                        :disabled="!allStepsDone || completeForm.processing"
+                        @click="submitComplete"
+                    >
+                        {{ completeForm.processing ? 'Сохранение…' : 'Завершить онбординг' }}
+                    </button>
+                    <p v-if="!allStepsDone" class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
+                        Выполните все шаги и доведите готовность AI до «готово».
+                    </p>
                 </div>
             </section>
 
@@ -101,8 +129,8 @@ function readinessColor(status: Readiness['status']): string {
                     :key="step.key"
                     class="rounded-xl border px-4 py-4"
                     :style="{
-                        borderColor: step.ok ? 'rgba(22, 163, 74, .35)' : 'var(--wa-border)',
-                        background: 'var(--wa-panel)',
+                        borderColor: step.ok ? 'rgba(22, 163, 74, .35)' : 'var(--ui-border)',
+                        background: 'var(--ui-surface)',
                     }"
                 >
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -111,13 +139,13 @@ function readinessColor(status: Readiness['status']): string {
                                 <span
                                     class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                                     :style="{
-                                        background: step.ok ? 'rgba(22, 163, 74, .15)' : 'var(--wa-panel-header)',
-                                        color: step.ok ? '#15803d' : 'var(--wa-text-secondary)',
+                                        background: step.ok ? 'rgba(22, 163, 74, .15)' : 'var(--ui-surface-muted)',
+                                        color: step.ok ? '#15803d' : 'var(--ui-text-secondary)',
                                     }"
                                 >
                                     {{ index + 1 }}
                                 </span>
-                                <h3 class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">{{ step.title }}</h3>
+                                <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ step.title }}</h3>
                                 <span
                                     class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
                                     :style="{
@@ -128,14 +156,14 @@ function readinessColor(status: Readiness['status']): string {
                                     {{ step.ok ? 'Готово' : 'Нужно' }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-sm leading-relaxed" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <p class="mt-2 text-sm leading-relaxed" :style="{ color: 'var(--ui-text-secondary)' }">
                                 {{ step.description }}
                             </p>
                         </div>
                         <Link
                             :href="route(step.route)"
                             class="shrink-0 rounded-xl border px-3 py-2 text-sm font-medium transition hover:brightness-95"
-                            :style="{ color: 'var(--wa-accent)', borderColor: 'var(--wa-border)' }"
+                            :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-border)' }"
                         >
                             {{ step.ok ? 'Открыть' : 'Настроить' }}
                         </Link>
@@ -146,16 +174,16 @@ function readinessColor(status: Readiness['status']): string {
             <section
                 v-if="readiness.next_actions.length"
                 class="rounded-xl border p-5"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">Рекомендации AI Quality</h2>
-                <ul class="mt-3 space-y-1.5 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Рекомендации AI Quality</h2>
+                <ul class="mt-3 space-y-1.5 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                     <li v-for="action in readiness.next_actions" :key="action">• {{ action }}</li>
                 </ul>
                 <Link
                     :href="route('settings.ai-quality')"
                     class="mt-4 inline-flex rounded-xl px-4 py-2 text-sm font-semibold"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 >
                     Открыть AI и качество
                 </Link>

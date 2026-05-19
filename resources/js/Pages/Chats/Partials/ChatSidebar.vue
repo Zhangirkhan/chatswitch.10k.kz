@@ -482,7 +482,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div
-        class="w-[400px] h-full relative shrink-0 overflow-hidden border-r"
+        class="h-full w-full relative overflow-hidden border-r"
         :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
     >
         <!-- New-chat panel slides in from the left -->
@@ -733,6 +733,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="subtab subtab-attention"
                 :class="{ 'subtab-active': listFilter === 'attention' }"
+                title="AI: нужен менеджер, ошибка, низкая уверенность; клиент ждёт ответа 10+ мин; непрочитанные"
                 @click="setAttentionFilter"
             >
                 Внимание<span v-if="attentionChatsTotal" class="ml-1.5">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>

@@ -4,6 +4,8 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
 import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
+import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
@@ -63,6 +65,7 @@ const props = defineProps<{
      * единая клиентская база при раздельных чатах.
      */
     contactChats?: Chat[];
+    panelWidth?: string;
 }>();
 
 const emit = defineEmits<{
@@ -78,6 +81,7 @@ function contactChatHref(chatId: number): string {
 }
 
 const working = ref(false);
+const clearChatDialogOpen = ref(false);
 const editOpen = ref(false);
 const editName = ref('');
 const savingContact = ref(false);
@@ -489,6 +493,10 @@ watch(
 
 function onEscape(e: KeyboardEvent) {
     if (e.key !== 'Escape') return;
+    if (clearChatDialogOpen.value) {
+        clearChatDialogOpen.value = false;
+        return;
+    }
     if (participantMenuOpen.value) {
         closeParticipantMenu();
         return;
@@ -513,8 +521,13 @@ async function togglePin() {
     }
 }
 
-async function clearChat() {
-    if (!confirm('Очистить всю историю этого чата? Это действие необратимо.')) return;
+function openClearChatDialog(): void {
+    clearChatDialogOpen.value = true;
+}
+
+async function confirmClearChat(): Promise<void> {
+    if (working.value) return;
+    clearChatDialogOpen.value = false;
     working.value = true;
     try {
         await axios.post(route('chats.clear', props.chat.id));
@@ -570,8 +583,12 @@ async function saveContactName() {
 
 <template>
     <aside
-        class="w-[400px] shrink-0 h-full flex flex-col border-l overflow-hidden"
-        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+        class="shrink-0 h-full flex flex-col border-l overflow-hidden"
+        :style="{
+            width: props.panelWidth ?? '400px',
+            background: 'var(--wa-panel)',
+            borderColor: 'var(--wa-border)',
+        }"
     >
         <!-- Header -->
         <div
@@ -964,6 +981,14 @@ async function saveContactName() {
                             :crm="contactCard.crm"
                             :current-chat-id="chat.id"
                         />
+
+                        <EntityMemoryPanel
+                            v-if="chat.contact_id"
+                            subject-type="contact"
+                            :subject-id="chat.contact_id"
+                            compact
+                            class="mt-3"
+                        />
                     </div>
                     <div v-else class="contact-card__muted">Нет данных для карточки.</div>
                 </div>
@@ -1185,10 +1210,28 @@ async function saveContactName() {
                     </svg>
                     <span class="info-label">Добавить в список</span>
                 </button>
+
+                <button class="info-row w-full" type="button" :disabled="working" @click="openClearChatDialog">
+                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                    </svg>
+                    <span class="info-label">Очистить историю чата</span>
+                </button>
             </div>
 
         </div>
     </aside>
+
+    <DangerConfirmModal
+        :open="clearChatDialogOpen"
+        title="Очистить историю чата?"
+        description="Все сообщения в этом чате будут удалены. Действие необратимо."
+        confirm-label="Очистить"
+        :busy="working"
+        confirm-variant="danger"
+        @close="clearChatDialogOpen = false"
+        @confirm="confirmClearChat"
+    />
 
     <!-- Participant actions menu -->
     <teleport to="body">

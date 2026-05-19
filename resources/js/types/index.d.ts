@@ -153,6 +153,7 @@ export interface MessageAiDecision {
     reason: string;
     chips: MessageAiDecisionChip[];
     confidence: number | null;
+    plan?: Record<string, unknown> | null;
 }
 
 export interface MessageProductAttachment {

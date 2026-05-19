@@ -2,6 +2,7 @@
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
 import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { Head, router, Link } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -102,6 +103,9 @@ const openClientId = ref<number | null>(null);
 const editingName = ref('');
 const saving = ref(false);
 const companySaving = ref(false);
+const companyDeleteDialogOpen = ref(false);
+const companyDeleteTarget = ref<CompanyItem | null>(null);
+const companyDeleting = ref(false);
 const clientCompaniesSaving = ref(false);
 const contactCard = ref<ContactCardPayload | null>(null);
 const contactCardLoading = ref(false);
@@ -378,16 +382,39 @@ async function saveCompany(): Promise<void> {
     }
 }
 
-async function deleteCompany(company: CompanyItem): Promise<void> {
-    if (!confirm(`Удалить компанию «${company.name}»? Связи с клиентами тоже будут удалены.`)) return;
+function closeCompanyDeleteDialog(): void {
+    if (companyDeleting.value) return;
+    companyDeleteDialogOpen.value = false;
+    companyDeleteTarget.value = null;
+}
+
+function requestDeleteCompany(company: CompanyItem): void {
+    companyDeleteTarget.value = company;
+    companyDeleteDialogOpen.value = true;
+}
+
+async function confirmDeleteCompany(): Promise<void> {
+    const company = companyDeleteTarget.value;
+    if (!company) return;
+    companyDeleting.value = true;
     try {
         await axios.delete(route('settings.companies.destroy', company.id));
         showToast({ message: 'Компания удалена' });
+        companyDeleteDialogOpen.value = false;
+        companyDeleteTarget.value = null;
         router.reload({ only: ['clients', 'companies', 'companyOptions'] });
     } catch (e: any) {
         showToast({ message: e?.response?.data?.message || e?.message || 'Не удалось удалить компанию' });
+    } finally {
+        companyDeleting.value = false;
     }
 }
+
+const companyDeleteDescription = computed(() => {
+    const c = companyDeleteTarget.value;
+    if (!c) return '';
+    return `Удалить компанию «${c.name}»? Связи с клиентами тоже будут удалены.`;
+});
 </script>
 
 <template>
@@ -402,8 +429,8 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         type="button"
                         class="rounded-full px-4 py-2 text-sm font-medium"
                         :style="{
-                            background: activeTab === 'clients' ? 'var(--wa-accent)' : 'var(--wa-panel-header)',
-                            color: activeTab === 'clients' ? '#fff' : 'var(--wa-text)',
+                            background: activeTab === 'clients' ? 'var(--ui-accent)' : 'var(--ui-surface-muted)',
+                            color: activeTab === 'clients' ? '#fff' : 'var(--ui-text)',
                         }"
                         @click="activeTab = 'clients'"
                     >
@@ -413,8 +440,8 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         type="button"
                         class="rounded-full px-4 py-2 text-sm font-medium"
                         :style="{
-                            background: activeTab === 'companies' ? 'var(--wa-accent)' : 'var(--wa-panel-header)',
-                            color: activeTab === 'companies' ? '#fff' : 'var(--wa-text)',
+                            background: activeTab === 'companies' ? 'var(--ui-accent)' : 'var(--ui-surface-muted)',
+                            color: activeTab === 'companies' ? '#fff' : 'var(--ui-text)',
                         }"
                         @click="activeTab = 'companies'"
                     >
@@ -426,7 +453,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         v-if="activeTab === 'companies' && !isSingleTenant"
                         type="button"
                         class="rounded-full px-4 py-2 text-sm font-semibold"
-                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                         @click="openCompany()"
                     >
                         + Компания
@@ -436,13 +463,13 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         type="text"
                         :placeholder="activeTab === 'clients' ? 'Поиск по имени, номеру, WhatsApp ID' : 'Поиск по компаниям'"
                         class="w-full min-w-[260px] rounded-full border-0 px-4 py-2 text-sm focus:ring-0 focus:outline-none"
-                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                     />
                 </div>
             </div>
 
             <div v-if="activeTab === 'clients'" class="space-y-3">
-                <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                     Показано {{ props.clients.from || 0 }}–{{ props.clients.to || 0 }} из {{ props.clients.total }}
                 </div>
 
@@ -450,25 +477,25 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                     v-for="c in clients"
                     :key="c.id"
                     class="rounded-2xl border p-4"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
                 >
                     <div class="mb-2 flex items-center justify-between gap-3">
                         <div class="min-w-0">
-                            <div class="truncate text-[15px]" :style="{ color: 'var(--wa-text)' }">
+                            <div class="truncate text-[15px]" :style="{ color: 'var(--ui-text)' }">
                                 {{ displayName(c) }}
                             </div>
-                            <div class="truncate text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <div class="truncate text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                 {{ formatPhone(c.phone_number) || '—' }}
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                 Чатов: {{ c.chats_count }}
                             </div>
                             <button
                                 type="button"
-                                class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                                :style="{ color: 'var(--wa-text)' }"
+                                class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--ui-surface-hover)]"
+                                :style="{ color: 'var(--ui-text)' }"
                                 title="Редактировать"
                                 aria-label="Редактировать"
                                 @click.stop="openClient(c)"
@@ -479,54 +506,54 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                     </div>
 
                     <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                        <div :style="{ color: 'var(--wa-text-secondary)' }">
-                            <span :style="{ color: 'var(--wa-text)' }">Сохранённое имя:</span> {{ c.name || '—' }}
+                        <div :style="{ color: 'var(--ui-text-secondary)' }">
+                            <span :style="{ color: 'var(--ui-text)' }">Сохранённое имя:</span> {{ c.name || '—' }}
                         </div>
-                        <div class="sm:col-span-2 truncate" :style="{ color: 'var(--wa-text-secondary)' }">
-                            <span :style="{ color: 'var(--wa-text)' }">WhatsApp ID:</span> {{ waIdLabel(c) }}
+                        <div class="sm:col-span-2 truncate" :style="{ color: 'var(--ui-text-secondary)' }">
+                            <span :style="{ color: 'var(--ui-text)' }">WhatsApp ID:</span> {{ waIdLabel(c) }}
                         </div>
-                        <div class="truncate" :style="{ color: 'var(--wa-text-secondary)' }">
-                            <span :style="{ color: 'var(--wa-text)' }">Последний чат:</span> {{ lastChatLabel(c) }}
+                        <div class="truncate" :style="{ color: 'var(--ui-text-secondary)' }">
+                            <span :style="{ color: 'var(--ui-text)' }">Последний чат:</span> {{ lastChatLabel(c) }}
                         </div>
-                        <div :style="{ color: 'var(--wa-text-secondary)' }">
-                            <span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(c.last_chat_at) }}
+                        <div :style="{ color: 'var(--ui-text-secondary)' }">
+                            <span :style="{ color: 'var(--ui-text)' }">Последняя активность:</span> {{ dateLabel(c.last_chat_at) }}
                         </div>
                     </div>
 
-                    <div v-if="c.channels.length" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div class="mb-1.5" :style="{ color: 'var(--wa-text-secondary)' }">Писал на номера:</div>
+                    <div v-if="c.channels.length" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--ui-border)' }">
+                        <div class="mb-1.5" :style="{ color: 'var(--ui-text-secondary)' }">Писал на номера:</div>
                         <div class="space-y-1.5">
                             <div
                                 v-for="ch in c.channels"
                                 :key="`ch-${c.id}-${ch.chat_id}`"
                                 class="flex items-center justify-between gap-2 rounded-md px-2 py-1"
-                                :style="{ background: 'var(--wa-panel-header)' }"
+                                :style="{ background: 'var(--ui-surface-muted)' }"
                             >
                                 <div class="min-w-0">
-                                    <div class="truncate" :style="{ color: 'var(--wa-text)' }">
+                                    <div class="truncate" :style="{ color: 'var(--ui-text)' }">
                                         {{ ch.session_label }}<span v-if="ch.session_phone"> · {{ formatPhone(ch.session_phone) }}</span>
                                     </div>
-                                    <div class="truncate" :style="{ color: 'var(--wa-text-secondary)' }">
+                                    <div class="truncate" :style="{ color: 'var(--ui-text-secondary)' }">
                                         {{ ch.chat_name || displayName(c) }}
                                     </div>
                                 </div>
-                                <div class="shrink-0" :style="{ color: 'var(--wa-text-secondary)' }">
+                                <div class="shrink-0" :style="{ color: 'var(--ui-text-secondary)' }">
                                     {{ dateLabel(ch.last_message_at) }}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div v-if="c.companies.length && !isSingleTenant" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div class="mb-1.5" :style="{ color: 'var(--wa-text-secondary)' }">Компании:</div>
+                    <div v-if="c.companies.length && !isSingleTenant" class="mt-3 border-t pt-3 text-xs" :style="{ borderColor: 'var(--ui-border)' }">
+                        <div class="mb-1.5" :style="{ color: 'var(--ui-text-secondary)' }">Компании:</div>
                         <div class="flex flex-wrap gap-2">
                             <span
                                 v-for="company in c.companies"
                                 :key="`client-company-${c.id}-${company.id}`"
                                 class="rounded-full px-2.5 py-1"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                             >
-                                {{ company.name }}<span v-if="company.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ company.position }}</span>
+                                {{ company.name }}<span v-if="company.position" :style="{ color: 'var(--ui-text-secondary)' }"> · {{ company.position }}</span>
                             </span>
                         </div>
                     </div>
@@ -536,12 +563,12 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                 <div
                     v-if="clients.length === 0"
                     class="rounded-xl border border-dashed px-6 py-10 text-center"
-                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
+                    :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }"
                 >
-                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                    <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">
                         {{ search.trim() ? 'По запросу ничего не найдено' : 'Клиентов пока нет' }}
                     </div>
-                    <p class="mt-2 text-sm max-w-md mx-auto" :style="{ color: 'var(--wa-text-secondary)' }">
+                    <p class="mt-2 text-sm max-w-md mx-auto" :style="{ color: 'var(--ui-text-secondary)' }">
                         <template v-if="search.trim()">
                             Попробуйте имя, телефон или компанию — список обновится автоматически.
                         </template>
@@ -553,7 +580,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         v-if="!search.trim()"
                         :href="route('settings.connections')"
                         class="mt-4 inline-flex rounded-lg px-4 py-2 text-sm font-medium"
-                        :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     >
                         Перейти к подключениям WhatsApp
                     </Link>
@@ -563,19 +590,19 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                     <button
                         type="button"
                         class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                         :disabled="props.clients.current_page <= 1"
                         @click="goToPage('clients', props.clients.current_page - 1)"
                     >
                         Назад
                     </button>
-                    <div class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                    <div class="text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                         Страница {{ props.clients.current_page }} из {{ props.clients.last_page }}
                     </div>
                     <button
                         type="button"
                         class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                         :disabled="props.clients.current_page >= props.clients.last_page"
                         @click="goToPage('clients', props.clients.current_page + 1)"
                     >
@@ -585,7 +612,7 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
             </div>
 
             <div v-else class="space-y-3">
-                <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                     Показано {{ props.companies.from || 0 }}–{{ props.companies.to || 0 }} из {{ props.companies.total }}
                 </div>
 
@@ -593,22 +620,22 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                     v-for="company in companies"
                     :key="company.id"
                     class="rounded-2xl border p-4"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
                 >
                     <div class="mb-3 flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <div class="truncate text-[15px] font-medium" :style="{ color: 'var(--wa-text)' }">
+                            <div class="truncate text-[15px] font-medium" :style="{ color: 'var(--ui-text)' }">
                                 {{ company.name }}
                             </div>
-                            <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                 Клиентов: {{ company.clients_count }}
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
                             <button
                                 type="button"
-                                class="rounded-lg px-3 py-1.5 text-xs hover:bg-[var(--wa-panel-hover)]"
-                                :style="{ color: 'var(--wa-text)' }"
+                                class="rounded-lg px-3 py-1.5 text-xs hover:bg-[var(--ui-surface-hover)]"
+                                :style="{ color: 'var(--ui-text)' }"
                                 @click="openCompany(company)"
                             >
                                 Изменить
@@ -616,42 +643,42 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                             <button
                                 type="button"
                                 class="rounded-lg px-3 py-1.5 text-xs"
-                                :style="{ color: 'var(--wa-danger)', background: 'color-mix(in srgb, var(--wa-danger) 10%, transparent)' }"
-                                @click="deleteCompany(company)"
+                                :style="{ color: 'var(--ui-danger)', background: 'color-mix(in srgb, var(--ui-danger) 10%, transparent)' }"
+                                @click="requestDeleteCompany(company)"
                             >
                                 Удалить
                             </button>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
-                        <div><span :style="{ color: 'var(--wa-text)' }">Телефон:</span> {{ company.phone || '—' }}</div>
-                        <div><span :style="{ color: 'var(--wa-text)' }">Email:</span> {{ company.email || '—' }}</div>
-                        <div><span :style="{ color: 'var(--wa-text)' }">Сайт:</span> {{ company.website || '—' }}</div>
-                        <div><span :style="{ color: 'var(--wa-text)' }">Описание:</span> {{ company.description || '—' }}</div>
+                    <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--ui-text-secondary)' }">
+                        <div><span :style="{ color: 'var(--ui-text)' }">Телефон:</span> {{ company.phone || '—' }}</div>
+                        <div><span :style="{ color: 'var(--ui-text)' }">Email:</span> {{ company.email || '—' }}</div>
+                        <div><span :style="{ color: 'var(--ui-text)' }">Сайт:</span> {{ company.website || '—' }}</div>
+                        <div><span :style="{ color: 'var(--ui-text)' }">Описание:</span> {{ company.description || '—' }}</div>
                     </div>
 
-                    <div class="mt-3 border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиенты в компании:</div>
+                    <div class="mt-3 border-t pt-3" :style="{ borderColor: 'var(--ui-border)' }">
+                        <div class="mb-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Клиенты в компании:</div>
                         <div v-if="company.clients.length" class="space-y-1.5">
                             <div
                                 v-for="client in company.clients"
                                 :key="`company-client-${company.id}-${client.id}`"
                                 class="rounded-md px-2 py-1.5 text-xs"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                             >
                                 {{ client.name }}
-                                <span v-if="client.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ client.position }}</span>
-                                <span v-if="client.phone_number" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ formatPhone(client.phone_number) }}</span>
+                                <span v-if="client.position" :style="{ color: 'var(--ui-text-secondary)' }"> · {{ client.position }}</span>
+                                <span v-if="client.phone_number" :style="{ color: 'var(--ui-text-secondary)' }"> · {{ formatPhone(client.phone_number) }}</span>
                             </div>
                         </div>
-                        <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }">
+                        <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }">
                             В компании пока нет клиентов.
                         </div>
                     </div>
                 </div>
 
-                <div v-if="companies.length === 0" class="py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                <div v-if="companies.length === 0" class="py-10 text-center text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                     Компании не найдены
                 </div>
 
@@ -659,19 +686,19 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                     <button
                         type="button"
                         class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                         :disabled="props.companies.current_page <= 1"
                         @click="goToPage('companies', props.companies.current_page - 1)"
                     >
                         Назад
                     </button>
-                    <div class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
+                    <div class="text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                         Страница {{ props.companies.current_page }} из {{ props.companies.last_page }}
                     </div>
                     <button
                         type="button"
                         class="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
-                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                         :disabled="props.companies.current_page >= props.companies.last_page"
                         @click="goToPage('companies', props.companies.current_page + 1)"
                     >
@@ -687,46 +714,46 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                 class="fixed inset-0 z-[450] flex items-center justify-center px-4"
                 :style="{ background: 'rgba(0,0,0,.45)' }"
             >
-                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }">
-                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--wa-panel-header)' }">
-                        <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }">
+                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
+                        <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">
                             Клиент: {{ displayName(openedClient) }}
                         </div>
-                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="closeClient">
+                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" @click="closeClient">
                             ✕
                         </button>
                     </div>
 
                     <div class="p-5 space-y-4 text-sm">
                         <div>
-                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Сохранённое имя</div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Сохранённое имя</div>
                             <input
                                 v-model="editingName"
                                 type="text"
                                 class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 placeholder="Введите имя клиента"
                             />
                         </div>
 
-                        <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
-                            <div><span :style="{ color: 'var(--wa-text)' }">Телефон:</span> {{ formatPhone(openedClient.phone_number) || '—' }}</div>
-                            <div class="sm:col-span-2 truncate"><span :style="{ color: 'var(--wa-text)' }">WhatsApp ID:</span> {{ waIdLabel(openedClient) }}</div>
-                            <div><span :style="{ color: 'var(--wa-text)' }">Последний чат:</span> {{ lastChatLabel(openedClient) }}</div>
-                            <div><span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(openedClient.last_chat_at) }}</div>
+                        <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--ui-text-secondary)' }">
+                            <div><span :style="{ color: 'var(--ui-text)' }">Телефон:</span> {{ formatPhone(openedClient.phone_number) || '—' }}</div>
+                            <div class="sm:col-span-2 truncate"><span :style="{ color: 'var(--ui-text)' }">WhatsApp ID:</span> {{ waIdLabel(openedClient) }}</div>
+                            <div><span :style="{ color: 'var(--ui-text)' }">Последний чат:</span> {{ lastChatLabel(openedClient) }}</div>
+                            <div><span :style="{ color: 'var(--ui-text)' }">Последняя активность:</span> {{ dateLabel(openedClient.last_chat_at) }}</div>
                         </div>
 
-                        <div v-if="!isSingleTenant" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                        <div v-if="!isSingleTenant" class="rounded-xl border p-3" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
                             <div class="mb-3 flex items-center justify-between gap-2">
                                 <div>
-                                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">Компании и должности</div>
-                                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиент может быть в нескольких компаниях или ни в одной.</div>
+                                    <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">Компании и должности</div>
+                                    <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Клиент может быть в нескольких компаниях или ни в одной.</div>
                                 </div>
                                 <button
                                     type="button"
                                     class="rounded-lg px-3 py-1.5 text-xs"
                                     :disabled="clientCompaniesSaving"
-                                    :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: clientCompaniesSaving ? 0.6 : 1 }"
+                                    :style="{ background: 'var(--ui-accent)', color: '#fff', opacity: clientCompaniesSaving ? 0.6 : 1 }"
                                     @click="saveClientCompanies"
                                 >
                                     Сохранить связи
@@ -738,9 +765,9 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                                     v-for="company in companyOptions"
                                     :key="`client-modal-company-${company.id}`"
                                     class="rounded-lg border p-2"
-                                    :style="{ borderColor: isClientCompanySelected(company.id) ? 'var(--wa-accent)' : 'var(--wa-border)', background: 'var(--wa-panel)' }"
+                                    :style="{ borderColor: isClientCompanySelected(company.id) ? 'var(--ui-accent)' : 'var(--ui-border)', background: 'var(--ui-surface)' }"
                                 >
-                                    <label class="flex items-center gap-2 text-sm" :style="{ color: 'var(--wa-text)' }">
+                                    <label class="flex items-center gap-2 text-sm" :style="{ color: 'var(--ui-text)' }">
                                         <input
                                             type="checkbox"
                                             class="rounded"
@@ -754,27 +781,27 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                                         :value="clientCompanyPosition(company.id)"
                                         type="text"
                                         class="mt-2 w-full rounded-lg border-0 px-3 py-2 text-xs focus:ring-0 focus:outline-none"
-                                        :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                         placeholder="Должность клиента в этой компании"
                                         @input="setClientCompanyPositionFromEvent(company.id, $event)"
                                     />
                                 </div>
                             </div>
-                            <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }">
+                            <div v-else class="rounded-xl border border-dashed p-4 text-center text-sm" :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }">
                                 Компаний пока нет. Создайте компанию во вкладке «Компании».
                             </div>
                         </div>
 
-                        <div class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
+                        <div class="rounded-xl border p-3" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
                             <div class="mb-2 flex items-center justify-between gap-2">
                                 <div>
-                                    <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">Авто-карточка</div>
-                                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Собрано из диалогов клиента</div>
+                                    <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">Авто-карточка</div>
+                                    <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Собрано из диалогов клиента</div>
                                 </div>
                                 <button
                                     type="button"
-                                    class="rounded-lg px-2 py-1 text-xs hover:bg-[var(--wa-panel-hover)]"
-                                    :style="{ color: 'var(--wa-text)' }"
+                                    class="rounded-lg px-2 py-1 text-xs hover:bg-[var(--ui-surface-hover)]"
+                                    :style="{ color: 'var(--ui-text)' }"
                                     :disabled="contactCardLoading"
                                     @click="loadContactCard(openedClient.id)"
                                 >
@@ -783,41 +810,41 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                             </div>
 
                             <ContactCardSkeleton v-if="contactCardLoading" :show-deal="true" />
-                            <div v-else-if="contactCardError" class="text-xs" :style="{ color: 'var(--wa-danger)' }">
+                            <div v-else-if="contactCardError" class="text-xs" :style="{ color: 'var(--ui-danger)' }">
                                 {{ contactCardError }}
                             </div>
                             <div v-else-if="contactCard" class="space-y-3">
                                 <div class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
-                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Чатов</div>
-                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.chats_count }}</div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--ui-surface)', border: '1px solid var(--ui-border)' }">
+                                        <div :style="{ color: 'var(--ui-text-secondary)' }">Чатов</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--ui-text)' }">{{ contactCard.activity.chats_count }}</div>
                                     </div>
-                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
-                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Каналов</div>
-                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.channels_count }}</div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--ui-surface)', border: '1px solid var(--ui-border)' }">
+                                        <div :style="{ color: 'var(--ui-text-secondary)' }">Каналов</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--ui-text)' }">{{ contactCard.activity.channels_count }}</div>
                                     </div>
-                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
-                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Сообщений</div>
-                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">{{ contactCard.activity.messages.total }}</div>
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--ui-surface)', border: '1px solid var(--ui-border)' }">
+                                        <div :style="{ color: 'var(--ui-text-secondary)' }">Сообщений</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--ui-text)' }">{{ contactCard.activity.messages.total }}</div>
                                     </div>
-                                    <div class="rounded-lg p-2" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
-                                        <div :style="{ color: 'var(--wa-text-secondary)' }">Вложения</div>
-                                        <div class="text-base font-semibold" :style="{ color: 'var(--wa-text)' }">
+                                    <div class="rounded-lg p-2" :style="{ background: 'var(--ui-surface)', border: '1px solid var(--ui-border)' }">
+                                        <div :style="{ color: 'var(--ui-text-secondary)' }">Вложения</div>
+                                        <div class="text-base font-semibold" :style="{ color: 'var(--ui-text)' }">
                                             {{ contactCard.activity.attachments.media + contactCard.activity.attachments.documents + contactCard.activity.attachments.links }}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" :style="{ color: 'var(--wa-text-secondary)' }">
-                                    <div><span :style="{ color: 'var(--wa-text)' }">Первое сообщение:</span> {{ dateLabel(contactCard.activity.first_message_at) }}</div>
-                                    <div><span :style="{ color: 'var(--wa-text)' }">Последняя активность:</span> {{ dateLabel(contactCard.activity.last_message_at) }}</div>
-                                    <div><span :style="{ color: 'var(--wa-text)' }">Сообщений клиента:</span> {{ contactCard.activity.messages.inbound }}</div>
-                                    <div><span :style="{ color: 'var(--wa-text)' }">Сообщений операторов:</span> {{ contactCard.activity.messages.outbound }}</div>
+                                <div class="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" :style="{ color: 'var(--ui-text-secondary)' }">
+                                    <div><span :style="{ color: 'var(--ui-text)' }">Первое сообщение:</span> {{ dateLabel(contactCard.activity.first_message_at) }}</div>
+                                    <div><span :style="{ color: 'var(--ui-text)' }">Последняя активность:</span> {{ dateLabel(contactCard.activity.last_message_at) }}</div>
+                                    <div><span :style="{ color: 'var(--ui-text)' }">Сообщений клиента:</span> {{ contactCard.activity.messages.inbound }}</div>
+                                    <div><span :style="{ color: 'var(--ui-text)' }">Сообщений операторов:</span> {{ contactCard.activity.messages.outbound }}</div>
                                 </div>
 
-                                <div v-if="contactCard.activity.last_client_message" class="rounded-lg p-2 text-xs" :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }">
-                                    <div :style="{ color: 'var(--wa-text-secondary)' }">Последняя реплика клиента</div>
-                                    <div class="mt-1" :style="{ color: 'var(--wa-text)' }">{{ shortText(contactCard.activity.last_client_message.body) }}</div>
+                                <div v-if="contactCard.activity.last_client_message" class="rounded-lg p-2 text-xs" :style="{ background: 'var(--ui-surface)', border: '1px solid var(--ui-border)' }">
+                                    <div :style="{ color: 'var(--ui-text-secondary)' }">Последняя реплика клиента</div>
+                                    <div class="mt-1" :style="{ color: 'var(--ui-text)' }">{{ shortText(contactCard.activity.last_client_message.body) }}</div>
                                 </div>
 
                                 <ContactCrmSections v-if="contactCard.crm" :crm="contactCard.crm" />
@@ -825,23 +852,23 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                             <div
                                 v-else
                                 class="rounded-lg border border-dashed px-3 py-4 text-xs text-center"
-                                :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                                :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }"
                             >
                                 Карточка появится после переписки с клиентом. Нажмите «Обновить», когда в чатах уже есть сообщения.
                             </div>
                         </div>
 
-                        <div v-if="openedClient.channels.length" class="border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
-                            <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Каналы общения (на какой номер писал):</div>
+                        <div v-if="openedClient.channels.length" class="border-t pt-3" :style="{ borderColor: 'var(--ui-border)' }">
+                            <div class="mb-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Каналы общения (на какой номер писал):</div>
                             <div class="space-y-2 text-xs">
                                 <div
                                     v-for="ch in openedClient.channels"
                                     :key="`open-${openedClient.id}-${ch.chat_id}`"
                                     class="rounded-md px-2 py-1.5 flex items-center justify-between gap-3"
-                                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
+                                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text-secondary)' }"
                                 >
                                     <div class="min-w-0">
-                                        <div :style="{ color: 'var(--wa-text)' }">
+                                        <div :style="{ color: 'var(--ui-text)' }">
                                             {{ ch.session_label }}<span v-if="ch.session_phone"> · {{ formatPhone(ch.session_phone) }}</span>
                                         </div>
                                         <div class="truncate">
@@ -849,13 +876,13 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                                         </div>
                                     </div>
                                     <div class="flex flex-col items-end gap-1 shrink-0">
-                                        <div :style="{ color: 'var(--wa-text-secondary)', fontSize: '11px' }">
+                                        <div :style="{ color: 'var(--ui-text-secondary)', fontSize: '11px' }">
                                             {{ dateLabel(ch.last_message_at) }}
                                         </div>
                                         <Link
                                             :href="route('chats.show', ch.chat_id)"
-                                            class="rounded-lg px-2 py-1 text-[11px] hover:bg-[var(--wa-panel-hover)]"
-                                            :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
+                                            class="rounded-lg px-2 py-1 text-[11px] hover:bg-[var(--ui-surface-hover)]"
+                                            :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text)' }"
                                         >
                                             Перейти к чату
                                         </Link>
@@ -865,14 +892,14 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                         </div>
 
                         <div class="flex justify-end gap-2">
-                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--wa-panel-hover)]" :style="{ color: 'var(--wa-text)' }" @click="closeClient">
+                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--ui-surface-hover)]" :style="{ color: 'var(--ui-text)' }" @click="closeClient">
                                 Закрыть
                             </button>
                             <button
                                 type="button"
                                 class="px-4 py-2 rounded-xl"
                                 :disabled="saving"
-                                :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: saving ? 0.6 : 1 }"
+                                :style="{ background: 'var(--ui-accent)', color: '#fff', opacity: saving ? 0.6 : 1 }"
                                 @click="saveClientName"
                             >
                                 Сохранить
@@ -889,99 +916,99 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
                 class="fixed inset-0 z-[460] flex items-center justify-center px-4"
                 :style="{ background: 'rgba(0,0,0,.45)' }"
             >
-                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }">
-                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--wa-panel-header)' }">
+                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }">
+                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
                         <div>
-                            <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
+                            <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">
                                 {{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}
                             </div>
-                            <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                            <div class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                 Компания может существовать без клиентов.
                             </div>
                         </div>
-                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="closeCompany">
+                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" @click="closeCompany">
                             ✕
                         </button>
                     </div>
 
                     <div class="p-5 space-y-4 text-sm">
                         <div>
-                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Название компании</div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Название компании</div>
                             <input
                                 v-model="companyForm.name"
                                 type="text"
                                 class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 placeholder="Например, ТОО Ромашка"
                             />
                         </div>
 
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                                <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Телефон</div>
+                                <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Телефон</div>
                                 <input
                                     v-model="companyForm.phone"
                                     type="text"
                                     class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 />
                             </div>
                             <div>
-                                <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Email</div>
+                                <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Email</div>
                                 <input
                                     v-model="companyForm.email"
                                     type="email"
                                     class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                    :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Сайт</div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Сайт</div>
                             <input
                                 v-model="companyForm.website"
                                 type="text"
                                 class="w-full rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                                 placeholder="https://example.kz"
                             />
                         </div>
 
                         <div>
-                            <div class="mb-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Описание</div>
+                            <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Описание</div>
                             <textarea
                                 v-model="companyForm.description"
                                 rows="3"
                                 class="w-full resize-none rounded-lg border-0 px-3 py-2 focus:ring-0 focus:outline-none"
-                                :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
+                                :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                             ></textarea>
                         </div>
 
-                        <div v-if="openedCompany && openedCompany.clients.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
-                            <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Клиенты компании</div>
+                        <div v-if="openedCompany && openedCompany.clients.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
+                            <div class="mb-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Клиенты компании</div>
                             <div class="space-y-1.5">
                                 <div
                                     v-for="client in openedCompany.clients"
                                     :key="`opened-company-client-${client.id}`"
                                     class="text-xs"
-                                    :style="{ color: 'var(--wa-text)' }"
+                                    :style="{ color: 'var(--ui-text)' }"
                                 >
                                     {{ client.name }}
-                                    <span v-if="client.position" :style="{ color: 'var(--wa-text-secondary)' }"> · {{ client.position }}</span>
+                                    <span v-if="client.position" :style="{ color: 'var(--ui-text-secondary)' }"> · {{ client.position }}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div class="flex justify-end gap-2">
-                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--wa-panel-hover)]" :style="{ color: 'var(--wa-text)' }" @click="closeCompany">
+                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--ui-surface-hover)]" :style="{ color: 'var(--ui-text)' }" @click="closeCompany">
                                 Закрыть
                             </button>
                             <button
                                 type="button"
                                 class="px-4 py-2 rounded-xl"
                                 :disabled="companySaving || !companyForm.name.trim()"
-                                :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: companySaving || !companyForm.name.trim() ? 0.6 : 1 }"
+                                :style="{ background: 'var(--ui-accent)', color: '#fff', opacity: companySaving || !companyForm.name.trim() ? 0.6 : 1 }"
                                 @click="saveCompany"
                             >
                                 Сохранить
@@ -992,4 +1019,15 @@ async function deleteCompany(company: CompanyItem): Promise<void> {
             </div>
         </teleport>
     </SettingsLayout>
+
+    <DangerConfirmModal
+        :open="companyDeleteDialogOpen"
+        title="Удалить компанию?"
+        :description="companyDeleteDescription"
+        confirm-label="Удалить"
+        :busy="companyDeleting"
+        confirm-variant="danger"
+        @close="closeCompanyDeleteDialog"
+        @confirm="confirmDeleteCompany"
+    />
 </template>

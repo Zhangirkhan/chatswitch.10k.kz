@@ -21,6 +21,18 @@ final class ChatAttentionService
         return now()->subMinutes(self::WAITING_MINUTES);
     }
 
+    public function attentionConfidenceMax(): float
+    {
+        return (float) config('funnel.orchestrator.attention_confidence_max', 0.85);
+    }
+
+    public function attentionRunSince(): Carbon
+    {
+        $days = max(1, (int) config('funnel.orchestrator.attention_run_days', 14));
+
+        return now()->subDays($days);
+    }
+
     /**
      * @param  Builder<Chat>  $query
      * @return Builder<Chat>
@@ -28,12 +40,14 @@ final class ChatAttentionService
     public function applyAttentionScope(Builder $query): Builder
     {
         $waitingThreshold = $this->waitingThreshold();
+        $confidenceMax = $this->attentionConfidenceMax();
+        $runSince = $this->attentionRunSince();
 
         return $query
             ->where('company_id', TenantCompany::id())
             ->where('is_archived', false)
             ->where('is_group', false)
-            ->where(function (Builder $inner) use ($waitingThreshold): void {
+            ->where(function (Builder $inner) use ($waitingThreshold, $confidenceMax, $runSince): void {
                 $inner
                     ->whereIn('ai_orchestrator_status', [
                         AiOrchestratorRun::STATUS_NEEDS_MANAGER,
@@ -45,15 +59,47 @@ final class ChatAttentionService
                             ->whereNotNull('last_message_at')
                             ->where('last_message_at', '<=', $waitingThreshold);
                     })
-                    ->orWhere('unread_count', '>', 0);
+                    ->orWhere('unread_count', '>', 0)
+                    ->orWhere(function (Builder $uncertain) use ($confidenceMax, $runSince): void {
+                        $this->applyLowConfidenceLastRunScope($uncertain, $confidenceMax, $runSince);
+                    });
             })
             ->orderByRaw("CASE
                 WHEN ai_orchestrator_status = 'needs_manager' THEN 0
                 WHEN ai_orchestrator_status = 'failed' THEN 1
-                WHEN last_message_direction = 'inbound' THEN 2
-                ELSE 3
-            END")
+                WHEN EXISTS (
+                    SELECT 1 FROM ai_orchestrator_runs r
+                    WHERE r.id = chats.ai_orchestrator_last_run_id
+                      AND r.confidence IS NOT NULL
+                      AND r.confidence < ?
+                      AND r.status = ?
+                      AND r.completed_at >= ?
+                ) THEN 2
+                WHEN last_message_direction = 'inbound' THEN 3
+                ELSE 4
+            END", [
+                $confidenceMax,
+                AiOrchestratorRun::STATUS_COMPLETED,
+                $runSince,
+            ])
             ->orderByDesc('last_message_at');
+    }
+
+    /**
+     * @param  Builder<Chat>  $query
+     */
+    private function applyLowConfidenceLastRunScope(Builder $query, float $confidenceMax, Carbon $runSince): void
+    {
+        $query->whereNotNull('ai_orchestrator_last_run_id')
+            ->whereExists(function ($sub) use ($confidenceMax, $runSince): void {
+                $sub->from('ai_orchestrator_runs as r')
+                    ->selectRaw('1')
+                    ->whereColumn('r.id', 'chats.ai_orchestrator_last_run_id')
+                    ->whereNotNull('r.confidence')
+                    ->where('r.confidence', '<', $confidenceMax)
+                    ->where('r.status', AiOrchestratorRun::STATUS_COMPLETED)
+                    ->where('r.completed_at', '>=', $runSince);
+            });
     }
 
     public function countEligible(): int
@@ -79,7 +125,12 @@ final class ChatAttentionService
     {
         return $this->applyAttentionScope(
             Chat::query()
-                ->with(['contact:id,name,push_name,phone_number', 'funnel:id,name', 'funnelStage:id,name']),
+                ->with([
+                    'contact:id,name,push_name,phone_number',
+                    'funnel:id,name',
+                    'funnelStage:id,name',
+                    'lastOrchestratorRun:id,confidence,status,reason,completed_at',
+                ]),
         )
             ->limit($limit)
             ->get([
@@ -90,6 +141,7 @@ final class ChatAttentionService
                 'last_message_direction',
                 'unread_count',
                 'ai_orchestrator_status',
+                'ai_orchestrator_last_run_id',
                 'ai_orchestrator_last_summary',
                 'funnel_id',
                 'funnel_stage_id',
@@ -131,7 +183,14 @@ final class ChatAttentionService
             return $chat->ai_orchestrator_last_summary ?: 'AI-оркестратор завершился ошибкой.';
         }
 
-        if ($chat->last_message_direction === 'inbound') {
+        $uncertain = $this->uncertainRunReason($chat);
+        if ($uncertain !== null) {
+            return $uncertain;
+        }
+
+        if ($chat->last_message_direction === 'inbound'
+            && $chat->last_message_at !== null
+            && $chat->last_message_at->lte($this->waitingThreshold())) {
             return 'Клиент ждёт ответа.';
         }
 
@@ -155,10 +214,58 @@ final class ChatAttentionService
             return 'danger';
         }
 
+        if ($this->hasUncertainLastRun($chat)) {
+            return 'warning';
+        }
+
         $waitMinutes = $chat->last_message_at !== null
             ? (int) $chat->last_message_at->diffInMinutes(now())
             : 0;
 
         return $waitMinutes >= 30 ? 'warning' : 'normal';
+    }
+
+    private function uncertainRunReason(Chat $chat): ?string
+    {
+        $run = $chat->relationLoaded('lastOrchestratorRun')
+            ? $chat->lastOrchestratorRun
+            : null;
+
+        if (! $this->isUncertainRun($run)) {
+            return null;
+        }
+
+        $pct = (int) round(((float) $run->confidence) * 100);
+        $detail = trim((string) ($run->reason ?: $chat->ai_orchestrator_last_summary));
+
+        return $detail !== ''
+            ? "AI не уверен ({$pct}%): {$detail}"
+            : "AI не уверен в следующем шаге ({$pct}%).";
+    }
+
+    private function hasUncertainLastRun(Chat $chat): bool
+    {
+        $run = $chat->relationLoaded('lastOrchestratorRun')
+            ? $chat->lastOrchestratorRun
+            : null;
+
+        return $this->isUncertainRun($run);
+    }
+
+    private function isUncertainRun(?AiOrchestratorRun $run): bool
+    {
+        if ($run === null || $run->confidence === null) {
+            return false;
+        }
+
+        if ((string) $run->status !== AiOrchestratorRun::STATUS_COMPLETED) {
+            return false;
+        }
+
+        if ($run->completed_at === null || $run->completed_at->lt($this->attentionRunSince())) {
+            return false;
+        }
+
+        return (float) $run->confidence < $this->attentionConfidenceMax();
     }
 }

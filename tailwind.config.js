@@ -6,6 +6,32 @@ import forms from '@tailwindcss/forms';
  * class works in both themes. Update the values in resources/css/app.css,
  * never here.
  */
+const uiColors = {
+    bg: 'var(--ui-bg)',
+    surface: 'var(--ui-surface)',
+    'surface-muted': 'var(--ui-surface-muted)',
+    'surface-raised': 'var(--ui-surface-raised)',
+    'surface-inset': 'var(--ui-surface-inset)',
+    'surface-hover': 'var(--ui-surface-hover)',
+    selected: 'var(--ui-selected)',
+    'input-bg': 'var(--ui-input-bg)',
+
+    border: 'var(--ui-border)',
+    'border-strong': 'var(--ui-border-strong)',
+
+    text: 'var(--ui-text)',
+    'text-secondary': 'var(--ui-text-secondary)',
+    'text-muted': 'var(--ui-text-muted)',
+    icon: 'var(--ui-icon)',
+
+    accent: 'var(--ui-accent)',
+    'accent-hover': 'var(--ui-accent-hover)',
+    'accent-soft': 'var(--ui-accent-soft)',
+    'accent-on': 'var(--ui-accent-on)',
+
+    danger: 'var(--ui-danger)',
+};
+
 const waColors = {
     bg: 'var(--wa-bg)',
     panel: 'var(--wa-panel)',
@@ -60,6 +86,7 @@ export default {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
             colors: {
+                ui: uiColors,
                 wa: waColors,
             },
         },

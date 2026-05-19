@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\TeamDepartmentChatSyncService;
 use App\Support\QuickReactions;
+use App\Support\TenantCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,7 @@ final class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'tenantCompanyId' => TenantCompany::id(),
             'auth' => [
                 'user' => $user ? array_merge(
                     $user->toArray(),

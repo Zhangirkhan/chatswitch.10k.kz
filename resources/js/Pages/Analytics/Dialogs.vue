@@ -317,6 +317,13 @@ const funnelRows = computed<any[]>(() => payload.value?.funnels || []);
 const conversionPayload = computed(() => payload.value?.conversion || null);
 const conversionFunnels = computed<any[]>(() => conversionPayload.value?.funnels || []);
 
+function fmtMinutes(m: number | null | undefined): string {
+    if (m == null || Number.isNaN(Number(m))) return '—';
+    const value = Number(m);
+    if (value < 60) return `${Math.round(value)} мин`;
+    return `${(value / 60).toFixed(1)} ч`;
+}
+
 function fmtHours(h: number | null | undefined): string {
     if (h === null || h === undefined) {
         return '—';
@@ -765,7 +772,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             >
                                 <h2 class="text-base font-semibold text-[var(--wa-text)]">Конверсия по этапам</h2>
                                 <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
-                                    Сколько чатов вошло на этап, сколько перешло на следующий, среднее время на этапе и отвал.
+                                    Входы, конверсия, время на этапе и среднее время ответа клиенту (AI vs менеджер).
                                 </p>
                                 <div class="mt-5 space-y-6">
                                     <article
@@ -788,7 +795,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                             </span>
                                         </div>
                                         <div class="overflow-x-auto">
-                                            <table class="w-full min-w-[760px] text-left text-sm">
+                                            <table class="w-full min-w-[960px] text-left text-sm">
                                                 <thead>
                                                     <tr class="text-[var(--wa-text-secondary)]">
                                                         <th class="px-2 py-2">Этап</th>
@@ -797,7 +804,9 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                         <th class="px-2 py-2">Дальше</th>
                                                         <th class="px-2 py-2">Конверсия</th>
                                                         <th class="px-2 py-2">Отвал</th>
-                                                        <th class="px-2 py-2">Ср. время</th>
+                                                        <th class="px-2 py-2">На этапе</th>
+                                                        <th class="px-2 py-2">Ответ AI</th>
+                                                        <th class="px-2 py-2">Ответ менеджер</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -819,6 +828,12 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : fmtPct(stage.conversion_percent) }}</td>
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : stage.drop_off }}</td>
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ fmtHours(stage.avg_hours_on_stage) }}</td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_ai ? `Выборка: ${stage.response_samples_ai}` : ''">
+                                                            {{ fmtMinutes(stage.avg_response_minutes_ai) }}
+                                                        </td>
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_manager ? `Выборка: ${stage.response_samples_manager}` : ''">
+                                                            {{ fmtMinutes(stage.avg_response_minutes_manager) }}
+                                                        </td>
                                                     </tr>
                                                 </tbody>
                                             </table>

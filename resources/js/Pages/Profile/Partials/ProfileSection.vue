@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import SectionHeader from './SectionHeader.vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, ref } from 'vue';
@@ -163,6 +164,10 @@ function initial(name?: string): string {
                 </div>
                 <p v-if="form.errors.phone" class="mt-1 text-xs text-red-400">{{ form.errors.phone }}</p>
             </div>
+        </div>
+
+        <div v-if="user?.id" class="px-4 pb-4">
+            <EntityMemoryPanel subject-type="employee" :subject-id="user.id" compact />
         </div>
     </div>
 </template>

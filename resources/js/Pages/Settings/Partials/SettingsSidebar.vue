@@ -113,6 +113,13 @@ const adminItems: AdminItem[] = [
     },
     {
         kind: 'admin',
+        label: 'Профиль тона',
+        description: 'Стиль ответов AI для компании',
+        icon: 'tone',
+        routeName: 'settings.tone-profile',
+    },
+    {
+        kind: 'admin',
         label: 'Система',
         description: 'Общие параметры',
         icon: 'system',
@@ -206,7 +213,7 @@ function logout() {
             >
                 <div
                     class="w-[150px] h-[150px] rounded-full flex items-center justify-center text-5xl font-medium shadow"
-                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--wa-icon)' }"
+                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-icon)' }"
                 >
                     {{ initial(user?.name) }}
                 </div>
@@ -221,7 +228,7 @@ function logout() {
                     class="settings-item w-full flex items-center gap-4 px-6 py-[14px] text-left transition"
                     :class="{ 'is-active': isAdminActive(item) }"
                 >
-                    <div class="shrink-0 w-6 flex items-center justify-center text-[var(--wa-icon)]">
+                    <div class="shrink-0 w-6 flex items-center justify-center text-[var(--ui-icon)]">
                         <svg v-if="item.icon === 'onboarding'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -254,6 +261,9 @@ function logout() {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 004 21.5v-16z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h8M8 15h5" />
                         </svg>
+                        <svg v-else-if="item.icon === 'tone'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                        </svg>
                         <svg v-else-if="item.icon === 'ai-quality'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09L9 18.75l.813-2.846a4.5 4.5 0 003.09-3.09L15.75 12l-2.846-.813a4.5 4.5 0 00-3.09-3.09L9 5.25z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25z" />
@@ -285,7 +295,7 @@ function logout() {
                 class="settings-item w-full flex items-center gap-4 px-6 py-[14px] text-left transition"
                 :class="{ 'is-active': isProfileActive(item) }"
             >
-                <div class="shrink-0 w-6 flex items-center justify-center text-[var(--wa-icon)]">
+                <div class="shrink-0 w-6 flex items-center justify-center text-[var(--ui-icon)]">
                     <svg v-if="item.icon === 'user'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
@@ -327,12 +337,12 @@ function logout() {
             @click="logout"
             class="settings-item w-full flex items-center gap-4 px-6 py-[14px] text-left shrink-0 logout-item"
         >
-            <div class="shrink-0 w-6 flex items-center justify-center text-[var(--wa-danger)]">
+            <div class="shrink-0 w-6 flex items-center justify-center text-[var(--ui-danger)]">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                 </svg>
             </div>
-            <div class="text-[15px] text-[var(--wa-danger)]">Выход</div>
+            <div class="text-[15px] text-[var(--ui-danger)]">Выход</div>
         </button>
     </aside>
 </template>
@@ -350,7 +360,7 @@ function logout() {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .settings-search-icon {
-    color: var(--wa-icon);
+    color: var(--ui-icon);
 }
 .settings-search:focus-within .settings-search-icon {
     color: var(--ui-accent);

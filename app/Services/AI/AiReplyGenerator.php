@@ -158,9 +158,15 @@ final class AiReplyGenerator
             $startsAt,
             $durationMinutes,
             $intent->clientNote,
+            null,
+            $intent->reminderLeadMinutes,
         );
 
-        $reply = $this->defaultBookingConfirmation((string) $intent->serviceName, $startsAt);
+        $reply = $this->defaultBookingConfirmation(
+            (string) $intent->serviceName,
+            $startsAt,
+            $intent->reminderLeadMinutes,
+        );
 
         return $this->appointmentReply($reply, $promptHash, $log, [
             'status' => 'booked',
@@ -195,12 +201,12 @@ final class AiReplyGenerator
         ];
     }
 
-    private function defaultBookingConfirmation(string $serviceName, Carbon $startsAt): string
+    private function defaultBookingConfirmation(string $serviceName, Carbon $startsAt, ?int $reminderLeadMinutes = null): string
     {
         $timezone = (string) config('app.timezone', 'UTC');
         $localStart = $startsAt->copy()->timezone($timezone);
 
-        $suffix = $this->appointmentReminderSettings->clientReminderSuffixForBookingConfirmation();
+        $suffix = $this->appointmentReminderSettings->clientReminderSuffixForBookingConfirmation($reminderLeadMinutes);
 
         return 'Записала вас на '.$serviceName.' '.$localStart->format('d.m в H:i').'.'.$suffix;
     }

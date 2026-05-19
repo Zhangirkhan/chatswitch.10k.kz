@@ -225,24 +225,24 @@ defineExpose({ resetWizard });
 <template>
     <div class="space-y-4">
         <div v-if="!isVariantsStep" class="space-y-2">
-            <div class="flex items-center justify-between text-xs text-[var(--wa-text-secondary)]">
+            <div class="flex items-center justify-between text-xs text-[var(--ui-text-secondary)]">
                 <span>Шаг {{ inputStepNumber }} из {{ TOTAL_INPUT_STEPS }}</span>
                 <span>{{ progressPercent }}%</span>
             </div>
             <div
                 class="h-1.5 rounded-full overflow-hidden"
-                :style="{ background: 'var(--wa-border-strong)' }"
+                :style="{ background: 'var(--ui-border-strong)' }"
             >
                 <div
                     class="h-full rounded-full transition-all duration-300"
-                    :style="{ width: `${progressPercent}%`, background: 'var(--wa-accent)' }"
+                    :style="{ width: `${progressPercent}%`, background: 'var(--ui-accent)' }"
                 />
             </div>
         </div>
 
         <div v-if="wizardStep === 0" class="space-y-3">
             <div>
-                <label class="block text-sm text-[var(--wa-text-secondary)] mb-2">На кого направлен бизнес?</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-2">На кого направлен бизнес?</label>
                 <div class="flex flex-wrap gap-2">
                     <button
                         v-for="type in (['b2c', 'b2b', 'mixed'] as const)"
@@ -250,8 +250,8 @@ defineExpose({ resetWizard });
                         type="button"
                         class="px-3 py-1.5 text-xs rounded-lg border transition"
                         :style="form.target_audience_type === type
-                            ? { background: 'var(--wa-accent)', color: '#fff', borderColor: 'var(--wa-accent)' }
-                            : { color: 'var(--wa-text-secondary)', borderColor: 'var(--wa-border-strong)' }"
+                            ? { background: 'var(--ui-accent)', color: '#fff', borderColor: 'var(--ui-accent)' }
+                            : { color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
                         @click="selectAudienceType(type)"
                     >
                         {{ type === 'b2c' ? 'B2C' : type === 'b2b' ? 'B2B' : 'Смешанный' }}
@@ -259,7 +259,7 @@ defineExpose({ resetWizard });
                 </div>
             </div>
             <div>
-                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Уточнение (необязательно)</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Уточнение (необязательно)</label>
                 <textarea
                     v-model="form.target_audience"
                     class="settings-input min-h-[80px]"
@@ -271,7 +271,7 @@ defineExpose({ resetWizard });
 
         <div v-else-if="wizardStep === 1" class="space-y-3">
             <div>
-                <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Сфера деятельности</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Сфера деятельности</label>
                 <input
                     v-model="form.industry"
                     type="text"
@@ -285,7 +285,7 @@ defineExpose({ resetWizard });
                     :key="preset"
                     type="button"
                     class="px-2.5 py-1 text-[11px] rounded-md border transition hover:brightness-95"
-                    :style="{ color: 'var(--wa-text-secondary)', borderColor: 'var(--wa-border-strong)' }"
+                    :style="{ color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
                     @click="applyIndustryPreset(preset)"
                 >
                     {{ preset }}
@@ -294,7 +294,7 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="wizardStep === 2">
-            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Опишите свой бизнес</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Опишите свой бизнес</label>
             <textarea
                 v-model="form.business_description"
                 class="settings-input min-h-[120px]"
@@ -304,7 +304,7 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="wizardStep === 3">
-            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Кто ваши клиенты?</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Кто ваши клиенты?</label>
             <textarea
                 v-model="form.clients_description"
                 class="settings-input min-h-[100px]"
@@ -314,7 +314,7 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="wizardStep === 4">
-            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Товары и услуги</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Товары и услуги</label>
             <textarea
                 v-model="form.products_description"
                 class="settings-input min-h-[100px]"
@@ -324,7 +324,7 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="wizardStep === 5">
-            <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Как проходят продажи?</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Как проходят продажи?</label>
             <textarea
                 v-model="form.sales_process"
                 class="settings-input min-h-[120px]"
@@ -334,7 +334,7 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="isVariantsStep" class="space-y-3">
-            <div class="text-sm text-[var(--wa-text-secondary)]">
+            <div class="text-sm text-[var(--ui-text-secondary)]">
                 AI предложил {{ suggestions.length }} вариант(а). Выберите подходящий — его можно отредактировать перед сохранением.
             </div>
 
@@ -342,7 +342,7 @@ defineExpose({ resetWizard });
                 v-for="(suggestion, idx) in suggestions"
                 :key="idx"
                 class="rounded-lg border p-4 space-y-3 transition hover:brightness-[1.02]"
-                :style="{ background: 'var(--wa-bg)', borderColor: 'var(--wa-border-strong)' }"
+                :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
             >
                 <div class="flex items-start gap-3">
                     <span
@@ -350,11 +350,11 @@ defineExpose({ resetWizard });
                         :style="{ background: suggestion.color }"
                     />
                     <div class="min-w-0 flex-1">
-                        <div class="text-sm font-medium text-[var(--wa-text)]">{{ suggestion.name }}</div>
-                        <div v-if="suggestion.rationale" class="text-xs text-[var(--wa-accent)] mt-1">
+                        <div class="text-sm font-medium text-[var(--ui-text)]">{{ suggestion.name }}</div>
+                        <div v-if="suggestion.rationale" class="text-xs text-[var(--ui-accent)] mt-1">
                             {{ suggestion.rationale }}
                         </div>
-                        <div v-if="suggestion.description" class="text-xs text-[var(--wa-text-secondary)] mt-1">
+                        <div v-if="suggestion.description" class="text-xs text-[var(--ui-text-secondary)] mt-1">
                             {{ suggestion.description }}
                         </div>
                     </div>
@@ -365,7 +365,7 @@ defineExpose({ resetWizard });
                         v-for="(stage, sIdx) in suggestion.stages"
                         :key="sIdx"
                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border"
-                        :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                        :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }"
                     >
                         <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: stage.color }" />
                         {{ stage.name }}
@@ -375,7 +375,7 @@ defineExpose({ resetWizard });
                 <button
                     type="button"
                     class="w-full px-3 py-2 text-xs rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     @click="pickSuggestion(suggestion)"
                 >
                     Выбрать этот вариант
@@ -390,7 +390,7 @@ defineExpose({ resetWizard });
         <div v-if="!isVariantsStep" class="flex items-center justify-between gap-2 pt-1">
             <button
                 type="button"
-                class="px-3 py-1.5 text-xs rounded-md text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-40"
+                class="px-3 py-1.5 text-xs rounded-md text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-40"
                 :disabled="wizardStep === 0 || generating"
                 @click="goBack"
             >
@@ -399,7 +399,7 @@ defineExpose({ resetWizard });
             <button
                 type="button"
                 class="px-4 py-1.5 text-xs rounded-md transition hover:brightness-95 disabled:opacity-50 flex items-center gap-1.5"
-                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 :disabled="generating"
                 @click="goNext"
             >
@@ -422,7 +422,7 @@ defineExpose({ resetWizard });
             <button
                 type="button"
                 class="px-3 py-1.5 text-xs rounded-md border transition hover:brightness-95 disabled:opacity-50"
-                :style="{ color: 'var(--wa-text-secondary)', borderColor: 'var(--wa-border-strong)' }"
+                :style="{ color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
                 :disabled="generating"
                 @click="generateVariants"
             >
@@ -438,13 +438,13 @@ defineExpose({ resetWizard });
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    background: var(--wa-bg);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border-strong);
     transition: border-color 0.15s ease;
 }
 .settings-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FunnelStageSimPreview, { type StagePreviewPayload } from '@/Components/Ai/FunnelStageSimPreview.vue';
 import { computed } from 'vue';
 
 export type SimulationResult = {
@@ -17,6 +18,7 @@ export type SimulationResult = {
         current_funnel?: string | null;
         current_stage?: string | null;
     };
+    stage_preview?: StagePreviewPayload | null;
 };
 
 const props = defineProps<{
@@ -28,6 +30,12 @@ const confidencePercent = computed(() => Math.round((props.result.confidence ?? 
 
 <template>
     <div class="space-y-4">
+        <FunnelStageSimPreview
+            v-if="result.stage_preview?.stages?.length"
+            :preview="result.stage_preview"
+            :target-stage-name="result.stage_name"
+        />
+
         <div
             v-if="result.context?.current_funnel || result.context?.current_stage"
             class="rounded-lg border px-3 py-2 text-xs"

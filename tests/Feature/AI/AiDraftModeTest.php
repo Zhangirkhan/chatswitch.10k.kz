@@ -11,8 +11,6 @@ use App\Models\Company;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
-use App\Services\AI\AiReplyGenerator;
-use App\Services\OutboundChatMessageDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
@@ -61,8 +59,8 @@ final class AiDraftModeTest extends TestCase
             'message_timestamp' => now(),
         ]);
 
-        (new GenerateAiReplyJob($chat->id, $trigger->id))
-            ->handle(app(AiReplyGenerator::class), app(OutboundChatMessageDispatcher::class));
+        $job = new GenerateAiReplyJob($chat->id, $trigger->id);
+        $this->app->call([$job, 'handle']);
 
         $log = AiResponseLog::query()
             ->where('trigger_message_id', $trigger->id)

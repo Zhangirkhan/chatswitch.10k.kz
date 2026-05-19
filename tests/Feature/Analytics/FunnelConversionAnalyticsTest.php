@@ -74,14 +74,7 @@ final class FunnelConversionAnalyticsTest extends TestCase
             'is_group' => false,
         ]);
 
-        Message::query()->create([
-            'chat_id' => $chat->id,
-            'whatsapp_session_id' => $session->id,
-            'direction' => 'inbound',
-            'type' => 'text',
-            'body' => 'Привет',
-            'message_timestamp' => now()->subDay(),
-        ]);
+        $enteredStage1 = now()->subDays(3);
 
         ChatFunnelTransition::query()->create([
             'chat_id' => $chat->id,
@@ -91,7 +84,28 @@ final class FunnelConversionAnalyticsTest extends TestCase
             'to_funnel_id' => $funnel->id,
             'to_stage_id' => $stage1->id,
             'source' => ChatFunnelTransition::SOURCE_MANUAL,
-            'created_at' => now()->subDays(2),
+            'created_at' => $enteredStage1,
+        ]);
+
+        $inboundAt = $enteredStage1->copy()->addHour();
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'Сколько стоит?',
+            'message_timestamp' => $inboundAt,
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => 'Ответ AI',
+            'message_timestamp' => $inboundAt->copy()->addMinutes(15),
+            'metadata' => ['ai' => ['generated' => true]],
         ]);
 
         ChatFunnelTransition::query()->create([
@@ -102,7 +116,7 @@ final class FunnelConversionAnalyticsTest extends TestCase
             'to_funnel_id' => $funnel->id,
             'to_stage_id' => $stage2->id,
             'source' => ChatFunnelTransition::SOURCE_AI,
-            'created_at' => now()->subDay(),
+            'created_at' => now()->subDays(2),
         ]);
 
         $from = now()->subDays(7)->format('Y-m-d');
@@ -119,5 +133,7 @@ final class FunnelConversionAnalyticsTest extends TestCase
         $response->assertJsonPath('conversion.funnels.0.stages.0.forward_exits', 1);
         $response->assertJsonPath('conversion.funnels.0.stages.0.conversion_percent', 100);
         $response->assertJsonPath('conversion.funnels.0.stages.1.current_chats', 1);
+        $response->assertJsonPath('conversion.funnels.0.stages.0.avg_response_minutes_ai', 15);
+        $response->assertJsonPath('conversion.funnels.0.stages.0.response_samples_ai', 1);
     }
 }

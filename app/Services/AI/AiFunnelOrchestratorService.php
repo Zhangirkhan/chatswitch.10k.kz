@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Events\ChatAiOrchestratorUpdated;
+use App\Jobs\GenerateAiReplyJob;
 use App\Models\AiOrchestratorRun;
 use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
+use App\Models\Product;
+use App\Models\Service;
 use App\Models\User;
 use App\Services\Calendar\CalendarAvailabilityService;
+use App\Services\Funnel\FunnelStageTransitionGuard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -22,6 +26,8 @@ final class AiFunnelOrchestratorService
         private readonly AiFunnelPlannerService $planner,
         private readonly AiFunnelActionExecutor $executor,
         private readonly CalendarAvailabilityService $availability,
+        private readonly KnowledgeContextRepository $knowledge,
+        private readonly FunnelStageTransitionGuard $stageTransitionGuard,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -60,7 +66,15 @@ final class AiFunnelOrchestratorService
         );
 
         if (in_array($run->status, [AiOrchestratorRun::STATUS_COMPLETED, AiOrchestratorRun::STATUS_NEEDS_MANAGER], true)) {
-            return;
+            if (! $this->shouldRetryCatalogInquiryRun($chat, $run, $trigger)) {
+                return;
+            }
+
+            $run->forceFill([
+                'status' => AiOrchestratorRun::STATUS_PENDING,
+                'completed_at' => null,
+                'error' => null,
+            ])->save();
         }
 
         $actor = $this->actor($chat, $scenario);
@@ -86,6 +100,9 @@ final class AiFunnelOrchestratorService
             if ($plan->confidence < $minConfidence) {
                 $plan = $this->lowConfidencePlan($chat, $trigger, $rule, $plan, $minConfidence);
             }
+            $plan = $this->finalizeCustomerFacingPlan($chat, $trigger, $plan);
+            $plan = $this->applyAutomationPolicy($chat, $scenario, $rule, $plan);
+            $plan = $this->sanitizeStageTransition($chat, $plan);
 
             $actions = $this->executor->execute($run, $chat, $trigger, $actor, $scenario, $rule, $plan);
             $status = $plan->requiresManagerAttention
@@ -111,6 +128,7 @@ final class AiFunnelOrchestratorService
                 'ai_orchestrator_last_summary' => mb_substr($plan->reason, 0, 500),
             ])->save();
             $this->broadcastStatus($chat);
+            $this->dispatchFallbackReplyIfNeeded($chat, $trigger, $plan, $status, $actions);
         } catch (Throwable $e) {
             $run->forceFill([
                 'status' => AiOrchestratorRun::STATUS_FAILED,
@@ -133,6 +151,86 @@ final class AiFunnelOrchestratorService
             ]);
 
             throw $e;
+        }
+    }
+
+    private function applyAutomationPolicy(
+        Chat $chat,
+        FunnelAiScenario $scenario,
+        ?FunnelStageAiRule $rule,
+        AiFunnelOrchestratorPlan $plan,
+    ): AiFunnelOrchestratorPlan {
+        $needsManagerConfirm = $scenario->manager_confirmation_required
+            || ($rule?->require_manager_confirmation ?? false);
+
+        if ($needsManagerConfirm && ($plan->appointment !== null || $plan->targetFunnelStageId !== null)) {
+            return new AiFunnelOrchestratorPlan(
+                customerReply: $plan->customerReply,
+                targetFunnelStageId: null,
+                appointment: null,
+                assigneeUserId: $plan->assigneeUserId,
+                managerNote: $plan->managerNote ?? 'Требуется подтверждение менеджера перед записью или сменой этапа.',
+                task: $plan->task ?? [
+                    'title' => 'Подтвердить действие AI',
+                    'body' => 'Клиент ждёт ответа. AI предложил запись или смену этапа — нужно подтверждение менеджера.',
+                ],
+                requiresManagerAttention: true,
+                confidence: $plan->confidence,
+                reason: $plan->reason.' (ожидает подтверждения менеджера)',
+            );
+        }
+
+        return $plan;
+    }
+
+    private function sanitizeStageTransition(Chat $chat, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if ($plan->targetFunnelStageId === null || $chat->funnel_id === null) {
+            return $plan;
+        }
+
+        $funnelId = (int) $chat->funnel_id;
+        $stageId = (int) $plan->targetFunnelStageId;
+        $reject = $this->stageTransitionGuard->rejectReason($chat, $funnelId, $stageId, $plan->confidence);
+        if ($reject === null) {
+            return $plan;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $plan->customerReply,
+            targetFunnelStageId: null,
+            appointment: $plan->appointment,
+            assigneeUserId: $plan->assigneeUserId,
+            managerNote: $plan->managerNote,
+            task: $plan->task,
+            requiresManagerAttention: $plan->requiresManagerAttention,
+            confidence: $plan->confidence,
+            reason: $plan->reason.' (смена этапа отклонена: '.$reject.')',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $actions
+     */
+    private function dispatchFallbackReplyIfNeeded(
+        Chat $chat,
+        Message $trigger,
+        AiFunnelOrchestratorPlan $plan,
+        string $status,
+        array $actions,
+    ): void {
+        if (! $chat->ai_enabled) {
+            return;
+        }
+
+        $replied = isset($actions['reply_customer']) && ! (($actions['reply_customer']['skipped'] ?? false) === true);
+        if ($replied || ($plan->customerReply !== null && trim($plan->customerReply) !== '')) {
+            return;
+        }
+
+        if ($status === AiOrchestratorRun::STATUS_NEEDS_MANAGER
+            || ($status === AiOrchestratorRun::STATUS_COMPLETED && $plan->customerReply === null)) {
+            GenerateAiReplyJob::dispatch($chat->id, $trigger->id);
         }
     }
 
@@ -162,6 +260,10 @@ final class AiFunnelOrchestratorService
         AiFunnelOrchestratorPlan $plan,
         float $minConfidence,
     ): AiFunnelOrchestratorPlan {
+        if ($this->shouldOfferCatalog($chat, $trigger)) {
+            return $this->normalizeCatalogInquiry($chat, $trigger, $plan);
+        }
+
         $questionPlan = $this->questionFallbackPlan($chat, $trigger, $rule, $plan, $minConfidence);
         if ($questionPlan instanceof AiFunnelOrchestratorPlan) {
             return $questionPlan;
@@ -208,11 +310,162 @@ final class AiFunnelOrchestratorService
             }
         }
 
-        return $this->normalizeRepeatedQuestion($chat, $plan);
+        return $this->finalizeCustomerFacingPlan($chat, $trigger, $plan);
     }
 
-    private function normalizeRepeatedQuestion(Chat $chat, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    private function finalizeCustomerFacingPlan(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
+        $plan = $this->normalizeCatalogInquiry($chat, $trigger, $plan);
+        $plan = $this->normalizeClientGreeting($chat, $trigger, $plan);
+        $plan = $this->normalizeRepeatedQuestion($chat, $trigger, $plan);
+
+        return $this->recoverUnhelpfulPlan($chat, $trigger, $plan);
+    }
+
+    private function shouldRetryCatalogInquiryRun(Chat $chat, AiOrchestratorRun $run, Message $trigger): bool
+    {
+        if ($run->status !== AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
+            return false;
+        }
+
+        if (! $this->isCatalogInquiry((string) $trigger->body)
+            && ! $this->chatHasRecentCatalogInquiry($chat, (int) $trigger->id)) {
+            return false;
+        }
+
+        $reason = mb_strtolower((string) $run->reason);
+
+        return str_contains($reason, 'повтор')
+            || str_contains($reason, 'уточняющ')
+            || str_contains($reason, 'не уверен')
+            || str_contains($reason, 'эхо');
+    }
+
+    private function normalizeCatalogInquiry(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if (! $this->shouldOfferCatalog($chat, $trigger)) {
+            return $plan;
+        }
+
+        $companyId = (int) ($chat->company_id ?? 0);
+        if ($companyId <= 0) {
+            return $plan;
+        }
+
+        $shouldListCatalog = $plan->customerReply === null
+            || $this->isGenericStubReply($plan->customerReply)
+            || $this->looksLikeQuestion((string) $plan->customerReply)
+            || $plan->requiresManagerAttention;
+
+        if (! $shouldListCatalog) {
+            return $plan;
+        }
+
+        return $this->makeCatalogPlan(
+            $chat,
+            $trigger,
+            $plan,
+            'Клиент спросил об ассортименте — AI перечислил позиции из базы знаний.',
+        );
+    }
+
+    private function recoverUnhelpfulPlan(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        $companyId = (int) ($chat->company_id ?? 0);
+        if ($companyId <= 0 || ! $this->hasCatalogProducts($companyId)) {
+            return $plan;
+        }
+
+        if (! $this->shouldOfferCatalog($chat, $trigger)) {
+            return $plan;
+        }
+
+        $needsRecovery = $plan->customerReply === null
+            || $this->isGenericStubReply($plan->customerReply)
+            || $plan->requiresManagerAttention
+            || ($this->looksLikeQuestion((string) $plan->customerReply) && $this->isRepeatStopReason((string) $plan->reason));
+
+        if (! $needsRecovery) {
+            return $plan;
+        }
+
+        return $this->makeCatalogPlan(
+            $chat,
+            $trigger,
+            $plan,
+            'Диалог восстановлен: вместо пустого ответа или стопа отправлен каталог.',
+        );
+    }
+
+    private function makeCatalogPlan(
+        Chat $chat,
+        Message $trigger,
+        AiFunnelOrchestratorPlan $plan,
+        string $reason,
+    ): AiFunnelOrchestratorPlan {
+        $companyId = (int) $chat->company_id;
+        $reply = $this->buildCatalogReply($companyId);
+
+        if ($this->clientUsedGreeting((string) $trigger->body) && ! $this->clientUsedGreeting($reply)) {
+            $reply = 'Здравствуйте! '.$reply;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $reply,
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: null,
+            assigneeUserId: null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: max($plan->confidence, 0.92),
+            reason: $reason,
+        );
+    }
+
+    private function normalizeClientGreeting(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if ($plan->customerReply === null || trim($plan->customerReply) === '') {
+            return $plan;
+        }
+
+        if (! $this->clientUsedGreeting((string) $trigger->body)) {
+            return $plan;
+        }
+
+        $hasPriorOutbound = $chat->messages()
+            ->where('direction', 'outbound')
+            ->where('id', '<', $trigger->id)
+            ->exists();
+
+        if ($hasPriorOutbound) {
+            return $plan;
+        }
+
+        $reply = trim($plan->customerReply);
+        if ($this->clientUsedGreeting($reply)) {
+            return $plan;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: 'Здравствуйте! '.$reply,
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: $plan->appointment,
+            assigneeUserId: $plan->assigneeUserId,
+            managerNote: $plan->managerNote,
+            task: $plan->task,
+            requiresManagerAttention: $plan->requiresManagerAttention,
+            confidence: $plan->confidence,
+            reason: $plan->reason,
+        );
+    }
+
+    private function normalizeRepeatedQuestion(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if ($this->isCatalogInquiry((string) $trigger->body)) {
+            return $this->normalizeCatalogInquiry($chat, $trigger, $plan);
+        }
+
         if ($plan->customerReply === null || ! $this->looksLikeQuestion($plan->customerReply)) {
             return $plan;
         }
@@ -239,12 +492,23 @@ final class AiFunnelOrchestratorService
             ->values();
 
         $isRepeated = $recentAiQuestions->contains(
-            fn (string $previousQuestion): bool => $this->questionSimilarity($currentQuestion, $previousQuestion) >= 0.72
+            fn (string $previousQuestion): bool => $this->questionSimilarity($currentQuestion, $previousQuestion) >= 0.82
                 || $this->sameMissingDataQuestion($currentQuestion, $previousQuestion),
         );
 
         if (! $isRepeated) {
             return $plan;
+        }
+
+        $companyId = (int) ($chat->company_id ?? 0);
+        if ($companyId > 0 && $this->hasCatalogProducts($companyId)
+            && ($this->shouldOfferCatalog($chat, $trigger) || $this->isClarifyingProductQuestion($currentQuestion))) {
+            return $this->makeCatalogPlan(
+                $chat,
+                $trigger,
+                $plan,
+                'Вместо повторного уточняющего вопроса клиенту отправлен каталог.',
+            );
         }
 
         return new AiFunnelOrchestratorPlan(
@@ -373,6 +637,40 @@ final class AiFunnelOrchestratorService
             return $plan;
         }
 
+        $companyId = (int) ($chat->company_id ?? 0);
+        if ($companyId > 0 && $this->hasCatalogProducts($companyId) && $this->shouldOfferCatalog($chat, $trigger)) {
+            return $this->makeCatalogPlan(
+                $chat,
+                $trigger,
+                $plan,
+                'AI не повторяет клиента, а отвечает каталогом.',
+            );
+        }
+
+        $triggerBody = trim((string) $trigger->body);
+        if ($this->clientUsedGreeting($triggerBody) && mb_strlen($triggerBody) <= 40) {
+            if ($companyId > 0 && $this->hasCatalogProducts($companyId)) {
+                return $this->makeCatalogPlan(
+                    $chat,
+                    $trigger,
+                    $plan,
+                    'Клиент поздоровался — AI ответил приветствием и каталогом.',
+                );
+            }
+
+            return new AiFunnelOrchestratorPlan(
+                customerReply: 'Здравствуйте! Подскажите, что хотите подобрать — или напишите «что есть», пришлю позиции из каталога.',
+                targetFunnelStageId: $plan->targetFunnelStageId,
+                appointment: $plan->appointment,
+                assigneeUserId: $plan->assigneeUserId,
+                managerNote: null,
+                task: null,
+                requiresManagerAttention: false,
+                confidence: max($plan->confidence, 0.88),
+                reason: 'Клиент поздоровался — AI ответил приветствием без эхо.',
+            );
+        }
+
         if ($this->asksReadiness((string) $trigger->body) || $this->asksReadiness($plan->customerReply)) {
             return new AiFunnelOrchestratorPlan(
                 customerReply: 'Уточню срок готовности у менеджера и сообщу вам. Если заказ уже готов, согласуем удобную дату доставки и монтажа.',
@@ -390,16 +688,25 @@ final class AiFunnelOrchestratorService
             );
         }
 
+        if ($companyId > 0 && $this->hasCatalogProducts($companyId)) {
+            return $this->makeCatalogPlan(
+                $chat,
+                $trigger,
+                $plan,
+                'AI заменил эхо-ответ каталогом вместо заглушки.',
+            );
+        }
+
         return new AiFunnelOrchestratorPlan(
-            customerReply: 'Понял вас. Уточню информацию и вернусь с ответом.',
+            customerReply: 'Спасибо за сообщение! Напишите, пожалуйста, что именно вас интересует — подберу вариант.',
             targetFunnelStageId: $plan->targetFunnelStageId,
             appointment: $plan->appointment,
             assigneeUserId: $plan->assigneeUserId,
-            managerNote: $plan->managerNote,
-            task: $plan->task,
-            requiresManagerAttention: $plan->requiresManagerAttention,
-            confidence: $plan->confidence,
-            reason: 'AI заменил повтор сообщения клиента на нейтральный ответ.',
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: max($plan->confidence, 0.8),
+            reason: 'AI заменил эхо-ответ клиента на уточняющий вопрос без заглушки.',
         );
     }
 
@@ -461,6 +768,14 @@ final class AiFunnelOrchestratorService
 
     private function sameMissingDataQuestion(string $left, string $right): bool
     {
+        if ($this->isClarifyingProductQuestion($left) && $this->isCatalogOfferQuestion($right)) {
+            return false;
+        }
+
+        if ($this->isCatalogOfferQuestion($left) && $this->isClarifyingProductQuestion($right)) {
+            return false;
+        }
+
         foreach ($this->questionTopics() as $topic) {
             $leftHasTopic = collect($topic)->contains(fn (string $needle): bool => str_contains($left, $needle));
             $rightHasTopic = collect($topic)->contains(fn (string $needle): bool => str_contains($right, $needle));
@@ -472,6 +787,209 @@ final class AiFunnelOrchestratorService
         return false;
     }
 
+    private function isCatalogInquiry(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '') {
+            return false;
+        }
+
+        foreach ([
+            'что есть',
+            'а что есть',
+            'что у вас',
+            'что прода',
+            'ассортимент',
+            'какие товар',
+            'какие издел',
+            'какие услуг',
+            'что можете предлож',
+            'что можете сделать',
+            'перечислите',
+            'покажите каталог',
+            'ваш каталог',
+            'что в наличии',
+            'товар в наличии',
+            'товары в наличии',
+            'какие товары',
+            'в наличии есть',
+            'что делаете',
+        ] as $needle) {
+            if (str_contains($body, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function shouldOfferCatalog(Chat $chat, Message $trigger): bool
+    {
+        if ($this->isCatalogInquiry((string) $trigger->body)) {
+            return true;
+        }
+
+        if ($this->chatHasRecentCatalogInquiry($chat, (int) $trigger->id)) {
+            return true;
+        }
+
+        if ($this->isPurchaseIntent((string) $trigger->body) && $this->aiRecentlyAskedClarifyingProductQuestion($chat)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function chatHasRecentCatalogInquiry(Chat $chat, int $beforeMessageId, int $limit = 10): bool
+    {
+        return Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'inbound')
+            ->where('id', '<', $beforeMessageId)
+            ->latest('id')
+            ->limit($limit)
+            ->pluck('body')
+            ->contains(fn (mixed $body): bool => $this->isCatalogInquiry((string) $body)
+                || $this->isPurchaseIntent((string) $body));
+    }
+
+    private function isPurchaseIntent(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+
+        return str_contains($body, 'купить')
+            || str_contains($body, 'приобрест')
+            || str_contains($body, 'заказать')
+            || str_contains($body, 'хочу что')
+            || str_contains($body, 'что то купить')
+            || str_contains($body, 'интересует');
+    }
+
+    private function aiRecentlyAskedClarifyingProductQuestion(Chat $chat): bool
+    {
+        return $chat->messages()
+            ->where('direction', 'outbound')
+            ->whereNotNull('body')
+            ->latest('id')
+            ->limit(8)
+            ->get(['body', 'metadata'])
+            ->contains(function (Message $message): bool {
+                if (! (bool) data_get($message->metadata, 'ai.generated', false)) {
+                    return false;
+                }
+
+                $signature = $this->questionSignature((string) $message->body);
+
+                return $this->isClarifyingProductQuestion($signature);
+            });
+    }
+
+    private function hasCatalogProducts(int $companyId): bool
+    {
+        $data = $this->knowledge->forPrompt($companyId);
+
+        return $data['products'] !== [] || $data['services'] !== [];
+    }
+
+    private function isGenericStubReply(?string $reply): bool
+    {
+        if ($reply === null || trim($reply) === '') {
+            return true;
+        }
+
+        $text = mb_strtolower(trim($reply));
+
+        return str_contains($text, 'уточню информацию и вернусь')
+            || str_contains($text, 'понял вас. уточню')
+            || str_contains($text, 'вернусь с ответом');
+    }
+
+    private function isRepeatStopReason(string $reason): bool
+    {
+        $reason = mb_strtolower(trim($reason));
+
+        return str_contains($reason, 'повтор')
+            || str_contains($reason, 'уточняющ')
+            || str_contains($reason, 'не уверен');
+    }
+
+    private function isClarifyingProductQuestion(string $signature): bool
+    {
+        return str_contains($signature, 'именно')
+            || str_contains($signature, 'уточн')
+            || str_contains($signature, 'какое издел')
+            || str_contains($signature, 'какую категор')
+            || str_contains($signature, 'хотите купить');
+    }
+
+    private function isCatalogOfferQuestion(string $signature): bool
+    {
+        return str_contains($signature, 'есть')
+            || str_contains($signature, 'прода')
+            || str_contains($signature, 'ассортимент')
+            || str_contains($signature, 'вариант')
+            || str_contains($signature, 'каталог')
+            || str_contains($signature, 'наличии');
+    }
+
+    private function clientUsedGreeting(string $body): bool
+    {
+        $body = mb_strtolower($body);
+
+        return str_contains($body, 'здравств')
+            || str_contains($body, 'добрый')
+            || str_contains($body, 'доброе')
+            || str_contains($body, 'привет');
+    }
+
+    private function buildCatalogReply(int $companyId): string
+    {
+        $data = $this->knowledge->forPrompt($companyId);
+        $products = collect($data['products']);
+        $services = collect($data['services']);
+
+        if ($products->isEmpty() && $services->isEmpty()) {
+            return 'Сейчас в каталоге нет готового списка в системе — менеджер уточнит ассортимент и пришлёт варианты. Напишите, что вас интересует.';
+        }
+
+        $parts = [];
+
+        if ($products->isNotEmpty()) {
+            $lines = $products
+                ->take(8)
+                ->map(function (Product $product): string {
+                    $line = '• '.$product->name;
+                    if ($product->price !== null) {
+                        $line .= ' — '.number_format((float) $product->price, 0, '.', ' ').' ₸';
+                    }
+
+                    return $line;
+                })
+                ->implode("\n");
+            $parts[] = "У нас в каталоге:\n{$lines}";
+            if ($products->count() > 8) {
+                $parts[] = 'Есть и другие позиции — напишите, что интересует, пришлём подробности.';
+            }
+        }
+
+        if ($services->isNotEmpty()) {
+            $lines = $services
+                ->take(5)
+                ->map(function (Service $service): string {
+                    $line = '• '.$service->name;
+                    if ($service->price !== null) {
+                        $line .= ' — '.number_format((float) $service->price, 0, '.', ' ').' ₸';
+                    }
+
+                    return $line;
+                })
+                ->implode("\n");
+            $parts[] = "Услуги:\n{$lines}";
+        }
+
+        return implode("\n\n", $parts)."\n\nЧто из этого вас интересует?";
+    }
+
     /**
      * @return list<list<string>>
      */
@@ -481,7 +999,7 @@ final class AiFunnelOrchestratorService
             ['адрес', 'район', 'город', 'улиц'],
             ['время', 'дата', 'когда', 'удобно', 'завтра', 'сегодня'],
             ['размер', 'габарит', 'длина', 'ширина', 'высота', 'метр'],
-            ['издел', 'товар', 'услуг', 'что именно'],
+            ['именно хотите', 'какое издел', 'какую категор', 'уточните издел'],
             ['бюджет', 'стоим', 'цен'],
             ['оплат', 'предоплат', 'реквизит'],
             ['достав', 'монтаж', 'лифт', 'парков', 'огранич'],

@@ -130,7 +130,7 @@ final class MessageAiDecisionService
             $chips[] = ['label' => 'Ответ клиенту', 'type' => 'reply'];
         }
 
-        return [
+        $decision = [
             'source' => 'orchestrator',
             'label' => match ((string) $run->status) {
                 AiOrchestratorRun::STATUS_NEEDS_MANAGER => 'Нужен менеджер',
@@ -141,7 +141,14 @@ final class MessageAiDecisionService
             'reason' => $run->reason ?: 'AI проанализировал сообщение клиента и сформировал план действий.',
             'chips' => $chips,
             'confidence' => $run->confidence,
+            'plan' => null,
         ];
+
+        if (is_array($run->plan) && $run->plan !== []) {
+            $decision['plan'] = $run->plan;
+        }
+
+        return $decision;
     }
 
     /**

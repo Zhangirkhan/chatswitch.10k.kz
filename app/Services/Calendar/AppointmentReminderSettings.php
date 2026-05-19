@@ -47,24 +47,37 @@ final readonly class AppointmentReminderSettings
     /**
      * Фраза для исходящего подтверждения записи клиенту (после даты/времени услуги).
      */
-    public function clientReminderSuffixForBookingConfirmation(): string
+    public function resolveLeadMinutes(?int $clientRequestedMinutes): int
+    {
+        if ($clientRequestedMinutes !== null) {
+            return min(self::MAX_LEAD_TIME_MINUTES, max(self::MIN_LEAD_TIME_MINUTES, $clientRequestedMinutes));
+        }
+
+        return $this->leadTimeMinutes();
+    }
+
+    public function clientReminderSuffixForBookingConfirmation(?int $clientRequestedMinutes = null): string
     {
         if (! $this->enabled()) {
             return '';
         }
 
-        $m = $this->leadTimeMinutes();
-        if ($m === 60) {
-            return ' Напомним за час до визита.';
+        return ' '.$this->formatReminderPromiseRu($this->resolveLeadMinutes($clientRequestedMinutes));
+    }
+
+    public function formatReminderPromiseRu(int $minutes): string
+    {
+        if ($minutes === 60) {
+            return 'Напомним за час до визита.';
         }
 
-        if ($m % 60 === 0) {
-            $h = intdiv($m, 60);
+        if ($minutes % 60 === 0) {
+            $h = intdiv($minutes, 60);
 
-            return ' Напомним за '.$h.' '.$this->hoursWordRu($h).' до визита.';
+            return 'Напомним за '.$h.' '.$this->hoursWordRu($h).' до визита.';
         }
 
-        return ' Напомним за '.$m.' мин. до визита.';
+        return 'Напомним за '.$minutes.' мин. до визита.';
     }
 
     private function hoursWordRu(int $h): string

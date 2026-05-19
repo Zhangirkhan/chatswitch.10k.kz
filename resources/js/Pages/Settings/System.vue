@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import axios from 'axios';
+
+const page = usePage();
+const tenantCompanyId = computed(() => (page.props as { tenantCompanyId?: number }).tenantCompanyId ?? 1);
 
 const slaEnabledKey = 'chats.sla_reminders.enabled';
 const slaMinutesKey = 'chats.sla_reminder_minutes';
@@ -165,12 +169,12 @@ async function save() {
             <!-- Общие настройки -->
             <div
                 class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--wa-text)' }">Общие настройки</h2>
+                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Общие настройки</h2>
                 <div class="space-y-4">
                     <div v-for="cfg in settingsConfig" :key="cfg.key">
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">{{ cfg.label }}</label>
+                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ cfg.label }}</label>
                         <input
                             v-if="cfg.type === 'text' || cfg.type === 'number'"
                             v-model="form[cfg.key]"
@@ -191,10 +195,10 @@ async function save() {
             <!-- Быстрые реакции -->
             <div
                 class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--wa-text)' }">Быстрые реакции</h2>
-                <p class="text-xs mb-4" :style="{ color: 'var(--wa-text-secondary)' }">
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Быстрые реакции</h2>
+                <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
                     Эти 5 эмодзи будут показываться в быстрой панели реакций для всей компании.
                 </p>
 
@@ -214,7 +218,7 @@ async function save() {
                         />
                     </label>
                 </div>
-                <p class="mt-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                <p class="mt-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                     Лучше ставить по одному эмодзи в каждое поле. Кнопка “+” для полного выбора эмодзи останется в чате отдельно.
                 </p>
             </div>
@@ -222,10 +226,10 @@ async function save() {
             <!-- SLA в чатах -->
             <div
                 class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--wa-text)' }">SLA в чатах</h2>
-                <p class="text-xs mb-4" :style="{ color: 'var(--wa-text-secondary)' }">
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">SLA в чатах</h2>
+                <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
                     Внутренние напоминания в ленте организации, если клиент ждёт ответ дольше заданного времени.
                 </p>
                 <div class="space-y-4">
@@ -242,7 +246,7 @@ async function save() {
                         />
                     </div>
                     <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Клиент ждёт ответ более (минут)</label>
+                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Клиент ждёт ответ более (минут)</label>
                         <input
                             v-model="form[slaMinutesKey]"
                             type="number"
@@ -252,7 +256,7 @@ async function save() {
                             class="settings-input max-w-[10rem]"
                             :disabled="!slaRemindersEnabled()"
                         />
-                        <p class="mt-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                        <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                             От 5 до 120 минут. Cron проверяет чаты каждые 5 минут.
                         </p>
                     </div>
@@ -262,10 +266,10 @@ async function save() {
             <!-- Записи и напоминания -->
             <div
                 class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--wa-text)' }">Записи и напоминания</h2>
-                <p class="text-xs mb-4" :style="{ color: 'var(--wa-text-secondary)' }">
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Записи и напоминания</h2>
+                <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
                     Настройки применяются к новым записям, которые AI создаёт в календаре.
                 </p>
 
@@ -290,7 +294,7 @@ async function save() {
                     </div>
 
                     <div>
-                        <label class="block text-sm text-[var(--wa-text-secondary)] mb-1">Когда отправлять напоминание</label>
+                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Когда отправлять напоминание</label>
                         <div class="grid gap-3 sm:grid-cols-[1fr_9rem]">
                             <select
                                 v-model="form['appointment_reminders.lead_time_minutes']"
@@ -312,7 +316,7 @@ async function save() {
                                 aria-label="Своё время напоминания в минутах"
                             />
                         </div>
-                        <p class="mt-1 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
+                        <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                             Можно указать своё значение в минутах: от 5 минут до 7 дней. Если выбранное время уже прошло, напоминание для этой записи не создаётся.
                         </p>
                     </div>
@@ -322,9 +326,9 @@ async function save() {
             <!-- Модули -->
             <div
                 class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--wa-text)' }">Модули</h2>
+                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Модули</h2>
                 <div class="space-y-3">
                     <div
                         v-for="mod in modulesConfig"
@@ -349,17 +353,24 @@ async function save() {
                 </div>
             </div>
 
+            <EntityMemoryPanel
+                v-if="tenantCompanyId"
+                subject-type="tenant"
+                :subject-id="tenantCompanyId"
+                class="max-w-3xl mb-8"
+            />
+
             <!-- Кнопка сохранить -->
             <div class="flex items-center gap-3 max-w-3xl">
                 <button
                     @click="save"
                     :disabled="isSaving"
                     class="px-6 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 >
                     {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
                 </button>
-                <span v-if="saved" class="text-sm" :style="{ color: 'var(--wa-accent)' }">Сохранено!</span>
+                <span v-if="saved" class="text-sm" :style="{ color: 'var(--ui-accent)' }">Сохранено!</span>
             </div>
         </div>
     </SettingsLayout>
@@ -371,14 +382,14 @@ async function save() {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    background: var(--wa-bg);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border-strong);
     transition: border-color 0.15s ease;
 }
 .settings-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
 }
 
 .quick-reaction-field {
@@ -388,9 +399,9 @@ async function save() {
     width: 100%;
     height: 3rem;
     border-radius: 0.75rem;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-bg);
-    color: var(--wa-text);
+    border: 1px solid var(--ui-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
     font-size: 1.5rem;
     line-height: 1;
     text-align: center;
@@ -398,8 +409,8 @@ async function save() {
 }
 .quick-reaction-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
-    background: var(--wa-panel-header);
+    border-color: var(--ui-accent);
+    background: var(--ui-surface-muted);
 }
 
 /* Modules */
@@ -410,12 +421,12 @@ async function save() {
     gap: 1rem;
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
-    border: 1px solid var(--wa-border);
-    background: var(--wa-bg);
+    border: 1px solid var(--ui-border);
+    background: var(--ui-bg);
     transition: border-color 0.2s;
 }
 .module-row-on {
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
 }
 .module-info {
     display: flex;
@@ -425,11 +436,11 @@ async function save() {
 .module-label {
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--wa-text);
+    color: var(--ui-text);
 }
 .module-desc {
     font-size: 0.75rem;
-    color: var(--wa-text-secondary);
+    color: var(--ui-text-secondary);
 }
 
 /* Toggle switch */
@@ -438,14 +449,14 @@ async function save() {
     width: 2.75rem;
     height: 1.5rem;
     border-radius: 9999px;
-    background: var(--wa-border-strong);
+    background: var(--ui-border-strong);
     border: none;
     cursor: pointer;
     flex-shrink: 0;
     transition: background 0.2s;
 }
 .toggle-btn-on {
-    background: var(--wa-accent);
+    background: var(--ui-accent);
 }
 .toggle-thumb {
     position: absolute;

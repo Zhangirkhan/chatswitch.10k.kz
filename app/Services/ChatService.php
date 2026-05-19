@@ -17,6 +17,7 @@ use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -156,6 +157,16 @@ final class ChatService
     }
 
     /**
+     * Чаты, доступные пользователю (без фильтра списка и сортировки).
+     *
+     * @return Builder<Chat>
+     */
+    public function queryVisibleToUser(User $user): Builder
+    {
+        return $this->applyChatVisibilityForUser(Chat::query(), $user, null, 'all');
+    }
+
+    /**
      * @param  Builder<Chat>  $query
      * @return Builder<Chat>
      */
@@ -223,6 +234,16 @@ final class ChatService
      */
     public function enrichAttentionMeta(array $chats): void
     {
+        $chatModels = collect($chats)
+            ->filter(fn ($chat): bool => $chat instanceof Chat)
+            ->values()
+            ->all();
+
+        if ($chatModels !== []) {
+            (new Collection($chatModels))
+                ->loadMissing('lastOrchestratorRun:id,confidence,status,reason,completed_at');
+        }
+
         $service = app(ChatAttentionService::class);
         foreach ($chats as $chat) {
             if (! $chat instanceof Chat) {

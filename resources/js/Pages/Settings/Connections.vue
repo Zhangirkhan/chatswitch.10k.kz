@@ -3,6 +3,7 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { WhatsappSession } from '@/types';
 
 type SessionStatus = WhatsappSession['status'];
@@ -70,7 +71,7 @@ const statusLabels: Record<SessionStatus, string> = {
 };
 
 const statusClasses: Record<SessionStatus, string> = {
-    connected: 'bg-[var(--wa-accent)]',
+    connected: 'bg-[var(--ui-accent)]',
     connecting: 'bg-amber-500',
     qr_pending: 'bg-amber-500',
     disconnected: 'bg-red-500',
@@ -78,6 +79,79 @@ const statusClasses: Record<SessionStatus, string> = {
 
 function sessionLabel(session: WhatsappSession): string {
     return session.display_name?.trim() || session.session_name;
+}
+
+type ConnConfirmAction = 'logout' | 'remove';
+
+const connConfirmOpen = ref(false);
+const connConfirmAction = ref<ConnConfirmAction | null>(null);
+const connConfirmSession = ref<WhatsappSession | null>(null);
+const connConfirmBusy = ref(false);
+
+const connConfirmTitle = computed(() =>
+    connConfirmAction.value === 'logout' ? 'Отключить WhatsApp?' : 'Удалить подключение?',
+);
+
+const connConfirmDescription = computed(() => {
+    const s = connConfirmSession.value;
+    if (!s) return '';
+    const label = sessionLabel(s);
+    return connConfirmAction.value === 'logout'
+        ? `Отключить «${label}»? Сессия будет завершена.`
+        : `Удалить подключение «${label}»? Связанные чаты останутся без этого номера.`;
+});
+
+const connConfirmLabel = computed(() => (connConfirmAction.value === 'logout' ? 'Отключить' : 'Удалить'));
+
+function requestLogout(session: WhatsappSession): void {
+    connConfirmAction.value = 'logout';
+    connConfirmSession.value = session;
+    connConfirmOpen.value = true;
+}
+
+function requestRemove(session: WhatsappSession): void {
+    connConfirmAction.value = 'remove';
+    connConfirmSession.value = session;
+    connConfirmOpen.value = true;
+}
+
+function closeConnConfirm(): void {
+    if (connConfirmBusy.value) return;
+    connConfirmOpen.value = false;
+    connConfirmSession.value = null;
+    connConfirmAction.value = null;
+}
+
+async function confirmConnAction(): Promise<void> {
+    const session = connConfirmSession.value;
+    const action = connConfirmAction.value;
+    if (!session || !action) return;
+    const kind = action;
+
+    connConfirmBusy.value = true;
+    try {
+        connConfirmOpen.value = false;
+        connConfirmSession.value = null;
+        connConfirmAction.value = null;
+
+        busySessionId.value = session.id;
+        message.value = null;
+        if (kind === 'logout') {
+            await axios.post(route('settings.connections.logout', session.id));
+            updateSession({ ...session, status: 'disconnected', disconnected_at: new Date().toISOString() });
+            delete qrBySessionId.value[session.id];
+        } else {
+            await axios.delete(route('settings.connections.destroy', session.id));
+            localSessions.value = localSessions.value.filter((item) => item.id !== session.id);
+            delete qrBySessionId.value[session.id];
+        }
+    } catch (err: unknown) {
+        const fallback = kind === 'logout' ? 'Не удалось отключить подключение' : 'Не удалось удалить подключение';
+        message.value = errorMessage(err, fallback);
+    } finally {
+        busySessionId.value = null;
+        connConfirmBusy.value = false;
+    }
 }
 
 const dayInMs = 24 * 60 * 60 * 1000;
@@ -324,43 +398,6 @@ async function saveDisplayName(session: WhatsappSession): Promise<void> {
     }
 }
 
-async function logout(session: WhatsappSession): Promise<void> {
-    if (!confirm(`Отключить "${sessionLabel(session)}"?`)) {
-        return;
-    }
-
-    busySessionId.value = session.id;
-    message.value = null;
-
-    try {
-        await axios.post(route('settings.connections.logout', session.id));
-        updateSession({ ...session, status: 'disconnected', disconnected_at: new Date().toISOString() });
-        delete qrBySessionId.value[session.id];
-    } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось отключить подключение');
-    } finally {
-        busySessionId.value = null;
-    }
-}
-
-async function remove(session: WhatsappSession): Promise<void> {
-    if (!confirm(`Удалить подключение "${sessionLabel(session)}"? Связанные чаты останутся без этого номера.`)) {
-        return;
-    }
-
-    busySessionId.value = session.id;
-    message.value = null;
-
-    try {
-        await axios.delete(route('settings.connections.destroy', session.id));
-        localSessions.value = localSessions.value.filter((item) => item.id !== session.id);
-        delete qrBySessionId.value[session.id];
-    } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось удалить подключение');
-    } finally {
-        busySessionId.value = null;
-    }
-}
 
 function reloadPage(): void {
     router.reload({ only: ['sessions', 'whatsappServiceReachable'] });
@@ -375,7 +412,7 @@ function reloadPage(): void {
             <button
                 type="button"
                 class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 :disabled="isCreating || !whatsappServiceReachable"
                 @click="createSession"
             >
@@ -401,16 +438,16 @@ function reloadPage(): void {
             <div
                 v-if="!hasSessions"
                 class="rounded-lg border p-10 text-center"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
-                <h3 class="text-[var(--wa-text)] font-medium">Подключений пока нет</h3>
-                <p class="text-sm text-[var(--wa-text-secondary)] mt-1">
+                <h3 class="text-[var(--ui-text)] font-medium">Подключений пока нет</h3>
+                <p class="text-sm text-[var(--ui-text-secondary)] mt-1">
                     Добавьте WhatsApp-подключение и отсканируйте QR-код с телефона.
                 </p>
                 <button
                     type="button"
                     class="mt-5 px-5 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     :disabled="isCreating || !whatsappServiceReachable"
                     @click="createSession"
                 >
@@ -423,7 +460,7 @@ function reloadPage(): void {
                     v-for="session in localSessions"
                     :key="session.id"
                     class="rounded-lg border p-5 space-y-4"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
@@ -439,7 +476,7 @@ function reloadPage(): void {
                                     :value="editedDisplayColor || '#01b964'"
                                     type="color"
                                     class="h-[38px] w-[42px] rounded-md border"
-                                    :style="{ borderColor: 'var(--wa-border)', background: 'transparent' }"
+                                    :style="{ borderColor: 'var(--ui-border)', background: 'transparent' }"
                                     title="Цвет бейджа"
                                     @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
                                     @change="saveDisplayName(session)"
@@ -447,7 +484,7 @@ function reloadPage(): void {
                                 <button
                                     type="button"
                                     class="settings-button text-white"
-                                    :style="{ background: 'var(--wa-accent)' }"
+                                    :style="{ background: 'var(--ui-accent)' }"
                                     :disabled="busySessionId === session.id"
                                     @click="saveDisplayName(session)"
                                 >
@@ -456,12 +493,12 @@ function reloadPage(): void {
                             </div>
                             <div v-else>
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <div class="text-left font-medium text-[var(--wa-text)] truncate max-w-full">
+                                    <div class="text-left font-medium text-[var(--ui-text)] truncate max-w-full">
                                         {{ sessionLabel(session) }}
                                     </div>
                                     <button
                                         type="button"
-                                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] shrink-0"
+                                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)] shrink-0"
                                         title="Редактировать (название и цвет)"
                                         @click="startEdit(session)"
                                     >
@@ -470,13 +507,13 @@ function reloadPage(): void {
                                         </svg>
                                     </button>
                                 </div>
-                                <p class="text-xs text-[var(--wa-text-secondary)] truncate">
+                                <p class="text-xs text-[var(--ui-text-secondary)] truncate">
                                     {{ session.session_name }}
                                 </p>
                             </div>
                         </div>
 
-                        <span class="inline-flex items-center gap-2 text-xs text-[var(--wa-text-secondary)] whitespace-nowrap">
+                        <span class="inline-flex items-center gap-2 text-xs text-[var(--ui-text-secondary)] whitespace-nowrap">
                             <span class="w-2 h-2 rounded-full" :class="statusClasses[session.status]"></span>
                             {{ statusLabels[session.status] }}
                         </span>
@@ -484,30 +521,30 @@ function reloadPage(): void {
 
                     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <div>
-                            <dt class="text-xs text-[var(--wa-text-secondary)]">Номер WhatsApp</dt>
-                            <dd class="text-[var(--wa-text)]">{{ session.phone_number || '-' }}</dd>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">Номер WhatsApp</dt>
+                            <dd class="text-[var(--ui-text)]">{{ session.phone_number || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--wa-text-secondary)]">Имя WhatsApp</dt>
-                            <dd class="text-[var(--wa-text)]">{{ session.wa_name || '-' }}</dd>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">Имя WhatsApp</dt>
+                            <dd class="text-[var(--ui-text)]">{{ session.wa_name || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--wa-text-secondary)]">Платформа</dt>
-                            <dd class="text-[var(--wa-text)]">{{ session.wa_platform || '-' }}</dd>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">Платформа</dt>
+                            <dd class="text-[var(--ui-text)]">{{ session.wa_platform || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--wa-text-secondary)]">Подключено</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">Подключено</dt>
                             <dd
-                                class="text-[var(--wa-text)]"
+                                class="text-[var(--ui-text)]"
                                 :title="fullDateTimeTitle(session.connected_at)"
                             >
                                 {{ formatDateTime(session.connected_at) }}
                             </dd>
                         </div>
                         <div v-if="session.disconnected_at && session.status !== 'connected'">
-                            <dt class="text-xs text-[var(--wa-text-secondary)]">Отключено</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">Отключено</dt>
                             <dd
-                                class="text-[var(--wa-text)]"
+                                class="text-[var(--ui-text)]"
                                 :title="fullDateTimeTitle(session.disconnected_at)"
                             >
                                 {{ formatDateTime(session.disconnected_at) }}
@@ -518,7 +555,7 @@ function reloadPage(): void {
                     <div
                         v-if="qrBySessionId[session.id]"
                         class="rounded-lg border p-4 flex flex-col sm:flex-row gap-4 items-center"
-                        :style="{ background: 'var(--wa-bg)', borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
                     >
                         <img
                             :key="qrUpdatedAtBySessionId[session.id]"
@@ -526,7 +563,7 @@ function reloadPage(): void {
                             alt="WhatsApp QR"
                             class="w-44 h-44 rounded bg-white p-2"
                         />
-                        <div class="text-sm text-[var(--wa-text-secondary)] space-y-2">
+                        <div class="text-sm text-[var(--ui-text-secondary)] space-y-2">
                             <p>Откройте WhatsApp на телефоне, выберите «Связанные устройства» и отсканируйте QR-код.</p>
                             <p v-if="qrUpdatedAtBySessionId[session.id]" class="text-xs">
                                 QR обновлён: {{ qrUpdatedAtBySessionId[session.id] }}. Если телефон не принимает код,
@@ -572,7 +609,7 @@ function reloadPage(): void {
                             type="button"
                             class="settings-button text-red-600"
                             :disabled="busySessionId === session.id"
-                            @click="logout(session)"
+                            @click="requestLogout(session)"
                         >
                             Выйти
                         </button>
@@ -580,7 +617,7 @@ function reloadPage(): void {
                             type="button"
                             class="settings-button text-red-600"
                             :disabled="busySessionId === session.id"
-                            @click="remove(session)"
+                            @click="requestRemove(session)"
                         >
                             Удалить
                         </button>
@@ -590,13 +627,24 @@ function reloadPage(): void {
 
             <button
                 type="button"
-                class="text-xs text-[var(--wa-text-secondary)] hover:underline"
+                class="text-xs text-[var(--ui-text-secondary)] hover:underline"
                 @click="reloadPage"
             >
                 Обновить данные страницы
             </button>
         </div>
     </SettingsLayout>
+
+    <DangerConfirmModal
+        :open="connConfirmOpen"
+        :title="connConfirmTitle"
+        :description="connConfirmDescription"
+        :confirm-label="connConfirmLabel"
+        :busy="connConfirmBusy"
+        confirm-variant="danger"
+        @close="closeConnConfirm"
+        @confirm="confirmConnAction"
+    />
 </template>
 
 <style scoped>
@@ -605,26 +653,26 @@ function reloadPage(): void {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    background: var(--wa-bg);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    border: 1px solid var(--ui-border-strong);
     transition: border-color 0.15s ease;
 }
 .settings-input:focus {
     outline: none;
-    border-color: var(--wa-accent);
+    border-color: var(--ui-accent);
 }
 .settings-button {
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     font-size: 0.75rem;
-    color: var(--wa-text);
-    background: var(--wa-bg);
-    border: 1px solid var(--wa-border-strong);
+    color: var(--ui-text);
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border-strong);
     transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 .settings-button:hover {
-    background: var(--wa-panel-hover);
+    background: var(--ui-surface-hover);
 }
 .settings-button:disabled {
     cursor: not-allowed;

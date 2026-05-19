@@ -44,9 +44,18 @@ final class FunnelStageAiRule extends Model
         'follow_up_enabled',
         'follow_up_delay_hours',
         'follow_up_message',
+        'follow_up_mode',
+        'follow_up_message_b',
+        'follow_up_ab_ratio',
         'follow_up_cooldown_hours',
         'follow_up_max_count',
     ];
+
+    public const FOLLOW_UP_MODE_TEMPLATE = 'template';
+
+    public const FOLLOW_UP_MODE_AB = 'ab';
+
+    public const FOLLOW_UP_MODE_AI = 'ai';
 
     protected function casts(): array
     {
@@ -61,6 +70,7 @@ final class FunnelStageAiRule extends Model
             'require_manager_confirmation' => 'boolean',
             'follow_up_enabled' => 'boolean',
             'follow_up_delay_hours' => 'integer',
+            'follow_up_ab_ratio' => 'integer',
             'follow_up_cooldown_hours' => 'integer',
             'follow_up_max_count' => 'integer',
         ];

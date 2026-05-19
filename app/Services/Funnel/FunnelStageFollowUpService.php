@@ -19,6 +19,10 @@ final class FunnelStageFollowUpService
 {
     public const DEFAULT_MESSAGE = 'Добрый день! Вы ещё рассматриваете наше предложение? Если остались вопросы — напишите, будем рады помочь.';
 
+    public function __construct(
+        private readonly FunnelFollowUpAiTextService $aiText,
+    ) {}
+
     public function isModuleEnabled(): bool
     {
         return SystemSetting::getValue('module_funnels', 'on') === 'on';
@@ -203,7 +207,13 @@ final class FunnelStageFollowUpService
 
     private function renderMessage(FunnelStageAiRule $rule, Chat $chat): string
     {
-        $template = trim((string) ($rule->follow_up_message ?? ''));
+        $mode = (string) ($rule->follow_up_mode ?? FunnelStageAiRule::FOLLOW_UP_MODE_TEMPLATE);
+
+        if ($mode === FunnelStageAiRule::FOLLOW_UP_MODE_AI) {
+            return $this->aiText->generate($rule, $chat);
+        }
+
+        $template = $this->pickTemplate($rule, $chat);
         if ($template === '') {
             $template = self::DEFAULT_MESSAGE;
         }
@@ -222,5 +232,21 @@ final class FunnelStageFollowUpService
         $body = strtr($template, $replacements);
 
         return Str::limit($body, 4000, '');
+    }
+
+    private function pickTemplate(FunnelStageAiRule $rule, Chat $chat): string
+    {
+        $messageA = trim((string) ($rule->follow_up_message ?? ''));
+        $messageB = trim((string) ($rule->follow_up_message_b ?? ''));
+        $mode = (string) ($rule->follow_up_mode ?? FunnelStageAiRule::FOLLOW_UP_MODE_TEMPLATE);
+
+        if ($mode === FunnelStageAiRule::FOLLOW_UP_MODE_AB && $messageB !== '') {
+            $ratio = max(0, min(100, (int) ($rule->follow_up_ab_ratio ?? 50)));
+            $bucket = abs(crc32((string) $chat->id.'|'.$rule->id)) % 100;
+
+            return $bucket < $ratio ? $messageB : ($messageA !== '' ? $messageA : $messageB);
+        }
+
+        return $messageA;
     }
 }

@@ -169,4 +169,65 @@ final class ChatFunnelCatalogBuilder
 
         return false;
     }
+
+    /**
+     * При смене воронки подбирает этап с тем же порядковым индексом (0-based по position).
+     *
+     * @param  list<array{id: int, name: string, description: string|null, color: string, stages: list<array{id: int, name: string, color: string, stage_type?: string, position: int}>}>  $catalog
+     */
+    public function mapStagePreservingIndex(
+        array $catalog,
+        ?int $fromFunnelId,
+        ?int $fromStageId,
+        int $toFunnelId,
+    ): ?int {
+        $toStages = $this->orderedStagesForFunnel($catalog, $toFunnelId);
+        if ($toStages === []) {
+            return null;
+        }
+
+        $fromIndex = $this->stageIndexInFunnel($catalog, $fromFunnelId, $fromStageId);
+        $targetIndex = $fromIndex >= 0 ? $fromIndex : 0;
+
+        return $toStages[min($targetIndex, count($toStages) - 1)]['id'];
+    }
+
+    /**
+     * @param  list<array{id: int, stages: list<array{id: int, position: int}>}>  $catalog
+     * @return list<array{id: int, position: int}>
+     */
+    private function orderedStagesForFunnel(array $catalog, int $funnelId): array
+    {
+        foreach ($catalog as $funnel) {
+            if ($funnel['id'] !== $funnelId) {
+                continue;
+            }
+
+            $stages = $funnel['stages'];
+            usort($stages, static fn (array $a, array $b): int => $a['position'] <=> $b['position'] ?: $a['id'] <=> $b['id']);
+
+            return $stages;
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  list<array{id: int, stages: list<array{id: int, position: int}>}>  $catalog
+     */
+    private function stageIndexInFunnel(array $catalog, ?int $funnelId, ?int $stageId): int
+    {
+        if ($funnelId === null || $stageId === null) {
+            return -1;
+        }
+
+        $stages = $this->orderedStagesForFunnel($catalog, $funnelId);
+        foreach ($stages as $index => $stage) {
+            if ($stage['id'] === $stageId) {
+                return $index;
+            }
+        }
+
+        return -1;
+    }
 }
