@@ -417,7 +417,11 @@ final class AiAssistantTest extends TestCase
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
-        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id, 'company_id' => $company->id]);
+        $chat = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'company_id' => $company->id,
+            'ai_enabled' => false,
+        ]);
         ChatAssignment::create(['chat_id' => $chat->id, 'user_id' => $employee->id, 'assigned_by' => $employee->id]);
 
         $this->actingAs($employee)

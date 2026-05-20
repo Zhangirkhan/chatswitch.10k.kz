@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Docs;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 final class SwaggerDocumentationTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_swagger_ui_page_is_available(): void
     {
         $this->get('/docs/api')
