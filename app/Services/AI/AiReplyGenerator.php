@@ -13,6 +13,7 @@ use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Support\ClientMessageHeuristics;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -50,6 +51,9 @@ final class AiReplyGenerator
         $reply = $this->normalizeCurrency($reply);
         $parsed = $this->productAttachments->stripAttachMarker($reply);
         $reply = $parsed['reply'];
+        if ($triggerMessage !== null) {
+            $reply = $this->normalizeGreetingReply($chat, $triggerMessage, $reply);
+        }
         $this->assertSafeReply($reply);
 
         $metadata = [];
@@ -209,6 +213,40 @@ final class AiReplyGenerator
         $suffix = $this->appointmentReminderSettings->clientReminderSuffixForBookingConfirmation($reminderLeadMinutes);
 
         return 'Записала вас на '.$serviceName.' '.$localStart->format('d.m в H:i').'.'.$suffix;
+    }
+
+    private function normalizeGreetingReply(Chat $chat, Message $trigger, string $reply): string
+    {
+        $triggerBody = trim((string) $trigger->body);
+        if (! ClientMessageHeuristics::usedGreeting($triggerBody)) {
+            return $reply;
+        }
+
+        $hasPriorOutbound = $chat->messages()
+            ->where('direction', 'outbound')
+            ->where('id', '<', $trigger->id)
+            ->exists();
+
+        if ($hasPriorOutbound) {
+            return $reply;
+        }
+
+        if (ClientMessageHeuristics::isShortGreetingOnly($triggerBody)) {
+            if (ClientMessageHeuristics::isGenericStubReply($reply) || trim($reply) === '') {
+                return 'Здравствуйте! Подскажите, чем можем помочь?';
+            }
+        }
+
+        $trimmed = trim($reply);
+        if ($trimmed === '' || ClientMessageHeuristics::isGenericStubReply($trimmed)) {
+            return 'Здравствуйте! Подскажите, чем можем помочь?';
+        }
+
+        if (! ClientMessageHeuristics::usedGreeting($trimmed)) {
+            return 'Здравствуйте! '.$trimmed;
+        }
+
+        return $trimmed;
     }
 
     private function sanitizeReply(string $reply): string
