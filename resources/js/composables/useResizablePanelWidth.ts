@@ -3,6 +3,15 @@ import { useLocalSetting } from '@/composables/useLocalSetting';
 
 export type ResizablePanelEdge = 'left' | 'right';
 
+/** Shared width for chat list + organization list sidebars (WhatsApp-style left panel). */
+export const LIST_SIDEBAR_WIDTH_STORAGE_KEY = 'chats.sidebarWidth';
+
+export const LIST_SIDEBAR_WIDTH_DEFAULTS = {
+    defaultWidth: 400,
+    minWidth: 280,
+    maxWidth: 560,
+} as const;
+
 export type ResizablePanelWidthOptions = {
     storageKey: string;
     defaultWidth: number;

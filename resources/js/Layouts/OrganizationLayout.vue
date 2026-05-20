@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import AuthenticatedLayout from './AuthenticatedLayout.vue';
-import OrganizationSidebar, { type OrgDepartment } from '@/Pages/Organization/Partials/OrganizationSidebar.vue';
-import { usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
+import OrganizationSidebar, { type OrgDepartment } from '@/Pages/Organization/Partials/OrganizationSidebar.vue';
+import {
+    LIST_SIDEBAR_WIDTH_DEFAULTS,
+    LIST_SIDEBAR_WIDTH_STORAGE_KEY,
+    useResizablePanelWidth,
+} from '@/composables/useResizablePanelWidth';
+import AuthenticatedLayout from './AuthenticatedLayout.vue';
 
 defineProps<{
     departments: OrgDepartment[];
@@ -12,22 +18,45 @@ defineProps<{
 
 const page = usePage();
 const isTeamChatUrl = computed(() => typeof page.url === 'string' && page.url.startsWith('/organization/chat'));
+
+const sidebarResize = useResizablePanelWidth({
+    storageKey: LIST_SIDEBAR_WIDTH_STORAGE_KEY,
+    ...LIST_SIDEBAR_WIDTH_DEFAULTS,
+    edge: 'left',
+});
+
+const sidebarWidthStyle = computed(() => ({
+    width: sidebarResize.widthPx.value,
+}));
+
+const sidebarResizing = computed(() => sidebarResize.isResizing.value);
 </script>
 
 <template>
     <AuthenticatedLayout>
         <div class="flex h-full min-h-0 w-full bg-[var(--wa-bg)]">
-            <OrganizationSidebar
-                :departments="departments"
-                :selected-department-id="selectedDepartmentId"
-                :archive-active="archiveActive"
-                class="shrink-0"
-                :class="{ 'hidden md:flex': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
+            <div
+                class="flex h-full shrink-0 overflow-hidden"
+                :class="{ 'hidden sm:flex': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
+                :style="sidebarWidthStyle"
+            >
+                <OrganizationSidebar
+                    :departments="departments"
+                    :selected-department-id="selectedDepartmentId"
+                    :archive-active="archiveActive"
+                    class="h-full w-full min-w-0"
+                />
+            </div>
+            <PanelResizeHandle
+                class="hidden sm:block"
+                :class="{ 'sm:hidden': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
+                :active="sidebarResizing"
+                @pointerdown="sidebarResize.onResizePointerDown"
             />
             <div
                 class="flex min-h-0 min-w-0 flex-1 flex-col border-l"
                 :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
-                :class="{ 'hidden md:flex': !selectedDepartmentId && !archiveActive && !isTeamChatUrl }"
+                :class="{ 'hidden sm:flex': !selectedDepartmentId && !archiveActive && !isTeamChatUrl }"
             >
                 <slot />
             </div>

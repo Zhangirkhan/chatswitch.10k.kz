@@ -3,20 +3,28 @@ import { computed } from 'vue';
 import AuthenticatedLayout from './AuthenticatedLayout.vue';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import ChatSidebar from '@/Pages/Chats/Partials/ChatSidebar.vue';
-import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
+import {
+    LIST_SIDEBAR_WIDTH_DEFAULTS,
+    LIST_SIDEBAR_WIDTH_STORAGE_KEY,
+    useResizablePanelWidth,
+} from '@/composables/useResizablePanelWidth';
 import type { Chat, Paginated } from '@/types';
 
-defineProps<{
-    chats: Paginated<Chat>;
-    selectedChatId?: number;
-    search?: string;
-}>();
+withDefaults(
+    defineProps<{
+        chats: Paginated<Chat>;
+        selectedChatId?: number;
+        search?: string;
+        scope?: 'active' | 'archived';
+    }>(),
+    {
+        scope: 'active',
+    },
+);
 
 const sidebarResize = useResizablePanelWidth({
-    storageKey: 'chats.sidebarWidth',
-    defaultWidth: 400,
-    minWidth: 280,
-    maxWidth: 560,
+    storageKey: LIST_SIDEBAR_WIDTH_STORAGE_KEY,
+    ...LIST_SIDEBAR_WIDTH_DEFAULTS,
     edge: 'left',
 });
 
@@ -39,6 +47,7 @@ const sidebarResizing = computed(() => sidebarResize.isResizing.value);
                     :chats="chats"
                     :selected-chat-id="selectedChatId"
                     :search="search"
+                    :scope="scope"
                     class="h-full w-full min-w-0"
                 />
             </div>
