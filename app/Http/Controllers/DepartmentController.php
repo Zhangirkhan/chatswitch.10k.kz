@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\FunnelStage;
 use App\Models\User;
+use App\Support\DepartmentWorkSchedule;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,6 +53,9 @@ final class DepartmentController extends Controller
                     ])->values()->all(),
                     'funnel_ids' => $d->funnels->pluck('id')->map(fn ($v) => (int) $v)->values()->all(),
                     'funnel_stage_ids' => $d->funnelStages->pluck('id')->map(fn ($v) => (int) $v)->values()->all(),
+                    'work_schedule_enabled' => (bool) $d->work_schedule_enabled,
+                    'work_schedule_timezone' => $d->work_schedule_timezone,
+                    'work_schedule' => $d->work_schedule ?? DepartmentWorkSchedule::defaultWeek(),
                 ];
             });
 
@@ -139,7 +143,24 @@ final class DepartmentController extends Controller
             'funnel_ids.*' => ['integer', Rule::exists('funnels', 'id')],
             'funnel_stage_ids' => 'nullable|array',
             'funnel_stage_ids.*' => ['integer', Rule::exists('funnel_stages', 'id')],
+            'work_schedule_enabled' => 'sometimes|boolean',
+            'work_schedule_timezone' => 'nullable|string|max:64',
+            'work_schedule' => 'nullable|array',
         ]);
+
+        if (array_key_exists('work_schedule', $validated) && is_array($validated['work_schedule'])) {
+            $validated['work_schedule'] = DepartmentWorkSchedule::normalizeWeek($validated['work_schedule']);
+        }
+
+        if (($validated['work_schedule_enabled'] ?? false) === true) {
+            $timezone = trim((string) ($validated['work_schedule_timezone'] ?? ''));
+            if ($timezone === '') {
+                $validated['work_schedule_timezone'] = (string) config('app.timezone', 'UTC');
+            }
+            if (! is_array($validated['work_schedule'] ?? null)) {
+                $validated['work_schedule'] = DepartmentWorkSchedule::defaultWeek();
+            }
+        }
 
         $parentId = $validated['parent_id'] ?? null;
         if ($parentId !== null) {

@@ -14,11 +14,80 @@ interface DeptUser {
     department_id?: number | null;
 }
 
+interface WorkDaySlot {
+    enabled: boolean;
+    from: string;
+    to: string;
+}
+
+type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
 interface DepartmentRow extends Department {
     users_count: number;
     users: DeptUser[];
     funnel_ids?: number[];
     funnel_stage_ids?: number[];
+    work_schedule_enabled?: boolean;
+    work_schedule_timezone?: string | null;
+    work_schedule?: Partial<Record<WorkDayKey, WorkDaySlot>>;
+}
+
+const WEEK_DAYS: Array<{ key: WorkDayKey; label: string }> = [
+    { key: 'mon', label: 'Понедельник' },
+    { key: 'tue', label: 'Вторник' },
+    { key: 'wed', label: 'Среда' },
+    { key: 'thu', label: 'Четверг' },
+    { key: 'fri', label: 'Пятница' },
+    { key: 'sat', label: 'Суббота' },
+    { key: 'sun', label: 'Воскресенье' },
+];
+
+const TIMEZONE_OPTIONS = [
+    'Asia/Almaty',
+    'Asia/Aqtobe',
+    'Asia/Aqtau',
+    'Asia/Qyzylorda',
+    'Asia/Oral',
+    'Europe/Moscow',
+    'UTC',
+];
+
+function defaultWorkWeek(): Record<WorkDayKey, WorkDaySlot> {
+    const slot = (enabled: boolean): WorkDaySlot => ({ enabled, from: '09:00', to: '18:00' });
+    return {
+        mon: slot(true),
+        tue: slot(true),
+        wed: slot(true),
+        thu: slot(true),
+        fri: slot(true),
+        sat: slot(false),
+        sun: slot(false),
+    };
+}
+
+function mergeWorkWeek(raw?: Partial<Record<WorkDayKey, WorkDaySlot>>): Record<WorkDayKey, WorkDaySlot> {
+    const base = defaultWorkWeek();
+    if (!raw) return base;
+    for (const { key } of WEEK_DAYS) {
+        const day = raw[key];
+        if (day) {
+            base[key] = {
+                enabled: day.enabled === true,
+                from: day.from || base[key].from,
+                to: day.to || base[key].to,
+            };
+        }
+    }
+    return base;
+}
+
+function scheduleSummary(dept: DepartmentRow): string | null {
+    if (!dept.work_schedule_enabled) return null;
+    const week = mergeWorkWeek(dept.work_schedule);
+    const parts = WEEK_DAYS.filter((d) => week[d.key].enabled).map(
+        (d) => `${d.label.slice(0, 2)} ${week[d.key].from}–${week[d.key].to}`,
+    );
+    return parts.length ? parts.join(', ') : 'график не задан';
 }
 
 interface AssignmentUser {
@@ -88,7 +157,7 @@ const deptDeleteOpen = ref(false);
 const deptDeleteTarget = ref<DepartmentRow | null>(null);
 const deptDeleteBusy = ref(false);
 const memberSearch = ref('');
-const modalTab = ref<'members' | 'funnels'>('members');
+const modalTab = ref<'members' | 'funnels' | 'schedule'>('members');
 const departmentSearch = ref('');
 const departmentStatusFilter = ref<'all' | 'active' | 'inactive'>('all');
 const departmentTypeFilter = ref<'all' | 'root' | 'nested'>('all');
@@ -105,6 +174,9 @@ const form = ref({
     description: '',
     parent_id: null as number | null,
     is_active: true,
+    work_schedule_enabled: false,
+    work_schedule_timezone: 'Asia/Almaty',
+    work_schedule: defaultWorkWeek(),
 });
 
 const validationErrors = ref<Record<string, string>>({});
@@ -268,6 +340,9 @@ function openCreate(presetParentId: number | null = null) {
         description: '',
         parent_id: presetParentId,
         is_active: true,
+        work_schedule_enabled: false,
+        work_schedule_timezone: 'Asia/Almaty',
+        work_schedule: defaultWorkWeek(),
     };
     selectedMemberIds.value = [];
     selectedFunnelIds.value = new Set();
@@ -285,6 +360,9 @@ function openEdit(dept: DepartmentRow) {
         description: dept.description ?? '',
         parent_id: dept.parent_id ?? null,
         is_active: dept.is_active !== false,
+        work_schedule_enabled: dept.work_schedule_enabled === true,
+        work_schedule_timezone: dept.work_schedule_timezone || 'Asia/Almaty',
+        work_schedule: mergeWorkWeek(dept.work_schedule),
     };
     selectedMemberIds.value = (dept.users ?? []).map((u) => u.id);
     selectedFunnelIds.value = new Set((dept.funnel_ids ?? []).map((x) => Number(x)));
@@ -400,6 +478,11 @@ async function saveModal() {
             is_active: form.value.is_active,
             funnel_ids: Array.from(selectedFunnelIds.value),
             funnel_stage_ids: Array.from(selectedStageIds.value),
+            work_schedule_enabled: form.value.work_schedule_enabled,
+            work_schedule_timezone: form.value.work_schedule_enabled
+                ? form.value.work_schedule_timezone
+                : null,
+            work_schedule: form.value.work_schedule_enabled ? form.value.work_schedule : null,
         };
 
         let deptId: number;
@@ -637,6 +720,16 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 <span class="text-[var(--ui-text-secondary)]">({{ f.stagesPicked }}/{{ f.stagesTotal }})</span>
                             </span>
                         </div>
+                        <p
+                            v-if="scheduleSummary(node.dept)"
+                            class="text-[11px] text-[var(--ui-text-secondary)] mt-1"
+                            title="Рабочий график для автоответов вне смены"
+                        >
+                            График: {{ scheduleSummary(node.dept) }}
+                            <span v-if="node.dept.work_schedule_timezone" class="opacity-80">
+                                ({{ node.dept.work_schedule_timezone }})
+                            </span>
+                        </p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
                         <button
@@ -769,6 +862,64 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     Воронки продаж
                                     <span class="opacity-80">({{ selectedFunnelIds.size }})</span>
                                 </button>
+                                <button
+                                    type="button"
+                                    class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition"
+                                    :style="{
+                                        background: modalTab === 'schedule' ? 'var(--ui-accent)' : 'transparent',
+                                        color: modalTab === 'schedule' ? '#fff' : 'var(--ui-text)',
+                                    }"
+                                    @click="modalTab = 'schedule'"
+                                >
+                                    График
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="modalTab === 'schedule'" class="pt-2 space-y-4">
+                            <p class="text-xs text-[var(--ui-text-secondary)]">
+                                Вне рабочего времени бот вежливо сообщит клиенту, что отдел не на связи, и когда ждать ответ.
+                                Пока график выключен — отдел считается доступным круглосуточно.
+                            </p>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <UiCheckbox v-model="form.work_schedule_enabled" />
+                                <span class="text-sm text-[var(--ui-text)]">Использовать рабочий график для автоответов</span>
+                            </label>
+                            <div v-if="form.work_schedule_enabled" class="space-y-3">
+                                <div>
+                                    <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Часовой пояс</label>
+                                    <select v-model="form.work_schedule_timezone" class="settings-input">
+                                        <option v-for="tz in TIMEZONE_OPTIONS" :key="tz" :value="tz">{{ tz }}</option>
+                                    </select>
+                                </div>
+                                <div
+                                    class="rounded-lg border divide-y"
+                                    :style="{ borderColor: 'var(--ui-border)' }"
+                                >
+                                    <div
+                                        v-for="day in WEEK_DAYS"
+                                        :key="day.key"
+                                        class="flex flex-wrap items-center gap-3 px-3 py-2"
+                                    >
+                                        <label class="flex items-center gap-2 min-w-[9.5rem] cursor-pointer">
+                                            <UiCheckbox v-model="form.work_schedule[day.key].enabled" />
+                                            <span class="text-sm text-[var(--ui-text)]">{{ day.label }}</span>
+                                        </label>
+                                        <input
+                                            v-model="form.work_schedule[day.key].from"
+                                            type="time"
+                                            class="settings-input w-[7.5rem]"
+                                            :disabled="!form.work_schedule[day.key].enabled"
+                                        />
+                                        <span class="text-[var(--ui-text-secondary)] text-sm">—</span>
+                                        <input
+                                            v-model="form.work_schedule[day.key].to"
+                                            type="time"
+                                            class="settings-input w-[7.5rem]"
+                                            :disabled="!form.work_schedule[day.key].enabled"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

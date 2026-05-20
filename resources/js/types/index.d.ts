@@ -19,6 +19,12 @@ export interface User {
     whatsapp_session_ids?: number[];
 }
 
+export interface DepartmentWorkDaySlot {
+    enabled: boolean;
+    from: string;
+    to: string;
+}
+
 export interface Department {
     id: number;
     name: string;
@@ -26,6 +32,9 @@ export interface Department {
     parent_id?: number | null;
     is_active: boolean;
     users_count?: number;
+    work_schedule_enabled?: boolean;
+    work_schedule_timezone?: string | null;
+    work_schedule?: Record<string, DepartmentWorkDaySlot>;
 }
 
 export interface WhatsappSession {
