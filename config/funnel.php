@@ -14,6 +14,12 @@ return [
         'temperature' => (float) env('FUNNEL_AI_TEMPERATURE', 0.15),
         'max_tokens' => (int) env('FUNNEL_AI_MAX_TOKENS', 450),
     ],
+    'department_routing' => [
+        'enabled' => (bool) env('FUNNEL_DEPARTMENT_ROUTING_ENABLED', true),
+        'min_confidence' => (float) env('FUNNEL_DEPARTMENT_ROUTING_MIN_CONFIDENCE', 0.55),
+        'temperature' => (float) env('FUNNEL_DEPARTMENT_ROUTING_TEMPERATURE', 0.1),
+        'max_tokens' => (int) env('FUNNEL_DEPARTMENT_ROUTING_MAX_TOKENS', 350),
+    ],
     'orchestrator' => [
         'debounce_seconds' => (int) env('FUNNEL_ORCHESTRATOR_DEBOUNCE_SECONDS', 3),
         'min_confidence' => (float) env('FUNNEL_ORCHESTRATOR_MIN_CONFIDENCE', 0.7),
