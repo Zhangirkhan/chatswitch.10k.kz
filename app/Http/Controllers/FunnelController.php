@@ -12,6 +12,7 @@ use App\Models\FunnelStageAiRule;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AI\FunnelAiSuggestionService;
+use App\Services\Funnel\FunnelAiBootstrapService;
 use App\Support\FunnelStageType;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,10 @@ use Throwable;
  */
 final class FunnelController extends Controller
 {
+    public function __construct(
+        private readonly FunnelAiBootstrapService $funnelAiBootstrap,
+    ) {}
+
     public function index(): Response
     {
         $this->ensureModuleEnabled();
@@ -90,16 +95,11 @@ final class FunnelController extends Controller
                 'position' => $nextPosition,
             ]);
 
-            FunnelAiScenario::query()->create([
-                'company_id' => $companyId,
-                'funnel_id' => $funnel->id,
-                'enabled' => true,
-                'customer_identity' => 'company',
-                'booking_horizon_days' => 30,
-                'fallback_manager_user_id' => null,
-                'fallback_department_id' => $fallbackDepartment?->id,
-                'manager_confirmation_required' => false,
-            ]);
+            $this->funnelAiBootstrap->ensureScenario(
+                $funnel,
+                $fallbackDepartment?->id,
+                true,
+            );
 
             foreach ($template['stages'] as $position => $stageTemplate) {
                 $stage = $funnel->stages()->create([
@@ -110,18 +110,15 @@ final class FunnelController extends Controller
                     'is_active' => true,
                 ]);
 
-                FunnelStageAiRule::query()->create([
-                    'company_id' => $companyId,
-                    'funnel_id' => $funnel->id,
-                    'funnel_stage_id' => $stage->id,
-                    'goal' => $stageTemplate['goal'],
-                    'required_questions' => $stageTemplate['questions'],
-                    'transition_conditions' => $stageTemplate['conditions'],
-                    'allowed_actions' => FunnelStageAiRule::DEFAULT_ALLOWED_ACTIONS,
-                    'assignee_user_ids' => [],
-                    'assignee_department_id' => $fallbackDepartment?->id,
-                    'require_manager_confirmation' => (bool) ($stageTemplate['manager_confirmation'] ?? false),
-                ]);
+                $this->funnelAiBootstrap->createStageRuleFromDefinition(
+                    $funnel,
+                    $stage,
+                    (string) $stageTemplate['goal'],
+                    $stageTemplate['questions'],
+                    (string) $stageTemplate['conditions'],
+                    $fallbackDepartment?->id,
+                    (bool) ($stageTemplate['manager_confirmation'] ?? false),
+                );
             }
 
             $departmentIds = Department::query()->where('is_active', true)->pluck('id')->all();
@@ -151,7 +148,7 @@ final class FunnelController extends Controller
         $companyId = TenantCompany::id();
         $validated['company_id'] = $companyId;
 
-        $funnel = DB::transaction(static function () use ($validated, $stagesPayload, $companyId): Funnel {
+        $funnel = DB::transaction(function () use ($validated, $stagesPayload, $companyId): Funnel {
             $nextPosition = (int) (Funnel::query()
                 ->where('company_id', $companyId)
                 ->max('position') ?? -1) + 1;
@@ -173,10 +170,12 @@ final class FunnelController extends Controller
                 ]);
             }
 
+            $this->funnelAiBootstrap->bootstrapFunnel($funnel->load('stages'), false);
+
             return $funnel;
         });
 
-        $funnel->load('stages')->loadCount('stages');
+        $funnel->load(['aiScenario', 'stages.aiRule'])->loadCount('stages');
 
         return response()->json(['success' => true, 'funnel' => $funnel]);
     }
@@ -206,21 +205,35 @@ final class FunnelController extends Controller
         $this->ensureModuleEnabled();
         $validated = $this->validateStage($request);
 
-        $stage = DB::transaction(static function () use ($funnel, $validated): FunnelStage {
+        $stage = DB::transaction(function () use ($funnel, $validated): FunnelStage {
             $nextPosition = (int) ($funnel->stages()->max('position') ?? -1) + 1;
 
-            return $funnel->stages()->create([
+            $stage = $funnel->stages()->create([
                 ...$validated,
                 'position' => $nextPosition,
             ]);
+
+            $totalStages = (int) $funnel->stages()->count();
+            $departmentId = $funnel->aiScenario?->fallback_department_id
+                ?? $this->funnelAiBootstrap->ensureScenario($funnel)->fallback_department_id;
+
+            $this->funnelAiBootstrap->ensureStageRule(
+                $funnel,
+                $stage,
+                $nextPosition,
+                $totalStages,
+                $departmentId,
+            );
+
+            return $stage;
         });
 
-        $funnel->load('stages')->loadCount('stages');
+        $funnel->load(['aiScenario', 'stages.aiRule'])->loadCount('stages');
 
         return response()->json([
             'success' => true,
             'funnel' => $funnel,
-            'stage' => $stage->fresh(),
+            'stage' => $stage->fresh(['aiRule']),
         ]);
     }
 

@@ -20,6 +20,7 @@ export function stageRuleIssues(
     rule: StageAiRuleLike,
     index = 0,
     total = 0,
+    stageType?: string | null,
 ): string[] {
     if (!rule) {
         return ['Нет AI-правил'];
@@ -41,7 +42,8 @@ export function stageRuleIssues(
     if (actions.length === 0) {
         issues.push('Нет разрешённых действий');
     }
-    if (!isFinalStage && questions.length === 0) {
+    const skipQuestionsCheck = stageType === 'production' || stageType === 'done';
+    if (!isFinalStage && questions.length === 0 && !skipQuestionsCheck) {
         issues.push('Нет уточняющих вопросов');
     }
     if (
@@ -85,7 +87,7 @@ export function stageInlineHints(
         ];
     }
 
-    const issues = new Set(stageRuleIssues(rule, index, total));
+    const issues = new Set(stageRuleIssues(rule, index, total, stageType));
     const hints: StageHint[] = [];
     const questions = rule.required_questions ?? [];
     const isFinal = total > 0 && index >= total - 1;
