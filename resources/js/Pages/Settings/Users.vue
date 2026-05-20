@@ -356,11 +356,7 @@ const userDeleteDescription = computed(() => {
     <Head title="Пользователи" />
     <SettingsLayout title="Пользователи" subtitle="Операторы, руководители и администраторы">
         <template #actions>
-            <button
-                @click="openAdd"
-                class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
-            >
+            <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">
                 + Добавить пользователя
             </button>
         </template>
@@ -370,10 +366,7 @@ const userDeleteDescription = computed(() => {
                 Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
             </p>
 
-            <div
-                class="rounded-lg border p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_220px_160px_auto]"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-            >
+            <div class="ui-filter-panel ui-filter-panel--users">
                 <input
                     v-model="filters.search"
                     type="search"
@@ -397,12 +390,7 @@ const userDeleteDescription = computed(() => {
                     <option value="active">Активные</option>
                     <option value="inactive">Отключённые</option>
                 </select>
-                <button
-                    type="button"
-                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
-                    @click="resetFilters"
-                >
+                <button type="button" class="ui-btn ui-btn--secondary" @click="resetFilters">
                     Сбросить
                 </button>
             </div>
@@ -413,12 +401,9 @@ const userDeleteDescription = computed(() => {
             </div>
 
             <!-- Users table: действия сразу после имени, чтобы кнопки не уезжали за край экрана -->
-            <div
-                class="rounded-lg border overflow-x-auto"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-            >
-                <table class="w-full text-sm min-w-[720px]">
-                    <thead :style="{ background: 'var(--ui-surface-muted)' }">
+            <div class="ui-panel ui-table-panel">
+                <table>
+                    <thead>
                         <tr>
                             <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Имя</th>
                             <th class="text-right px-5 py-3 font-medium text-[var(--ui-text-secondary)] whitespace-nowrap w-[1%]">
@@ -448,19 +433,10 @@ const userDeleteDescription = computed(() => {
                         >
                             <td class="px-5 py-3 font-medium text-[var(--ui-text)]">{{ user.name }}</td>
                             <td class="px-5 py-3 text-right whitespace-nowrap align-middle" @click.stop>
-                                <button
-                                    type="button"
-                                    class="text-xs px-2 py-1 rounded-md border mr-2 transition hover:brightness-95"
-                                    :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-border-strong)' }"
-                                    @click="openEdit(user)"
-                                >
+                                <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm mr-2" @click="openEdit(user)">
                                     Изменить
                                 </button>
-                                <button
-                                    type="button"
-                                    class="text-xs px-2 py-1 rounded-md border border-red-500/40 text-red-400 transition hover:bg-red-500/10"
-                                    @click="requestRemoveUser(user)"
-                                >
+                                <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="requestRemoveUser(user)">
                                     Удалить
                                 </button>
                             </td>
@@ -468,11 +444,11 @@ const userDeleteDescription = computed(() => {
                             <td class="px-5 py-3 text-[var(--ui-text-secondary)] text-xs font-mono">{{ userPrimaryPhone(user) }}</td>
                             <td class="px-5 py-3">
                                 <span
-                                    class="text-xs px-2 py-0.5 rounded-full font-medium"
+                                    class="ui-badge"
                                     :class="{
-                                        'bg-red-100 text-red-700': user.roles?.[0] === 'administrator',
-                                        'bg-blue-100 text-blue-700': user.roles?.[0] === 'manager',
-                                        'bg-gray-100 text-gray-700': user.roles?.[0] === 'employee',
+                                        'ui-badge--admin': user.roles?.[0] === 'administrator',
+                                        'ui-badge--manager': user.roles?.[0] === 'manager',
+                                        'ui-badge--employee': user.roles?.[0] === 'employee',
                                     }"
                                 >
                                     {{ roleLabels[user.roles?.[0]] || user.roles?.[0] || '—' }}
@@ -483,8 +459,7 @@ const userDeleteDescription = computed(() => {
                                     <span
                                         v-for="name in userDepartmentNames(user)"
                                         :key="name"
-                                        class="text-xs px-2 py-0.5 rounded-full"
-                                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                                        class="ui-badge ui-badge--neutral"
                                     >
                                         {{ name }}
                                     </span>
@@ -736,19 +711,3 @@ const userDeleteDescription = computed(() => {
     />
 </template>
 
-<style scoped>
-.settings-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    background: var(--ui-bg);
-    color: var(--ui-text);
-    border: 1px solid var(--ui-border-strong);
-    transition: border-color 0.15s ease;
-}
-.settings-input:focus {
-    outline: none;
-    border-color: var(--ui-accent);
-}
-</style>

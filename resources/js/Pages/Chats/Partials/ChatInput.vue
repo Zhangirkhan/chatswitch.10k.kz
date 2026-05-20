@@ -822,7 +822,7 @@ function pickSticker() {
 
 function stubAction(name: string) {
     showAttach.value = false;
-    alert(`«${name}» — скоро будет доступно.`);
+    showToast({ message: `«${name}» — скоро будет доступно.`, type: 'info' });
 }
 
 async function uploadFile(file: File, type?: string) {
@@ -837,7 +837,7 @@ async function uploadFile(file: File, type?: string) {
         if (data.message) emit('messageSent', data.message);
     } catch (err) {
         console.error('Upload failed:', err);
-        alert('Не удалось загрузить файл');
+        showToast({ message: 'Не удалось загрузить файл', type: 'warning' });
     }
 }
 
@@ -888,7 +888,7 @@ function formatRecordTime(sec: number): string {
 
 async function startRecording() {
     if (!navigator.mediaDevices?.getUserMedia) {
-        alert('Запись голосовых недоступна в этом браузере');
+        showToast({ message: 'Запись голосовых недоступна в этом браузере', type: 'warning' });
         return;
     }
     try {
@@ -925,7 +925,7 @@ async function startRecording() {
         recordInterval = setInterval(() => recordingTime.value++, 1000);
     } catch (err) {
         console.error('Mic error:', err);
-        alert('Нет доступа к микрофону');
+        showToast({ message: 'Нет доступа к микрофону', type: 'warning' });
     }
 }
 
@@ -1060,7 +1060,7 @@ async function confirmSendAttachments() {
         clearPendingAttachments();
     } catch (err) {
         console.error('Upload failed:', err);
-        alert('Не удалось загрузить файл');
+        showToast({ message: 'Не удалось загрузить файл', type: 'warning' });
     } finally {
         isUploadingAttachments.value = false;
     }
@@ -1155,7 +1155,7 @@ function closeContactPicker() {
 
 function pickContact(contact: ContactListItem) {
     if (!contact.phone_number && !contact.whatsapp_id) {
-        alert('У этого контакта нет номера телефона и его нельзя отправить.');
+        showToast({ message: 'У этого контакта нет номера телефона и его нельзя отправить.', type: 'warning' });
         return;
     }
     pendingContact.value = contact;
@@ -1179,7 +1179,7 @@ async function confirmSendContact() {
 
     const phone = (contact.phone_number || contact.whatsapp_id || '').toString();
     if (!phone.replace(/\D/g, '')) {
-        alert('У контакта не указан номер — отправка невозможна.');
+        showToast({ message: 'У контакта не указан номер — отправка невозможна.', type: 'warning' });
         return;
     }
 
@@ -1200,7 +1200,7 @@ async function confirmSendContact() {
         showContactPicker.value = false;
     } catch (err) {
         console.error('Send contact failed:', err);
-        alert('Не удалось отправить контакт.');
+        showToast({ message: 'Не удалось отправить контакт.', type: 'warning' });
     } finally {
         isSendingContact.value = false;
     }
@@ -1263,7 +1263,7 @@ async function submitPoll() {
         showPollModal.value = false;
     } catch (err) {
         console.error('Send poll failed:', err);
-        alert('Не удалось создать опрос.');
+        showToast({ message: 'Не удалось создать опрос.', type: 'warning' });
     } finally {
         isSendingPoll.value = false;
     }

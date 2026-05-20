@@ -57,13 +57,13 @@ const showAttentionPill = computed(() => attentionReason.value.length > 0);
 const attentionPillStyle = computed<Record<string, string>>(() => {
     switch (props.chat.attention_severity) {
         case 'critical':
-            return { background: 'color-mix(in srgb, #ef4444 18%, transparent)', color: '#ef4444' };
+            return { background: 'var(--wa-chroma-critical-bg)', color: 'var(--wa-chroma-critical-fg)' };
         case 'danger':
-            return { background: 'color-mix(in srgb, #f97316 18%, transparent)', color: '#f97316' };
+            return { background: 'var(--wa-chroma-orange-bg)', color: 'var(--wa-chroma-orange-fg)' };
         case 'warning':
-            return { background: 'color-mix(in srgb, #eab308 18%, transparent)', color: '#ca8a04' };
+            return { background: 'var(--wa-chroma-yellow-bg)', color: 'var(--wa-chroma-yellow-fg)' };
         default:
-            return { background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' };
+            return { background: 'var(--wa-accent-soft)', color: 'var(--wa-chroma-accent-fg)' };
     }
 });
 
@@ -603,9 +603,9 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
 
 /* Плашка закреплённых (отличается от зелёной плашки WhatsApp-сессии). */
 .assignee-pill {
-    background: color-mix(in srgb, var(--wa-accent) 18%, transparent);
+    background: var(--wa-chroma-accent-bg-18);
     color: var(--wa-assignee-pill-fg);
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, transparent);
+    border: 1px solid var(--wa-chroma-accent-border-45);
 }
 .assignee-pill-expanded {
     white-space: normal;
@@ -613,9 +613,9 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
     word-break: break-word;
 }
 .ai-pill {
-    background: color-mix(in srgb, #8b5cf6 18%, transparent);
-    color: #c4b5fd;
-    border: 1px solid color-mix(in srgb, #8b5cf6 38%, transparent);
+    background: var(--wa-chroma-violet-bg-18);
+    color: var(--wa-chroma-violet-fg);
+    border: 1px solid var(--wa-chroma-violet-border-38);
     letter-spacing: 0.04em;
 }
 
@@ -700,6 +700,6 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
     color: var(--wa-danger);
 }
 .menu-item-danger:hover {
-    background-color: color-mix(in srgb, var(--wa-danger) 10%, transparent);
+    background-color: var(--wa-chroma-danger-bg-10);
 }
 </style>

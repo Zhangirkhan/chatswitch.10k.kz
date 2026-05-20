@@ -189,8 +189,7 @@ async function runSimulation(): Promise<void> {
     <SettingsLayout title="AI и качество" subtitle="Сбои генерации и негативные оценки ответов операторов">
         <div class="w-full space-y-8 px-6 py-6">
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -235,8 +234,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -250,7 +248,7 @@ async function runSimulation(): Promise<void> {
                     </div>
                 </div>
 
-                <div v-if="improvement_suggestions.length === 0" class="mt-4 rounded-lg border border-dashed px-4 py-6 text-center text-sm" :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }">
+                <div v-if="improvement_suggestions.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
                     Пока нет негативных оценок AI-ответов. Когда операторы начнут отмечать проблемы, здесь появятся рекомендации.
                 </div>
 
@@ -290,8 +288,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -305,7 +302,7 @@ async function runSimulation(): Promise<void> {
                     </div>
                 </div>
 
-                <div v-if="configuration_audit.length === 0" class="mt-4 rounded-lg border border-dashed px-4 py-6 text-center text-sm" :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }">
+                <div v-if="configuration_audit.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
                     Критичных слабых мест не найдено.
                 </div>
 
@@ -333,8 +330,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -348,7 +344,7 @@ async function runSimulation(): Promise<void> {
                     </div>
                 </div>
 
-                <div v-if="attention_queue.length === 0" class="mt-4 rounded-lg border border-dashed px-4 py-6 text-center text-sm" :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text-secondary)' }">
+                <div v-if="attention_queue.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
                     Очередь пустая. Критичных чатов сейчас нет.
                 </div>
 
@@ -386,8 +382,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Guardrails AI</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -420,8 +415,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <div class="flex flex-col gap-1">
                     <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Симулятор клиента</h2>
@@ -437,8 +431,7 @@ async function runSimulation(): Promise<void> {
                             <textarea
                                 v-model="simulationMessage"
                                 rows="4"
-                                class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                                :style="{ background: 'var(--ui-surface-muted)', borderColor: 'var(--ui-border)', color: 'var(--ui-text)', '--tw-ring-color': 'var(--ui-accent)' }"
+                                class="settings-input w-full"
                                 placeholder="Например: хочу шкаф, когда можно замер?"
                             />
                         </label>
@@ -448,24 +441,22 @@ async function runSimulation(): Promise<void> {
                             <textarea
                                 v-model="simulationHistory"
                                 rows="3"
-                                class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                                :style="{ background: 'var(--ui-surface-muted)', borderColor: 'var(--ui-border)', color: 'var(--ui-text)', '--tw-ring-color': 'var(--ui-accent)' }"
+                                class="settings-input w-full"
                                 placeholder="Клиент: интересует кухня&#10;Менеджер: уточните размеры"
                             />
                         </label>
 
                         <button
                             type="button"
-                            class="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                            class="ui-btn ui-btn--primary"
                             :disabled="simulationLoading || simulationMessage.trim().length === 0"
-                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             @click="runSimulation"
                         >
                             {{ simulationLoading ? 'AI думает…' : 'Запустить симуляцию' }}
                         </button>
                     </div>
 
-                    <div class="rounded-xl border p-4" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
+                    <div class="ui-panel p-4" :style="{ background: 'var(--ui-surface-muted)' }">
                         <div v-if="simulationError" class="text-sm" :style="{ color: 'var(--ui-danger)' }">{{ simulationError }}</div>
                         <div v-else-if="!simulationResult" class="text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                             Результат появится здесь: ответ клиенту, выбранная воронка, этап, действия и предупреждения.
@@ -516,8 +507,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Сбои и блокировки AI</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -552,8 +542,7 @@ async function runSimulation(): Promise<void> {
             </section>
 
             <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Оценки «нужно улучшить»</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">

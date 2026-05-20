@@ -892,14 +892,13 @@ const companyDeleteDescription = computed(() => {
                         </div>
 
                         <div class="flex justify-end gap-2">
-                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--ui-surface-hover)]" :style="{ color: 'var(--ui-text)' }" @click="closeClient">
+                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeClient">
                                 Закрыть
                             </button>
                             <button
                                 type="button"
-                                class="px-4 py-2 rounded-xl"
+                                class="ui-btn ui-btn--primary"
                                 :disabled="saving"
-                                :style="{ background: 'var(--ui-accent)', color: '#fff', opacity: saving ? 0.6 : 1 }"
                                 @click="saveClientName"
                             >
                                 Сохранить
@@ -1001,14 +1000,13 @@ const companyDeleteDescription = computed(() => {
                         </div>
 
                         <div class="flex justify-end gap-2">
-                            <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--ui-surface-hover)]" :style="{ color: 'var(--ui-text)' }" @click="closeCompany">
+                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">
                                 Закрыть
                             </button>
                             <button
                                 type="button"
-                                class="px-4 py-2 rounded-xl"
+                                class="ui-btn ui-btn--primary"
                                 :disabled="companySaving || !companyForm.name.trim()"
-                                :style="{ background: 'var(--ui-accent)', color: '#fff', opacity: companySaving || !companyForm.name.trim() ? 0.6 : 1 }"
                                 @click="saveCompany"
                             >
                                 Сохранить

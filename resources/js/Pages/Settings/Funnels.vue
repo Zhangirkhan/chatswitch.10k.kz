@@ -557,13 +557,38 @@ function scenarioDraft(funnel: Funnel): FunnelAiScenario {
 
 async function saveAiScenario(funnel: Funnel, patch: Partial<FunnelAiScenario>): Promise<void> {
     const payload = { ...scenarioDraft(funnel), ...patch };
+
+    if (patch.enabled === true && !payload.fallback_manager_user_id && !payload.fallback_department_id) {
+        showToast({
+            message: 'Укажите fallback-менеджера или отдел для задач — иначе AI не сможет передать диалог человеку.',
+            duration: 6000,
+        });
+
+        return;
+    }
+
+    const issues = funnelIssueCount(funnel);
+    if (patch.enabled === true && issues > 0) {
+        showToast({
+            message: `Перед включением исправьте AI-правила этапов (${issues}): ${funnelIssueSummary(funnel)}`,
+            duration: 8000,
+        });
+
+        return;
+    }
+
     try {
         const { data } = await axios.put(route('settings.funnels.ai-scenario.update', funnel.id), payload);
         funnel.ai_scenario = data.scenario as FunnelAiScenario;
-        showToast({ message: 'AI-сценарий сохранён', duration: 2500 });
+        showToast({ message: patch.enabled ? 'AI-сценарий включён' : 'AI-сценарий сохранён', duration: 2500 });
     } catch (err: unknown) {
-        const e = err as { response?: { data?: { message?: string } } };
-        showToast({ message: e.response?.data?.message || 'Не удалось сохранить AI-сценарий', duration: 6000 });
+        const e = err as { response?: { data?: { message?: string; readiness?: { label?: string } } } };
+        const status = (err as { response?: { status?: number } }).response?.status;
+        const message =
+            status === 423
+                ? 'Сначала завершите онбординг (WhatsApp, база знаний).'
+                : e.response?.data?.message || 'Не удалось сохранить AI-сценарий';
+        showToast({ message, duration: 6000 });
     }
 }
 
@@ -692,7 +717,19 @@ const totalFunnels = computed(() => localFunnels.value.length);
 const funnelTemplates = computed(() => props.funnelTemplates ?? []);
 
 function stageRuleIssues(stage: FunnelStage, index = 0, total = 0): string[] {
-    return collectStageRuleIssues(stage.ai_rule, index, total);
+    return collectStageRuleIssues(stage.ai_rule, index, total, stage.stage_type);
+}
+
+function funnelIssueSummary(funnel: Funnel): string {
+    const parts: string[] = [];
+    funnel.stages.forEach((stage, index) => {
+        const issues = stageRuleIssues(stage, index, funnel.stages.length);
+        if (issues.length > 0) {
+            parts.push(`${stage.name}: ${issues.join(', ')}`);
+        }
+    });
+
+    return parts.join('; ');
 }
 
 function stageHints(stage: FunnelStage, index: number, total: number): StageHint[] {
@@ -743,16 +780,16 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
         <template #actions>
             <div class="flex items-center gap-2">
                 <button
+                    type="button"
+                    class="ui-btn ui-btn--ghost"
                     @click="openCreateFunnel('ai')"
-                    class="px-4 py-2 text-sm rounded-lg border transition hover:brightness-95"
-                    :style="{ borderColor: 'var(--ui-border-strong)', color: 'var(--ui-text)' }"
                 >
                     AI-конструктор
                 </button>
                 <button
+                    type="button"
+                    class="ui-btn ui-btn--primary"
                     @click="openCreateFunnel('manual')"
-                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 >
                     + Новая воронка
                 </button>
@@ -766,8 +803,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 
             <section
                 v-if="funnelTemplates.length"
-                class="rounded-2xl border p-4"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-panel p-4"
             >
                 <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -796,9 +832,8 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             </div>
                             <button
                                 type="button"
-                                class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition hover:brightness-95 disabled:opacity-60"
+                                class="ui-btn ui-btn--primary ui-btn--sm shrink-0"
                                 :disabled="creatingTemplateKey !== null"
-                                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                                 @click="createFromTemplate(template)"
                             >
                                 {{ creatingTemplateKey === template.key ? 'Создаём…' : 'Создать' }}
@@ -831,16 +866,16 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                 </div>
                 <div class="flex flex-wrap justify-center gap-2">
                     <button
+                        type="button"
+                        class="ui-btn ui-btn--primary"
                         @click="openCreateFunnel('ai')"
-                        class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
-                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     >
                         Создать с AI
                     </button>
                     <button
+                        type="button"
+                        class="ui-btn ui-btn--ghost"
                         @click="openCreateFunnel('manual')"
-                        class="px-4 py-2 text-sm rounded-lg border transition hover:brightness-95"
-                        :style="{ borderColor: 'var(--ui-border-strong)', color: 'var(--ui-text)' }"
                     >
                         Создать вручную
                     </button>
@@ -872,10 +907,11 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     </span>
                                     <span
                                         v-if="funnelIssueCount(funnel) > 0"
-                                        class="text-[10px] px-1.5 py-0.5 rounded"
+                                        class="text-[10px] px-1.5 py-0.5 rounded cursor-help"
                                         :style="{ color: '#d97706', background: 'rgba(217, 119, 6, .12)' }"
+                                        :title="funnelIssueSummary(funnel)"
                                     >
-                                        AI issues: {{ funnelIssueCount(funnel) }}
+                                        AI: {{ funnelIssueCount(funnel) }} {{ funnelIssueCount(funnel) === 1 ? 'проблема' : 'проблемы' }}
                                     </span>
                                 </div>
                                 <div
@@ -923,14 +959,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     AI ведёт клиента по этапам, пишет от лица компании и передаёт спорные случаи менеджеру.
                                 </div>
                             </div>
-                            <span class="ai-toggle inline-flex items-center gap-2 text-sm text-[var(--ui-text)]">
+                            <label class="ai-toggle inline-flex cursor-pointer items-center gap-2 text-sm text-[var(--ui-text)]">
                                 <UiCheckbox
                                     :checked="scenarioDraft(funnel).enabled"
                                     aria-label="Включить AI-сценарий"
                                     @change="(v) => saveAiScenario(funnel, { enabled: v })"
                                 />
                                 Включить
-                            </span>
+                            </label>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
                             <label class="space-y-1">
@@ -1542,15 +1578,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                     >
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
+                            class="ui-btn ui-btn--secondary"
                             @click="closeFunnelModal"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                            class="ui-btn ui-btn--primary"
                             :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
                             @click="saveFunnel"
                         >
@@ -1681,15 +1716,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                     >
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
+                            class="ui-btn ui-btn--secondary"
                             @click="closeStageModal"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                            class="ui-btn ui-btn--primary"
                             :disabled="savingStage"
                             @click="saveStage"
                         >
@@ -1742,39 +1776,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
     border-color: var(--ui-border);
 }
 
-.ui-field,
-.settings-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    background: var(--ui-input-bg);
-    color: var(--ui-text);
-    border: 1px solid var(--ui-border-strong);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-}
-.ui-field:focus,
-.settings-input:focus {
-    outline: none;
-    border-color: var(--ui-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
-}
-.settings-input-error {
-    border-color: #f87171 !important;
-}
-
-.ai-toggle,
-.action-chip {
+.ai-toggle {
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--ui-border);
     border-radius: 999px;
     background: var(--ui-surface);
     transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.action-chip-on {
-    border-color: var(--ui-accent-border);
-    background: var(--ui-accent-soft);
 }
 
 .funnels-page select,

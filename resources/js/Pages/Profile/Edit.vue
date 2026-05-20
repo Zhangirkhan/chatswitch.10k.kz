@@ -50,7 +50,7 @@ function closeShortcuts() {
 <template>
     <Head title="Настройки" />
     <AuthenticatedLayout>
-        <div class="flex h-full w-full bg-[var(--wa-bg)]">
+        <div class="app-page flex-row">
             <!-- Left panel: either the settings list or an active sub-section. -->
             <template v-if="isPanelSection">
                 <aside class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)] shrink-0">

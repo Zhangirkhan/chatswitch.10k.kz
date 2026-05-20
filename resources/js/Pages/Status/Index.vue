@@ -13,7 +13,7 @@ const showDemoSidebar = ref(false);
 <template>
     <Head title="Статус" />
     <AuthenticatedLayout>
-        <div class="flex h-full w-full bg-[var(--wa-bg)]">
+        <div class="app-page flex-row">
             <aside
                 class="flex h-full w-[400px] shrink-0 flex-col border-r bg-[var(--wa-panel)]"
                 :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
@@ -37,14 +37,14 @@ const showDemoSidebar = ref(false);
                         <div class="mt-6 flex flex-col gap-2">
                             <Link
                                 :href="route('chats.index')"
-                                class="inline-flex justify-center rounded-full bg-[var(--wa-accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-95"
+                                class="ui-btn ui-btn--primary ui-btn--pill justify-center"
                             >
                                 Открыть чаты
                             </Link>
                             <Link
                                 v-if="canManageConnections"
                                 :href="route('settings.connections')"
-                                class="inline-flex justify-center rounded-full border border-[var(--wa-border-strong)] px-4 py-2.5 text-sm text-[var(--wa-text)] hover:bg-[var(--wa-panel-hover)]"
+                                class="ui-btn ui-btn--ghost ui-btn--pill justify-center"
                             >
                                 Подключения WhatsApp
                             </Link>
@@ -59,7 +59,7 @@ const showDemoSidebar = ref(false);
                         <button type="button" class="mx-auto mb-4 block text-sm text-[var(--wa-accent)] hover:underline" @click="showDemoSidebar = false">
                             Скрыть демо
                         </button>
-                        <div class="rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] p-4 text-left text-sm text-[var(--wa-text-secondary)]">
+                        <div class="ui-result-card text-left text-sm text-[var(--wa-text-secondary)]">
                             Здесь позже появится список статусов контактов и ваш черновик статуса.
                         </div>
                     </div>
@@ -80,7 +80,7 @@ const showDemoSidebar = ref(false);
                     <Link
                         v-if="!showDemoSidebar"
                         :href="route('chats.index')"
-                        class="mt-5 inline-flex rounded-full bg-[var(--wa-accent)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-95"
+                        class="ui-btn ui-btn--primary ui-btn--pill mt-5"
                     >
                         Перейти в чаты
                     </Link>

@@ -243,15 +243,13 @@ defineExpose({ resetWizard });
         <div v-if="wizardStep === 0" class="space-y-3">
             <div>
                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-2">На кого направлен бизнес?</label>
-                <div class="flex flex-wrap gap-2">
+                <div class="ui-toggle-group">
                     <button
                         v-for="type in (['b2c', 'b2b', 'mixed'] as const)"
                         :key="type"
                         type="button"
-                        class="px-3 py-1.5 text-xs rounded-lg border transition"
-                        :style="form.target_audience_type === type
-                            ? { background: 'var(--ui-accent)', color: '#fff', borderColor: 'var(--ui-accent)' }
-                            : { color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
+                        class="ui-toggle-btn"
+                        :class="{ 'is-active': form.target_audience_type === type }"
                         @click="selectAudienceType(type)"
                     >
                         {{ type === 'b2c' ? 'B2C' : type === 'b2b' ? 'B2B' : 'Смешанный' }}
@@ -284,8 +282,7 @@ defineExpose({ resetWizard });
                     v-for="preset in INDUSTRY_PRESETS"
                     :key="preset"
                     type="button"
-                    class="px-2.5 py-1 text-[11px] rounded-md border transition hover:brightness-95"
-                    :style="{ color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
+                    class="ui-btn ui-btn--ghost ui-btn--sm"
                     @click="applyIndustryPreset(preset)"
                 >
                     {{ preset }}
@@ -341,8 +338,7 @@ defineExpose({ resetWizard });
             <div
                 v-for="(suggestion, idx) in suggestions"
                 :key="idx"
-                class="rounded-lg border p-4 space-y-3 transition hover:brightness-[1.02]"
-                :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
+                class="ui-panel p-4 space-y-3 transition hover:brightness-[1.02]"
             >
                 <div class="flex items-start gap-3">
                     <span
@@ -421,8 +417,7 @@ defineExpose({ resetWizard });
         <div v-else class="flex justify-end pt-1">
             <button
                 type="button"
-                class="px-3 py-1.5 text-xs rounded-md border transition hover:brightness-95 disabled:opacity-50"
-                :style="{ color: 'var(--ui-text-secondary)', borderColor: 'var(--ui-border-strong)' }"
+                class="ui-btn ui-btn--ghost ui-btn--sm"
                 :disabled="generating"
                 @click="generateVariants"
             >
@@ -431,20 +426,3 @@ defineExpose({ resetWizard });
         </div>
     </div>
 </template>
-
-<style scoped>
-.settings-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    background: var(--ui-bg);
-    color: var(--ui-text);
-    border: 1px solid var(--ui-border-strong);
-    transition: border-color 0.15s ease;
-}
-.settings-input:focus {
-    outline: none;
-    border-color: var(--ui-accent);
-}
-</style>

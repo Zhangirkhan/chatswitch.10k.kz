@@ -962,13 +962,13 @@ async function confirmDelete(): Promise<void> {
 
     <SettingsLayout :title="meta.title" :subtitle="meta.subtitle">
         <template #actions>
-            <button type="button" class="px-4 py-2 rounded-lg bg-[var(--ui-accent)] text-white text-sm hover:bg-[var(--ui-accent-hover)]" @click="openAdd">
+            <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">
                 {{ meta.addLabel }}
             </button>
         </template>
 
         <div class="p-4 md:p-6 space-y-4">
-            <section class="kb-hero rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-4 md:p-5">
+            <section class="kb-hero ui-panel p-4 md:p-5">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                     <div class="max-w-3xl">
                         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ui-accent)]">Каталог для AI</p>
@@ -998,21 +998,26 @@ async function confirmDelete(): Promise<void> {
                 </div>
             </section>
 
-            <section class="kb-control-panel rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3 md:p-4">
+            <section class="kb-control-panel ui-panel p-3 md:p-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div class="grid flex-1 gap-2 md:grid-cols-[minmax(220px,1fr)_170px_170px]">
-                        <label class="kb-search">
-                            <svg class="h-4 w-4 shrink-0 text-[var(--ui-text-secondary)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <label class="kb-search relative block min-w-0">
+                            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ui-text-secondary)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
                             </svg>
-                            <input v-model="searchQuery" type="search" placeholder="Поиск по названию, цене, описанию, характеристикам" />
+                            <input
+                                v-model="searchQuery"
+                                type="search"
+                                class="ui-search-input--boxed w-full !pl-10"
+                                placeholder="Поиск по названию, цене, описанию, характеристикам"
+                            />
                         </label>
-                        <select v-model="statusFilter" class="kb-filter">
+                        <select v-model="statusFilter" class="settings-input">
                             <option value="all">Все статусы</option>
                             <option value="active">Только активные</option>
                             <option value="inactive">Отключённые</option>
                         </select>
-                        <select v-model="promptFilter" class="kb-filter">
+                        <select v-model="promptFilter" class="settings-input">
                             <option value="all">AI: все</option>
                             <option value="included">В промпте</option>
                             <option value="excluded">Не в промпте</option>
@@ -1022,7 +1027,7 @@ async function confirmDelete(): Promise<void> {
                     <div class="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]"
+                            class="ui-btn ui-btn--ghost ui-btn--sm"
                             :disabled="previewCompanyId == null || previewLoading"
                             @click="() => loadPreview()"
                         >
@@ -1030,12 +1035,12 @@ async function confirmDelete(): Promise<void> {
                         </button>
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]"
+                            class="ui-btn ui-btn--ghost ui-btn--sm"
                             @click="aiToolsOpen = !aiToolsOpen"
                         >
                             {{ aiToolsOpen ? 'Скрыть проверку' : 'Проверка AI' }}
                         </button>
-                        <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="openAdd">
+                        <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">
                             {{ meta.addLabel }}
                         </button>
                     </div>
@@ -1043,8 +1048,8 @@ async function confirmDelete(): Promise<void> {
 
                 <div v-if="selectedIds.length > 0" class="kb-selection-bar mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2">
                     <span class="text-sm text-[var(--ui-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
-                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-3 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="bulkSetPrompt(true)">Добавить в AI</button>
-                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]" @click="bulkSetPrompt(false)">Убрать из AI</button>
+                    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="bulkSetPrompt(true)">Добавить в AI</button>
+                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="bulkSetPrompt(false)">Убрать из AI</button>
                     <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
                 </div>
             </section>
@@ -1082,7 +1087,7 @@ async function confirmDelete(): Promise<void> {
                         </div>
                         <button
                             type="button"
-                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--ui-text)]"
+                            class="ui-btn ui-btn--ghost ui-btn--sm"
                             :disabled="previewCompanyId == null || reindexLoading"
                             @click="reindexEmbeddings"
                         >
@@ -1096,7 +1101,7 @@ async function confirmDelete(): Promise<void> {
                     </p>
                     <p
                         v-if="ragReindexSuggested && ragStatus?.enabled"
-                        class="kb-inset mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+                        class="ui-alert ui-alert--warn kb-inset mt-2 text-xs"
                     >
                         Каталог изменён: индекс обновится в фоне. Для немедленной проверки RAG нажмите «Переиндексировать».
                     </p>
@@ -1108,12 +1113,12 @@ async function confirmDelete(): Promise<void> {
                     <div class="mt-3 flex gap-2">
                         <input
                             v-model="testQuestion"
-                            class="flex-1 rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--ui-text)]"
+                            class="settings-input flex-1"
                             type="text"
                             placeholder="Например: сколько стоит доставка?"
                             @keydown.enter.prevent="runTestQuestion"
                         />
-                        <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)]" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
+                        <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
                             Проверить
                         </button>
                     </div>
@@ -1133,7 +1138,7 @@ async function confirmDelete(): Promise<void> {
                             </label>
                             <button
                                 type="button"
-                                class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-1.5 text-xs text-[var(--ui-text)]"
+                                class="ui-btn ui-btn--ghost ui-btn--sm"
                                 :disabled="previewCompanyId == null || catalogAuditLoading"
                                 @click="loadCatalogAudit"
                             >
@@ -1184,9 +1189,9 @@ async function confirmDelete(): Promise<void> {
                 </div>
             </section>
 
-            <div v-if="dataWarnings.length > 0" class="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3">
-                <p class="mb-2 text-xs font-semibold text-amber-500">Что мешает AI отвечать точно</p>
-                <ul class="space-y-1 text-xs text-[var(--ui-text)]">
+            <div v-if="dataWarnings.length > 0" class="ui-alert ui-alert--warn">
+                <p class="mb-2 text-xs font-semibold">Что мешает AI отвечать точно</p>
+                <ul class="space-y-1 text-xs">
                     <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
                 </ul>
             </div>
@@ -1197,7 +1202,7 @@ async function confirmDelete(): Promise<void> {
                     Начните с реальных фактов: название, цена, условия, ограничения. Не нужно писать рекламную карточку — AI сам сформулирует ответ под вопрос клиента.
                 </p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
-                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm text-white hover:bg-[var(--ui-accent-hover)]" @click="openAdd">{{ meta.addLabel }}</button>
+                    <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">{{ meta.addLabel }}</button>
                 </div>
                 <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
                     <Link v-for="link in emptyCrossLinks" :key="link.href" :href="link.href" class="link-btn">{{ link.label }}</Link>
@@ -1209,7 +1214,7 @@ async function confirmDelete(): Promise<void> {
                 <button type="button" class="mt-3 text-sm text-[var(--ui-accent)]" @click="searchQuery = ''; statusFilter = 'all'; promptFilter = 'all'">Сбросить фильтры</button>
             </div>
 
-            <section v-else class="kb-list-panel rounded-2xl border">
+            <section v-else class="kb-list-panel ui-panel overflow-hidden">
                 <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
                     <div
                         class="flex items-center gap-2 text-sm text-[var(--ui-text-secondary)] cursor-pointer"
@@ -1239,12 +1244,12 @@ async function confirmDelete(): Promise<void> {
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <h3 class="min-w-0 truncate text-sm font-semibold text-[var(--ui-text)]">{{ itemTitle(item) }}</h3>
-                                    <span v-if="item.sku" class="kb-chip">{{ item.sku }}</span>
-                                    <span v-for="flag in itemQualityFlags(item)" :key="flag" class="kb-chip warn">{{ flag }}</span>
+                                    <span v-if="item.sku" class="ui-badge ui-badge--neutral">{{ item.sku }}</span>
+                                    <span v-for="flag in itemQualityFlags(item)" :key="flag" class="ui-badge ui-badge--warn">{{ flag }}</span>
                                 </div>
                                 <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">{{ itemDescription(item) }}</p>
                                 <div v-if="compactDetails(item).length" class="mt-2 flex flex-wrap gap-1.5">
-                                    <span v-for="detail in compactDetails(item)" :key="detail" class="kb-detail">{{ detail }}</span>
+                                    <span v-for="detail in compactDetails(item)" :key="detail" class="ui-badge ui-badge--neutral text-[11px]">{{ detail }}</span>
                                 </div>
                             </div>
                         </div>
@@ -1254,11 +1259,16 @@ async function confirmDelete(): Promise<void> {
                                 <div v-if="section !== 'rules'" class="text-sm font-semibold text-[var(--ui-text)]">{{ formatTenge(item.price) }}</div>
                                 <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--ui-text-secondary)]">{{ item.duration_minutes }} мин.</div>
                             </div>
-                            <button type="button" class="switch" :class="{ on: item.include_in_prompt }" @click="togglePrompt(item)">
+                            <button
+                                type="button"
+                                class="ui-chip"
+                                :class="{ 'is-active': item.include_in_prompt }"
+                                @click="togglePrompt(item)"
+                            >
                                 {{ item.include_in_prompt ? 'В AI' : 'Не в AI' }}
                             </button>
-                            <button type="button" class="link-btn text-sm" @click="openEdit(item)">Изменить</button>
-                            <button type="button" class="link-btn danger text-sm" @click="destroyItem(item)">Удалить</button>
+                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="openEdit(item)">Изменить</button>
+                            <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="destroyItem(item)">Удалить</button>
                         </div>
                     </article>
                 </div>
@@ -1275,13 +1285,13 @@ async function confirmDelete(): Promise<void> {
                 <input
                     v-model="deleteConfirmInput"
                     type="text"
-                    class="mt-4 w-full rounded-lg border border-[var(--ui-border-strong)] bg-[var(--ui-input-bg)] px-3 py-2 text-sm text-[var(--ui-text)]"
+                    class="settings-input mt-4 w-full"
                     placeholder="Название для подтверждения"
                     autocomplete="off"
                 />
                 <div class="mt-4 flex justify-end gap-2">
-                    <button type="button" class="px-4 py-2 rounded-lg border border-[var(--ui-border-strong)] text-sm" @click="closeDeleteModal">Отмена</button>
-                    <button type="button" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm" @click="confirmDelete">Удалить</button>
+                    <button type="button" class="ui-btn ui-btn--secondary" @click="closeDeleteModal">Отмена</button>
+                    <button type="button" class="ui-btn ui-btn--danger" @click="confirmDelete">Удалить</button>
                 </div>
             </div>
         </div>
@@ -1315,13 +1325,13 @@ async function confirmDelete(): Promise<void> {
                             Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
                         </p>
                     </div>
-                    <button type="button" class="rounded-lg px-3 py-2 text-sm text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-muted)]" @click="closeForm">Закрыть</button>
+                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="closeForm">Закрыть</button>
                 </div>
 
                 <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
                     <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
                         <section class="space-y-4">
-                            <div class="kb-form-section rounded-xl border p-4">
+                            <div class="kb-form-section ui-settings-section">
                                 <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Основное</h4>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label v-if="section !== 'rules'" class="field sm:col-span-2">
@@ -1361,7 +1371,7 @@ async function confirmDelete(): Promise<void> {
                                 </div>
                             </div>
 
-                            <div class="kb-form-section rounded-xl border p-4">
+                            <div class="kb-form-section ui-settings-section">
                                 <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">
                                     {{ section === 'rules' ? 'Текст правила' : 'Как объяснять клиенту' }}
                                 </h4>
@@ -1384,7 +1394,7 @@ async function confirmDelete(): Promise<void> {
                                 </label>
                             </div>
 
-                            <div v-if="section === 'products'" class="kb-form-section rounded-xl border p-4">
+                            <div v-if="section === 'products'" class="kb-form-section ui-settings-section">
                                 <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Фото товара</h4>
                                 <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
                                     Покажите внешний вид товара в карточке. Поддерживаются JPG, PNG и WebP до 5 МБ.
@@ -1395,14 +1405,14 @@ async function confirmDelete(): Promise<void> {
                                         <span v-else>Нет фото</span>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <label class="cursor-pointer rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text)] hover:border-[var(--ui-accent-border)]">
+                                        <label class="ui-btn ui-btn--ghost ui-btn--sm cursor-pointer">
                                             Выбрать фото
                                             <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductImage" />
                                         </label>
                                         <button
                                             v-if="productImagePreview || editing?.image_url"
                                             type="button"
-                                            class="rounded-lg border border-[var(--ui-border-strong)] px-3 py-2 text-sm text-[var(--ui-text-secondary)]"
+                                            class="ui-btn ui-btn--ghost ui-btn--sm"
                                             @click="removeProductImage"
                                         >
                                             Убрать фото
@@ -1411,7 +1421,7 @@ async function confirmDelete(): Promise<void> {
                                 </div>
                             </div>
 
-                            <div v-if="section !== 'rules'" class="kb-form-section rounded-xl border p-4">
+                            <div v-if="section !== 'rules'" class="kb-form-section ui-settings-section">
                                 <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Факты для AI</h4>
                                 <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
                                     Каждая строка: ключ и значение. Это не карточка для клиента, а быстрые факты для точного ответа.
@@ -1423,14 +1433,14 @@ async function confirmDelete(): Promise<void> {
                         </section>
 
                         <aside class="space-y-4">
-                            <div class="kb-form-section rounded-xl border p-4">
+                            <div class="kb-form-section ui-settings-section">
                                 <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Публикация</h4>
                                 <div class="space-y-3">
-                                    <div class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                    <div class="ui-check-row">
                                         <span>Учитывать в AI</span>
                                         <UiCheckbox v-model="form.include_in_prompt" aria-label="Учитывать в AI" />
                                     </div>
-                                    <div class="check justify-between rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2">
+                                    <div class="ui-check-row">
                                         <span>Активна</span>
                                         <UiCheckbox v-model="form.is_active" aria-label="Активна" />
                                     </div>
@@ -1442,7 +1452,7 @@ async function confirmDelete(): Promise<void> {
                                 </div>
                             </div>
 
-                            <div class="kb-form-section rounded-xl border p-4">
+                            <div class="kb-form-section ui-settings-section">
                                 <h4 class="mb-2 text-sm font-semibold text-[var(--ui-text)]">Подсказка</h4>
                                 <ul class="space-y-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">
                                     <li>• Название должно быть коротким и узнаваемым.</li>
@@ -1455,8 +1465,8 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
                 <div class="flex shrink-0 justify-end gap-2 border-t border-[var(--ui-border)] px-5 py-4">
-                    <button type="button" class="rounded-lg border border-[var(--ui-border-strong)] px-4 py-2 text-sm text-[var(--ui-text)]" @click="closeForm">Отмена</button>
-                    <button type="button" class="rounded-lg bg-[var(--ui-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ui-accent-hover)]" @click="save">Сохранить</button>
+                    <button type="button" class="ui-btn ui-btn--secondary" @click="closeForm">Отмена</button>
+                    <button type="button" class="ui-btn ui-btn--primary" @click="save">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -1475,15 +1485,12 @@ async function confirmDelete(): Promise<void> {
 }
 
 .kb-hero {
-    background: color-mix(in srgb, var(--ui-accent) 4%, var(--ui-surface-raised));
+    background: color-mix(in srgb, var(--ui-accent) 6%, var(--ui-surface));
     border-color: var(--ui-accent-border);
-    box-shadow: var(--ui-shadow-soft), inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 28%, transparent);
 }
 
-.kb-control-panel,
 .kb-list-header {
-    background: var(--ui-surface-raised);
-    border-color: var(--ui-border);
+    background: var(--ui-surface-muted);
 }
 
 .kb-selection-bar,
@@ -1516,8 +1523,8 @@ async function confirmDelete(): Promise<void> {
 
 .kb-stat {
     border: 1px solid var(--ui-border);
-    border-radius: 14px;
-    background: var(--ui-surface-inset);
+    border-radius: var(--primitive-radius-lg, 12px);
+    background: var(--ui-surface-muted);
     padding: 12px 14px;
 }
 
@@ -1536,38 +1543,15 @@ async function confirmDelete(): Promise<void> {
 }
 
 .kb-stat.warn strong {
-    color: #f59e0b;
+    color: var(--wa-chroma-yellow-fg);
 }
 
 .kb-stat:hover {
     border-color: var(--ui-accent-border);
 }
 
-.kb-search {
-    align-items: center;
-    background: var(--ui-input-bg);
-    border: 1px solid var(--ui-border-strong);
-    border-radius: 10px;
-    display: flex;
-    gap: 8px;
-    padding: 0 10px;
-}
-
-.kb-search input,
-.kb-filter {
-    background: transparent;
-    border: 0;
+.kb-search input {
     color: var(--ui-text);
-    min-height: 40px;
-    outline: none;
-    width: 100%;
-}
-
-.kb-filter {
-    background: var(--ui-input-bg);
-    border: 1px solid var(--ui-border-strong);
-    border-radius: 10px;
-    padding: 0 10px;
 }
 
 .kb-row {
@@ -1580,7 +1564,7 @@ async function confirmDelete(): Promise<void> {
 }
 
 .kb-row:hover {
-    background: color-mix(in srgb, var(--ui-accent) 7%, var(--ui-surface-raised));
+    background: var(--ui-surface-hover);
 }
 
 .kb-row-side {
@@ -1593,7 +1577,7 @@ async function confirmDelete(): Promise<void> {
 
 .kb-product-thumb {
     align-items: center;
-    background: var(--ui-surface-inset);
+    background: var(--ui-surface-muted);
     border: 1px solid var(--ui-border);
     border-radius: 12px;
     color: var(--ui-text-secondary);
@@ -1639,15 +1623,6 @@ async function confirmDelete(): Promise<void> {
     white-space: nowrap;
 }
 
-.kb-chip.warn {
-    border-color: rgba(245, 158, 11, 0.35);
-    color: #f59e0b;
-}
-
-.kb-detail {
-    background: var(--ui-surface-inset);
-    font-size: 11px;
-}
 
 .field {
     display: flex;

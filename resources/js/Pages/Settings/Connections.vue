@@ -411,8 +411,7 @@ function reloadPage(): void {
         <template #actions>
             <button
                 type="button"
-                class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                class="ui-btn ui-btn--primary"
                 :disabled="isCreating || !whatsappServiceReachable"
                 @click="createSession"
             >
@@ -423,22 +422,21 @@ function reloadPage(): void {
         <div class="w-full px-6 py-6 space-y-4">
             <div
                 v-if="!whatsappServiceReachable"
-                class="rounded-lg border px-4 py-3 text-sm text-amber-800 bg-amber-50 border-amber-200"
+                class="ui-alert ui-alert--warn"
             >
                 Сервис WhatsApp недоступен. Проверьте `WHATSAPP_SERVICE_URL`, `WHATSAPP_SERVICE_TOKEN` и процесс whatsapp-service.
             </div>
 
             <div
                 v-if="message"
-                class="rounded-lg border px-4 py-3 text-sm text-red-700 bg-red-50 border-red-200 whitespace-pre-line"
+                class="ui-alert ui-alert--danger"
             >
                 {{ message }}
             </div>
 
             <div
                 v-if="!hasSessions"
-                class="rounded-lg border p-10 text-center"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-empty-state"
             >
                 <h3 class="text-[var(--ui-text)] font-medium">Подключений пока нет</h3>
                 <p class="text-sm text-[var(--ui-text-secondary)] mt-1">
@@ -446,8 +444,7 @@ function reloadPage(): void {
                 </p>
                 <button
                     type="button"
-                    class="mt-5 px-5 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary mt-5"
                     :disabled="isCreating || !whatsappServiceReachable"
                     @click="createSession"
                 >
@@ -459,8 +456,7 @@ function reloadPage(): void {
                 <div
                     v-for="session in localSessions"
                     :key="session.id"
-                    class="rounded-lg border p-5 space-y-4"
-                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                    class="ui-panel p-5 space-y-4"
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
@@ -483,8 +479,7 @@ function reloadPage(): void {
                                 />
                                 <button
                                     type="button"
-                                    class="settings-button text-white"
-                                    :style="{ background: 'var(--ui-accent)' }"
+                                    class="ui-btn ui-btn--primary ui-btn--sm"
                                     :disabled="busySessionId === session.id"
                                     @click="saveDisplayName(session)"
                                 >
@@ -554,8 +549,7 @@ function reloadPage(): void {
 
                     <div
                         v-if="qrBySessionId[session.id]"
-                        class="rounded-lg border p-4 flex flex-col sm:flex-row gap-4 items-center"
-                        :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
+                        class="ui-panel p-4 flex flex-col sm:flex-row gap-4 items-center"
                     >
                         <img
                             :key="qrUpdatedAtBySessionId[session.id]"
@@ -575,7 +569,7 @@ function reloadPage(): void {
                     <div class="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="settings-button"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="initialize(session)"
                         >
@@ -583,7 +577,7 @@ function reloadPage(): void {
                         </button>
                         <button
                             type="button"
-                            class="settings-button"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="loadQr(session)"
                         >
@@ -591,7 +585,7 @@ function reloadPage(): void {
                         </button>
                         <button
                             type="button"
-                            class="settings-button"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="refreshStatus(session)"
                         >
@@ -599,7 +593,7 @@ function reloadPage(): void {
                         </button>
                         <button
                             type="button"
-                            class="settings-button"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="verify(session)"
                         >
@@ -607,7 +601,7 @@ function reloadPage(): void {
                         </button>
                         <button
                             type="button"
-                            class="settings-button text-red-600"
+                            class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                             :disabled="busySessionId === session.id"
                             @click="requestLogout(session)"
                         >
@@ -615,7 +609,7 @@ function reloadPage(): void {
                         </button>
                         <button
                             type="button"
-                            class="settings-button text-red-600"
+                            class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                             :disabled="busySessionId === session.id"
                             @click="requestRemove(session)"
                         >
@@ -647,35 +641,3 @@ function reloadPage(): void {
     />
 </template>
 
-<style scoped>
-.settings-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    background: var(--ui-bg);
-    color: var(--ui-text);
-    border: 1px solid var(--ui-border-strong);
-    transition: border-color 0.15s ease;
-}
-.settings-input:focus {
-    outline: none;
-    border-color: var(--ui-accent);
-}
-.settings-button {
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--ui-text);
-    background: var(--ui-bg);
-    border: 1px solid var(--ui-border-strong);
-    transition: background-color 0.15s ease, opacity 0.15s ease;
-}
-.settings-button:hover {
-    background: var(--ui-surface-hover);
-}
-.settings-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-</style>

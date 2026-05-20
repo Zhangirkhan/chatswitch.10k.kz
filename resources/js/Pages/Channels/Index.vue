@@ -25,7 +25,7 @@ const sampleChannels: SampleChannel[] = [
 const showExamples = ref(false);
 const subscribed = ref<Record<string, boolean>>({});
 
-function toggleSubscribe(id: string) {
+function toggleSubscribe(id: string): void {
     subscribed.value[id] = !subscribed.value[id];
 }
 </script>
@@ -33,16 +33,16 @@ function toggleSubscribe(id: string) {
 <template>
     <Head title="Каналы" />
     <AuthenticatedLayout>
-        <div class="flex h-full w-full bg-[var(--wa-bg)]">
+        <div class="app-page flex-row">
             <aside
-                class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)] shrink-0 border-r"
+                class="flex h-full w-[400px] shrink-0 flex-col border-r bg-[var(--wa-panel)]"
                 :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
             >
-                <div class="h-[60px] px-4 pl-6 flex items-center justify-between shrink-0">
-                    <h1 class="text-[var(--wa-text)] text-xl font-normal">Каналы</h1>
+                <div class="flex h-[60px] shrink-0 items-center justify-between px-4 pl-6">
+                    <h1 class="text-xl font-normal text-[var(--wa-text)]">Каналы</h1>
                 </div>
 
-                <div class="flex-1 overflow-y-auto wa-scrollbar">
+                <div class="wa-scrollbar flex-1 overflow-y-auto">
                     <div v-if="!showExamples" class="px-6 py-8 text-center">
                         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--wa-panel-header)]">
                             <svg class="h-8 w-8 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
@@ -56,14 +56,14 @@ function toggleSubscribe(id: string) {
                         <div class="mt-6 flex flex-col gap-2">
                             <Link
                                 :href="route('chats.index')"
-                                class="inline-flex justify-center rounded-full bg-[var(--wa-accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-95"
+                                class="ui-btn ui-btn--primary ui-btn--pill justify-center"
                             >
                                 Открыть чаты
                             </Link>
                             <Link
                                 v-if="canManageConnections"
                                 :href="route('settings.connections')"
-                                class="inline-flex justify-center rounded-full border border-[var(--wa-border-strong)] px-4 py-2.5 text-sm text-[var(--wa-text)] hover:bg-[var(--wa-panel-hover)]"
+                                class="ui-btn ui-btn--ghost ui-btn--pill justify-center"
                             >
                                 Подключить WhatsApp
                             </Link>
@@ -80,26 +80,26 @@ function toggleSubscribe(id: string) {
                                 Скрыть примеры
                             </button>
                         </div>
-                        <div class="px-3 py-2 space-y-1">
+                        <div class="space-y-1 px-3 py-2">
                             <div
                                 v-for="channel in sampleChannels"
                                 :key="channel.id"
-                                class="flex items-center px-3 py-2 gap-3"
+                                class="flex items-center gap-3 px-3 py-2"
                             >
                                 <div
-                                    class="w-[52px] h-[52px] rounded-full flex items-center justify-center text-white text-xl font-semibold shrink-0"
+                                    class="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full text-xl font-semibold text-white"
                                     :style="{ background: channel.color }"
                                 >
                                     {{ channel.initial }}
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <div class="text-[15px] text-[var(--wa-text)] truncate">{{ channel.name }}</div>
-                                    <div class="text-xs text-[var(--wa-text-secondary)] truncate">{{ channel.subscribers }}</div>
+                                    <div class="truncate text-[15px] text-[var(--wa-text)]">{{ channel.name }}</div>
+                                    <div class="truncate text-xs text-[var(--wa-text-secondary)]">{{ channel.subscribers }}</div>
                                 </div>
                                 <button
                                     type="button"
-                                    class="subscribe-btn shrink-0"
-                                    :class="{ 'subscribe-btn-active': subscribed[channel.id] }"
+                                    class="ui-btn ui-btn--sm ui-btn--pill shrink-0"
+                                    :class="subscribed[channel.id] ? 'ui-btn--secondary' : 'ui-btn--accent-soft'"
                                     @click="toggleSubscribe(channel.id)"
                                 >
                                     {{ subscribed[channel.id] ? 'Подписаны' : 'Подписаться' }}
@@ -110,21 +110,21 @@ function toggleSubscribe(id: string) {
                 </div>
             </aside>
 
-            <div class="flex-1 flex items-center justify-center min-w-0 bg-[var(--wa-empty-bg)]">
-                <div class="text-center max-w-md px-6">
-                    <div class="w-24 h-24 rounded-full bg-[var(--wa-panel-header)] flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-12 h-12 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="flex min-w-0 flex-1 items-center justify-center bg-[var(--wa-empty-bg)]">
+                <div class="max-w-md px-6 text-center">
+                    <div class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-[var(--wa-panel-header)]">
+                        <svg class="h-12 w-12 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 10-14.93 4L4 20l4.07-1.07A8 8 0 0020 12z" />
                         </svg>
                     </div>
-                    <h3 class="text-[17px] text-[var(--wa-text)] mb-2">Новости каналов</h3>
+                    <h3 class="mb-2 text-[17px] text-[var(--wa-text)]">Новости каналов</h3>
                     <p class="text-sm text-[var(--wa-text-secondary)]">
                         {{ showExamples ? 'Выберите пример канала слева.' : 'Подключите WhatsApp и ведите клиентов в чатах — ответы и AI уже доступны там.' }}
                     </p>
                     <Link
                         v-if="!showExamples"
                         :href="route('chats.index')"
-                        class="mt-5 inline-flex rounded-full bg-[var(--wa-accent)] px-5 py-2.5 text-sm font-medium text-white hover:opacity-95"
+                        class="ui-btn ui-btn--primary ui-btn--pill mt-5"
                     >
                         Перейти в чаты
                     </Link>
@@ -133,22 +133,3 @@ function toggleSubscribe(id: string) {
         </div>
     </AuthenticatedLayout>
 </template>
-
-<style scoped>
-.subscribe-btn {
-    padding: 0.375rem 1rem;
-    border-radius: 9999px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--wa-accent);
-    background-color: var(--wa-accent-soft);
-    transition: filter 0.15s ease;
-}
-.subscribe-btn:hover {
-    filter: brightness(0.95);
-}
-.subscribe-btn-active {
-    color: var(--wa-text-secondary);
-    background-color: var(--wa-panel-header);
-}
-</style>

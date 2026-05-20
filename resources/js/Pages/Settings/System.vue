@@ -168,8 +168,7 @@ async function save() {
 
             <!-- Общие настройки -->
             <div
-                class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section ui-settings-section--narrow"
             >
                 <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Общие настройки</h2>
                 <div class="space-y-4">
@@ -194,8 +193,7 @@ async function save() {
 
             <!-- Быстрые реакции -->
             <div
-                class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section ui-settings-section--narrow"
             >
                 <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Быстрые реакции</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -225,8 +223,7 @@ async function save() {
 
             <!-- SLA в чатах -->
             <div
-                class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section ui-settings-section--narrow"
             >
                 <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">SLA в чатах</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -265,8 +262,7 @@ async function save() {
 
             <!-- Записи и напоминания -->
             <div
-                class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section ui-settings-section--narrow"
             >
                 <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Записи и напоминания</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -325,8 +321,7 @@ async function save() {
 
             <!-- Модули -->
             <div
-                class="rounded-lg border p-6 max-w-3xl"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section ui-settings-section--narrow"
             >
                 <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Модули</h2>
                 <div class="space-y-3">
@@ -365,8 +360,7 @@ async function save() {
                 <button
                     @click="save"
                     :disabled="isSaving"
-                    class="px-6 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary"
                 >
                     {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
                 </button>
@@ -377,21 +371,6 @@ async function save() {
 </template>
 
 <style scoped>
-.settings-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    background: var(--ui-bg);
-    color: var(--ui-text);
-    border: 1px solid var(--ui-border-strong);
-    transition: border-color 0.15s ease;
-}
-.settings-input:focus {
-    outline: none;
-    border-color: var(--ui-accent);
-}
-
 .quick-reaction-field {
     display: block;
 }

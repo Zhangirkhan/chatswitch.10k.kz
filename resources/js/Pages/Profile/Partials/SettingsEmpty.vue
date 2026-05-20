@@ -6,7 +6,7 @@
 <template>
     <div class="flex-1 flex items-center justify-center min-w-0 border-l border-[var(--wa-border)] bg-[var(--wa-empty-bg)] px-6">
         <div class="flex flex-col items-center">
-            <div class="w-[320px] rounded-2xl bg-[var(--wa-panel)] shadow-md p-6 text-center">
+            <div class="ui-panel w-[320px] rounded-2xl p-6 text-center shadow-md">
                 <svg class="w-28 h-20 mx-auto mb-4" viewBox="0 0 140 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <rect x="8" y="8" width="108" height="68" rx="6" fill="var(--wa-panel-header)" stroke="var(--wa-border-strong)" stroke-width="2"/>
                     <rect x="36" y="78" width="52" height="4" rx="2" fill="var(--wa-border-strong)"/>

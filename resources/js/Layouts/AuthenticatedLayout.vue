@@ -142,7 +142,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="h-screen w-screen flex bg-[var(--wa-bg)] text-[var(--wa-text)] overflow-hidden">
+    <div class="h-screen w-screen flex bg-[var(--wa-page-bg)] text-[var(--wa-text)] overflow-hidden">
         <aside
             class="w-[60px] shrink-0 flex flex-col items-center py-3 border-r"
             :style="{ background: 'var(--wa-rail-bg)', borderColor: 'var(--wa-sidebar-divider)' }"
@@ -164,6 +164,18 @@ onUnmounted(() => {
                     >
                         {{ unreadChatsCount > 99 ? '99+' : unreadChatsCount }}
                     </span>
+                </Link>
+
+                <Link
+                    v-if="route().has('broadcasts.index')"
+                    :href="route('broadcasts.index')"
+                    class="wa-rail-btn"
+                    :class="{ active: route().current('broadcasts.*') }"
+                    title="Рассылки"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
                 </Link>
 
                 <Link

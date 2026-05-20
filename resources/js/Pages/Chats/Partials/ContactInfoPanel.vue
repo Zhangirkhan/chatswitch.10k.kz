@@ -10,6 +10,9 @@ import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 type AiStatus = {
     label: string;
@@ -193,7 +196,7 @@ async function requestManagerAttention(): Promise<void> {
         });
         await router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        alert(e?.response?.data?.message || 'Не удалось передать чат менеджеру.');
+        showToast({ message: e?.response?.data?.message || 'Не удалось передать чат менеджеру.', type: 'warning' });
     } finally {
         quickActionLoading.value = null;
     }
@@ -209,7 +212,7 @@ async function createQuickTask(): Promise<void> {
         });
         await router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        alert(e?.response?.data?.message || 'Не удалось создать задачу.');
+        showToast({ message: e?.response?.data?.message || 'Не удалось создать задачу.', type: 'warning' });
     } finally {
         quickActionLoading.value = null;
     }
@@ -538,7 +541,7 @@ async function confirmClearChat(): Promise<void> {
 }
 
 function notImplemented(name: string) {
-    alert(`«${name}» — скоро будет доступно.`);
+    showToast({ message: `«${name}» — скоро будет доступно.`, type: 'info' });
 }
 
 function preferredEditableName(): string {

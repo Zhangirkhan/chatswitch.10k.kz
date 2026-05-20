@@ -81,10 +81,7 @@ function reanalyze(): void {
 
     <SettingsLayout title="Профиль тона" subtitle="Как AI формулирует ответы от имени компании">
         <div class="w-full space-y-6 px-6 py-6">
-            <section
-                class="rounded-xl border p-5 space-y-4"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-            >
+            <section class="ui-settings-section space-y-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Ручная настройка</h3>
@@ -103,8 +100,7 @@ function reanalyze(): void {
                     <textarea
                         v-model="form.manual_summary"
                         rows="5"
-                        class="ui-field w-full rounded-lg border px-3 py-2 text-sm"
-                        :style="{ color: 'var(--ui-text)', borderColor: 'var(--ui-border)' }"
+                        class="settings-input w-full min-h-[120px]"
                         placeholder="Коротко: тон, длина ответов, обращение к клиенту…"
                     />
                 </label>
@@ -126,14 +122,13 @@ function reanalyze(): void {
                         <input
                             v-model="newPhrase"
                             type="text"
-                            class="ui-field flex-1 rounded-lg border px-3 py-2 text-sm"
+                            class="settings-input flex-1"
                             placeholder="Добавить фразу…"
                             @keydown.enter.prevent="addPhrase"
                         />
                         <button
                             type="button"
-                            class="rounded-lg px-3 py-2 text-sm font-medium"
-                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                             @click="addPhrase"
                         >
                             Добавить
@@ -144,8 +139,7 @@ function reanalyze(): void {
                 <div class="flex flex-wrap gap-2 pt-1">
                     <button
                         type="button"
-                        class="rounded-xl px-4 py-2 text-sm font-semibold"
-                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                        class="ui-btn ui-btn--primary"
                         :disabled="form.processing"
                         @click="submit"
                     >
@@ -153,8 +147,7 @@ function reanalyze(): void {
                     </button>
                     <button
                         type="button"
-                        class="rounded-xl border px-4 py-2 text-sm"
-                        :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text)' }"
+                        class="ui-btn ui-btn--ghost"
                         :disabled="reanalyzing"
                         @click="reanalyze"
                     >
@@ -163,10 +156,7 @@ function reanalyze(): void {
                 </div>
             </section>
 
-            <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-            >
+            <section class="ui-settings-section">
                 <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Автоанализ компании</h3>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">{{ analyzedLabel }}</p>
                 <p class="mt-3 text-sm whitespace-pre-wrap" :style="{ color: 'var(--ui-text)' }">
@@ -179,16 +169,14 @@ function reanalyze(): void {
 
             <section
                 v-if="employee_profiles.length"
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <h3 class="text-sm font-semibold mb-3" :style="{ color: 'var(--ui-text)' }">Профили сотрудников (авто)</h3>
                 <ul class="space-y-3">
                     <li
                         v-for="row in employee_profiles"
                         :key="row.id"
-                        class="rounded-lg border px-3 py-2 text-sm"
-                        :style="{ borderColor: 'var(--ui-border)' }"
+                        class="ui-panel px-3 py-2 text-sm"
                     >
                         <div class="font-medium" :style="{ color: 'var(--ui-text)' }">{{ row.user_name }}</div>
                         <p class="mt-1 text-xs line-clamp-2" :style="{ color: 'var(--ui-text-secondary)' }">{{ row.summary || '—' }}</p>

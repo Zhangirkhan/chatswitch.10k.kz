@@ -69,10 +69,7 @@ function submitComplete(): void {
 
     <SettingsLayout title="Онбординг" subtitle="Пошаговая настройка компании для запуска AI-воронки">
         <div class="w-full space-y-8 px-6 py-6">
-            <section
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-            >
+            <section class="ui-settings-section">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <div class="text-xs font-semibold uppercase tracking-wide" :style="{ color: readinessColor(readiness.status) }">
@@ -107,11 +104,8 @@ function submitComplete(): void {
                 <div class="mt-4 flex flex-wrap items-center gap-2">
                     <button
                         type="button"
-                        class="rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
-                        :style="{
-                            background: allStepsDone ? 'var(--ui-accent)' : 'var(--ui-surface-muted)',
-                            color: allStepsDone ? '#fff' : 'var(--ui-text-secondary)',
-                        }"
+                        class="ui-btn"
+                        :class="allStepsDone ? 'ui-btn--primary' : 'ui-btn--secondary'"
                         :disabled="!allStepsDone || completeForm.processing"
                         @click="submitComplete"
                     >
@@ -127,10 +121,9 @@ function submitComplete(): void {
                 <article
                     v-for="(step, index) in steps"
                     :key="step.key"
-                    class="rounded-xl border px-4 py-4"
+                    class="ui-panel px-4 py-4"
                     :style="{
-                        borderColor: step.ok ? 'rgba(22, 163, 74, .35)' : 'var(--ui-border)',
-                        background: 'var(--ui-surface)',
+                        borderColor: step.ok ? 'rgba(22, 163, 74, .35)' : undefined,
                     }"
                 >
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -162,8 +155,7 @@ function submitComplete(): void {
                         </div>
                         <Link
                             :href="route(step.route)"
-                            class="shrink-0 rounded-xl border px-3 py-2 text-sm font-medium transition hover:brightness-95"
-                            :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-border)' }"
+                            class="ui-btn ui-btn--ghost ui-btn--sm shrink-0"
                         >
                             {{ step.ok ? 'Открыть' : 'Настроить' }}
                         </Link>
@@ -173,8 +165,7 @@ function submitComplete(): void {
 
             <section
                 v-if="readiness.next_actions.length"
-                class="rounded-xl border p-5"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-settings-section"
             >
                 <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Рекомендации AI Quality</h2>
                 <ul class="mt-3 space-y-1.5 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -182,8 +173,7 @@ function submitComplete(): void {
                 </ul>
                 <Link
                     :href="route('settings.ai-quality')"
-                    class="mt-4 inline-flex rounded-xl px-4 py-2 text-sm font-semibold"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary mt-4"
                 >
                     Открыть AI и качество
                 </Link>

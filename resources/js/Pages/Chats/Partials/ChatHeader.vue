@@ -10,6 +10,9 @@ import { formatPhone } from '@/utils/phone';
 import { stageIdAtPreservedIndex } from '@/utils/funnelStageMapping';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 type MenuPos = { top: number; right: number };
 type AiRiskyEnableModalState = {
@@ -501,7 +504,7 @@ async function toggleAi(): Promise<void> {
             });
             return;
         }
-        alert(data?.message || 'Не удалось переключить AI.');
+        showToast({ message: data?.message || 'Не удалось переключить AI.', type: 'warning' });
     } finally {
         aiSaving.value = false;
     }
@@ -537,7 +540,7 @@ async function confirmAiRiskyEnable(): Promise<void> {
         aiRiskyEnableModalOpen.value = false;
         aiRiskyEnableModal.value = null;
     } catch (retryError: any) {
-        alert(retryError?.response?.data?.message || 'Не удалось включить AI.');
+        showToast({ message: retryError?.response?.data?.message || 'Не удалось включить AI.', type: 'warning' });
     } finally {
         aiRiskyEnableConfirming.value = false;
     }
@@ -555,7 +558,7 @@ async function createQuickTask(): Promise<void> {
         });
         router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        alert(e?.response?.data?.message || 'Не удалось создать задачу.');
+        showToast({ message: e?.response?.data?.message || 'Не удалось создать задачу.', type: 'warning' });
     } finally {
         quickTaskLoading.value = false;
     }
@@ -570,7 +573,7 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     try {
         await patchAiSettings(payload);
     } catch (e: any) {
-        alert(e?.response?.data?.message || 'Не удалось обновить настройки AI.');
+        showToast({ message: e?.response?.data?.message || 'Не удалось обновить настройки AI.', type: 'warning' });
     } finally {
         aiSaving.value = false;
     }
@@ -967,7 +970,7 @@ async function archiveAndCloseChat(): Promise<void> {
         }
         await router.visit(route('chats.archived'));
     } catch {
-        alert('Не удалось отправить чат в архив.');
+        showToast({ message: 'Не удалось отправить чат в архив.', type: 'warning' });
     } finally {
         archivingChat.value = false;
     }
@@ -975,7 +978,7 @@ async function archiveAndCloseChat(): Promise<void> {
 
 function notImplemented(name: string) {
     closeMenu();
-    alert(`«${name}» — функция скоро будет доступна.`);
+    showToast({ message: `«${name}» — функция скоро будет доступна.`, type: 'info' });
 }
 
 const displayName = computed(
@@ -1072,12 +1075,12 @@ const funnelBarCells = computed(() => {
 function funnelBarCellStyle(cellIndex: number, color: string): Record<string, string> {
     const current = funnelBarCurrentIndex.value;
     if (current < 0) {
-        return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 28%, transparent)' };
+        return { backgroundColor: 'var(--wa-chroma-neutral-bg-28)' };
     }
     if (cellIndex <= current) {
         return { backgroundColor: color };
     }
-    return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 22%, transparent)' };
+    return { backgroundColor: 'var(--wa-chroma-neutral-bg-22)' };
 }
 
 const funnelBarTitle = computed(() => {
@@ -1228,12 +1231,12 @@ const modalFunnelColor = computed(() => {
 function modalFunnelSegmentStyle(cellIndex: number, color: string): Record<string, string> {
     const current = modalStageIndex.value;
     if (current < 0) {
-        return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 28%, transparent)' };
+        return { backgroundColor: 'var(--wa-chroma-neutral-bg-28)' };
     }
     if (cellIndex <= current) {
         return { backgroundColor: color || modalFunnelColor.value };
     }
-    return { backgroundColor: 'color-mix(in srgb, var(--wa-text-secondary) 22%, transparent)' };
+    return { backgroundColor: 'var(--wa-chroma-neutral-bg-22)' };
 }
 
 const funnelWheelRef = ref<InstanceType<typeof FunnelStageWheelPicker> | null>(null);
@@ -1304,7 +1307,7 @@ async function saveFunnelModal() {
         await router.reload({ only: ['chat', 'funnelCatalog'] });
     } catch (e: any) {
         const msg = e?.response?.data?.message || e?.response?.data?.errors?.funnel_id?.[0] || 'Не удалось сохранить';
-        window.alert(typeof msg === 'string' ? msg : 'Ошибка сохранения');
+        showToast({ message: typeof msg === 'string' ? msg : 'Ошибка сохранения', type: 'warning' });
     } finally {
         funnelSaving.value = false;
     }
@@ -2792,7 +2795,7 @@ async function saveFunnelModal() {
     height: 0.22rem;
     overflow: hidden;
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+    background: var(--wa-chroma-muted-bar);
 }
 
 .header-funnel-compact-bar > span {
@@ -2838,7 +2841,7 @@ async function saveFunnelModal() {
 
 .header-deal-snapshot:hover {
     border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border-strong));
-    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
+    background: var(--wa-chroma-accent-bg-8);
     transform: translateY(-1px);
 }
 
@@ -2863,7 +2866,7 @@ async function saveFunnelModal() {
     height: 1.35rem;
     border-radius: 9999px;
     flex-shrink: 0;
-    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent);
+    box-shadow: 0 0 0 3px var(--wa-chroma-dot-ring);
 }
 
 .header-deal-meter {
@@ -2872,7 +2875,7 @@ async function saveFunnelModal() {
     height: 0.35rem;
     overflow: hidden;
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+    background: var(--wa-chroma-muted-bar);
 }
 
 .header-deal-meter > span {
@@ -2903,7 +2906,7 @@ async function saveFunnelModal() {
     color: var(--wa-danger);
 }
 .wa-header-btn-archive:hover:not(:disabled) {
-    background-color: color-mix(in srgb, var(--wa-danger) 18%, transparent);
+    background-color: var(--wa-chroma-danger-bg-18);
     color: var(--wa-danger);
 }
 .label-pill {
@@ -2925,28 +2928,28 @@ async function saveFunnelModal() {
     border-color: var(--wa-border-strong);
 }
 .label-pill-active {
-    color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 60%, transparent);
-    background-color: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
+    color: var(--wa-chroma-accent-fg);
+    border-color: var(--wa-chroma-accent-border-60);
+    background-color: var(--wa-chroma-accent-bg-12);
 }
 .label-pill-orchestrator {
     order: 3;
-    color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, transparent);
-    background-color: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
+    color: var(--wa-chroma-accent-fg);
+    border-color: var(--wa-chroma-accent-border-45);
+    background-color: var(--wa-chroma-accent-bg-10);
 }
 .label-pill-orchestrator-wait {
     color: #f59e0b;
-    border-color: color-mix(in srgb, #f59e0b 50%, transparent);
-    background-color: color-mix(in srgb, #f59e0b 12%, var(--wa-panel));
+    border-color: var(--wa-chroma-amber-border-50);
+    background-color: var(--wa-chroma-amber-bg-12);
 }
 .label-pill-orchestrator-error {
     color: var(--wa-danger);
-    border-color: color-mix(in srgb, var(--wa-danger) 50%, transparent);
-    background-color: color-mix(in srgb, var(--wa-danger) 12%, var(--wa-panel));
+    border-color: var(--wa-chroma-danger-border-50);
+    background-color: var(--wa-chroma-danger-bg-12);
 }
 .label-pill-active:hover {
-    background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
+    background-color: var(--wa-chroma-accent-bg-18);
 }
 
 /* Отделы — янтарь (иерархия: не зелёный «сотрудники»); цвет текста из темы */
@@ -2963,7 +2966,7 @@ async function saveFunnelModal() {
 }
 .label-pill-dept-active {
     color: var(--wa-header-pill-dept-text-active);
-    border-color: color-mix(in srgb, #f59e0b 70%, transparent);
+    border-color: var(--wa-chroma-amber-border-70);
     background-color: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
 }
 .label-pill-dept-active:hover:not(:disabled) {
@@ -3074,12 +3077,12 @@ async function saveFunnelModal() {
     height: 0.48rem;
     border-radius: 9999px;
     background: var(--wa-text-muted);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-text-muted) 14%, transparent);
+    box-shadow: 0 0 0 3px var(--wa-chroma-muted-ring-14);
 }
 
 .ai-state-dot-on {
     background: var(--wa-green);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-green) 18%, transparent);
+    box-shadow: 0 0 0 3px var(--wa-chroma-success-ring-18);
 }
 
 .header-ai-assistant-btn {
@@ -3180,7 +3183,7 @@ async function saveFunnelModal() {
     font-weight: 600;
     line-height: 1;
     color: var(--wa-text);
-    background: color-mix(in srgb, currentColor 22%, transparent);
+    background: var(--wa-chroma-current-fill-22);
 }
 .label-pill-dept-active .label-pill-badge {
     background: color-mix(in srgb, #f59e0b 28%, var(--wa-panel));
@@ -3199,11 +3202,11 @@ async function saveFunnelModal() {
 }
 .label-pill-staff-active {
     color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 60%, transparent);
+    border-color: var(--wa-chroma-accent-border-60);
     background-color: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
 }
 .label-pill-staff-active:hover:not(:disabled) {
-    background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
+    background-color: var(--wa-chroma-accent-bg-18);
 }
 .label-pill-staff-static {
     pointer-events: none;
@@ -3332,12 +3335,12 @@ async function saveFunnelModal() {
 .assign-chip-staff {
     color: #dcfff2;
     background: linear-gradient(180deg, color-mix(in srgb, var(--wa-accent) 96%, #ffffff 4%), color-mix(in srgb, var(--wa-accent) 86%, var(--wa-bg) 14%));
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 30%, transparent) inset;
+    box-shadow: 0 0 0 1px var(--wa-chroma-accent-ring-30) inset;
 }
 .assign-chip-dept {
     color: #fff7ed;
     background: linear-gradient(180deg, #f59e0b, color-mix(in srgb, #f59e0b 82%, #78350f 18%));
-    box-shadow: 0 0 0 1px color-mix(in srgb, #f59e0b 35%, transparent) inset;
+    box-shadow: 0 0 0 1px var(--wa-chroma-amber-ring-35) inset;
 }
 .assign-chip:hover {
     filter: brightness(1.05);
@@ -3362,7 +3365,7 @@ async function saveFunnelModal() {
 }
 .assign-searchbox:focus-within {
     border-color: color-mix(in srgb, var(--wa-accent) 70%, var(--wa-border-strong));
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 30%, transparent);
+    box-shadow: 0 0 0 1px var(--wa-chroma-accent-ring-30);
     background: color-mix(in srgb, var(--wa-panel) 84%, var(--wa-panel-input) 16%);
 }
 .assign-search {
@@ -3396,16 +3399,16 @@ async function saveFunnelModal() {
     background: var(--wa-panel-hover);
 }
 .assign-row-staff-active {
-    background: color-mix(in srgb, var(--wa-accent) 16%, transparent);
+    background: var(--wa-chroma-accent-fill-16);
 }
 .assign-row-staff-active:hover {
-    background: color-mix(in srgb, var(--wa-accent) 20%, transparent);
+    background: var(--wa-chroma-accent-fill-20);
 }
 .assign-row-dept-active {
-    background: color-mix(in srgb, #f59e0b 16%, transparent);
+    background: var(--wa-chroma-amber-fill-16);
 }
 .assign-row-dept-active:hover {
-    background: color-mix(in srgb, #f59e0b 20%, transparent);
+    background: var(--wa-chroma-amber-fill-20);
 }
 .assign-avatar {
     display: flex;

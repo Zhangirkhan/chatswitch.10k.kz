@@ -169,7 +169,7 @@ function onKeydown(e: KeyboardEvent): void {
     }
 }
 
-function mimeLabel(mime: string | null): string {
+function mimeLabel(mime: string | null | undefined): string {
     if (!mime) {
         return 'Файл';
     }
@@ -195,12 +195,9 @@ onMounted(() => {
     <AuthenticatedLayout>
         <Head title="ИИ чат" />
 
-        <div class="flex h-full min-h-0 flex-1">
-            <div class="flex min-h-0 min-w-0 flex-1 flex-col border-r" :style="{ borderColor: 'var(--wa-sidebar-divider)' }">
-                <header
-                    class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b"
-                    :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-panel-header)' }"
-                >
+        <div class="ui-tool-page">
+            <div class="ui-tool-page__main">
+                <header class="ui-tool-page__header">
                     <div>
                         <h1 class="text-lg font-semibold text-[var(--wa-text)]">ИИ чат</h1>
                         <p class="text-xs text-[var(--wa-text-secondary)] mt-0.5">
@@ -209,8 +206,7 @@ onMounted(() => {
                     </div>
                     <button
                         type="button"
-                        class="text-xs px-3 py-1.5 rounded-lg border transition hover:opacity-80"
-                        :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                        class="ui-btn ui-btn--ghost ui-btn--sm"
                         @click="clearDialog"
                     >
                         Очистить
@@ -223,17 +219,15 @@ onMounted(() => {
                 >
                     <div
                         v-if="turns.length === 0"
-                        class="rounded-xl border p-4 text-sm"
-                        :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-composer-bg)', color: 'var(--wa-text-secondary)' }"
+                        class="ui-result-card"
                     >
-                        <p class="mb-3">Примеры запросов:</p>
-                        <div class="flex flex-wrap gap-2">
+                        <p class="mb-3 text-sm text-[var(--wa-text-secondary)]">Примеры запросов:</p>
+                        <div class="ui-chip-row">
                             <button
                                 v-for="(s, i) in suggestions"
                                 :key="i"
                                 type="button"
-                                class="text-left text-xs px-3 py-2 rounded-full border transition hover:opacity-90"
-                                :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text)' }"
+                                class="ui-chip text-left"
                                 @click="applySuggestion(s)"
                             >
                                 {{ s }}
@@ -249,9 +243,10 @@ onMounted(() => {
                     >
                         <div
                             class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words"
+                            :class="turn.role === 'user' ? 'text-[var(--wa-bubble-text)]' : 'text-[var(--wa-text)]'"
                             :style="turn.role === 'user'
-                                ? { background: 'var(--wa-outbound-bg)', color: 'var(--wa-outbound-text)' }
-                                : { background: 'var(--wa-inbound-bg)', color: 'var(--wa-text)' }"
+                                ? { background: 'var(--wa-bubble-out)' }
+                                : { background: 'var(--wa-bubble-in)' }"
                         >
                             {{ turn.content }}
                         </div>
@@ -265,22 +260,14 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <footer
-                    class="shrink-0 p-3 border-t"
-                    :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-composer-bg)' }"
-                >
+                <footer class="ui-tool-page__composer">
                     <p v-if="error" class="text-xs text-red-500 mb-2">{{ error }}</p>
                     <div class="flex gap-2 items-end">
                         <textarea
                             ref="textareaEl"
                             v-model="draft"
                             rows="1"
-                            class="flex-1 resize-none rounded-xl px-4 py-2.5 text-sm outline-none border min-h-[44px] max-h-[160px]"
-                            :style="{
-                                background: 'var(--wa-input-bg)',
-                                borderColor: 'var(--wa-border)',
-                                color: 'var(--wa-text)',
-                            }"
+                            class="ui-search-input--boxed flex-1 resize-none min-h-[44px] max-h-[160px]"
                             placeholder="Например: клиенты с непрочитанными или pdf договор за май"
                             :disabled="sending"
                             @keydown="onKeydown"
@@ -288,8 +275,7 @@ onMounted(() => {
                         />
                         <button
                             type="button"
-                            class="shrink-0 h-11 px-4 rounded-xl text-sm font-medium transition disabled:opacity-50"
-                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                            class="ui-btn ui-btn--primary shrink-0"
                             :disabled="sending || !draft.trim()"
                             @click="send"
                         >
@@ -309,15 +295,13 @@ onMounted(() => {
                             <li
                                 v-for="c in contacts"
                                 :key="'m-c-' + c.id"
-                                class="rounded-lg border p-2 text-sm"
-                                :style="{ borderColor: 'var(--wa-border)' }"
+                                class="ui-result-card"
                             >
                                 <div class="font-medium">{{ c.name }}</div>
                                 <Link
                                     v-if="c.chat_id"
                                     :href="route('chats.show', c.chat_id)"
-                                    class="text-xs mt-1 inline-block"
-                                    :style="{ color: 'var(--wa-accent)' }"
+                                    class="text-xs mt-1 inline-block text-[var(--wa-accent)]"
                                 >
                                     Открыть чат
                                 </Link>
@@ -335,13 +319,10 @@ onMounted(() => {
                 </div>
             </div>
 
-            <aside
-                class="hidden lg:flex w-[340px] xl:w-[380px] shrink-0 flex-col min-h-0"
-                :style="{ background: 'var(--wa-sidebar-bg)' }"
-            >
+            <aside class="ui-tool-page__aside">
                 <div
-                    class="shrink-0 px-4 py-3 border-b text-sm font-medium"
-                    :style="{ borderColor: 'var(--wa-sidebar-divider)', color: 'var(--wa-text)' }"
+                    class="shrink-0 px-4 py-3 border-b text-sm font-medium text-[var(--wa-text)]"
+                    :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
                 >
                     Результаты
                     <span v-if="hasResults" class="font-normal text-[var(--wa-text-secondary)]">
@@ -365,8 +346,7 @@ onMounted(() => {
                             <li
                                 v-for="c in contacts"
                                 :key="c.id"
-                                class="rounded-xl border p-3 text-sm"
-                                :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-composer-bg)' }"
+                                class="ui-result-card"
                             >
                                 <div class="font-medium text-[var(--wa-text)]">{{ c.name }}</div>
                                 <p v-if="c.phone_number" class="text-xs text-[var(--wa-text-secondary)] mt-0.5">
@@ -375,14 +355,13 @@ onMounted(() => {
                                 <p v-if="c.companies?.length" class="text-xs text-[var(--wa-text-secondary)] mt-1 truncate">
                                     {{ c.companies.join(', ') }}
                                 </p>
-                                <p v-if="c.unread_count" class="text-xs mt-1" :style="{ color: 'var(--wa-accent)' }">
+                                <p v-if="c.unread_count" class="text-xs mt-1 text-[var(--wa-accent)]">
                                     Непрочитанных: {{ c.unread_count }}
                                 </p>
                                 <Link
                                     v-if="c.chat_id"
                                     :href="route('chats.show', c.chat_id)"
-                                    class="inline-block mt-2 text-xs font-medium"
-                                    :style="{ color: 'var(--wa-accent)' }"
+                                    class="inline-block mt-2 text-xs font-medium text-[var(--wa-accent)]"
                                 >
                                     Открыть чат →
                                 </Link>
@@ -398,8 +377,7 @@ onMounted(() => {
                             <li
                                 v-for="m in media"
                                 :key="m.id"
-                                class="rounded-xl border p-3 text-sm"
-                                :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-composer-bg)' }"
+                                class="ui-result-card"
                             >
                                 <div class="flex gap-2 items-start">
                                     <a
@@ -436,8 +414,7 @@ onMounted(() => {
                                         <Link
                                             v-if="m.chat_id"
                                             :href="route('chats.show', m.chat_id)"
-                                            class="inline-block mt-1 text-xs"
-                                            :style="{ color: 'var(--wa-accent)' }"
+                                            class="inline-block mt-1 text-xs text-[var(--wa-accent)]"
                                         >
                                             В диалог →
                                         </Link>

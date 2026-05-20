@@ -424,12 +424,12 @@ const recurrenceLabels: Record<string, string> = {
 <template>
     <Head title="Календарь" />
     <AuthenticatedLayout>
-        <div class="cal-wrapper">
+        <div class="app-page cal-wrapper">
 
             <!-- ── Toolbar ───────────────────────────────────────────── -->
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">
-                    <button class="cal-btn-today" @click="goToday">Сегодня</button>
+                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="goToday">Сегодня</button>
                     <button class="cal-nav-btn" @click="view === 'month' ? prevMonth() : prevWeek()">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -448,11 +448,25 @@ const recurrenceLabels: Record<string, string> = {
                     </div>
                 </div>
                 <div class="cal-toolbar-right">
-                    <div class="cal-view-switch">
-                        <button :class="['cal-view-btn', view === 'month' ? 'active' : '']" @click="switchView('month')">Месяц</button>
-                        <button :class="['cal-view-btn', view === 'week' ? 'active' : '']" @click="switchView('week')">Неделя</button>
+                    <div class="ui-pill-nav">
+                        <button
+                            type="button"
+                            class="ui-pill-nav__item"
+                            :class="{ 'is-active': view === 'month' }"
+                            @click="switchView('month')"
+                        >
+                            Месяц
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-pill-nav__item"
+                            :class="{ 'is-active': view === 'week' }"
+                            @click="switchView('week')"
+                        >
+                            Неделя
+                        </button>
                     </div>
-                    <button class="cal-add-btn" @click="openCreate()">
+                    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm gap-1.5" @click="openCreate()">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
                         </svg>
@@ -464,7 +478,7 @@ const recurrenceLabels: Record<string, string> = {
             <div class="cal-filters">
                 <label class="cal-filter">
                     <span class="cal-filter-label">Обзор</span>
-                    <select v-model="listFilter" class="cal-filter-select">
+                    <select v-model="listFilter" class="settings-input cal-filter-select">
                         <option value="all">Все доступные</option>
                         <option value="mine">Мои записи</option>
                         <option value="assigned_to_me">Я ответственный</option>
@@ -472,14 +486,14 @@ const recurrenceLabels: Record<string, string> = {
                 </label>
                 <label class="cal-filter">
                     <span class="cal-filter-label">Автор</span>
-                    <select v-model="filterAuthorId" class="cal-filter-select">
+                    <select v-model="filterAuthorId" class="settings-input cal-filter-select">
                         <option value="">Все авторы</option>
                         <option v-for="u in assignableUsers" :key="'af-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
                 </label>
                 <label class="cal-filter">
                     <span class="cal-filter-label">Ответственный</span>
-                    <select v-model="filterAssigneeId" class="cal-filter-select">
+                    <select v-model="filterAssigneeId" class="settings-input cal-filter-select">
                         <option value="">Все</option>
                         <option v-for="u in assignableUsers" :key="'gf-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
@@ -629,7 +643,7 @@ const recurrenceLabels: Record<string, string> = {
 
                         <label class="form-row">
                             <span>Ответственный</span>
-                            <select v-model="form.assignee_user_id" class="cal-filter-select w-full">
+                            <select v-model="form.assignee_user_id" class="settings-input w-full">
                                 <option value="">Не назначен</option>
                                 <option v-for="u in assignableUsers" :key="'as-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                             </select>
@@ -705,12 +719,12 @@ const recurrenceLabels: Record<string, string> = {
                             <button
                                 v-if="editingId && !form.title.includes('(копия)')"
                                 type="button"
-                                class="cal-btn-delete"
+                                class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                                 @click="requestDeleteEvent"
                             >Удалить</button>
                             <div class="flex gap-2 ml-auto">
-                                <button type="button" class="cal-btn-secondary" @click="closeModal">Отмена</button>
-                                <button type="submit" class="cal-btn-primary" :disabled="saving">
+                                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="closeModal">Отмена</button>
+                                <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="saving">
                                     {{ saving ? 'Сохранение…' : (editingId ? 'Сохранить' : 'Создать') }}
                                 </button>
                             </div>
@@ -739,7 +753,7 @@ const recurrenceLabels: Record<string, string> = {
     flex-direction: column;
     height: 100%;
     overflow: hidden;
-    background: var(--wa-bg);
+    background: var(--wa-page-bg);
     color: var(--wa-text);
 }
 
@@ -768,19 +782,6 @@ const recurrenceLabels: Record<string, string> = {
 }
 .cal-loading { color: var(--wa-text-secondary); }
 
-.cal-btn-today {
-    padding: 0.35rem 0.85rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
-    background: transparent;
-    color: var(--wa-text);
-    font-size: 0.82rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-.cal-btn-today:hover { background: var(--wa-panel-hover); }
-
 .cal-nav-btn {
     width: 30px;
     height: 30px;
@@ -795,40 +796,6 @@ const recurrenceLabels: Record<string, string> = {
     transition: background 0.1s;
 }
 .cal-nav-btn:hover { background: var(--wa-panel-hover); }
-
-.cal-view-switch {
-    display: flex;
-    border: 1px solid var(--wa-border-strong);
-    border-radius: 8px;
-    overflow: hidden;
-}
-.cal-view-btn {
-    padding: 0.3rem 0.85rem;
-    border: none;
-    background: transparent;
-    color: var(--wa-text-secondary);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background 0.1s, color 0.1s;
-}
-.cal-view-btn:hover { background: var(--wa-panel-hover); color: var(--wa-text); }
-.cal-view-btn.active { background: var(--wa-accent); color: var(--wa-unread-text, #0b0d0e); font-weight: 600; }
-
-.cal-add-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.38rem 0.9rem;
-    border-radius: 999px;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.82rem;
-    font-weight: 700;
-    border: none;
-    cursor: pointer;
-    transition: filter 0.12s;
-}
-.cal-add-btn:hover { filter: brightness(1.08); }
 
 /* ── Filters ─────────────────────────────────────────────────────────────── */
 .cal-filters {
@@ -856,13 +823,10 @@ const recurrenceLabels: Record<string, string> = {
     letter-spacing: 0.04em;
 }
 .cal-filter-select {
-    font-size: 0.82rem;
-    padding: 0.35rem 0.6rem;
-    border-radius: 8px;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
     min-width: 160px;
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 0.82rem;
 }
 .cal-event-assignee {
     font-weight: 500;
@@ -910,7 +874,7 @@ const recurrenceLabels: Record<string, string> = {
     overflow: hidden;
 }
 .cal-month-cell:hover { background: var(--wa-panel-hover); }
-.cal-month-cell.is-today { background: color-mix(in srgb, var(--wa-accent) 7%, var(--wa-bg)); }
+.cal-month-cell.is-today { background: color-mix(in srgb, var(--wa-accent) 7%, var(--wa-page-bg)); }
 .cal-month-cell.is-other-month { opacity: 0.4; }
 .cal-month-cell.is-weekend .cal-day-num { color: var(--wa-text-secondary); }
 
@@ -1245,37 +1209,4 @@ const recurrenceLabels: Record<string, string> = {
     align-items: center;
     padding-top: 0.3rem;
 }
-.cal-btn-delete {
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--wa-danger) 60%, transparent);
-    background: transparent;
-    color: var(--wa-danger);
-    font-size: 0.82rem;
-    cursor: pointer;
-}
-.cal-btn-delete:hover { background: color-mix(in srgb, var(--wa-danger) 10%, transparent); }
-.cal-btn-secondary {
-    padding: 0.4rem 0.9rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
-    background: transparent;
-    color: var(--wa-text);
-    font-size: 0.82rem;
-    cursor: pointer;
-}
-.cal-btn-secondary:hover { background: var(--wa-panel-hover); }
-.cal-btn-primary {
-    padding: 0.4rem 1.1rem;
-    border-radius: 999px;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.82rem;
-    font-weight: 700;
-    border: none;
-    cursor: pointer;
-    transition: filter 0.1s;
-}
-.cal-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-.cal-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>

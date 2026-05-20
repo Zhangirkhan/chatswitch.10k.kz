@@ -568,7 +568,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
     <AuthenticatedLayout>
         <div
             class="flex min-h-0 flex-1 flex-col overflow-hidden"
-            :style="{ background: theme === 'light' ? 'var(--wa-panel-header)' : 'var(--wa-bg)' }"
+            :style="{ background: 'var(--wa-page-bg)' }"
         >
             <header class="analytics-header shrink-0 border-b px-4 py-5 md:px-8" :style="{ borderColor: 'var(--wa-border)' }">
                 <div class="mx-auto max-w-5xl">
@@ -1272,7 +1272,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
 
 <style scoped>
 .analytics-header {
-    background: linear-gradient(180deg, var(--wa-panel) 0%, var(--wa-bg) 100%);
+    background: linear-gradient(180deg, var(--wa-panel) 0%, var(--wa-page-bg) 100%);
 }
 
 .analytics-card {

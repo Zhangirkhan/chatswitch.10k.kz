@@ -536,8 +536,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
             </p>
 
             <div
-                class="rounded-lg border p-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_180px_180px_auto]"
-                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                class="ui-filter-panel ui-filter-panel--departments"
             >
                 <input
                     v-model="departmentSearch"
@@ -937,15 +936,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                     >
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
+                            class="ui-btn ui-btn--secondary"
                             @click="closeModal"
                         >
                             Отмена
                         </button>
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                            class="ui-btn ui-btn--primary"
                             :disabled="saving"
                             @click="saveModal"
                         >
@@ -969,24 +967,3 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
     />
 </template>
 
-<style scoped>
-.settings-input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--ui-border-strong);
-    background: var(--ui-bg);
-    color: var(--ui-text);
-    outline: none;
-}
-.settings-input:focus {
-    border-color: var(--ui-accent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 35%, transparent);
-}
-.settings-input-error {
-    border-color: rgba(248, 113, 113, 0.7);
-    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25);
-}
-</style>
