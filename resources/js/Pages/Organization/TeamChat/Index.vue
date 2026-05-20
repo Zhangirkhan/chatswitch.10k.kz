@@ -8,6 +8,9 @@ import TeamChatInput from './Partials/TeamChatInput.vue';
 import TeamChatHeader, { type TeamConversationHeader } from './Partials/TeamChatHeader.vue';
 import type { OrgDepartment } from '../Partials/OrganizationSidebar.vue';
 import type { MessageReaction, PageProps } from '@/types';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 const DRAFTS_KEY = 'chatswitch:orgTeamChatDrafts:v1';
 
@@ -117,8 +120,9 @@ async function toggleConversationPin(): Promise<void> {
         const nextPinned = !h.is_pinned;
         await axios.post(route('organization.team-chat.api.pin', cid), { pinned: nextPinned });
         headerState.value = { ...h, is_pinned: nextPinned };
-    } catch {
-        /* ignore */
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось изменить закрепление беседы.', type: 'warning' });
     } finally {
         headerPinBusy.value = false;
     }
@@ -704,6 +708,9 @@ async function send() {
     const clientMessageId = crypto.randomUUID();
     try {
         await postMessage(buildMessagePayload(text, clientMessageId));
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось отправить сообщение.', type: 'warning' });
     } finally {
         sending.value = false;
     }
@@ -728,6 +735,9 @@ async function sendVoice(file: File): Promise<void> {
             fd.append('parent_team_message_id', String(reply.id));
         }
         await postMessage(fd);
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось отправить голосовое сообщение.', type: 'warning' });
     } finally {
         sending.value = false;
     }
@@ -782,8 +792,9 @@ async function createTaskFromMessage(m: TeamMsg): Promise<void> {
         if (typeof postId === 'number' && postId > 0) {
             window.open(route('organization.posts.show', postId), '_blank', 'noopener,noreferrer');
         }
-    } catch {
-        /* ignore */
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось создать задачу.', type: 'warning' });
     } finally {
         taskFromMessageSending.value = false;
     }
@@ -826,14 +837,14 @@ async function scrollToQuotedParent(parentMessageId: number): Promise<void> {
             'ring-2',
             'ring-[var(--wa-accent)]',
             'ring-offset-2',
-            'ring-offset-[var(--wa-bg)]',
+            'ring-offset-[var(--wa-page-bg)]',
         );
         setTimeout(() => {
             el.classList.remove(
                 'ring-2',
                 'ring-[var(--wa-accent)]',
                 'ring-offset-2',
-                'ring-offset-[var(--wa-bg)]',
+                'ring-offset-[var(--wa-page-bg)]',
             );
         }, 1600);
         return;
@@ -855,7 +866,7 @@ async function clearRoomPinned(): Promise<void> {
         });
         roomPinnedMessage.value = null;
     } catch {
-        /* ignore */
+        showToast({ message: 'Не удалось снять закрепление в чате.', type: 'warning' });
     } finally {
         roomPinSending.value = false;
     }
@@ -874,7 +885,7 @@ async function setRoomPinnedForMessage(messageId: number): Promise<void> {
         const p = data.room_pinned_message as TeamRoomPinned | null | undefined;
         roomPinnedMessage.value = p && typeof p.id === 'number' ? p : null;
     } catch {
-        /* ignore */
+        showToast({ message: 'Не удалось закрепить сообщение в чате.', type: 'warning' });
     } finally {
         roomPinSending.value = false;
     }
@@ -942,6 +953,9 @@ async function submitForward(targetConversationId: number) {
             await fetchMessages();
             await nextTick(() => scrollToBottom());
         }
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось переслать сообщение.', type: 'warning' });
     } finally {
         forwardSending.value = false;
     }
@@ -965,7 +979,7 @@ onBeforeUnmount(() => {
 <template>
     <Head title="Чат организации" />
     <OrganizationLayout :departments="departments" :selected-department-id="null">
-        <div class="flex h-full min-h-0 flex-col bg-[var(--wa-bg)] team-chat-main">
+        <div class="team-chat-main flex h-full min-h-0 flex-col bg-[var(--wa-page-bg)]">
             <div
                 v-if="!selectedConversationId"
                 class="flex flex-1 flex-col items-center justify-center px-4 sm:px-6 text-center text-[var(--wa-text-secondary)]"
@@ -1005,7 +1019,7 @@ onBeforeUnmount(() => {
                             <button
                                 v-if="canPinRoomMessage"
                                 type="button"
-                                class="shrink-0 text-[var(--wa-text-secondary)] hover:text-[var(--wa-text)] px-2 py-1 rounded-lg disabled:opacity-40"
+                                class="ui-btn ui-btn--ghost ui-btn--sm shrink-0 disabled:opacity-40"
                                 :disabled="roomPinSending"
                                 @click="clearRoomPinned()"
                             >
@@ -1023,7 +1037,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div
                         v-if="replyJumpNotice"
-                        class="mb-2 rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel)] px-3 py-2 text-xs text-[var(--wa-text-secondary)]"
+                        class="ui-result-card mb-2 text-xs text-[var(--wa-text-secondary)]"
                         role="status"
                     >
                         {{ replyJumpNotice }}
@@ -1058,32 +1072,30 @@ onBeforeUnmount(() => {
                             class="flex flex-wrap items-center gap-2 text-xs text-[var(--wa-text-secondary)]"
                         >
                             <span class="shrink-0">Упомянуть:</span>
-                            <template v-if="peerUser">
-                                <button
-                                    type="button"
-                                    class="rounded-full border px-3 py-1.5 min-h-[40px] transition-colors touch-manipulation"
-                                    :class="mentionUserIds.includes(peerUser.id)
-                                        ? 'border-[var(--wa-accent)] bg-[var(--wa-selected)] text-[var(--wa-text)]'
-                                        : 'border-[var(--wa-border)]'"
-                                    @click="toggleMentionPeer"
-                                >
-                                    @{{ peerUser.name }}
-                                </button>
-                            </template>
-                            <template v-else>
-                                <button
-                                    v-for="p in participants.filter((x) => x.id !== myUserId())"
-                                    :key="p.id"
-                                    type="button"
-                                    class="rounded-full border px-3 py-1.5 min-h-[40px] transition-colors max-w-[10rem] truncate touch-manipulation"
-                                    :class="mentionUserIds.includes(p.id)
-                                        ? 'border-[var(--wa-accent)] bg-[var(--wa-selected)] text-[var(--wa-text)]'
-                                        : 'border-[var(--wa-border)]'"
-                                    @click="toggleMentionColleague(p.id)"
-                                >
-                                    @{{ p.name }}
-                                </button>
-                            </template>
+                            <div class="ui-chip-row flex-1">
+                                <template v-if="peerUser">
+                                    <button
+                                        type="button"
+                                        class="ui-chip max-w-[12rem] truncate touch-manipulation"
+                                        :class="{ 'is-active': mentionUserIds.includes(peerUser.id) }"
+                                        @click="toggleMentionPeer"
+                                    >
+                                        @{{ peerUser.name }}
+                                    </button>
+                                </template>
+                                <template v-else>
+                                    <button
+                                        v-for="p in participants.filter((x) => x.id !== myUserId())"
+                                        :key="p.id"
+                                        type="button"
+                                        class="ui-chip max-w-[10rem] truncate touch-manipulation"
+                                        :class="{ 'is-active': mentionUserIds.includes(p.id) }"
+                                        @click="toggleMentionColleague(p.id)"
+                                    >
+                                        @{{ p.name }}
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                         <div
                             v-if="typingLabel"
@@ -1094,7 +1106,7 @@ onBeforeUnmount(() => {
                         </div>
                         <div
                             v-if="replyToMessage"
-                            class="flex items-start gap-2 rounded-lg border border-[var(--wa-accent)]/40 bg-[var(--wa-selected)]/25 px-3 py-2 text-xs text-[var(--wa-text)]"
+                            class="ui-result-card flex items-start gap-2 border-[color-mix(in_srgb,var(--wa-accent)_40%,var(--wa-border))] bg-[var(--wa-selected)]/25 text-xs text-[var(--wa-text)]"
                         >
                             <div class="min-w-0 flex-1">
                                 <div class="text-[var(--wa-text-secondary)] font-medium">Ответ на {{ replyToMessage.sender?.name ?? '…' }}</div>
@@ -1128,19 +1140,19 @@ onBeforeUnmount(() => {
                         @click.self="closeForwardPicker"
                     >
                         <div
-                            class="w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col rounded-xl border border-[var(--wa-border)] bg-[var(--wa-panel)] text-[var(--wa-text)] shadow-xl"
+                            class="ui-panel flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden text-[var(--wa-text)] shadow-xl"
                             @click.stop
                         >
                             <div class="px-4 py-3 border-b border-[var(--wa-border)] flex items-center justify-between gap-2">
                                 <span class="text-sm font-semibold">Переслать в…</span>
-                                <button type="button" class="text-lg leading-none opacity-60 hover:opacity-100 px-1" aria-label="Закрыть" @click="closeForwardPicker">×</button>
+                                <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" aria-label="Закрыть" @click="closeForwardPicker">×</button>
                             </div>
                             <div class="px-4 py-2 border-b border-[var(--wa-border)]">
                                 <label class="block text-xs text-[var(--wa-text-secondary)] mb-1">Комментарий (необязательно)</label>
                                 <textarea
                                     v-model="forwardCaption"
                                     rows="2"
-                                    class="w-full resize-none rounded-lg border border-[var(--wa-border)] bg-[var(--wa-panel-header)] px-2 py-1.5 text-sm"
+                                    class="settings-input w-full resize-none"
                                     placeholder="Добавить текст к пересылке…"
                                 />
                             </div>
@@ -1152,7 +1164,7 @@ onBeforeUnmount(() => {
                                     v-for="c in forwardTargets"
                                     :key="c.id"
                                     type="button"
-                                    class="w-full text-left rounded-lg px-3 py-2.5 text-sm hover:bg-[var(--wa-selected)] border border-transparent hover:border-[var(--wa-border)] mb-1 disabled:opacity-50"
+                                    class="ui-btn ui-btn--ghost mb-1 w-full justify-start px-3 py-2.5 text-left text-sm"
                                     :disabled="forwardSending"
                                     @click="submitForward(c.id)"
                                 >

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
 import MessageReactions from '@/Pages/Chats/Partials/MessageReactions.vue';
+import MessageStatus from '@/Pages/Chats/Partials/MessageStatus.vue';
 import LinkPreview from '@/Components/LinkPreview.vue';
 import type { MessageReaction, PageProps } from '@/types';
 
@@ -201,12 +202,12 @@ function messageTime(): string {
     return new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function receiptPrefix(): string {
+const receiptAriaLabel = computed(() => {
     if (props.receiptLabel === 'read') return 'Прочитано';
     if (props.receiptLabel === 'delivered') return 'Доставлено';
     if (props.receiptLabel === 'sent') return 'Отправлено';
     return '';
-}
+});
 
 async function react(emoji: string): Promise<void> {
     if (isReacting.value) return;
@@ -463,7 +464,7 @@ onBeforeUnmount(() => {
                     <span
                         v-if="seg.mentionUserId"
                         class="font-medium rounded px-0.5"
-                        :style="{ color: 'var(--wa-accent)', background: 'color-mix(in srgb, var(--wa-accent) 12%, transparent)' }"
+                        :style="{ color: 'var(--wa-chroma-accent-fg)', background: 'var(--wa-chroma-accent-bg-12)' }"
                     >{{ seg.text }}</span>
                     <span v-else>{{ seg.text }}</span>
                 </template>
@@ -523,8 +524,14 @@ onBeforeUnmount(() => {
                 Упомянуты: {{ mentionedUsersNotInBody.map((u) => u.name).join(', ') }}
             </div>
 
-            <div class="float-right -mb-1 -mt-1 ml-2 flex items-center gap-1 text-[11px] opacity-80">
-                <span v-if="receiptPrefix()" class="text-[var(--wa-text-secondary)]">{{ receiptPrefix() }}</span>
+            <div class="float-right -mb-1 -mt-1 ml-2 flex items-center gap-0.5 text-[11px] opacity-80">
+                <span
+                    v-if="isOutbound && receiptLabel"
+                    class="inline-flex items-center"
+                    :aria-label="receiptAriaLabel"
+                >
+                    <MessageStatus :status="receiptLabel" />
+                </span>
                 <span class="tabular-nums">{{ messageTime() }}</span>
             </div>
             <div class="clear-both" />

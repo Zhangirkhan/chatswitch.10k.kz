@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 const props = withDefaults(
     defineProps<{
@@ -180,7 +183,7 @@ async function startRecording(): Promise<void> {
         recordingTime.value = 0;
         recordInterval = setInterval(() => recordingTime.value++, 1000);
     } catch {
-        alert('Не удалось получить доступ к микрофону.');
+        showToast({ message: 'Не удалось получить доступ к микрофону.', type: 'warning' });
     }
 }
 

@@ -4,6 +4,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
 import type { PageProps } from '@/types';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 export interface OrgDepartment {
     id: number;
@@ -194,8 +197,9 @@ async function openContactDm(userId: number) {
             await loadTeamConversations();
             router.visit(route('organization.team-chat.show', id));
         }
-    } catch {
-        /* toast optional */
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showToast({ message: msg || 'Не удалось открыть личный чат.', type: 'warning' });
     }
 }
 
@@ -398,42 +402,24 @@ function clearSearch() {
 
 <template>
     <div
-        class="w-[400px] h-full relative shrink-0 overflow-hidden border-r"
+        class="h-full w-full relative overflow-hidden border-r"
         :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
     >
         <div class="w-full h-full flex flex-col bg-[var(--wa-panel)]">
-            <!-- Header -->
+            <!-- Panel header (same shell as clients) -->
             <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
                 <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
-                    Организация
+                    ChatSwitch
                 </h1>
             </div>
 
-            <SidebarSectionTabs active="organization" />
-
-            <!-- Подраздел: задачи по отделам или чат сотрудников -->
-            <div class="org-subnav px-3 pb-2 flex gap-2 shrink-0">
-                <Link
-                    :href="route('organization.index')"
-                    class="org-subnav-link"
-                    :class="{ 'org-subnav-link-active': !teamChatActive }"
-                >
-                    Задачи
-                </Link>
-                <Link
-                    :href="route('organization.team-chat.index')"
-                    class="org-subnav-link"
-                    :class="{ 'org-subnav-link-active': teamChatActive }"
-                >
-                    Чат
-                    <span v-if="teamChatUnread > 0" class="org-subnav-badge">{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
-                </Link>
-            </div>
-
-            <template v-if="!teamChatActive">
-            <!-- Search -->
+            <!-- Search bar -->
             <div class="px-3 py-2 shrink-0">
-                <div class="relative rounded-full" :style="{ background: 'var(--wa-panel-header)' }">
+                <div
+                    v-if="!teamChatActive"
+                    class="relative rounded-full"
+                    :style="{ background: 'var(--wa-panel-header)' }"
+                >
                     <div class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
                         <svg
                             class="w-4 h-4 text-[var(--wa-icon)]"
@@ -460,8 +446,123 @@ function clearSearch() {
                         </svg>
                     </button>
                 </div>
+                <div
+                    v-else
+                    class="relative rounded-full"
+                    :style="{ background: 'var(--wa-panel-header)' }"
+                >
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <svg
+                            class="w-4 h-4 text-[var(--wa-icon)]"
+                            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <input
+                        v-model="teamGlobalSearch"
+                        type="search"
+                        autocomplete="off"
+                        placeholder="Поиск по чатам, сообщениям и людям"
+                        class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
+                    />
+                    <button
+                        v-if="teamGlobalSearch"
+                        type="button"
+                        title="Очистить"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
+                        @click="clearTeamGlobalSearch"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
+            <div class="ui-sidebar-filters">
+                <SidebarSectionTabs active="organization" />
+
+                <div class="ui-sidebar-filters__group">
+                <div class="ui-pill-nav">
+                    <Link
+                        :href="route('organization.index')"
+                        class="ui-pill-nav__item"
+                        :class="{ 'is-active': !teamChatActive }"
+                    >
+                        Задачи
+                    </Link>
+                    <Link
+                        :href="route('organization.team-chat.index')"
+                        class="ui-pill-nav__item"
+                        :class="{ 'is-active': teamChatActive }"
+                    >
+                        Чат
+                        <span v-if="teamChatUnread > 0" class="ui-pill-nav__badge">{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
+                    </Link>
+                </div>
+                    <template v-if="teamChatActive">
+                        <div class="ui-pill-nav">
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': chatSidebarMode === 'chats' }"
+                                @click="chatSidebarMode = 'chats'"
+                            >
+                                Беседы
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': chatSidebarMode === 'contacts' }"
+                                @click="chatSidebarMode = 'contacts'"
+                            >
+                                Сотрудники
+                            </button>
+                        </div>
+                        <div
+                            v-if="chatSidebarMode === 'chats'"
+                            class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
+                        >
+                            <button
+                                type="button"
+                                class="ui-chip shrink-0"
+                                :class="{ 'is-active': conversationFilter === '' }"
+                                @click="setConvFilter('')"
+                            >
+                                Все
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-chip shrink-0"
+                                :class="{ 'is-active': conversationFilter === 'unread' }"
+                                @click="setConvFilter('unread')"
+                            >
+                                Непрочит.
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-chip shrink-0"
+                                :class="{ 'is-active': conversationFilter === 'department' }"
+                                @click="setConvFilter('department')"
+                            >
+                                Отделы
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-chip shrink-0"
+                                :class="{ 'is-active': conversationFilter === 'direct' }"
+                                @click="setConvFilter('direct')"
+                            >
+                                Личные
+                            </button>
+                        </div>
+                    </template>
+                    <div v-else class="ui-sidebar-filters__chips-slot" aria-hidden="true" />
+                </div>
+            </div>
+
+            <template v-if="!teamChatActive">
             <!-- Departments list -->
             <div class="flex-1 overflow-y-auto wa-scrollbar">
                 <div
@@ -524,59 +625,7 @@ function clearSearch() {
             </template>
 
             <template v-else>
-                <div class="px-3 pb-2 flex gap-2 shrink-0">
-                    <button
-                        type="button"
-                        class="org-mode-btn"
-                        :class="{ 'org-mode-btn-active': chatSidebarMode === 'chats' }"
-                        @click="chatSidebarMode = 'chats'"
-                    >
-                        Беседы
-                    </button>
-                    <button
-                        type="button"
-                        class="org-mode-btn"
-                        :class="{ 'org-mode-btn-active': chatSidebarMode === 'contacts' }"
-                        @click="chatSidebarMode = 'contacts'"
-                    >
-                        Сотрудники
-                    </button>
-                </div>
                 <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
-                    <div class="flex flex-wrap gap-1">
-                        <button
-                            type="button"
-                            class="org-filter-chip"
-                            :class="{ 'org-filter-chip-active': conversationFilter === '' }"
-                            @click="setConvFilter('')"
-                        >
-                            Все
-                        </button>
-                        <button
-                            type="button"
-                            class="org-filter-chip"
-                            :class="{ 'org-filter-chip-active': conversationFilter === 'unread' }"
-                            @click="setConvFilter('unread')"
-                        >
-                            Непрочит.
-                        </button>
-                        <button
-                            type="button"
-                            class="org-filter-chip"
-                            :class="{ 'org-filter-chip-active': conversationFilter === 'department' }"
-                            @click="setConvFilter('department')"
-                        >
-                            Отделы
-                        </button>
-                        <button
-                            type="button"
-                            class="org-filter-chip"
-                            :class="{ 'org-filter-chip-active': conversationFilter === 'direct' }"
-                            @click="setConvFilter('direct')"
-                        >
-                            Личные
-                        </button>
-                    </div>
                     <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
                         Группы отделов и личные сообщения
                     </p>
@@ -589,20 +638,13 @@ function clearSearch() {
                         Разрешить уведомления браузера при @упоминании (вкладка в фоне)
                     </button>
                     <div class="pt-1">
-                        <input
-                            v-model="teamGlobalSearch"
-                            type="search"
-                            autocomplete="off"
-                            placeholder="Поиск по чатам, сообщениям и людям…"
-                            class="w-full px-3 py-2 rounded-lg text-sm text-[var(--wa-text)] border border-[var(--wa-border)] bg-[var(--wa-panel-header)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
-                        />
                         <div
                             v-if="teamGlobalSearchLoading"
                             class="text-xs text-[var(--wa-text-secondary)] mt-1.5"
                         >Поиск…</div>
                         <div
                             v-else-if="teamGlobalSearch.trim().length >= 2 && (teamGlobalSearchConvHits.length || teamGlobalSearchMsgHits.length || teamGlobalSearchColleagueHits.length)"
-                            class="mt-2 max-h-48 overflow-y-auto rounded-lg border border-[var(--wa-border)] bg-[var(--wa-bg)] text-left"
+                            class="ui-panel mt-2 max-h-48 overflow-y-auto text-left"
                         >
                             <div v-if="teamGlobalSearchColleagueHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)]">Люди</div>
                             <button
@@ -790,12 +832,12 @@ function clearSearch() {
     justify-content: center;
 }
 .dept-badge-progress {
-    background: color-mix(in srgb, #3b82f6 90%, transparent);
+    background: color-mix(in srgb, #3b82f6 88%, var(--wa-chroma-blend));
     color: #fff;
 }
 .dept-badge-open {
-    background: color-mix(in srgb, #f59e0b 85%, transparent);
-    color: #0b0d0e;
+    background: color-mix(in srgb, #f59e0b 85%, var(--wa-chroma-blend));
+    color: #78350f;
 }
 .archive-item {
     border-top: 1px solid var(--wa-border-strong);
@@ -806,79 +848,7 @@ function clearSearch() {
     color: var(--wa-accent);
 }
 .archive-badge {
-    background: color-mix(in srgb, var(--wa-accent) 80%, transparent);
-    color: #fff;
-}
-.org-subnav-link {
-    flex: 1;
-    text-align: center;
-    padding: 0.45rem 0.5rem;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--wa-text-secondary);
-    text-decoration: none;
-    border-radius: 8px;
-    border: 1px solid var(--wa-border);
-    background: var(--wa-panel-header);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-}
-.org-subnav-link:hover {
-    background: var(--wa-panel-hover);
-    color: var(--wa-text);
-}
-.org-subnav-link-active {
-    color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
-    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel-header));
-}
-.org-subnav-badge {
-    min-width: 18px;
-    height: 18px;
-    padding: 0 0.32rem;
-    border-radius: 999px;
-    background: #8b5cf6;
-    color: #fff;
-    font-size: 0.68rem;
-    font-weight: 700;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.org-mode-btn {
-    flex: 1;
-    padding: 0.4rem 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 8px;
-    border: 1px solid var(--wa-border);
-    background: var(--wa-panel-header);
-    color: var(--wa-text-secondary);
-    cursor: pointer;
-}
-.org-mode-btn-active {
-    color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
-}
-.org-filter-chip {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.72rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border);
-    background: var(--wa-panel-header);
-    color: var(--wa-text-secondary);
-    cursor: pointer;
-    line-height: 1.2;
-}
-.org-filter-chip:hover {
-    color: var(--wa-text);
-    background: var(--wa-panel-hover);
-}
-.org-filter-chip-active {
-    color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
-    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel-header));
+    background: var(--wa-accent);
+    color: var(--wa-accent-on);
 }
 </style>
