@@ -161,8 +161,10 @@ final class OutboundChatMessageDispatcher
             $mentions
         )));
 
-        $signedText = OperatorSignature::prepend($user, $text);
-        $signedDisplayText = OperatorSignature::prepend($user, $displayText);
+        $skipSignature = data_get($metadata, 'ai.generated') === true
+            && $user->email === (string) config('chatswitch.system_user_email', 'system@chatswitch.internal');
+        $signedText = $skipSignature ? $text : OperatorSignature::prepend($user, $text);
+        $signedDisplayText = $skipSignature ? $displayText : OperatorSignature::prepend($user, $displayText);
         $waText = $signedText;
         if ($productSnapshot !== null) {
             $waText = $this->productAttachments->appendToWhatsappBody($signedText, $productSnapshot);

@@ -29,6 +29,7 @@ final class AiFunnelOrchestratorService
         private readonly CalendarAvailabilityService $availability,
         private readonly KnowledgeContextRepository $knowledge,
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
+        private readonly AiResponderResolver $responderResolver,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -1586,14 +1587,7 @@ final class AiFunnelOrchestratorService
 
     private function actor(Chat $chat, FunnelAiScenario $scenario): ?User
     {
-        if ($scenario->fallbackManager instanceof User && $scenario->fallbackManager->is_active) {
-            return $scenario->fallbackManager;
-        }
-        if ($chat->aiResponder instanceof User && $chat->aiResponder->is_active) {
-            return $chat->aiResponder;
-        }
-
-        return $chat->assignments->first(fn ($assignment) => $assignment->user?->is_active)?->user;
+        return $this->responderResolver->forChat($chat, $scenario);
     }
 
     /**

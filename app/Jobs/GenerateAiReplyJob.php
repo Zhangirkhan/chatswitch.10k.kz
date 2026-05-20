@@ -7,8 +7,8 @@ namespace App\Jobs;
 use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\Message;
-use App\Models\User;
 use App\Services\AI\AiReplyGenerator;
+use App\Services\AI\AiResponderResolver;
 use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
 use Illuminate\Bus\Queueable;
@@ -33,8 +33,12 @@ final class GenerateAiReplyJob implements ShouldQueue
         AiReplyGenerator $generator,
         OutboundChatMessageDispatcher $dispatcher,
         WhatsappAiTypingService $typing,
+        AiResponderResolver $responderResolver,
     ): void {
-        $chat = Chat::query()->with('aiResponder')->whereKey($this->chatId)->first();
+        $chat = Chat::query()
+            ->with(['aiResponder', 'assignments.user', 'departments', 'funnel.aiScenario'])
+            ->whereKey($this->chatId)
+            ->first();
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
@@ -52,13 +56,7 @@ final class GenerateAiReplyJob implements ShouldQueue
             return;
         }
 
-        $responder = $chat->aiResponder;
-        if ($responder === null && $chat->ai_responder_user_id !== null) {
-            $responder = User::query()->whereKey($chat->ai_responder_user_id)->first();
-        }
-        if ($responder === null) {
-            $responder = $chat->assignments()->with('user')->first()?->user;
-        }
+        $responder = $responderResolver->forChat($chat, $chat->funnel?->aiScenario);
         if ($responder === null) {
             return;
         }

@@ -12,6 +12,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\AiReadinessService;
+use App\Services\AI\AiResponderResolver;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ final class ChatAiSettingsController extends Controller
 {
     public function __construct(
         private readonly AiReadinessService $readinessService,
+        private readonly AiResponderResolver $responderResolver,
     ) {}
 
     public function update(Request $request, Chat $chat): JsonResponse
@@ -36,7 +38,8 @@ final class ChatAiSettingsController extends Controller
         ]);
 
         $user = $request->user();
-        $responder = $this->resolveResponder($chat, $user, $validated['ai_responder_user_id'] ?? null);
+        $responder = $this->resolveResponder($chat, $user, $validated['ai_responder_user_id'] ?? null)
+            ?? $this->responderResolver->forChat($chat, $chat->funnel?->aiScenario);
         $companyId = $this->resolveCompanyId();
 
         $aiEnabled = (bool) $validated['ai_enabled'];
