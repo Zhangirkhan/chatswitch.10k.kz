@@ -21,6 +21,9 @@ final class Department extends Model
         'description',
         'parent_id',
         'is_active',
+        'work_schedule_enabled',
+        'work_schedule_timezone',
+        'work_schedule',
     ];
 
     protected function casts(): array
@@ -28,6 +31,8 @@ final class Department extends Model
         return [
             'is_active' => 'boolean',
             'parent_id' => 'integer',
+            'work_schedule_enabled' => 'boolean',
+            'work_schedule' => 'array',
         ];
     }
 
