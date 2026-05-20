@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\AI;
 
 use App\Models\AiOrchestratorRun;
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\Company;
+use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\Product;
 use App\Models\WhatsappSession;
@@ -311,6 +313,182 @@ final class AiFunnelOrchestratorGuardrailsTest extends TestCase
         $normalized = $this->invokeNormalizeClientGreeting($chat, $trigger, $plan);
 
         $this->assertStringStartsWith('Здравствуйте!', (string) $normalized->customerReply);
+    }
+
+    public function test_reschedule_skips_manager_confirmation_and_updates_reply(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        CalendarEvent::query()->create([
+            'company_id' => $company->id,
+            'chat_id' => $chat->id,
+            'user_id' => 1,
+            'title' => 'Замер',
+            'starts_at' => now()->addHours(2),
+            'ends_at' => now()->addHours(3),
+            'source' => CalendarEvent::SOURCE_AI_AUTO,
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'извиняюсь, можно на 17:20 сегодня? перезаписаться',
+            'message_timestamp' => now(),
+        ]);
+
+        $startsAt = now()->setTime(17, 20)->toIso8601String();
+        $plan = new AiFunnelOrchestratorPlan(
+            customerReply: 'Записываю вас на замер сегодня в 18:00.',
+            targetFunnelStageId: null,
+            appointment: [
+                'service_name' => 'Замер',
+                'starts_at' => $startsAt,
+                'duration_minutes' => 60,
+            ],
+            assigneeUserId: null,
+            managerNote: 'Нужен менеджер',
+            task: ['title' => 'Подтвердить', 'body' => 'test'],
+            requiresManagerAttention: true,
+            confidence: 0.9,
+            reason: 'test',
+        );
+
+        $scenario = new FunnelAiScenario([
+            'manager_confirmation_required' => true,
+            'booking_horizon_days' => 30,
+        ]);
+
+        $service = app(AiFunnelOrchestratorService::class);
+        $normalize = new ReflectionMethod(AiFunnelOrchestratorService::class, 'normalizeReschedule');
+        $normalize->setAccessible(true);
+        $normalized = $normalize->invoke($service, $chat, $trigger, $plan);
+
+        $this->assertFalse($normalized->requiresManagerAttention);
+        $this->assertNull($normalized->managerNote);
+
+        $applyReply = new ReflectionMethod(AiFunnelOrchestratorService::class, 'applyAppointmentCustomerReply');
+        $applyReply->setAccessible(true);
+        $withReply = $applyReply->invoke($service, $chat, $trigger, $normalized);
+
+        $this->assertStringContainsString('Переношу', (string) $withReply->customerReply);
+        $this->assertStringContainsString('17:20', (string) $withReply->customerReply);
+
+        $policy = new ReflectionMethod(AiFunnelOrchestratorService::class, 'applyAutomationPolicy');
+        $policy->setAccessible(true);
+        $afterPolicy = $policy->invoke($service, $chat, $trigger, $scenario, null, $withReply);
+
+        $this->assertNotNull($afterPolicy->appointment);
+        $this->assertStringContainsString('Переношу', (string) $afterPolicy->customerReply);
+    }
+
+    public function test_reschedule_reply_explains_when_requested_slot_is_unavailable(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        CalendarEvent::query()->create([
+            'company_id' => $company->id,
+            'chat_id' => $chat->id,
+            'user_id' => 1,
+            'title' => 'Замер',
+            'starts_at' => now()->addHours(2),
+            'ends_at' => now()->addHours(3),
+            'source' => CalendarEvent::SOURCE_AI_AUTO,
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'можно на 17:20 сегодня? перезаписаться',
+            'message_timestamp' => now(),
+        ]);
+
+        $plan = new AiFunnelOrchestratorPlan(
+            customerReply: 'Переношу на 18:00.',
+            targetFunnelStageId: null,
+            appointment: [
+                'service_name' => 'Замер',
+                'starts_at' => now()->setTime(18, 0)->toIso8601String(),
+                'duration_minutes' => 60,
+            ],
+            assigneeUserId: null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: 0.9,
+            reason: 'test',
+        );
+
+        $service = app(AiFunnelOrchestratorService::class);
+        $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'applyAppointmentCustomerReply');
+        $method->setAccessible(true);
+        $result = $method->invoke($service, $chat, $trigger, $plan);
+
+        $reply = (string) $result->customerReply;
+        $this->assertStringContainsString('17:20', $reply);
+        $this->assertStringContainsString('18:00', $reply);
+        $this->assertStringContainsString('занят', mb_strtolower($reply));
+        $this->assertStringContainsString('Переношу', $reply);
+    }
+
+    public function test_booking_reply_explains_when_requested_slot_is_unavailable(): void
+    {
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $session->company_id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'можно на 17:20 сегодня?',
+            'message_timestamp' => now(),
+        ]);
+
+        $plan = new AiFunnelOrchestratorPlan(
+            customerReply: 'Записываю вас на замер сегодня в 18:00.',
+            targetFunnelStageId: null,
+            appointment: [
+                'service_name' => 'Замер',
+                'starts_at' => now()->setTime(18, 0)->toIso8601String(),
+                'duration_minutes' => 60,
+            ],
+            assigneeUserId: null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: 0.9,
+            reason: 'test',
+        );
+
+        $service = app(AiFunnelOrchestratorService::class);
+        $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'applyAppointmentCustomerReply');
+        $method->setAccessible(true);
+        $result = $method->invoke($service, $chat, $trigger, $plan);
+
+        $reply = (string) $result->customerReply;
+        $this->assertStringContainsString('17:20', $reply);
+        $this->assertStringContainsString('18:00', $reply);
+        $this->assertTrue(
+            str_contains(mb_strtolower($reply), 'занят') || str_contains(mb_strtolower($reply), 'свободного окна нет'),
+        );
+        $this->assertStringContainsString('ближайш', mb_strtolower($reply));
     }
 
     private function invokeNormalizeCatalogInquiry(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan

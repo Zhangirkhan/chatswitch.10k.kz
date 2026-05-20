@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
@@ -100,6 +101,22 @@ final class AiFunnelPlannerService
             ] : null,
             'candidate_assignees' => $candidateAssignees,
             'available_slots' => $availableSlots,
+            'existing_appointments' => CalendarEvent::query()
+                ->where('chat_id', $chat->id)
+                ->where('starts_at', '>=', now()->subHours(2))
+                ->orderBy('starts_at')
+                ->limit(3)
+                ->get(['id', 'title', 'starts_at', 'ends_at', 'assignee_user_id', 'source'])
+                ->map(fn (CalendarEvent $event): array => [
+                    'id' => $event->id,
+                    'title' => $event->title,
+                    'starts_at' => $event->starts_at?->toIso8601String(),
+                    'ends_at' => $event->ends_at?->toIso8601String(),
+                    'assignee_user_id' => $event->assignee_user_id,
+                    'source' => $event->source,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
@@ -145,7 +162,7 @@ final class AiFunnelPlannerService
 7. Ответ клиенту должен быть коротким, естественным и без служебных деталей.
 8. Не повторяй сообщение клиента как customer_reply. Ответ должен быть репликой компании.
 9. Если appointment_request не null, время в customer_reply обязано совпадать со starts_at appointment_request в часовом поясе клиента/компании.
-10. Если клиент просит перенести уже назначенный замер и новый слот есть в available_slots, создай appointment_request на новый слот и не проси менеджера.
+10. Если в existing_appointments уже есть запись и клиент просит перенести/перезаписать на другое время — это перенос: создай appointment_request на новый слот из available_slots, requires_manager_attention=false, не проси менеджера. Обнови существующую запись, а не создавай дубль.
 11. Если нужно просто уточнить параметры, адрес, изделие или время — задай вопрос клиенту. Не ставь requires_manager_attention=true только из-за нехватки обычных данных.
 12. Перед любым вопросом проверь историю и последнее сообщение клиента. Не спрашивай повторно данные, которые клиент уже дал: адрес, изделие, размер, дату, время, оплату, ограничения доставки или подтверждение выполнения.
 13. Если клиент сообщает, что оплатил/внёс предоплату, переводи в следующий подходящий этап и не проси реквизиты или дату оплаты повторно.
@@ -154,6 +171,8 @@ final class AiFunnelPlannerService
 16. Если клиент спрашивает, что есть / ассортимент / какие товары или услуги — перечисли кратко позиции из базы знаний в customer_reply. Не задавай снова вопрос «что именно хотите купить».
 17. Если клиент поздоровался и это первый ответ компании в чате — начни с короткого приветствия (Здравствуйте / Добрый день), без шаблонов вроде «Спасибо за интерес».
 18. Если клиент просит напомнить/предупредить за N часов или минут до визита — укажи reminder_lead_minutes в минутах (30 = полчаса, 120 = 2 часа) и подтверди это в customer_reply.
+19. Первичная новая запись (existing_appointments пуст) при manager_confirmation_required в сценарии — можно requires_manager_attention=true; перенос существующей записи — всегда без менеджера, если слот выбран.
+20. Если клиент просил конкретное время, а в appointment_request выбран другой слот из available_slots — в customer_reply обязательно объясни: запрошенное время занято, предлагаешь ближайшее свободное (назови оба времени). Не пиши так, будто записал на запрошенное время.
 
 Контекст оркестратора:
 {$json}
