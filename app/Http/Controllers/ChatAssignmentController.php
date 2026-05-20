@@ -11,6 +11,7 @@ use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Support\ChatBroadcastAudience;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,7 @@ final class ChatAssignmentController extends Controller
 {
     public function __construct(
         private readonly ChatService $chatService,
+        private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
     ) {}
 
     public function store(Request $request, Chat $chat): JsonResponse
@@ -38,6 +40,7 @@ final class ChatAssignmentController extends Controller
         );
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->assignmentCalendarSync->syncFromAssignmentChange($chat, $oldIds, $newIds);
         $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);
@@ -57,6 +60,7 @@ final class ChatAssignmentController extends Controller
         $assignment->delete();
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->assignmentCalendarSync->syncFromAssignmentChange($chat, $oldIds, $newIds);
         $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);
@@ -92,6 +96,7 @@ final class ChatAssignmentController extends Controller
         }
 
         $newIds = $chat->assignments()->pluck('user_id')->all();
+        $this->assignmentCalendarSync->syncFromAssignmentChange($chat, $oldIds, $newIds);
         $this->syncAiResponder($chat, $newIds);
         $this->chatService->logAssignmentChange($chat, $request->user(), $oldIds, $newIds);
         $this->broadcastAssignmentAdded($chat, $oldIds, $newIds);

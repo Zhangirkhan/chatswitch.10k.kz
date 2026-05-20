@@ -16,6 +16,7 @@ use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Calendar\AppointmentBookingService;
+use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\Funnel\FunnelStageTransitionGuard;
@@ -35,6 +36,7 @@ final class AiFunnelActionExecutor
         private readonly TeamChatService $teamChatService,
         private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
+        private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
     ) {}
 
     /**
@@ -229,9 +231,7 @@ final class AiFunnelActionExecutor
         $reminderLeadMinutes = isset($appointment['reminder_lead_minutes']) && is_numeric($appointment['reminder_lead_minutes'])
             ? (int) $appointment['reminder_lead_minutes']
             : null;
-        $assignee = $plan->assigneeUserId
-            ? User::query()->whereKey($plan->assigneeUserId)->first()
-            : null;
+        $assignee = $this->resolveAppointmentAssignee($chat, $plan, $actor);
 
         $existing = CalendarEvent::query()
             ->where('chat_id', $chat->id)
@@ -249,7 +249,7 @@ final class AiFunnelActionExecutor
 
             $existing->forceFill([
                 'user_id' => $actor->id,
-                'assignee_user_id' => $assignee?->id ?? $existing->assignee_user_id ?? $actor->id,
+                'assignee_user_id' => $assignee->id,
                 'trigger_message_id' => $trigger->id,
                 'title' => $this->eventTitle($serviceName, $chat),
                 'description' => $this->eventDescription($serviceName, $chat, $appointment['client_note'] ?? null),
@@ -264,7 +264,7 @@ final class AiFunnelActionExecutor
                         'service_name' => $serviceName,
                         'duration_minutes' => $duration,
                         'trigger_message_id' => $trigger->id,
-                        'assignee_user_id' => $assignee?->id,
+                        'assignee_user_id' => $assignee->id,
                     ],
                 ],
             ])->save();
@@ -277,6 +277,8 @@ final class AiFunnelActionExecutor
                 $startsAt,
                 $reminderLeadMinutes,
             );
+
+            $this->assignmentCalendarSync->ensureChatAssignment($chat, $assignee->id, $actor->id);
 
             $action->forceFill(['calendar_event_id' => $existing->id])->save();
 
@@ -296,9 +298,30 @@ final class AiFunnelActionExecutor
         );
 
         $event = $booked['event'];
+        $this->assignmentCalendarSync->ensureChatAssignment($chat, $assignee->id, $actor->id);
         $action->forceFill(['calendar_event_id' => $event->id])->save();
 
         return ['calendar_event_id' => $event->id];
+    }
+
+    private function resolveAppointmentAssignee(Chat $chat, AiFunnelOrchestratorPlan $plan, User $actor): User
+    {
+        if ($plan->assigneeUserId !== null) {
+            $fromPlan = User::query()->whereKey($plan->assigneeUserId)->where('is_active', true)->first();
+            if ($fromPlan instanceof User) {
+                return $fromPlan;
+            }
+        }
+
+        $fromChat = $this->assignmentCalendarSync->primaryAssigneeFromChat($chat);
+        if ($fromChat !== null) {
+            $user = User::query()->whereKey($fromChat)->where('is_active', true)->first();
+            if ($user instanceof User) {
+                return $user;
+            }
+        }
+
+        return $actor;
     }
 
     private function eventTitle(string $serviceName, Chat $chat): string
@@ -336,6 +359,7 @@ final class AiFunnelActionExecutor
             ['assigned_by' => $actor->id],
         );
         $newIds = $chat->assignments()->pluck('user_id')->map(fn ($id) => (int) $id)->all();
+        $this->assignmentCalendarSync->syncFromAssignmentChange($chat, $oldIds, $newIds);
         $this->chatService->logAssignmentChange($chat, $actor, $oldIds, $newIds);
         $action->forceFill(['assigned_user_id' => $userId])->save();
 
