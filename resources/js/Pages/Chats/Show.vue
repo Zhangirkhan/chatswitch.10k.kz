@@ -3,6 +3,7 @@ import ChatLayout from '@/Layouts/ChatLayout.vue';
 import ChatHeader from './Partials/ChatHeader.vue';
 import ChatMessage from './Partials/ChatMessage.vue';
 import ChatInput from './Partials/ChatInput.vue';
+import OrchestratorApprovalBanner, { type PendingOrchestratorApproval } from './Partials/OrchestratorApprovalBanner.vue';
 import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
 import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
@@ -89,13 +90,36 @@ const props = defineProps<{
         status: string;
         label: string;
     } | null;
+    pendingOrchestratorApproval?: PendingOrchestratorApproval | null;
 }>();
 
 const { show: showToast } = useToastStore();
 
 const readinessBannerDismissed = ref(false);
-
 const funnelRealtime = ref<Partial<Chat>>({});
+const pendingApproval = ref<PendingOrchestratorApproval | null>(props.pendingOrchestratorApproval ?? null);
+
+watch(
+    () => props.pendingOrchestratorApproval,
+    (value) => {
+        pendingApproval.value = value ?? null;
+    },
+);
+
+function onOrchestratorApproved(payload: {
+    ai_orchestrator_status: string | null;
+    ai_orchestrator_last_summary: string | null;
+}): void {
+    funnelRealtime.value = {
+        ...funnelRealtime.value,
+        ai_orchestrator_status: payload.ai_orchestrator_status as Chat['ai_orchestrator_status'],
+        ai_orchestrator_last_summary: payload.ai_orchestrator_last_summary,
+    };
+}
+
+function onOrchestratorApprovalCleared(): void {
+    pendingApproval.value = null;
+}
 
 const headerChat = computed(() => ({
     ...props.chat,
@@ -598,7 +622,11 @@ function cleanupEcho() {
 
 <template>
     <Head :title="headerChat.chat_name || 'Чат'" />
-    <ChatLayout :chats="localChats" :selected-chat-id="headerChat.id">
+    <ChatLayout
+        :chats="localChats"
+        :selected-chat-id="headerChat.id"
+        :scope="headerChat.is_archived ? 'archived' : 'active'"
+    >
         <div class="flex h-full w-full min-h-0">
             <div class="flex flex-col flex-1 min-w-0 min-h-0">
                 <div
@@ -800,6 +828,14 @@ function cleanupEcho() {
                         </p>
                     </div>
                     </div>
+
+                    <OrchestratorApprovalBanner
+                        v-if="pendingApproval"
+                        :chat-id="chat.id"
+                        :pending="pendingApproval"
+                        @approved="onOrchestratorApproved"
+                        @cleared="onOrchestratorApprovalCleared"
+                    />
 
                     <ChatInput
                         :chat-id="chat.id"

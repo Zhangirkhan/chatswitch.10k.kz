@@ -33,6 +33,7 @@ use App\Models\Service;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\AiFunnelOrchestratorService;
 use App\Services\AI\AiReadinessService;
 use App\Services\AI\AiSimulationService;
 use App\Services\AI\ChatAttentionService;
@@ -72,6 +73,7 @@ final class ChatController extends Controller
         private readonly MessageAiDecisionService $messageAiDecisions,
         private readonly AiSimulationService $aiSimulation,
         private readonly AiReadinessService $aiReadiness,
+        private readonly AiFunnelOrchestratorService $aiOrchestrator,
     ) {}
 
     public function index(Request $request): Response
@@ -85,6 +87,8 @@ final class ChatController extends Controller
             $listFilter,
         )
             ->where('is_archived', false)
+            // Пустые оболочки групп после sync-groups не показываем — только чаты с перепиской.
+            ->whereNotNull('last_message_at')
             ->paginate(self::CHAT_LIST_PER_PAGE);
 
         $this->chatService->enrichAttentionMeta($chats->items());
@@ -141,6 +145,7 @@ final class ChatController extends Controller
         $listFilter = $this->chatListFilter($request);
         $paginator = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership, $listFilter)
             ->where('is_archived', $archived)
+            ->when(! $archived, fn ($q) => $q->whereNotNull('last_message_at'))
             ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
 
         $this->chatService->enrichAttentionMeta($paginator->items());
@@ -251,6 +256,7 @@ final class ChatController extends Controller
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
             'aiStatus' => $this->latestAiStatus($chat, $request->user()),
+            'pendingOrchestratorApproval' => $this->pendingOrchestratorApproval($chat),
             'sidebarInsights' => $this->sidebarInsights($chat),
             'listOwnership' => $listOwnership,
             'listFilter' => $listFilter,
@@ -431,6 +437,74 @@ final class ChatController extends Controller
     /**
      * @return list<array{id: int, status: string, label: string, reason: string|null, confidence: float|null, target_stage: string|null, customer_reply: string|null, task_title: string|null, trigger_message_id: int|null, completed_at: string|null}>
      */
+    /**
+     * @return array{
+     *     run_id: int,
+     *     summary: string,
+     *     appointment_label: string|null,
+     *     stage_name: string|null,
+     *     manager_note: string|null
+     * }|null
+     */
+    private function pendingOrchestratorApproval(Chat $chat): ?array
+    {
+        if ($chat->ai_orchestrator_status !== AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
+            return null;
+        }
+
+        $run = AiOrchestratorRun::query()
+            ->where('chat_id', $chat->id)
+            ->where('status', AiOrchestratorRun::STATUS_NEEDS_MANAGER)
+            ->latest('id')
+            ->first(['id', 'plan', 'reason']);
+
+        if ($run === null) {
+            return null;
+        }
+
+        $pending = data_get($run->plan, 'pending_plan');
+        if (! is_array($pending) || $pending === []) {
+            return null;
+        }
+
+        $appointmentLabel = null;
+        $appointment = is_array($pending['appointment_request'] ?? null) ? $pending['appointment_request'] : null;
+        if ($appointment !== null && is_string($appointment['starts_at'] ?? null)) {
+            try {
+                $startsAt = \Carbon\Carbon::parse($appointment['starts_at']);
+                $time = $startsAt->format('H:i');
+                $appointmentLabel = $startsAt->isToday()
+                    ? 'сегодня в '.$time
+                    : ($startsAt->isTomorrow() ? 'завтра в '.$time : $startsAt->locale('ru')->isoFormat('D MMMM').' в '.$time);
+            } catch (Throwable) {
+                $appointmentLabel = null;
+            }
+        }
+
+        $stageName = null;
+        $stageId = (int) ($pending['target_funnel_stage_id'] ?? 0);
+        if ($stageId > 0) {
+            $stageName = FunnelStage::query()->whereKey($stageId)->value('name');
+        }
+
+        $managerNote = is_string(data_get($run->plan, 'manager_note'))
+            ? data_get($run->plan, 'manager_note')
+            : null;
+
+        $parts = array_filter([
+            $appointmentLabel !== null ? 'Запись: замер '.$appointmentLabel : null,
+            is_string($stageName) && $stageName !== '' ? 'Этап: '.$stageName : null,
+        ]);
+
+        return [
+            'run_id' => $run->id,
+            'summary' => $parts !== [] ? implode('. ', $parts) : 'AI предложил действие, требующее подтверждения.',
+            'appointment_label' => $appointmentLabel,
+            'stage_name' => is_string($stageName) ? $stageName : null,
+            'manager_note' => $managerNote,
+        ];
+    }
+
     private function aiOrchestratorHistory(Chat $chat): array
     {
         return AiOrchestratorRun::query()
@@ -722,6 +796,47 @@ final class ChatController extends Controller
         return response()->json([
             'success' => true,
             'task_id' => $post?->id,
+        ]);
+    }
+
+    public function approveOrchestrator(Request $request, Chat $chat, AiOrchestratorRun $run): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            abort(403);
+        }
+
+        if (! $user->can('manageAi', $chat) && ! $user->hasAnyRole(['administrator', 'manager'])) {
+            abort(403);
+        }
+
+        if ((int) $run->chat_id !== (int) $chat->id) {
+            abort(404);
+        }
+
+        try {
+            $this->aiOrchestrator->approvePendingRun($run, $user);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            Log::warning('[chat] orchestrator approval failed', [
+                'chat_id' => $chat->id,
+                'run_id' => $run->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Не удалось подтвердить действие AI.'], 502);
+        }
+
+        $chat->refresh();
+
+        return response()->json([
+            'success' => true,
+            'chat' => [
+                'ai_orchestrator_status' => $chat->ai_orchestrator_status,
+                'ai_orchestrator_last_summary' => $chat->ai_orchestrator_last_summary,
+            ],
+            'pending_orchestrator_approval' => $this->pendingOrchestratorApproval($chat),
         ]);
     }
 
@@ -1251,25 +1366,22 @@ final class ChatController extends Controller
                 $waId = (string) $c['id'];
                 $name = trim((string) ($c['name'] ?? '')) ?: $waId;
 
-                $chat = Chat::firstOrCreate(
-                    ['whatsapp_chat_id' => $waId, 'whatsapp_session_id' => $session->id],
-                    [
-                        'chat_name' => $name,
-                        'is_group' => true,
-                        'last_message_at' => null,
-                    ],
-                );
+                // Обновляем только уже существующие группы. Новые появятся при первом сообщении (webhook).
+                $chat = Chat::query()
+                    ->where('whatsapp_chat_id', $waId)
+                    ->where('whatsapp_session_id', $session->id)
+                    ->first();
 
-                if ($chat->wasRecentlyCreated) {
-                    $created++;
-                } else {
-                    if (($chat->chat_name ?? '') === '' || $chat->chat_name === $chat->whatsapp_chat_id) {
-                        $chat->update(['chat_name' => $name, 'is_group' => true]);
-                        $updated++;
-                    } elseif (! $chat->is_group) {
-                        $chat->update(['is_group' => true]);
-                        $updated++;
-                    }
+                if ($chat === null) {
+                    continue;
+                }
+
+                if (($chat->chat_name ?? '') === '' || $chat->chat_name === $chat->whatsapp_chat_id) {
+                    $chat->update(['chat_name' => $name, 'is_group' => true]);
+                    $updated++;
+                } elseif (! $chat->is_group) {
+                    $chat->update(['is_group' => true]);
+                    $updated++;
                 }
             }
         }

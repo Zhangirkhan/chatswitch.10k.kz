@@ -9,6 +9,7 @@ use App\Http\Controllers\Analytics\DialogAnalyticsPageController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
 use App\Http\Controllers\ApiDocumentationController;
+use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
@@ -51,6 +52,15 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::redirect('/status', '/settings/connections')->name('status.index');
     Route::redirect('/channels', '/settings/connections')->name('channels.index');
+
+    Route::middleware('role:administrator,manager')->group(function (): void {
+        Route::get('/broadcasts', [BroadcastController::class, 'index'])->name('broadcasts.index');
+        Route::post('/broadcasts/preview', [BroadcastController::class, 'preview'])->name('broadcasts.preview');
+        Route::post('/broadcasts', [BroadcastController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('broadcasts.store');
+        Route::get('/broadcasts/{campaign}', [BroadcastController::class, 'show'])->name('broadcasts.show');
+    });
 
     Route::middleware('role:administrator,manager,employee')->group(function (): void {
         Route::get('/ai-chat', [AiWorkspaceController::class, 'index'])->name('ai-chat.index');
@@ -106,6 +116,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/chats/{chat}/ai-simulate', [ChatController::class, 'simulateAi'])
             ->middleware('throttle:20,1')
             ->name('chats.ai-simulate');
+        Route::post('/chats/{chat}/orchestrator-runs/{run}/approve', [ChatController::class, 'approveOrchestrator'])
+            ->middleware('throttle:30,1')
+            ->name('chats.orchestrator.approve');
 
         Route::post('/chats/{chat}/upload-file', [ChatController::class, 'uploadFile'])->name('chats.upload-file');
         Route::post('/chats/{chat}/send-contact', [ChatController::class, 'sendContact'])->name('chats.send-contact');
