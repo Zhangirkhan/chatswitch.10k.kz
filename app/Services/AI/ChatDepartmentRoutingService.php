@@ -21,22 +21,24 @@ final class ChatDepartmentRoutingService
     ) {}
 
     /**
-     * Назначает отдел чату, если он ещё не привязан. Возвращает true, если отдел добавлен.
+     * По текущему сообщению определяет подходящий отдел, закрепляет его за чатом
+     * и возвращает модель для дальнейших проверок (график, автоответ).
      */
-    public function routeIfNeeded(Chat $chat, Message $triggerMessage): bool
+    public function resolveAndAssignDepartment(Chat $chat, Message $triggerMessage): ?Department
     {
-        if ($chat->is_group || ! (bool) config('funnel.department_routing.enabled', true)) {
-            return false;
+        if ($chat->is_group) {
+            return $this->primaryDepartment($chat);
+        }
+
+        if (! (bool) config('funnel.department_routing.enabled', true)) {
+            return $this->primaryDepartment($chat);
         }
 
         $chat->loadMissing('departments');
-        if ($chat->departments->isNotEmpty()) {
-            return false;
-        }
-
         $classification = $this->classifier->classify($chat, $triggerMessage);
+
         if ($classification === null) {
-            return false;
+            return $this->primaryDepartment($chat);
         }
 
         $department = Department::query()
@@ -45,27 +47,68 @@ final class ChatDepartmentRoutingService
             ->first();
 
         if (! $department instanceof Department) {
+            return $this->primaryDepartment($chat);
+        }
+
+        $targetId = (int) $department->id;
+        $currentIds = $chat->departments
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($currentIds !== [$targetId]) {
+            DB::transaction(function () use ($chat, $department): void {
+                $chat->departments()->sync([(int) $department->id]);
+                $this->assignInitialFunnel($chat, $department);
+            });
+
+            $chat->load('departments');
+
+            $body = $currentIds === []
+                ? 'AI назначил отдел «'.$department->name.'». '.$classification->reason
+                : 'AI определил для обращения отдел «'.$department->name.'». '.$classification->reason;
+
+            $this->chatService->logSystemMessage($chat, $body);
+
+            Log::info('[department-routing] assigned', [
+                'chat_id' => $chat->id,
+                'department_id' => $department->id,
+                'confidence' => $classification->confidence,
+                'replaced' => $currentIds !== [],
+            ]);
+        } elseif ($chat->funnel_id === null) {
+            $this->assignInitialFunnel($chat, $department);
+        }
+
+        return $department;
+    }
+
+    /**
+     * @deprecated Используйте {@see resolveAndAssignDepartment()}.
+     */
+    public function routeIfNeeded(Chat $chat, Message $triggerMessage): bool
+    {
+        $before = $chat->departments()->pluck('departments.id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $department = $this->resolveAndAssignDepartment($chat, $triggerMessage);
+        if ($department === null) {
             return false;
         }
 
-        DB::transaction(function () use ($chat, $department, $classification): void {
-            $chat->departments()->sync([(int) $department->id]);
-            $this->assignInitialFunnel($chat, $department);
-        });
+        $after = $chat->departments()->pluck('departments.id')->map(fn ($id) => (int) $id)->sort()->values()->all();
 
-        $chat->load('departments');
-        $this->chatService->logSystemMessage(
-            $chat,
-            'AI назначил отдел «'.$department->name.'». '.$classification->reason,
-        );
+        return $before !== $after;
+    }
 
-        Log::info('[department-routing] assigned', [
-            'chat_id' => $chat->id,
-            'department_id' => $department->id,
-            'confidence' => $classification->confidence,
-        ]);
+    private function primaryDepartment(Chat $chat): ?Department
+    {
+        $chat->loadMissing('departments');
 
-        return true;
+        return $chat->departments
+            ->where('is_active', true)
+            ->sortBy('id')
+            ->first();
     }
 
     private function assignInitialFunnel(Chat $chat, Department $department): void

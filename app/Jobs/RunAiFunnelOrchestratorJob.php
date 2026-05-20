@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\AiFunnelOrchestratorService;
+use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use Illuminate\Bus\Queueable;
@@ -29,13 +30,18 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
     public function handle(
         AiFunnelOrchestratorService $orchestrator,
         WhatsappAiTypingService $typing,
+        ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
     ): void {
         $chat = Chat::query()->with(['departments', 'funnel.aiScenario'])->whereKey($this->chatId)->first();
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
-        if ($chat !== null && $trigger !== null && $offHoursReply->tryReply($chat, $trigger)) {
-            return;
+        if ($chat !== null && $trigger !== null) {
+            $department = $departmentRouting->resolveAndAssignDepartment($chat, $trigger);
+            $chat->refresh();
+            if ($offHoursReply->tryReply($chat, $trigger, $department)) {
+                return;
+            }
         }
 
         if ($chat === null) {

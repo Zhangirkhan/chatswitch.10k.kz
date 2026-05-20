@@ -23,15 +23,16 @@ final class ChatOffHoursReplyService
     ) {}
 
     /**
-     * Отправляет вежливый автоответ вне графика. true — дальнейшую AI-обработку пропускаем.
+     * Отправляет вежливый автоответ вне графика выбранного отдела.
+     * Отдел нужно сначала определить через {@see ChatDepartmentRoutingService::resolveAndAssignDepartment()}.
+     * true — дальнейшую AI-обработку пропускаем.
      */
-    public function tryReply(Chat $chat, Message $trigger, ?CarbonInterface $at = null): bool
+    public function tryReply(Chat $chat, Message $trigger, ?Department $department, ?CarbonInterface $at = null): bool
     {
         if ($chat->is_group || $trigger->direction !== 'inbound' || ! $chat->ai_enabled) {
             return false;
         }
 
-        $department = $this->schedules->primaryDepartmentForChat($chat);
         if (! $department instanceof Department) {
             return false;
         }

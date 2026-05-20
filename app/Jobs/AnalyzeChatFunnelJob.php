@@ -58,11 +58,10 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
             return;
         }
 
-        if ($departmentRouting->routeIfNeeded($chat, $latestInbound)) {
-            $chat->refresh();
-        }
+        $department = $departmentRouting->resolveAndAssignDepartment($chat, $latestInbound);
+        $chat->refresh();
 
-        if ($offHoursReply->tryReply($chat, $latestInbound)) {
+        if ($offHoursReply->tryReply($chat, $latestInbound, $department)) {
             return;
         }
 

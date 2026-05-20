@@ -68,15 +68,15 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
 
         $message->loadMissing('chat');
 
+        $resolvedDepartment = null;
         if ($message->chat !== null && $message->direction === 'inbound') {
-            if ($departmentRouting->routeIfNeeded($message->chat, $message)) {
-                $message->chat->refresh();
-            }
+            $resolvedDepartment = $departmentRouting->resolveAndAssignDepartment($message->chat, $message);
+            $message->chat->refresh();
         }
 
         if ($message->chat !== null
             && $message->direction === 'inbound'
-            && $offHoursReply->tryReply($message->chat, $message)) {
+            && $offHoursReply->tryReply($message->chat, $message, $resolvedDepartment)) {
             return;
         }
 

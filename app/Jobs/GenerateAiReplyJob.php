@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\AiResponderResolver;
+use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
@@ -35,6 +36,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         OutboundChatMessageDispatcher $dispatcher,
         WhatsappAiTypingService $typing,
         AiResponderResolver $responderResolver,
+        ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
     ): void {
         $chat = Chat::query()
@@ -47,7 +49,10 @@ final class GenerateAiReplyJob implements ShouldQueue
             return;
         }
 
-        if ($offHoursReply->tryReply($chat, $trigger)) {
+        $department = $departmentRouting->resolveAndAssignDepartment($chat, $trigger);
+        $chat->refresh();
+
+        if ($offHoursReply->tryReply($chat, $trigger, $department)) {
             return;
         }
 
