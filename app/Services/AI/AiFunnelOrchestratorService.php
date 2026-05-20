@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use App\Events\ChatAiOrchestratorUpdated;
 use App\Jobs\GenerateAiReplyJob;
 use App\Models\AiOrchestratorRun;
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
@@ -101,7 +102,9 @@ final class AiFunnelOrchestratorService
                 $plan = $this->lowConfidencePlan($chat, $trigger, $rule, $plan, $minConfidence);
             }
             $plan = $this->finalizeCustomerFacingPlan($chat, $trigger, $plan);
-            $plan = $this->applyAutomationPolicy($chat, $scenario, $rule, $plan);
+            $plan = $this->applyAppointmentCustomerReply($chat, $trigger, $plan);
+            $pendingPlan = $this->buildPendingPlanSnapshot($chat, $trigger, $scenario, $rule, $plan);
+            $plan = $this->applyAutomationPolicy($chat, $trigger, $scenario, $rule, $plan);
             $plan = $this->sanitizeStageTransition($chat, $plan);
 
             $actions = $this->executor->execute($run, $chat, $trigger, $actor, $scenario, $rule, $plan);
@@ -114,10 +117,11 @@ final class AiFunnelOrchestratorService
                 'confidence' => $plan->confidence,
                 'reason' => $plan->reason,
                 'context' => $context,
-                'plan' => [
+                'plan' => array_filter([
                     ...$plan->toArray(),
+                    'pending_plan' => $pendingPlan,
                     'actions' => $actions,
-                ],
+                ], static fn (mixed $value): bool => $value !== null),
                 'completed_at' => now(),
             ])->save();
 
@@ -156,6 +160,7 @@ final class AiFunnelOrchestratorService
 
     private function applyAutomationPolicy(
         Chat $chat,
+        Message $trigger,
         FunnelAiScenario $scenario,
         ?FunnelStageAiRule $rule,
         AiFunnelOrchestratorPlan $plan,
@@ -164,8 +169,12 @@ final class AiFunnelOrchestratorService
             || ($rule?->require_manager_confirmation ?? false);
 
         if ($needsManagerConfirm && ($plan->appointment !== null || $plan->targetFunnelStageId !== null)) {
+            if ($this->isAutomaticReschedule($chat, $trigger, $plan)) {
+                return $plan;
+            }
+
             return new AiFunnelOrchestratorPlan(
-                customerReply: $plan->customerReply,
+                customerReply: $this->buildPendingManagerCustomerReply($plan),
                 targetFunnelStageId: null,
                 appointment: null,
                 assigneeUserId: $plan->assigneeUserId,
@@ -181,6 +190,325 @@ final class AiFunnelOrchestratorService
         }
 
         return $plan;
+    }
+
+    public function approvePendingRun(AiOrchestratorRun $run, User $approver): void
+    {
+        if ($run->status !== AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
+            throw new \InvalidArgumentException('Этот шаг AI уже обработан или не ждёт подтверждения.');
+        }
+
+        $pending = data_get($run->plan, 'pending_plan');
+        if (! is_array($pending) || $pending === []) {
+            throw new \InvalidArgumentException('Нет сохранённого плана для подтверждения.');
+        }
+
+        $chat = Chat::query()
+            ->with([
+                'funnel.aiScenario.fallbackManager',
+                'funnel.aiScenario.fallbackDepartment',
+                'funnel.stages',
+                'funnelStage.aiRule',
+            ])
+            ->whereKey($run->chat_id)
+            ->first();
+        $trigger = Message::query()->whereKey($run->trigger_message_id)->first();
+        $scenario = $chat?->funnel?->aiScenario;
+
+        if ($chat === null || $trigger === null || ! $scenario instanceof FunnelAiScenario) {
+            throw new \InvalidArgumentException('Чат или сценарий AI недоступны.');
+        }
+
+        $rule = $chat->funnelStage?->aiRule;
+        $plan = new AiFunnelOrchestratorPlan(
+            customerReply: $this->buildApprovedCustomerReply($pending),
+            targetFunnelStageId: isset($pending['target_funnel_stage_id']) && (int) $pending['target_funnel_stage_id'] > 0
+                ? (int) $pending['target_funnel_stage_id']
+                : null,
+            appointment: is_array($pending['appointment_request'] ?? null) ? $pending['appointment_request'] : null,
+            assigneeUserId: isset($pending['assignee_user_id']) && (int) $pending['assignee_user_id'] > 0
+                ? (int) $pending['assignee_user_id']
+                : null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: (float) ($run->confidence ?? 1.0),
+            reason: 'Менеджер подтвердил действие AI.',
+        );
+        $plan = $this->sanitizeStageTransition($chat, $plan);
+
+        $actions = $this->executor->execute($run, $chat, $trigger, $approver, $scenario, $rule, $plan);
+
+        $run->forceFill([
+            'status' => AiOrchestratorRun::STATUS_COMPLETED,
+            'reason' => $plan->reason,
+            'plan' => [
+                ...(is_array($run->plan) ? $run->plan : []),
+                'approved_by_user_id' => $approver->id,
+                'approved_at' => now()->toIso8601String(),
+                'approved_actions' => $actions,
+            ],
+            'completed_at' => now(),
+        ])->save();
+
+        $chat->forceFill([
+            'ai_orchestrator_status' => AiOrchestratorRun::STATUS_COMPLETED,
+            'ai_orchestrator_last_run_id' => $run->id,
+            'ai_orchestrator_last_action_at' => now(),
+            'ai_orchestrator_last_summary' => mb_substr($plan->reason, 0, 500),
+        ])->save();
+        $this->broadcastStatus($chat);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function buildPendingPlanSnapshot(
+        Chat $chat,
+        Message $trigger,
+        FunnelAiScenario $scenario,
+        ?FunnelStageAiRule $rule,
+        AiFunnelOrchestratorPlan $plan,
+    ): ?array {
+        $needsManagerConfirm = $scenario->manager_confirmation_required
+            || ($rule?->require_manager_confirmation ?? false);
+
+        if (! $needsManagerConfirm || ($plan->appointment === null && $plan->targetFunnelStageId === null)) {
+            return null;
+        }
+
+        if ($this->isAutomaticReschedule($chat, $trigger, $plan)) {
+            return null;
+        }
+
+        return array_filter([
+            'appointment_request' => $plan->appointment,
+            'target_funnel_stage_id' => $plan->targetFunnelStageId,
+            'assignee_user_id' => $plan->assigneeUserId,
+        ], static fn (mixed $value): bool => $value !== null);
+    }
+
+    private function applyAppointmentCustomerReply(
+        Chat $chat,
+        Message $trigger,
+        AiFunnelOrchestratorPlan $plan,
+    ): AiFunnelOrchestratorPlan {
+        if ($plan->appointment === null) {
+            return $plan;
+        }
+
+        try {
+            $startsAt = Carbon::parse((string) $plan->appointment['starts_at']);
+        } catch (Throwable) {
+            return $plan;
+        }
+
+        $isReschedule = $this->isAutomaticReschedule($chat, $trigger, $plan);
+        $requested = $this->requestedAppointmentTime($trigger);
+        $matchesRequested = $this->requestedTimeMatchesBooking($requested, $startsAt);
+        $reply = trim((string) $plan->customerReply);
+
+        $shouldRewrite = $reply === ''
+            || preg_match('/запис|замер|приезд|встреч|перенес/i', $reply) === 1
+            || ! $matchesRequested;
+
+        if (! $shouldRewrite) {
+            return $plan;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $this->buildAppointmentCustomerReply($trigger, $startsAt, $isReschedule),
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: $plan->appointment,
+            assigneeUserId: $plan->assigneeUserId,
+            managerNote: $plan->managerNote,
+            task: $plan->task,
+            requiresManagerAttention: $plan->requiresManagerAttention,
+            confidence: $plan->confidence,
+            reason: $matchesRequested ? $plan->reason : $plan->reason.' (выбран другой слот: запрошенное время занято)',
+        );
+    }
+
+    private function buildAppointmentCustomerReply(Message $trigger, Carbon $bookedStartsAt, bool $isReschedule): string
+    {
+        $bookedLabel = $this->formatAppointmentWhen($bookedStartsAt);
+        $requested = $this->requestedAppointmentTime($trigger);
+
+        if ($requested !== null && ! $this->requestedTimeMatchesBooking($requested, $bookedStartsAt)) {
+            $requestedLabel = $this->formatAppointmentWhen($requested);
+
+            if ($isReschedule) {
+                return "На {$requestedLabel}, к сожалению, окно уже занято. Переношу ваш замер на {$bookedLabel} — это ближайшее свободное время.";
+            }
+
+            return "На {$requestedLabel}, к сожалению, свободного окна нет. Записываю вас на замер {$bookedLabel} — ближайшее свободное время.";
+        }
+
+        if ($isReschedule) {
+            return 'Переношу ваш замер на '.$bookedLabel.'.';
+        }
+
+        return 'Записываю вас на замер '.$bookedLabel.'.';
+    }
+
+    private function requestedAppointmentTime(Message $trigger): ?Carbon
+    {
+        $body = mb_strtolower(trim((string) $trigger->body));
+        if ($body === '' || preg_match('/\b(\d{1,2})[:\.](\d{2})\b/u', $body, $matches) !== 1) {
+            return null;
+        }
+
+        $hour = (int) $matches[1];
+        $minute = (int) $matches[2];
+        if ($hour > 23 || $minute > 59) {
+            return null;
+        }
+
+        $date = now();
+        if (str_contains($body, 'послезавтра')) {
+            $date = now()->addDays(2);
+        } elseif (str_contains($body, 'завтра')) {
+            $date = now()->addDay();
+        }
+
+        return $date->copy()->setTime($hour, $minute, 0);
+    }
+
+    private function requestedTimeMatchesBooking(?Carbon $requested, Carbon $booked): bool
+    {
+        if ($requested === null) {
+            return true;
+        }
+
+        return $requested->isSameDay($booked) && $requested->format('H:i') === $booked->format('H:i');
+    }
+
+    private function buildPendingManagerCustomerReply(AiFunnelOrchestratorPlan $plan): string
+    {
+        if ($plan->appointment !== null) {
+            try {
+                $startsAt = Carbon::parse((string) $plan->appointment['starts_at']);
+
+                return 'Принял ваш запрос на замер '.$this->formatAppointmentWhen($startsAt)
+                    .'. Менеджер подтвердит запись в ближайшее время.';
+            } catch (Throwable) {
+                // fall through
+            }
+        }
+
+        if ($plan->targetFunnelStageId !== null) {
+            return 'Передаю менеджеру обновление этапа сделки. Подтвердим в ближайшее время.';
+        }
+
+        return 'Передаю менеджеру ваш запрос. Подтвердим в ближайшее время.';
+    }
+
+    /**
+     * @param  array<string, mixed>  $pending
+     */
+    private function buildApprovedCustomerReply(array $pending): ?string
+    {
+        $appointment = is_array($pending['appointment_request'] ?? null) ? $pending['appointment_request'] : null;
+        if ($appointment === null) {
+            return null;
+        }
+
+        try {
+            $startsAt = Carbon::parse((string) $appointment['starts_at']);
+        } catch (Throwable) {
+            return 'Запись подтверждена менеджером.';
+        }
+
+        return 'Запись подтверждена: замер '.$this->formatAppointmentWhen($startsAt).'.';
+    }
+
+    private function formatAppointmentWhen(Carbon $startsAt): string
+    {
+        $time = $startsAt->format('H:i');
+        if ($startsAt->isToday()) {
+            return 'сегодня в '.$time;
+        }
+        if ($startsAt->isTomorrow()) {
+            return 'завтра в '.$time;
+        }
+
+        return $startsAt->locale('ru')->isoFormat('D MMMM').' в '.$time;
+    }
+
+    private function normalizeReschedule(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if (! $this->isAutomaticReschedule($chat, $trigger, $plan)) {
+            return $plan;
+        }
+
+        $stageId = $plan->targetFunnelStageId;
+        if ($stageId !== null && (int) $chat->funnel_stage_id === (int) $stageId) {
+            $stageId = null;
+        }
+
+        $assigneeId = $plan->assigneeUserId ?? $this->assigneeIdFromExistingAppointment($chat);
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $plan->customerReply,
+            targetFunnelStageId: $stageId,
+            appointment: $plan->appointment,
+            assigneeUserId: $assigneeId,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: max($plan->confidence, 0.85),
+            reason: $plan->reason.' (перенос существующей записи)',
+        );
+    }
+
+    private function isAutomaticReschedule(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): bool
+    {
+        return $plan->appointment !== null
+            && $this->chatHasUpcomingAppointment($chat)
+            && $this->clientRequestsReschedule($trigger);
+    }
+
+    private function chatHasUpcomingAppointment(Chat $chat): bool
+    {
+        return CalendarEvent::query()
+            ->where('chat_id', $chat->id)
+            ->where('starts_at', '>=', now()->subHours(2))
+            ->exists();
+    }
+
+    private function clientRequestsReschedule(Message $trigger): bool
+    {
+        $body = mb_strtolower(trim((string) $trigger->body));
+        if ($body === '') {
+            return false;
+        }
+
+        foreach ([
+            'перенес', 'перенест', 'перезапис', 'переназнач', 'перенос',
+            'другое время', 'другой день', 'другое число',
+            'поменять время', 'сменить время', 'перенести',
+            'не смогу в', 'не получится в', 'не успею в',
+        ] as $needle) {
+            if (str_contains($body, $needle)) {
+                return true;
+            }
+        }
+
+        return preg_match('/\b(\d{1,2})[:\.](\d{2})\b/u', $body) === 1
+            && (str_contains($body, 'сегодня') || str_contains($body, 'завтра') || str_contains($body, 'можно на'));
+    }
+
+    private function assigneeIdFromExistingAppointment(Chat $chat): ?int
+    {
+        $event = CalendarEvent::query()
+            ->where('chat_id', $chat->id)
+            ->where('starts_at', '>=', now()->subDay())
+            ->orderByDesc('starts_at')
+            ->first(['assignee_user_id']);
+
+        $assigneeId = (int) ($event?->assignee_user_id ?? 0);
+
+        return $assigneeId > 0 ? $assigneeId : null;
     }
 
     private function sanitizeStageTransition(Chat $chat, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
@@ -292,6 +620,7 @@ final class AiFunnelOrchestratorService
         $plan = $this->normalizeEchoReply($chat, $trigger, $plan);
         $plan = $this->normalizePaymentStage($chat, $trigger, $plan);
         $plan = $this->normalizeMeasurementHandoff($chat, $plan);
+        $plan = $this->normalizeReschedule($chat, $trigger, $plan);
 
         if ($this->isFirstStageProductInterest($chat, $trigger)) {
             $reply = mb_strtolower((string) $plan->customerReply);
