@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
+use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatFunnelClassifierService;
 use App\Services\Funnel\ChatFunnelStateService;
 use Illuminate\Bus\Queueable;
@@ -29,7 +30,11 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
         public readonly int $triggerMessageId,
     ) {}
 
-    public function handle(ChatFunnelClassifierService $classifier, ChatFunnelStateService $state): void
+    public function handle(
+        ChatFunnelClassifierService $classifier,
+        ChatFunnelStateService $state,
+        ChatDepartmentRoutingService $departmentRouting,
+    ): void
     {
         if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
             return;
@@ -49,6 +54,10 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
 
         if ($latestInbound === null || $latestInbound->id !== $this->triggerMessageId) {
             return;
+        }
+
+        if ($departmentRouting->routeIfNeeded($chat, $latestInbound)) {
+            $chat->refresh();
         }
 
         if (AiOrchestratorRun::query()

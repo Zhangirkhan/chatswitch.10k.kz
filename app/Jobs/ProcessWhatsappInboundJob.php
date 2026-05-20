@@ -9,6 +9,7 @@ use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\WhatsappSession;
+use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\ChatService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,7 +33,7 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
      */
     public function __construct(public readonly array $data) {}
 
-    public function handle(ChatService $chatService): void
+    public function handle(ChatService $chatService, ChatDepartmentRoutingService $departmentRouting): void
     {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $session = WhatsappSession::where('session_name', $sessionName)->first();
@@ -61,6 +62,13 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
         });
 
         $message->loadMissing('chat');
+
+        if ($message->chat !== null && $message->direction === 'inbound') {
+            if ($departmentRouting->routeIfNeeded($message->chat, $message)) {
+                $message->chat->refresh();
+            }
+        }
+
         $shouldAnalyzeFunnel = $message->chat !== null
             && SystemSetting::getValue('module_funnels', 'on') === 'on'
             && ! $message->chat->is_group
