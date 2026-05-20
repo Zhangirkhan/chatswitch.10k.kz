@@ -309,11 +309,15 @@ onMounted(async () => {
     document.addEventListener('visibilitychange', onVisibility);
     onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility));
 
-    try {
-        await axios.post(route('chats.sync-groups'));
-        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
-    } catch {
-        // ignore (offline / service not ready)
+    const syncGroupsKey = 'chatswitch:sync-groups-session';
+    if (!sessionStorage.getItem(syncGroupsKey)) {
+        try {
+            await axios.post(route('chats.sync-groups'));
+            sessionStorage.setItem(syncGroupsKey, '1');
+            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
+        } catch {
+            // ignore (offline / service not ready)
+        }
     }
 });
 
@@ -360,6 +364,11 @@ watch(searchQuery, (val) => {
 
 const ownershipFilteredChats = computed(() => localChats.value);
 
+/** Последнее сообщение от компании (оператор / AI) — чат в «Сотрудники». */
+function isStaffLastMessage(chat: Chat): boolean {
+    return chat.last_message_direction === 'outbound';
+}
+
 const filteredChats = computed(() => {
     let list = ownershipFilteredChats.value;
     if (listFilter.value === 'attention') {
@@ -372,12 +381,11 @@ const filteredChats = computed(() => {
     if (activeSegment.value === 'favorites') {
         list = list.filter((c) => c.is_pinned || c.is_favorite);
     } else if (activeSegment.value === 'clients') {
-        // Клиенты: показываем все чаты (включая группы).
-        // Разделение по last_message_direction скрывает большинство диалогов после ответа оператора.
-        list = list;
+        // Клиенты: последнее сообщение от клиента (или ещё нет переписки).
+        list = list.filter((c) => !isStaffLastMessage(c));
     } else {
-        // Сотрудники: последнее сообщение отправлено из системы (оператор)
-        list = list.filter((c) => c.last_message_direction === 'outbound');
+        // Сотрудники: последнее сообщение от компании (оператор / AI).
+        list = list.filter((c) => isStaffLastMessage(c));
     }
     // Always keep pinned chats on top (WhatsApp-like), even if backend order
     // is affected by cached props / partial reloads.
@@ -394,10 +402,10 @@ const filteredChats = computed(() => {
 const favoritesTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => c.is_pinned || c.is_favorite).length
 );
-const clientsTotal = computed(() => Number(props.chats.total ?? ownershipFilteredChats.value.length));
-const staffTotal = computed(() =>
-    ownershipFilteredChats.value.filter((c) => c.last_message_direction === 'outbound').length
+const clientsTotal = computed(() =>
+    ownershipFilteredChats.value.filter((c) => !isStaffLastMessage(c)).length,
 );
+const staffTotal = computed(() => ownershipFilteredChats.value.filter((c) => isStaffLastMessage(c)).length);
 const mineChatsTotal = computed(() => Number(page.props.mineChatsTotal ?? 0));
 
 function setSegment(key: SegmentKey) {
@@ -656,88 +664,95 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- Section tabs: Клиенты / Организация -->
-        <SidebarSectionTabs active="clients" />
+        <div class="ui-sidebar-filters">
+            <SidebarSectionTabs active="clients" />
 
-        <!-- Scope: Активные / Архив (стиль как «Все / Мои») -->
-        <div class="px-3 pb-2 flex items-center gap-2 shrink-0">
-            <Link
-                :href="activeListHref"
-                class="subtab"
-                :class="{ 'subtab-active': scope === 'active' }"
-            >
-                Активные
-            </Link>
-            <Link
-                :href="archivedListHref"
-                class="subtab"
-                :class="{ 'subtab-active': scope === 'archived' }"
-            >
-                Архив<span v-if="archivedCount" class="ml-1.5">{{ archivedCount }}</span>
-            </Link>
-        </div>
+            <div class="ui-sidebar-filters__group">
+                <div class="ui-pill-nav">
+                    <Link
+                        :href="activeListHref"
+                        class="ui-pill-nav__item"
+                        :class="{ 'is-active': scope === 'active' }"
+                    >
+                        Активные
+                    </Link>
+                    <Link
+                        :href="archivedListHref"
+                        class="ui-pill-nav__item"
+                        :class="{ 'is-active': scope === 'archived' }"
+                    >
+                        Архив
+                        <span v-if="archivedCount" class="ui-chip__meta">{{ archivedCount }}</span>
+                    </Link>
+                </div>
 
-        <!-- Ownership sub-tabs: Все / Мои (only in Активные, admin/manager) -->
-        <div
-            v-if="scope === 'active' && canFilterByOwnership"
-            class="px-3 pb-2 flex items-center gap-2 shrink-0"
-        >
-            <button
-                @click="setOwnership('all')"
-                class="subtab"
-                :class="{ 'subtab-active': listOwnership === 'all' }"
-                type="button"
-            >
-                Все
-            </button>
-            <button
-                @click="setOwnership('mine')"
-                class="subtab"
-                :class="{ 'subtab-active': listOwnership === 'mine' }"
-                type="button"
-            >
-                Мои<span v-if="mineChatsTotal" class="ml-1.5">{{ mineChatsTotal }}</span>
-            </button>
-        </div>
-
-        <!-- Сегменты: Избранные / Клиенты / Сотрудники (стиль как «Все / Мои») -->
-        <div
-            v-if="scope === 'active'"
-            class="px-3 pb-2 flex items-center gap-2 shrink-0 flex-wrap"
-        >
-            <button
-                type="button"
-                class="subtab"
-                :class="{ 'subtab-active': activeSegment === 'favorites' }"
-                @click="setSegment('favorites')"
-            >
-                Избранные<span v-if="favoritesTotal" class="ml-1.5">{{ favoritesTotal }}</span>
-            </button>
-            <button
-                type="button"
-                class="subtab"
-                :class="{ 'subtab-active': activeSegment === 'clients' }"
-                @click="setSegment('clients')"
-            >
-                Клиенты<span v-if="clientsTotal" class="ml-1.5">{{ clientsTotal }}</span>
-            </button>
-            <button
-                type="button"
-                class="subtab"
-                :class="{ 'subtab-active': activeSegment === 'staff' }"
-                @click="setSegment('staff')"
-            >
-                Сотрудники<span v-if="staffTotal" class="ml-1.5">{{ staffTotal }}</span>
-            </button>
-            <button
-                type="button"
-                class="subtab subtab-attention"
-                :class="{ 'subtab-active': listFilter === 'attention' }"
-                title="AI: нужен менеджер, ошибка, низкая уверенность; клиент ждёт ответа 10+ мин; непрочитанные"
-                @click="setAttentionFilter"
-            >
-                Внимание<span v-if="attentionChatsTotal" class="ml-1.5">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>
-            </button>
+                <div class="ui-sidebar-filters__chips-slot">
+                    <div
+                        v-if="scope === 'active'"
+                        class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
+                        role="toolbar"
+                        aria-label="Фильтры списка чатов"
+                    >
+                    <template v-if="canFilterByOwnership">
+                        <button
+                            type="button"
+                            class="ui-chip shrink-0"
+                            :class="{ 'is-active': listOwnership === 'all' }"
+                            @click="setOwnership('all')"
+                        >
+                            Все
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-chip shrink-0"
+                            :class="{ 'is-active': listOwnership === 'mine' }"
+                            @click="setOwnership('mine')"
+                        >
+                            Мои
+                            <span v-if="mineChatsTotal" class="ui-chip__meta">{{ mineChatsTotal }}</span>
+                        </button>
+                        <span class="ui-sidebar-filters__sep" aria-hidden="true" />
+                    </template>
+                    <button
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': activeSegment === 'favorites' && listFilter !== 'attention' }"
+                        @click="setSegment('favorites')"
+                    >
+                        Избранные
+                        <span v-if="favoritesTotal" class="ui-chip__meta">{{ favoritesTotal }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': activeSegment === 'clients' && listFilter !== 'attention' }"
+                        @click="setSegment('clients')"
+                    >
+                        Клиенты
+                        <span v-if="clientsTotal" class="ui-chip__meta">{{ clientsTotal }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': activeSegment === 'staff' && listFilter !== 'attention' }"
+                        @click="setSegment('staff')"
+                    >
+                        Сотрудники
+                        <span v-if="staffTotal" class="ui-chip__meta">{{ staffTotal }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="ui-chip ui-chip--danger shrink-0"
+                        :class="{ 'is-active': listFilter === 'attention' }"
+                        title="AI: нужен менеджер, ошибка, низкая уверенность; клиент ждёт ответа 10+ мин; непрочитанные"
+                        @click="setAttentionFilter"
+                    >
+                        Внимание
+                        <span v-if="attentionChatsTotal" class="ui-chip__meta">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>
+                    </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div
@@ -869,41 +884,6 @@ onBeforeUnmount(() => {
 }
 .wa-icon-btn:hover {
     background-color: var(--wa-panel-hover);
-}
-.subtab {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--wa-text-secondary);
-    background-color: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    transition: color 0.15s ease, border-color 0.15s ease;
-    line-height: 1.25rem;
-    border-radius: 0;
-    text-decoration: none;
-    cursor: pointer;
-}
-.subtab:hover {
-    color: var(--wa-text);
-}
-.subtab-active {
-    color: var(--wa-accent);
-    border-bottom-color: var(--wa-accent);
-    font-weight: 500;
-}
-.subtab-active:hover {
-    color: var(--wa-accent);
-}
-.subtab-attention.subtab-active {
-    color: #ef4444;
-    border-bottom-color: #ef4444;
-}
-.subtab-attention:not(.subtab-active):hover {
-    color: #f87171;
 }
 @keyframes filter-menu-pop {
     from { opacity: 0; transform: translateY(-4px) scale(0.98); }
