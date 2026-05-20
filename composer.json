@@ -13,6 +13,7 @@
         "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "openspout/openspout": "^4.28",
         "predis/predis": "^3.4",
         "spatie/laravel-permission": "^6.25",
         "symfony/html-sanitizer": "^7.4",
