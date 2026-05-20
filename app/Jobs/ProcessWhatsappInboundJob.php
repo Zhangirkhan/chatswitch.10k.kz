@@ -10,6 +10,7 @@ use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\WhatsappSession;
 use App\Services\AI\ChatDepartmentRoutingService;
+use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\ChatService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +34,11 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
      */
     public function __construct(public readonly array $data) {}
 
-    public function handle(ChatService $chatService, ChatDepartmentRoutingService $departmentRouting): void
+    public function handle(
+        ChatService $chatService,
+        ChatDepartmentRoutingService $departmentRouting,
+        ChatOffHoursReplyService $offHoursReply,
+    ): void
     {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $session = WhatsappSession::where('session_name', $sessionName)->first();
@@ -67,6 +72,12 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
             if ($departmentRouting->routeIfNeeded($message->chat, $message)) {
                 $message->chat->refresh();
             }
+        }
+
+        if ($message->chat !== null
+            && $message->direction === 'inbound'
+            && $offHoursReply->tryReply($message->chat, $message)) {
+            return;
         }
 
         $shouldAnalyzeFunnel = $message->chat !== null

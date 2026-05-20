@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\AiResponderResolver;
+use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
 use Illuminate\Bus\Queueable;
@@ -34,6 +35,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         OutboundChatMessageDispatcher $dispatcher,
         WhatsappAiTypingService $typing,
         AiResponderResolver $responderResolver,
+        ChatOffHoursReplyService $offHoursReply,
     ): void {
         $chat = Chat::query()
             ->with(['aiResponder', 'assignments.user', 'departments', 'funnel.aiScenario'])
@@ -42,6 +44,10 @@ final class GenerateAiReplyJob implements ShouldQueue
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
+            return;
+        }
+
+        if ($offHoursReply->tryReply($chat, $trigger)) {
             return;
         }
 

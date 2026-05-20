@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\Chat;
+use App\Models\Message;
 use App\Services\AI\AiFunnelOrchestratorService;
+use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,9 +26,18 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
         public readonly int $triggerMessageId,
     ) {}
 
-    public function handle(AiFunnelOrchestratorService $orchestrator, WhatsappAiTypingService $typing): void
-    {
-        $chat = Chat::query()->whereKey($this->chatId)->first();
+    public function handle(
+        AiFunnelOrchestratorService $orchestrator,
+        WhatsappAiTypingService $typing,
+        ChatOffHoursReplyService $offHoursReply,
+    ): void {
+        $chat = Chat::query()->with(['departments', 'funnel.aiScenario'])->whereKey($this->chatId)->first();
+        $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
+
+        if ($chat !== null && $trigger !== null && $offHoursReply->tryReply($chat, $trigger)) {
+            return;
+        }
+
         if ($chat === null) {
             $orchestrator->run($this->chatId, $this->triggerMessageId);
 

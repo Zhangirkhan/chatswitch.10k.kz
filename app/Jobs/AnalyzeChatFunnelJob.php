@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatFunnelClassifierService;
+use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\Funnel\ChatFunnelStateService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,6 +35,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
         ChatFunnelClassifierService $classifier,
         ChatFunnelStateService $state,
         ChatDepartmentRoutingService $departmentRouting,
+        ChatOffHoursReplyService $offHoursReply,
     ): void
     {
         if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
@@ -58,6 +60,10 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
 
         if ($departmentRouting->routeIfNeeded($chat, $latestInbound)) {
             $chat->refresh();
+        }
+
+        if ($offHoursReply->tryReply($chat, $latestInbound)) {
+            return;
         }
 
         if (AiOrchestratorRun::query()
