@@ -287,7 +287,7 @@ onMounted(() => {
                 <div
                     v-if="hasResults"
                     class="lg:hidden shrink-0 max-h-[40vh] overflow-y-auto border-t px-3 py-3 space-y-3"
-                    :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-sidebar-bg)' }"
+                    :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-panel-header)' }"
                 >
                     <section v-if="contacts.length">
                         <h2 class="text-xs font-semibold uppercase text-[var(--wa-text-secondary)] mb-2">Контакты</h2>

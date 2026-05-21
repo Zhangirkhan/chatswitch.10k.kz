@@ -55,7 +55,7 @@ const showDemoSidebar = ref(false);
                     </div>
 
                     <div v-else class="px-4 py-4">
-                        <p class="mb-3 text-center text-xs text-amber-500">Демо: макет интерфейса, не рабочие статусы.</p>
+                        <p class="ui-alert ui-alert--warn mb-3 text-center text-xs">Демо: макет интерфейса, не рабочие статусы.</p>
                         <button type="button" class="mx-auto mb-4 block text-sm text-[var(--wa-accent)] hover:underline" @click="showDemoSidebar = false">
                             Скрыть демо
                         </button>

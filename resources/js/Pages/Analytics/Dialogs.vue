@@ -1328,7 +1328,8 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
 .analytics-btn-ghost:hover:not(:disabled) {
     color: var(--wa-text);
     background: var(--wa-selected);
-    border-color: var(--wa-border-strong);
+    border-color: var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
 }
 
 .analytics-btn-ghost:disabled {
@@ -1355,7 +1356,8 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
 }
 .analytics-input {
     border-radius: 0.5rem;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     background: var(--wa-surface-inset);
     color: var(--wa-text);
     padding: 0.4rem 0.65rem;

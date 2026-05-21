@@ -75,7 +75,7 @@ function toggleSubscribe(id: string): void {
 
                     <template v-else>
                         <div class="px-6 pt-4 pb-2">
-                            <p class="text-center text-xs text-amber-500">Демо: примеры каналов, не реальные подписки.</p>
+                            <p class="ui-alert ui-alert--warn text-center text-xs">Демо: примеры каналов, не реальные подписки.</p>
                             <button type="button" class="mx-auto mt-2 block text-sm text-[var(--wa-accent)] hover:underline" @click="showExamples = false">
                                 Скрыть примеры
                             </button>
