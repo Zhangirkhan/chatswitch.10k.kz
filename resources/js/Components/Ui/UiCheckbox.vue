@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+defineOptions({ inheritAttrs: false });
+
 const props = withDefaults(
     defineProps<{
         modelValue?: boolean;
+        /** @deprecated Prefer modelValue / v-model */
         checked?: boolean;
         disabled?: boolean;
         size?: 'sm' | 'md';
@@ -23,10 +26,25 @@ const emit = defineEmits<{
     click: [event: MouseEvent];
 }>();
 
-const isChecked = computed(() => props.modelValue ?? props.checked ?? false);
+const isChecked = computed(() => {
+    if (props.modelValue !== undefined) {
+        return props.modelValue;
+    }
 
-function onChange(event: Event): void {
-    const next = (event.target as HTMLInputElement).checked;
+    return props.checked ?? false;
+});
+
+function onActivate(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    emit('click', event);
+
+    if (props.disabled) {
+        return;
+    }
+
+    const next = !isChecked.value;
     emit('update:modelValue', next);
     emit('change', next);
 }
@@ -41,16 +59,22 @@ function onChange(event: Event): void {
             'ui-checkbox-sm': size === 'sm',
         }"
         :title="title"
+        role="checkbox"
+        :aria-checked="isChecked"
+        :aria-disabled="disabled || undefined"
+        :aria-label="ariaLabel"
+        @click="onActivate"
     >
         <input
             :id="id"
             type="checkbox"
             class="ui-checkbox-native"
+            tabindex="-1"
             :checked="isChecked"
             :disabled="disabled"
-            :aria-label="ariaLabel"
-            @change="onChange"
-            @click="emit('click', $event)"
+            aria-hidden="true"
+            @click.stop="onActivate"
+            @change.prevent
         />
         <span class="ui-checkbox-box" aria-hidden="true">
             <svg
