@@ -4,6 +4,9 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import axios from 'axios';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 const page = usePage();
 const tenantCompanyId = computed(() => (page.props as { tenantCompanyId?: number }).tenantCompanyId ?? 1);
@@ -154,7 +157,7 @@ async function save() {
         saved.value = true;
         setTimeout(() => saved.value = false, 3000);
     } catch (err: any) {
-        alert(err.response?.data?.message || 'Ошибка сохранения');
+        showToast({ message: err.response?.data?.message || 'Ошибка сохранения', type: 'warning' });
     } finally {
         isSaving.value = false;
     }

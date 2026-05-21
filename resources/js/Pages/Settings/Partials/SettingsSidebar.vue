@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserAvatar from '@/Components/UserAvatar.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -129,6 +130,7 @@ const adminItems: AdminItem[] = [
 
 const profileItems: ProfileItem[] = [
     { kind: 'profile', id: 'profile', label: 'Профиль', description: 'Имя, фото профиля, имя пользователя', icon: 'user' },
+    { kind: 'profile', id: 'account', label: 'Аккаунт', description: 'Пароль, безопасность, удаление', icon: 'lock' },
     { kind: 'profile', id: 'chats', label: 'Чаты', description: 'Тема, обои, настройки чата', icon: 'chat' },
     { kind: 'profile', id: 'notifications', label: 'Уведомления', description: 'Сообщения, группы, звуки', icon: 'bell' },
     { kind: 'profile', id: 'modules', label: 'Модули', description: 'Включение и отключение функционала компании', icon: 'modules', adminOnly: true },
@@ -166,10 +168,6 @@ function isProfileActive(item: ProfileItem): boolean {
     // bare settings list (no ?section=) nothing should be selected, matching
     // WhatsApp Web.
     return props.activeSection === item.id;
-}
-
-function initial(name?: string): string {
-    return (name || '?').charAt(0).toUpperCase();
 }
 
 function logout() {
@@ -211,12 +209,11 @@ function logout() {
                 v-if="!searchQuery"
                 class="flex justify-center py-6"
             >
-                <div
-                    class="w-[150px] h-[150px] rounded-full flex items-center justify-center text-5xl font-medium shadow"
-                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-icon)' }"
-                >
-                    {{ initial(user?.name) }}
-                </div>
+                <UserAvatar
+                    :name="user?.name"
+                    :avatar-url="user?.avatar_url"
+                    :size="150"
+                />
             </div>
 
             <!-- Admin items (existing app sections) -->

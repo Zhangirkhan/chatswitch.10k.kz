@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import SettingsSidebar from '@/Pages/Settings/Partials/SettingsSidebar.vue';
 import ProfileSection from './Partials/ProfileSection.vue';
+import AccountSection from './Partials/AccountSection.vue';
 import ChatsSection from './Partials/ChatsSection.vue';
 import NotificationsSection from './Partials/NotificationsSection.vue';
 import ModulesSection from './Partials/ModulesSection.vue';
@@ -17,13 +18,14 @@ defineProps<{
 
 type Section =
     | 'profile'
+    | 'account'
     | 'chats'
     | 'notifications'
     | 'modules'
     | 'shortcuts';
 
 const VALID_SECTIONS: readonly Section[] = [
-    'profile', 'chats', 'notifications', 'modules', 'shortcuts',
+    'profile', 'account', 'chats', 'notifications', 'modules', 'shortcuts',
 ] as const;
 
 const page = usePage();
@@ -55,6 +57,7 @@ function closeShortcuts() {
             <template v-if="isPanelSection">
                 <aside class="w-[400px] h-full flex flex-col bg-[var(--wa-panel)] shrink-0">
                     <ProfileSection v-if="activeSection === 'profile'" />
+                    <AccountSection v-else-if="activeSection === 'account'" />
                     <ChatsSection v-else-if="activeSection === 'chats'" />
                     <NotificationsSection v-else-if="activeSection === 'notifications'" />
                     <ModulesSection v-else-if="activeSection === 'modules'" />

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Avatar from '@/Components/Avatar.vue';
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import SectionHeader from './SectionHeader.vue';
 import { useForm, usePage } from '@inertiajs/vue3';
@@ -52,10 +53,6 @@ async function copyPhone() {
         // Clipboard unavailable — ignore silently.
     }
 }
-
-function initial(name?: string): string {
-    return (name || '?').charAt(0).toUpperCase();
-}
 </script>
 
 <template>
@@ -65,20 +62,13 @@ function initial(name?: string): string {
         <div class="flex-1 overflow-y-auto wa-scrollbar">
             <!-- Avatar -->
             <div class="flex flex-col items-center py-6">
-                <div class="w-[170px] h-[170px] rounded-full bg-[#6b7c85] flex items-center justify-center text-white text-6xl font-medium shadow-lg">
-                    {{ initial(user?.name) }}
-                </div>
-                <button
-                    type="button"
-                    class="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-sm transition"
-                    :style="{ borderColor: 'var(--wa-border-strong)', color: 'var(--wa-accent)' }"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <circle cx="12" cy="13" r="3" />
-                    </svg>
-                    <span>Редактировать</span>
-                </button>
+                <Avatar
+                    :name="user?.name"
+                    :avatar-url="user?.avatar_url"
+                    :size="170"
+                    variant="staff"
+                    fallback-initials
+                />
             </div>
 
             <!-- Name -->

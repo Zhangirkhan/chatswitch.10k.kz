@@ -1,27 +1,23 @@
 <script setup lang="ts">
 import SectionHeader from './SectionHeader.vue';
-import SettingRow from './SettingRow.vue';
-import { useTheme, type Theme } from '@/composables/useTheme';
+import UiModal from '@/Components/Ui/UiModal.vue';
+import { useTheme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
-import { useTranslationLang, TRANSLATION_LANG_OPTIONS, type TranslationLang } from '@/composables/useTranslationLang';
+import {
+    useTranslationLang,
+    TRANSLATION_LANG_OPTIONS,
+    type TranslationLang,
+} from '@/composables/useTranslationLang';
 import { wallpaperPreview } from '@/config/wallpapers';
 import { computed, ref } from 'vue';
 
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
-const { lang: translateLang, currentOption: translateCurrent } = useTranslationLang();
+const { lang: translateLang } = useTranslationLang();
 
-const themeLabel = computed(() => (theme.value === 'dark' ? 'Тёмный режим' : 'Дневной режим'));
 const wallpaperLabel = computed(() => getCurrent().label);
-
-const themePickerOpen = ref(false);
 const wallpaperPickerOpen = ref(false);
-const translatePickerOpen = ref(false);
-
-function pickTheme(t: Theme) {
-    setTheme(t);
-    themePickerOpen.value = false;
-}
+const isDarkTheme = computed(() => theme.value === 'dark');
 
 function pickWallpaper(id: string) {
     setWallpaper(id);
@@ -32,211 +28,185 @@ function previewStyle(id: string): string {
     if (!wp) return '';
     return `background: ${wallpaperPreview(wp, theme.value)}; background-size: ${wp.tileSize || (wp.kind === 'default' ? '80px' : 'cover')};`;
 }
+
+const currentWallpaperPreview = computed(() => previewStyle(currentWallpaperId.value));
+
+function isDefaultLang(value: TranslationLang): boolean {
+    return value === 'ru' || value === 'kk';
+}
 </script>
 
 <template>
     <div class="h-full flex flex-col">
         <SectionHeader title="Чаты" />
 
-        <div class="flex-1 overflow-y-auto wa-scrollbar">
-            <div class="group-title">Отображение</div>
+        <div class="flex-1 overflow-y-auto wa-scrollbar chats-settings">
+            <section class="ui-settings-section chats-settings__section">
+                <h3 class="ui-settings-block-title">Отображение</h3>
 
-            <SettingRow
-                title="Тема"
-                :subtitle="themeLabel"
-                @click="themePickerOpen = true"
-            />
-            <SettingRow
-                title="Обои"
-                :subtitle="wallpaperLabel"
-                @click="wallpaperPickerOpen = true"
-            />
-
-            <div class="group-title">Перевод сообщений</div>
-            <SettingRow
-                title="Язык перевода"
-                :subtitle="`${translateCurrent().flag} ${translateCurrent().label}`"
-                @click="translatePickerOpen = true"
-            />
-        </div>
-
-        <!-- Theme picker modal -->
-        <div
-            v-if="themePickerOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            @click.self="themePickerOpen = false"
-        >
-            <div class="w-[440px] max-w-[90vw] rounded-xl p-6 shadow-2xl" :style="{ background: 'var(--wa-panel)' }">
-                <h3 class="text-[17px] text-[var(--wa-text)] mb-4">Выберите тему</h3>
-                <div class="space-y-2">
-                    <label class="flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer hover:bg-[var(--wa-panel-hover)]">
-                        <input
-                            type="radio"
-                            name="theme"
-                            :checked="theme === 'light'"
-                            @change="pickTheme('light')"
-                            class="accent-[var(--wa-accent)]"
-                        />
-                        <span class="text-[15px] text-[var(--wa-text)]">Дневной режим</span>
-                    </label>
-                    <label class="flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer hover:bg-[var(--wa-panel-hover)]">
-                        <input
-                            type="radio"
-                            name="theme"
-                            :checked="theme === 'dark'"
-                            @change="pickTheme('dark')"
-                            class="accent-[var(--wa-accent)]"
-                        />
-                        <span class="text-[15px] text-[var(--wa-text)]">Тёмный режим</span>
-                    </label>
-                </div>
-                <div class="flex justify-end mt-4">
-                    <button
-                        type="button"
-                        @click="themePickerOpen = false"
-                        class="px-6 py-2 rounded-full text-white text-sm font-medium"
-                        :style="{ background: 'var(--wa-accent)' }"
+                <div class="chats-settings__field">
+                    <span class="ui-settings-field-label" id="theme-label">Тема интерфейса</span>
+                    <div
+                        class="ui-theme-switch"
+                        :class="{ 'is-dark': isDarkTheme }"
+                        role="group"
+                        aria-labelledby="theme-label"
                     >
-                        OK
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Translation language picker modal -->
-        <div
-            v-if="translatePickerOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            @click.self="translatePickerOpen = false"
-        >
-            <div class="w-[380px] max-w-[90vw] rounded-xl p-6 shadow-2xl" :style="{ background: 'var(--wa-panel)' }">
-                <h3 class="text-[17px] text-[var(--wa-text)] mb-1">Язык перевода сообщений</h3>
-                <p class="text-xs text-[var(--wa-text-secondary)] mb-4">
-                    Под каждым сообщением появится кнопка «Перевести».<br>
-                    Стандартно — русский и казахский.
-                </p>
-                <div class="space-y-1">
-                    <label
-                        v-for="opt in TRANSLATION_LANG_OPTIONS"
-                        :key="opt.value"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-[var(--wa-panel-hover)] transition"
-                    >
-                        <input
-                            type="radio"
-                            name="translate_lang"
-                            :value="opt.value"
-                            v-model="translateLang"
-                            class="accent-[var(--wa-accent)]"
-                        />
-                        <span class="text-lg leading-none">{{ opt.flag }}</span>
-                        <span class="text-[15px] text-[var(--wa-text)]">{{ opt.label }}</span>
-                        <span v-if="opt.value === 'ru' || opt.value === 'kk'" class="ml-auto text-[11px] px-1.5 py-0.5 rounded" :style="{ background: 'var(--wa-accent)', color: 'var(--wa-unread-text, #0b0d0e)' }">
-                            по умолчанию
-                        </span>
-                    </label>
-                </div>
-                <div class="flex justify-end mt-5">
-                    <button
-                        type="button"
-                        @click="translatePickerOpen = false"
-                        class="px-6 py-2 rounded-full text-white text-sm font-medium"
-                        :style="{ background: 'var(--wa-accent)' }"
-                    >
-                        Готово
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Wallpaper picker modal -->
-        <div
-            v-if="wallpaperPickerOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-            @click.self="wallpaperPickerOpen = false"
-        >
-            <div
-                class="w-[560px] max-w-full rounded-xl shadow-2xl overflow-hidden flex flex-col"
-                :style="{ background: 'var(--wa-panel)', maxHeight: '85vh' }"
-            >
-                <div
-                    class="px-6 py-4 flex items-center justify-between border-b"
-                    :style="{ borderColor: 'var(--wa-border)' }"
-                >
-                    <div>
-                        <h3 class="text-[17px] font-medium text-[var(--wa-text)]">Выберите обои</h3>
-                        <p class="text-xs text-[var(--wa-text-secondary)] mt-0.5">
-                            Применяется только для вашего устройства
-                        </p>
+                        <span class="ui-theme-switch__thumb" aria-hidden="true" />
+                        <button
+                            type="button"
+                            class="ui-theme-switch__option"
+                            :class="{ 'is-active': theme === 'light' }"
+                            :aria-pressed="theme === 'light'"
+                            @click="setTheme('light')"
+                        >
+                            <svg class="ui-theme-switch__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <circle cx="12" cy="12" r="4" />
+                                <path stroke-linecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                            </svg>
+                            Светлая
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-theme-switch__option"
+                            :class="{ 'is-active': theme === 'dark' }"
+                            :aria-pressed="theme === 'dark'"
+                            @click="setTheme('dark')"
+                        >
+                            <svg class="ui-theme-switch__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                            </svg>
+                            Тёмная
+                        </button>
                     </div>
+                </div>
+
+                <div class="chats-settings__field">
+                    <span class="ui-settings-field-label">Обои чата</span>
                     <button
                         type="button"
-                        @click="wallpaperPickerOpen = false"
-                        class="p-1.5 rounded text-[var(--wa-text-secondary)] hover:bg-[var(--wa-panel-hover)]"
+                        class="ui-settings-pick-card"
+                        @click="wallpaperPickerOpen = true"
                     >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <div
+                            class="ui-settings-pick-card__preview"
+                            :style="currentWallpaperPreview"
+                            aria-hidden="true"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[15px] text-[var(--wa-text)] truncate">{{ wallpaperLabel }}</div>
+                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Нажмите, чтобы выбрать фон</div>
+                        </div>
+                        <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
                     </button>
                 </div>
+            </section>
 
-                <div class="p-6 grid grid-cols-3 sm:grid-cols-4 gap-4 overflow-y-auto wa-scrollbar">
+            <section class="ui-settings-section chats-settings__section">
+                <h3 class="ui-settings-block-title">Перевод сообщений</h3>
+                <p class="ui-settings-block-hint">
+                    Выберите язык — под входящими сообщениями появится кнопка «Перевести». «Выкл» отключает перевод.
+                </p>
+
+                <div class="ui-lang-grid" role="listbox" aria-label="Язык перевода">
                     <button
-                        v-for="wp in wallpapers"
-                        :key="wp.id"
+                        v-for="opt in TRANSLATION_LANG_OPTIONS"
+                        :key="opt.value"
                         type="button"
-                        @click="pickWallpaper(wp.id)"
-                        class="group flex flex-col items-center gap-2 focus:outline-none"
+                        role="option"
+                        class="ui-lang-chip"
+                        :class="{
+                            'is-active': translateLang === opt.value,
+                            'is-off': opt.value === 'off',
+                        }"
+                        :aria-selected="translateLang === opt.value"
+                        @click="translateLang = opt.value"
+                    >
+                        <span class="ui-lang-chip__flag" aria-hidden="true">{{ opt.flag }}</span>
+                        <span>{{ opt.label }}</span>
+                        <span
+                            v-if="isDefaultLang(opt.value)"
+                            class="ui-lang-chip__badge"
+                        >основной</span>
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Wallpaper picker modal -->
+        <UiModal
+            :open="wallpaperPickerOpen"
+            title="Выберите обои"
+            subtitle="Применяется только для вашего устройства"
+            max-width="lg"
+            body-class="p-6"
+            @close="wallpaperPickerOpen = false"
+        >
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                <button
+                    v-for="wp in wallpapers"
+                    :key="wp.id"
+                    type="button"
+                    @click="pickWallpaper(wp.id)"
+                    class="group flex flex-col items-center gap-2 focus:outline-none"
+                >
+                    <div
+                        class="w-full aspect-square rounded-lg border-2 relative overflow-hidden transition"
+                        :class="
+                            currentWallpaperId === wp.id
+                                ? 'border-[var(--wa-accent)] shadow-lg'
+                                : 'border-transparent group-hover:border-[var(--wa-control-rim)]'
+                        "
+                        :style="previewStyle(wp.id)"
                     >
                         <div
-                            class="w-full aspect-square rounded-lg border-2 relative overflow-hidden transition"
-                            :class="
-                                currentWallpaperId === wp.id
-                                    ? 'border-[var(--wa-accent)] shadow-lg'
-                                    : 'border-transparent group-hover:border-[var(--wa-border-strong)]'
-                            "
-                            :style="previewStyle(wp.id)"
+                            v-if="currentWallpaperId === wp.id"
+                            class="absolute inset-0 flex items-center justify-center"
+                            style="background: rgba(0,0,0,0.25)"
                         >
                             <div
-                                v-if="currentWallpaperId === wp.id"
-                                class="absolute inset-0 flex items-center justify-center"
-                                style="background: rgba(0,0,0,0.25)"
+                                class="w-9 h-9 rounded-full flex items-center justify-center"
+                                :style="{ background: 'var(--wa-accent)' }"
                             >
-                                <div
-                                    class="w-9 h-9 rounded-full flex items-center justify-center"
-                                    :style="{ background: 'var(--wa-accent)' }"
-                                >
-                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </div>
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
                             </div>
                         </div>
-                        <span class="text-xs text-[var(--wa-text)] truncate max-w-full">{{ wp.label }}</span>
-                    </button>
-                </div>
-
-                <div
-                    class="px-6 py-4 flex justify-end border-t"
-                    :style="{ borderColor: 'var(--wa-border)' }"
-                >
-                    <button
-                        type="button"
-                        @click="wallpaperPickerOpen = false"
-                        class="px-6 py-2 rounded-full text-white text-sm font-medium"
-                        :style="{ background: 'var(--wa-accent)' }"
-                    >
-                        Готово
-                    </button>
-                </div>
+                    </div>
+                    <span class="text-xs text-[var(--wa-text)] truncate max-w-full">{{ wp.label }}</span>
+                </button>
             </div>
-        </div>
+
+            <template #footer>
+                <button
+                    type="button"
+                    @click="wallpaperPickerOpen = false"
+                    class="px-6 py-2 rounded-full text-white text-sm font-medium"
+                    :style="{ background: 'var(--wa-accent)' }"
+                >
+                    Готово
+                </button>
+            </template>
+        </UiModal>
     </div>
 </template>
 
 <style scoped>
-.group-title {
-    padding: 1rem 1.5rem 0.5rem;
-    font-size: 0.875rem;
-    color: var(--wa-text-secondary);
+.chats-settings {
+    padding: 0 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.chats-settings__section {
+    padding: 14px 16px;
+}
+
+.chats-settings__field + .chats-settings__field {
+    margin-top: 16px;
 }
 </style>

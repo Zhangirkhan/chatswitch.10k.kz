@@ -21,6 +21,7 @@ function goBack() {
             @click="goBack"
             class="w-10 h-10 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-panel-hover)] transition"
             title="Назад"
+            aria-label="Назад"
         >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />

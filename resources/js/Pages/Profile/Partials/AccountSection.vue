@@ -97,7 +97,7 @@ function confirmDelete() {
                         type="password"
                         autocomplete="current-password"
                         class="w-full bg-transparent border-0 border-b text-sm text-[var(--wa-text)] py-1.5 px-0 focus:outline-none focus:border-[var(--wa-accent)]"
-                        :style="{ borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                     />
                     <p v-if="passwordForm.errors.current_password" class="mt-1 text-xs text-red-400">{{ passwordForm.errors.current_password }}</p>
                 </div>
@@ -108,7 +108,7 @@ function confirmDelete() {
                         type="password"
                         autocomplete="new-password"
                         class="w-full bg-transparent border-0 border-b text-sm text-[var(--wa-text)] py-1.5 px-0 focus:outline-none focus:border-[var(--wa-accent)]"
-                        :style="{ borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                     />
                     <p v-if="passwordForm.errors.password" class="mt-1 text-xs text-red-400">{{ passwordForm.errors.password }}</p>
                 </div>
@@ -119,7 +119,7 @@ function confirmDelete() {
                         type="password"
                         autocomplete="new-password"
                         class="w-full bg-transparent border-0 border-b text-sm text-[var(--wa-text)] py-1.5 px-0 focus:outline-none focus:border-[var(--wa-accent)]"
-                        :style="{ borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                     />
                 </div>
                 <div class="flex items-center gap-3">
@@ -159,7 +159,7 @@ function confirmDelete() {
                         autocomplete="current-password"
                         placeholder="Пароль"
                         class="w-full bg-transparent border-0 border-b text-sm text-[var(--wa-text)] py-1.5 px-0 focus:outline-none focus:border-[#f15c6d]"
-                        :style="{ borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                     />
                     <p v-if="deleteForm.errors.password" class="text-xs text-red-400">{{ deleteForm.errors.password }}</p>
                     <div class="flex items-center gap-2">
@@ -167,7 +167,7 @@ function confirmDelete() {
                             type="button"
                             @click="showDeleteForm = false; deleteForm.reset()"
                             class="px-4 py-1.5 rounded-full text-sm border"
-                            :style="{ borderColor: 'var(--wa-border-strong)', color: 'var(--wa-text)' }"
+                            :style="{ borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)', color: 'var(--wa-text)' }"
                         >
                             Отмена
                         </button>
