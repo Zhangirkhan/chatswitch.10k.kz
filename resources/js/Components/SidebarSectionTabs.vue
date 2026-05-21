@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 
 defineProps<{
     active: 'clients' | 'organization';
@@ -18,7 +19,7 @@ const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?
 </script>
 
 <template>
-    <div class="ui-pill-nav">
+    <UiPillNav>
         <Link
             :href="route('chats.index')"
             class="ui-pill-nav__item"
@@ -52,5 +53,5 @@ const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?
                 :title="`Активных задач: ${orgOpen}`"
             >{{ orgOpen > 99 ? '99+' : orgOpen }}</span>
         </Link>
-    </div>
+    </UiPillNav>
 </template>
