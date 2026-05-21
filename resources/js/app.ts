@@ -4,6 +4,7 @@ import './bootstrap';
 import { initTheme } from './composables/useTheme';
 import { initChatBackground } from './composables/useChatBackground';
 import { installKeyboardShortcuts } from './composables/useKeyboardShortcuts';
+import { useConnectionStatus } from './composables/useConnectionStatus';
 import { registerSW } from 'virtual:pwa-register';
 
 /** Service Worker — авто-обновление каждые 60 мин без перезагрузки страницы. */
@@ -20,6 +21,7 @@ registerSW({
 initTheme();
 initChatBackground();
 installKeyboardShortcuts();
+useConnectionStatus();
 
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';

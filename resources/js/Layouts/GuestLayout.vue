@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
 </script>
 
 <template>
@@ -32,5 +33,7 @@
         <div class="text-center py-4 text-xs text-[var(--wa-text-secondary)]">
             ChatSwitch &copy; {{ new Date().getFullYear() }}
         </div>
+
+        <ConnectionLostOverlay />
     </div>
 </template>

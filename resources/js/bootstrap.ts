@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { notifyNetworkReachable, notifyNetworkUnreachable } from '@/composables/useConnectionStatus';
 
 window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
@@ -12,8 +13,14 @@ window.axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
 window.axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
 
 window.axios.interceptors.response.use(
-    (response) => response,
-    (error: { response?: { status?: number } }) => {
+    (response) => {
+        notifyNetworkReachable();
+        return response;
+    },
+    (error: { response?: { status?: number }; code?: string }) => {
+        if (!error.response && error.code !== 'ERR_CANCELED') {
+            notifyNetworkUnreachable();
+        }
         if (error.response?.status === 419) {
             window.location.reload();
         }
