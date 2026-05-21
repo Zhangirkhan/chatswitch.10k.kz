@@ -4,12 +4,16 @@ import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import SkeletonBlock from '@/Components/SkeletonBlock.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
+import { useToastStore } from '@/stores/toast';
 import axios from 'axios';
+
+const { show: showToast } = useToastStore();
 
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
@@ -96,6 +100,7 @@ const searchFocused = ref(false);
 // ─── Live chat list (реальное время) ─────────────────────────────────────────
 const localChats = ref<Chat[]>([...props.chats.data]);
 const loadingMore = ref(false);
+const listNavigating = ref(false);
 const loadedUntilPage = ref(props.chats.current_page);
 
 const lastPage = computed(() => props.chats.last_page);
@@ -267,6 +272,17 @@ onMounted(() => {
     if (storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
         activeSegment.value = storedSegment;
     }
+
+    removeListStart = router.on('start', (event) => {
+        const url = event.detail.visit.url;
+        const path = (typeof url === 'string' ? url : url.pathname).split('?')[0] ?? '';
+        if (path.includes('/chats')) {
+            listNavigating.value = true;
+        }
+    });
+    removeListFinish = router.on('finish', () => {
+        listNavigating.value = false;
+    });
 });
 
 // On first mount, pull group chats for connected numbers so they appear in the list.
@@ -334,7 +350,11 @@ function dismissNotifBanner() {
 async function enableNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'denied') {
-        alert('Браузер заблокировал уведомления. Снимите запрет в настройках сайта и перезагрузите страницу.');
+        showToast({
+            message: 'Браузер заблокировал уведомления. Снимите запрет в настройках сайта и перезагрузите страницу.',
+            type: 'warning',
+            duration: 6000,
+        });
         return;
     }
     const result = await Notification.requestPermission();
@@ -479,12 +499,16 @@ const offNewGroup = onShortcut('new-group', () => {
     showNewChat.value = true;
     window.dispatchEvent(new CustomEvent('chatswitch:new-chat-mode', { detail: 'group' }));
 });
+let removeListStart: (() => void) | undefined;
+let removeListFinish: (() => void) | undefined;
 onBeforeUnmount(() => {
     teardownListEcho();
     offNextChat();
     offPrevChat();
     offNewChat();
     offNewGroup();
+    removeListStart?.();
+    removeListFinish?.();
 });
 </script>
 
@@ -668,7 +692,7 @@ onBeforeUnmount(() => {
             <SidebarSectionTabs active="clients" />
 
             <div class="ui-sidebar-filters__group">
-                <div class="ui-pill-nav">
+                <UiPillNav>
                     <Link
                         :href="activeListHref"
                         class="ui-pill-nav__item"
@@ -681,10 +705,14 @@ onBeforeUnmount(() => {
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': scope === 'archived' }"
                     >
-                        Архив
-                        <span v-if="archivedCount" class="ui-chip__meta">{{ archivedCount }}</span>
+                        <span class="truncate">Архив</span>
+                        <span
+                            v-if="archivedCount > 0"
+                            class="ui-tab-badge"
+                            :title="`Чатов в архиве: ${archivedCount}`"
+                        >{{ archivedCount > 99 ? '99+' : archivedCount }}</span>
                     </Link>
-                </div>
+                </UiPillNav>
 
                 <div class="ui-sidebar-filters__chips-slot">
                     <div
@@ -851,8 +879,13 @@ onBeforeUnmount(() => {
 
         <!-- Chat list -->
         <div class="flex-1 overflow-y-auto wa-scrollbar" @scroll.passive="onChatListScroll">
+            <SkeletonBlock
+                v-if="listNavigating && filteredChats.length === 0"
+                :lines="8"
+                wrapper-class="px-4 py-4"
+            />
             <div
-                v-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
+                v-else-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
                 class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
             >
                 <template v-if="scope === 'archived'">В архиве пока нет чатов</template>

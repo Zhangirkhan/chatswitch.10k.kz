@@ -98,7 +98,8 @@ onBeforeUnmount(() => {
     padding: 0.65rem 0.75rem 0.65rem 0.85rem;
     border-radius: 16px;
     background: var(--wa-panel);
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
     width: calc(100% - 2rem);
     max-width: 420px;

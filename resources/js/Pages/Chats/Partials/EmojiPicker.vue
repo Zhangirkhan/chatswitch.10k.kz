@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
 <template>
     <div
         class="emoji-picker w-[360px] h-[360px] rounded-lg shadow-2xl border flex flex-col overflow-hidden"
-        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
+        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
     >
         <!-- Header / search -->
         <div class="px-3 pt-3 pb-2">

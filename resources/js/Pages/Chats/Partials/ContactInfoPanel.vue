@@ -1246,7 +1246,7 @@ async function saveContactName() {
                     left: participantMenu.x + 'px',
                     top: participantMenu.y + 'px',
                     background: 'var(--wa-panel-header)',
-                    borderColor: 'var(--wa-border-strong)',
+                    borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)',
                 }"
             >
                 <div class="participant-popover__header">
@@ -1768,7 +1768,8 @@ async function saveContactName() {
 }
 .shared-list-row:hover {
     background: var(--wa-panel-hover);
-    border-color: var(--wa-border-strong);
+    border-color: var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
 }
 .shared-link-icon,
 .shared-doc-icon {
@@ -1817,7 +1818,8 @@ async function saveContactName() {
 }
 .sibling-row:hover {
     background-color: var(--wa-panel-hover);
-    border-color: var(--wa-border-strong);
+    border-color: var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
 }
 .sibling-name {
     font-size: 0.8125rem;

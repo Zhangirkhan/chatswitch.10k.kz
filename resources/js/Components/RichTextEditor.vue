@@ -195,7 +195,8 @@ function setLink() {
 
 <style scoped>
 .rich-editor-wrap {
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 10px;
     overflow: hidden;
     background: var(--wa-panel-header);

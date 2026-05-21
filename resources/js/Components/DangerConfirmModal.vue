@@ -55,7 +55,7 @@ const confirmButtonClass = computed(() =>
         >
             <div
                 class="w-full max-w-[440px] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                 @click.stop
             >
                 <div class="px-5 py-4 flex items-start justify-between gap-3 border-b" :style="{ borderColor: 'var(--wa-border)' }">

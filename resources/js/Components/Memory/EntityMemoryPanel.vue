@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 
@@ -36,6 +37,8 @@ const meta = ref<MemoryPayload | null>(null);
 const backupsOpen = ref(false);
 const backups = ref<BackupRow[]>([]);
 const backupsLoading = ref(false);
+const restoreConfirmOpen = ref(false);
+const restoreBackupId = ref<number | null>(null);
 
 async function load(): Promise<void> {
     loading.value = true;
@@ -97,10 +100,22 @@ async function openBackups(): Promise<void> {
     await loadBackups();
 }
 
-async function restoreBackup(backupId: number): Promise<void> {
-    if (!confirm('Восстановить эту версию memory.md? Текущий текст уйдёт в бэкап.')) {
-        return;
-    }
+function requestRestoreBackup(backupId: number): void {
+    restoreBackupId.value = backupId;
+    restoreConfirmOpen.value = true;
+}
+
+function closeRestoreConfirm(): void {
+    if (saving.value) return;
+    restoreConfirmOpen.value = false;
+    restoreBackupId.value = null;
+}
+
+async function confirmRestoreBackup(): Promise<void> {
+    const backupId = restoreBackupId.value;
+    if (backupId == null) return;
+    restoreConfirmOpen.value = false;
+    restoreBackupId.value = null;
     saving.value = true;
     try {
         const { data } = await axios.post(route('entity-memory.restore', {
@@ -116,6 +131,10 @@ async function restoreBackup(backupId: number): Promise<void> {
     } finally {
         saving.value = false;
     }
+}
+
+async function restoreBackup(backupId: number): Promise<void> {
+    requestRestoreBackup(backupId);
 }
 
 onMounted(() => {
@@ -237,5 +256,16 @@ watch(
                 </div>
             </div>
         </div>
+
+        <DangerConfirmModal
+            :open="restoreConfirmOpen"
+            title="Восстановить версию?"
+            description="Восстановить эту версию memory.md? Текущий текст уйдёт в бэкап."
+            confirm-label="Восстановить"
+            :busy="saving"
+            confirm-variant="primary"
+            @close="closeRestoreConfirm"
+            @confirm="confirmRestoreBackup"
+        />
     </div>
 </template>

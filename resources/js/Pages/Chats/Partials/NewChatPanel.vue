@@ -598,7 +598,7 @@ async function unlinkGroup(chatId: number) {
                     :style="{
                         background: 'var(--wa-panel)',
                         color: 'var(--wa-text)',
-                        borderColor: 'var(--wa-border-strong)',
+                        borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)',
                     }"
                 >
                     <option v-for="s in sessions" :key="s.id" :value="s.id">
@@ -706,7 +706,7 @@ async function unlinkGroup(chatId: number) {
                 :style="{
                     background: 'var(--wa-panel)',
                     color: 'var(--wa-text)',
-                    borderColor: 'var(--wa-border-strong)',
+                    borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)',
                 }"
             >
                 <option v-for="s in sessions" :key="s.id" :value="s.id">
@@ -1103,7 +1103,7 @@ async function unlinkGroup(chatId: number) {
                     :style="{
                         background: 'var(--wa-panel)',
                         color: 'var(--wa-text)',
-                        borderColor: 'var(--wa-border-strong)',
+                        borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)',
                     }"
                 >
                     <option v-for="s in sessions" :key="s.id" :value="s.id">

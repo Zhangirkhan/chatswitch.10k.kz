@@ -1971,7 +1971,8 @@ onBeforeUnmount(() => {
     gap: 4px;
     padding: 2px 7px;
     border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     background: transparent;
     color: var(--wa-text-secondary);
     font-size: 0.68rem;

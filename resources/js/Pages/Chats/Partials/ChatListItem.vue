@@ -489,7 +489,7 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                     left: menuX + 'px',
                     top: menuY + 'px',
                     background: 'var(--wa-panel-header)',
-                    borderColor: 'var(--wa-border-strong)',
+                    borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)',
                 }"
             >
                 <button class="menu-item" @click.prevent="toggleArchive" type="button">

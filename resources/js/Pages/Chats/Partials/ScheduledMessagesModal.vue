@@ -349,7 +349,8 @@ watch(
     border-radius: 14px;
     background: var(--wa-panel-header);
     color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
 }
 .sched-header {
@@ -529,7 +530,8 @@ watch(
     text-align: center;
     color: var(--wa-text-secondary);
     font-size: 14px;
-    border: 1px dashed var(--wa-border-strong);
+    border: 1px dashed var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 12px;
 }
 .sched-card {
