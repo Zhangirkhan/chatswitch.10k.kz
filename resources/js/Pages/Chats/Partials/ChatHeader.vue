@@ -3,10 +3,14 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
+import UserAvatar from '@/Components/UserAvatar.vue';
+import UiModal from '@/Components/Ui/UiModal.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import FunnelStageWheelPicker from '@/Components/FunnelStageWheelPicker.vue';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { initialsFromName } from '@/utils/initials';
 import { stageIdAtPreservedIndex } from '@/utils/funnelStageMapping';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
@@ -314,7 +318,7 @@ const aiHeaderBadge = computed(() => {
         return { label: 'Ошибка', tone: 'error' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
     }
     if (props.chat.ai_orchestrator_status === 'needs_manager' || props.aiStatus?.status === 'blocked') {
-        return { label: 'Менеджер', tone: 'warning' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
+        return { label: 'Ждёт вас', tone: 'warning' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
     }
     if (
         props.chat.ai_orchestrator_status === 'running'
@@ -342,7 +346,23 @@ const aiHeaderBadge = computed(() => {
     };
 });
 
-const aiAssistantButtonText = computed(() => aiHeaderBadge.value.label);
+const aiAssistantButtonTitle = computed(() => {
+    const status = aiHeaderBadge.value.label;
+    const lines = ['Открыть AI-чат с ассистентом', `Статус: ${status}`];
+    const detail = aiHeaderBadge.value.title?.trim();
+    if (detail) {
+        lines.push(detail);
+    }
+
+    return lines.join('\n');
+});
+
+const aiAssistantAriaLabel = computed(() => `Открыть AI-чат, статус: ${aiHeaderBadge.value.label}`);
+
+const aiAssistantNeedsAttention = computed(() => {
+    const tone = aiHeaderBadge.value.tone;
+    return tone === 'busy' || tone === 'warning' || tone === 'error';
+});
 
 const aiModePickerLabel = computed(() => (aiMode.value === 'draft' ? 'Черновик' : 'Автоответ'));
 
@@ -461,6 +481,10 @@ function roleLabel(roles: string[]): string {
     if (roles.includes('manager')) return 'Руководитель';
     if (roles.includes('employee')) return 'Сотрудник';
     return '';
+}
+
+function userInitials(name?: string | null): string {
+    return initialsFromName(name, 'С');
 }
 
 async function patchAiSettings(payload: Record<string, unknown>): Promise<void> {
@@ -1398,7 +1422,7 @@ async function saveFunnelModal() {
                     <button
                         ref="departmentsBtnRef"
                         type="button"
-                        class="label-pill label-pill-dept label-pill-icon"
+                        class="label-pill label-pill-dept label-pill-icon label-pill-icon-badge"
                         :class="{ 'label-pill-dept-active': selectedDepartmentIds.length > 0 }"
                         :title="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
                         :aria-label="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
@@ -1409,7 +1433,7 @@ async function saveFunnelModal() {
                         </svg>
                         <span
                             v-if="selectedDepartmentIds.length > 0"
-                            class="label-pill-badge"
+                            class="label-pill-count-badge ui-tab-badge ui-tab-badge--team"
                             aria-hidden="true"
                         >{{ selectedDepartmentIds.length }}</span>
                     </button>
@@ -1429,7 +1453,7 @@ async function saveFunnelModal() {
                                 top: `${departmentsMenuPos.top}px`,
                                 right: `${departmentsMenuPos.right}px`,
                                 background: 'var(--wa-panel-header)',
-                                borderColor: 'var(--wa-border-strong)',
+                                borderColor: 'var(--wa-control-border)',
                             }"
                             @click.stop
                         >
@@ -1486,9 +1510,7 @@ async function saveFunnelModal() {
                                     :class="{ 'assign-row-dept-active': selectedDepartmentIds.includes(d.id) }"
                                     @click="toggleDepartment(d.id)"
                                 >
-                                    <span class="assign-avatar assign-avatar-dept" aria-hidden="true">
-                                        {{ d.name?.charAt(0)?.toUpperCase() }}
-                                    </span>
+                                    <Avatar :name="d.name" :size="36" variant="group" fallback-initials class="shrink-0" />
                                     <span class="flex-1 truncate text-left assign-name">{{ d.name }}</span>
                                     <svg
                                         v-if="selectedDepartmentIds.includes(d.id)"
@@ -1505,8 +1527,7 @@ async function saveFunnelModal() {
 
                                 <div
                                     v-if="filteredDepartments.length === 0"
-                                    class="px-5 py-4 text-sm"
-                                    :style="{ color: 'var(--wa-text-secondary)' }"
+                                    class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-none text-left"
                                 >
                                     {{ departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
                                 </div>
@@ -1516,9 +1537,12 @@ async function saveFunnelModal() {
                 </template>
             </div>
 
-            <div class="header-action-group header-ai-group header-ai-control" :class="{ 'header-ai-group-on': aiEnabled }">
+            <div
+                v-if="canManageAi"
+                class="header-action-group header-ai-group header-ai-control"
+                :class="{ 'header-ai-group-on': aiEnabled }"
+            >
                 <button
-                    v-if="canManageAi"
                     type="button"
                     class="header-ai-toggle"
                     :class="{ 'header-ai-toggle-on': aiEnabled }"
@@ -1532,7 +1556,7 @@ async function saveFunnelModal() {
                 </button>
 
                 <button
-                    v-if="canManageAi && aiEnabled"
+                    v-if="aiEnabled"
                     ref="aiSettingsBtnRef"
                     type="button"
                     class="ai-menu-trigger ai-settings-trigger"
@@ -1548,22 +1572,29 @@ async function saveFunnelModal() {
                     </svg>
                     <span class="ai-menu-trigger-label hidden lg:inline truncate max-w-[7.5rem]">{{ aiSettingsSummary }}</span>
                 </button>
+            </div>
 
+            <div class="header-ai-chat-control">
                 <button
                     type="button"
-                    class="header-ai-assistant-btn"
-                    :class="{
-                        'header-ai-assistant-btn-error': aiStatus?.status === 'failed',
-                        'header-ai-assistant-btn-busy': aiStatus?.status === 'generating' || aiStatus?.status === 'pending',
-                    }"
-                    :title="aiStatusTitle"
-                    aria-label="Открыть AI-ассистента"
+                    class="header-ai-assistant-btn ui-status-badge"
+                    :class="`ui-status-badge--${aiHeaderBadge.tone}`"
+                    :title="aiAssistantButtonTitle"
+                    :aria-label="aiAssistantAriaLabel"
                     @click="closeAiModeMenu(); closeAiResponderMenu(); closeAiSettingsMenu(); emit('open-ai')"
                 >
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M4.5 12H3m18 0h-1.5M6.34 6.34L5.28 5.28m13.44 13.44l-1.06-1.06M6.34 17.66l-1.06 1.06M18.72 5.28l-1.06 1.06M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    <svg class="header-ai-assistant-btn__icon shrink-0" fill="none" stroke="currentColor" stroke-width="1.85" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3.5 3.5V16z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 3.5l.75 1.5 1.5.75-1.5.75-.75 1.5-.75-1.5-1.5-.75 1.5-.75.75-1.5z" />
                     </svg>
-                    <span class="label-pill-ai-text hidden xl:inline">{{ aiAssistantButtonText }}</span>
+                    <span class="header-ai-assistant-btn__label hidden xl:inline">AI-чат</span>
+                    <span
+                        v-if="aiAssistantNeedsAttention"
+                        class="header-ai-assistant-btn__status-dot"
+                        :class="`header-ai-assistant-btn__status-dot--${aiHeaderBadge.tone}`"
+                        :title="aiHeaderBadge.label"
+                        aria-hidden="true"
+                    ></span>
                 </button>
             </div>
 
@@ -1595,7 +1626,7 @@ async function saveFunnelModal() {
                             top: `${aiSettingsMenuPos.top}px`,
                             right: `${aiSettingsMenuPos.right}px`,
                             background: 'var(--wa-panel-header)',
-                            borderColor: 'var(--wa-border-strong)',
+                            borderColor: 'var(--wa-control-border)',
                         }"
                         aria-label="Настройки AI"
                         @click.stop
@@ -1693,7 +1724,7 @@ async function saveFunnelModal() {
                                 :aria-selected="chat.ai_responder_user_id == null"
                                 @click="pickAiResponder(null)"
                             >
-                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">A</span>
+                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">AI</span>
                                 <span class="flex-1 min-w-0 text-left">
                                     <span class="block truncate assign-name">Автовыбор</span>
                                     <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
@@ -1722,9 +1753,7 @@ async function saveFunnelModal() {
                                 :aria-selected="chat.ai_responder_user_id === u.id"
                                 @click="pickAiResponder(u.id)"
                             >
-                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
-                                    {{ u.name?.charAt(0)?.toUpperCase() }}
-                                </span>
+                                <UserAvatar :name="u.name" :size="36" class="shrink-0" />
                                 <span class="flex-1 min-w-0 text-left">
                                     <span class="block truncate assign-name">{{ u.name }}</span>
                                     <span
@@ -1776,17 +1805,17 @@ async function saveFunnelModal() {
                 >
                     <div
                         v-if="selectedUsers.length"
-                        class="flex -space-x-2 shrink-0"
+                        class="header-staff-avatar-stack shrink-0"
                         aria-hidden="true"
                     >
-                        <div
+                        <UserAvatar
                             v-for="u in selectedUsers.slice(0, 3)"
                             :key="u.id"
-                            class="staff-pill-avatar header-staff-avatar"
+                            :name="u.name"
+                            :size="22"
+                            class="header-staff-avatar"
                             :title="u.name"
-                        >
-                            {{ u.name?.charAt(0)?.toUpperCase() }}
-                        </div>
+                        />
                         <div
                             v-if="selectedUserIds.length > 3"
                             class="staff-pill-avatar header-staff-avatar header-staff-more"
@@ -1820,7 +1849,7 @@ async function saveFunnelModal() {
                             top: `${usersMenuPos.top}px`,
                             right: `${usersMenuPos.right}px`,
                             background: 'var(--wa-panel-header)',
-                            borderColor: 'var(--wa-border-strong)',
+                            borderColor: 'var(--wa-control-border)',
                         }"
                         @click.stop
                     >
@@ -1877,9 +1906,7 @@ async function saveFunnelModal() {
                                 :class="{ 'assign-row-staff-active': selectedUserIds.includes(u.id) }"
                                 @click="toggleUser(u.id)"
                             >
-                                <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
-                                    {{ u.name?.charAt(0)?.toUpperCase() }}
-                                </span>
+                                <UserAvatar :name="u.name" :size="36" class="shrink-0" />
                                 <span class="flex-1 min-w-0 text-left">
                                     <span class="block truncate assign-name">{{ u.name }}</span>
                                     <div
@@ -1904,8 +1931,7 @@ async function saveFunnelModal() {
                             </button>
                             <div
                                 v-if="filteredAssignableUsers.length === 0"
-                                class="px-5 py-4 text-sm"
-                                :style="{ color: 'var(--wa-text-secondary)' }"
+                                class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-none text-left"
                             >
                                 {{ userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для списка' }}
                             </div>
@@ -1919,14 +1945,14 @@ async function saveFunnelModal() {
                 class="header-staff-control label-pill label-pill-staff label-pill-staff-static label-pill-staff-avatars"
                 title="Ответственные за этот чат"
             >
-                <div class="flex -space-x-2 shrink-0" aria-hidden="true">
-                    <div
+                <div class="header-staff-avatar-stack shrink-0" aria-hidden="true">
+                    <UserAvatar
                         v-for="a in chat.assignments.slice(0, 3)"
                         :key="a.id"
-                        class="staff-pill-avatar header-staff-avatar"
-                    >
-                        {{ a.user?.name?.charAt(0)?.toUpperCase() }}
-                    </div>
+                        :name="a.user?.name"
+                        :size="22"
+                        class="header-staff-avatar"
+                    />
                     <div
                         v-if="chat.assignments.length > 3"
                         class="staff-pill-avatar header-staff-avatar header-staff-more"
@@ -1973,7 +1999,7 @@ async function saveFunnelModal() {
                             top: `${menuPos.top}px`,
                             right: `${menuPos.right}px`,
                             background: 'var(--wa-panel-header)',
-                            borderColor: 'var(--wa-border-strong)',
+                            borderColor: 'var(--wa-control-border)',
                         }"
                     >
                     <button class="menu-item" @click="openContactInfo" type="button">
@@ -2050,37 +2076,16 @@ async function saveFunnelModal() {
             </div>
         </div>
 
-        <Teleport to="body">
-            <div
-                v-if="departmentModalOpen"
-                class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/55 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Отделы чата"
-                @click.self="closeDepartmentModal"
-            >
-                <div
-                    class="w-full max-w-[560px] max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
-                >
-                    <div class="px-5 py-4 flex items-center justify-between border-b" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div>
-                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Отделы чата</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Выбор отделов и история изменений</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
-                            aria-label="Закрыть"
-                            @click="closeDepartmentModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+        <UiModal
+            :open="departmentModalOpen"
+            title="Отделы чата"
+            subtitle="Выбор отделов и история изменений"
+            max-width="lg"
+            :z-index="1200"
+            aria-label="Отделы чата"
+            body-class="px-5 py-4 space-y-5"
+            @close="closeDepartmentModal"
+        >
                         <section>
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <div>
@@ -2112,9 +2117,7 @@ async function saveFunnelModal() {
                                     :class="{ 'assign-row-dept-active': selectedDepartmentIds.includes(d.id) }"
                                     @click="toggleDepartment(d.id)"
                                 >
-                                    <span class="assign-avatar assign-avatar-dept" aria-hidden="true">
-                                        {{ d.name?.charAt(0)?.toUpperCase() }}
-                                    </span>
+                                    <Avatar :name="d.name" :size="36" variant="group" fallback-initials class="shrink-0" />
                                     <span class="flex-1 truncate text-left assign-name">{{ d.name }}</span>
                                     <svg
                                         v-if="selectedDepartmentIds.includes(d.id)"
@@ -2130,7 +2133,7 @@ async function saveFunnelModal() {
                                 </button>
                                 <div
                                     v-if="filteredDepartments.length === 0"
-                                    class="px-5 py-5 text-sm text-[var(--wa-text-secondary)]"
+                                    class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-xl text-left mx-3 my-3"
                                 >
                                     {{ departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
                                 </div>
@@ -2160,54 +2163,46 @@ async function saveFunnelModal() {
                                 </svg>
                             </button>
                         </section>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        </UiModal>
 
         <!-- Department History Modal -->
-        <Teleport to="body">
-            <div
-                v-if="departmentHistoryModalOpen"
-                class="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="История смен отделов"
-                @click.self="closeDepartmentHistoryModal"
-            >
-                <div
-                    class="w-full max-w-[520px] max-h-[min(90vh,680px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
-                >
-                    <!-- Header -->
-                    <div class="px-5 py-4 flex items-center gap-3 border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
-                        <button
-                            type="button"
-                            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                            aria-label="Назад"
-                            @click="closeDepartmentHistoryModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-base font-semibold text-[var(--wa-text)]">История смен отделов</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял отделы этого чата</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                            :style="{ borderColor: 'var(--wa-border)' }"
-                            :disabled="departmentHistoryLoading"
-                            @click="loadDepartmentHistory"
-                        >
-                            Обновить
-                        </button>
+        <UiModal
+            :open="departmentHistoryModalOpen"
+            max-width="md"
+            :z-index="1300"
+            aria-label="История смен отделов"
+            body-class="px-5 py-4"
+            :show-close="false"
+            @close="closeDepartmentHistoryModal"
+        >
+            <template #header>
+                <div class="flex items-center gap-3 w-full min-w-0">
+                    <button
+                        type="button"
+                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                        aria-label="Назад"
+                        @click="closeDepartmentHistoryModal"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">История смен отделов</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">Кто и когда менял отделы этого чата</p>
                     </div>
+                    <button
+                        type="button"
+                        class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                        :style="{ borderColor: 'var(--wa-border)' }"
+                        :disabled="departmentHistoryLoading"
+                        @click="loadDepartmentHistory"
+                    >
+                        Обновить
+                    </button>
+                </div>
+            </template>
 
-                    <!-- Body -->
-                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4">
                         <div v-if="departmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
                             Загрузка истории…
                         </div>
@@ -2242,42 +2237,18 @@ async function saveFunnelModal() {
                                 <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">{{ formatAssignmentTime(item.at) }}</div>
                             </li>
                         </ol>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        </UiModal>
 
-        <Teleport to="body">
-            <div
-                v-if="assignmentModalOpen"
-                class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/55 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Ответственные за чат"
-                @click.self="closeAssignmentModal"
-            >
-                <div
-                    class="w-full max-w-[560px] max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
-                >
-                    <div class="px-5 py-4 flex items-center justify-between border-b" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div>
-                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Ответственные</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Текущие ответственные и история смен</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
-                            aria-label="Закрыть"
-                            @click="closeAssignmentModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+        <UiModal
+            :open="assignmentModalOpen"
+            title="Ответственные"
+            subtitle="Текущие ответственные и история смен"
+            max-width="lg"
+            :z-index="1200"
+            aria-label="Ответственные за чат"
+            body-class="px-5 py-4 space-y-5"
+            @close="closeAssignmentModal"
+        >
                         <section>
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <div>
@@ -2309,9 +2280,7 @@ async function saveFunnelModal() {
                                     :class="{ 'assign-row-staff-active': selectedUserIds.includes(u.id) }"
                                     @click="toggleUser(u.id)"
                                 >
-                                    <span class="assign-avatar assign-avatar-staff" aria-hidden="true">
-                                        {{ u.name?.charAt(0)?.toUpperCase() }}
-                                    </span>
+                                    <UserAvatar :name="u.name" :size="36" class="shrink-0" />
                                     <span class="flex-1 min-w-0 text-left">
                                         <span class="block truncate assign-name">{{ u.name }}</span>
                                         <span
@@ -2336,7 +2305,7 @@ async function saveFunnelModal() {
                                 </button>
                                 <div
                                     v-if="filteredAssignableUsers.length === 0"
-                                    class="px-5 py-5 text-sm text-[var(--wa-text-secondary)]"
+                                    class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-xl text-left mx-3 my-3"
                                 >
                                     {{ userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для назначения' }}
                                 </div>
@@ -2366,54 +2335,46 @@ async function saveFunnelModal() {
                                 </svg>
                             </button>
                         </section>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        </UiModal>
 
         <!-- Assignment History Modal -->
-        <Teleport to="body">
-            <div
-                v-if="assignmentHistoryModalOpen"
-                class="fixed inset-0 z-[1300] flex items-center justify-center bg-black/60 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="История смен ответственных"
-                @click.self="closeAssignmentHistoryModal"
-            >
-                <div
-                    class="w-full max-w-[520px] max-h-[min(90vh,680px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
-                >
-                    <!-- Header -->
-                    <div class="px-5 py-4 flex items-center gap-3 border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
-                        <button
-                            type="button"
-                            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                            aria-label="Назад"
-                            @click="closeAssignmentHistoryModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-base font-semibold text-[var(--wa-text)]">История смен</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Кто был назначен или снят ответственным</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                            :style="{ borderColor: 'var(--wa-border)' }"
-                            :disabled="assignmentHistoryLoading"
-                            @click="loadAssignmentHistory"
-                        >
-                            Обновить
-                        </button>
+        <UiModal
+            :open="assignmentHistoryModalOpen"
+            max-width="md"
+            :z-index="1300"
+            aria-label="История смен ответственных"
+            body-class="px-5 py-4"
+            :show-close="false"
+            @close="closeAssignmentHistoryModal"
+        >
+            <template #header>
+                <div class="flex items-center gap-3 w-full min-w-0">
+                    <button
+                        type="button"
+                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                        aria-label="Назад"
+                        @click="closeAssignmentHistoryModal"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">История смен</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">Кто был назначен или снят ответственным</p>
                     </div>
+                    <button
+                        type="button"
+                        class="text-xs px-2.5 py-1.5 rounded-lg border hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
+                        :style="{ borderColor: 'var(--wa-border)' }"
+                        :disabled="assignmentHistoryLoading"
+                        @click="loadAssignmentHistory"
+                    >
+                        Обновить
+                    </button>
+                </div>
+            </template>
 
-                    <!-- Body -->
-                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4">
                         <div v-if="assignmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
                             Загрузка истории…
                         </div>
@@ -2445,10 +2406,7 @@ async function saveFunnelModal() {
                                 <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">{{ formatAssignmentTime(item.at) }}</div>
                             </li>
                         </ol>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        </UiModal>
 
         <button
             v-if="funnelModuleVisible"
@@ -2486,37 +2444,16 @@ async function saveFunnelModal() {
             />
         </button>
 
-        <Teleport to="body">
-            <div
-                v-if="funnelModalOpen"
-                class="fixed inset-0 z-[1250] flex items-center justify-center bg-black/55 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Воронка продаж"
-                @click.self="closeFunnelModal"
-            >
-                <div
-                    class="w-full max-w-[560px] max-h-[min(90vh,720px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
-                >
-                    <div class="px-5 py-4 flex items-center justify-between border-b shrink-0" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div>
-                            <h3 class="text-base font-semibold text-[var(--wa-text)]">Воронка продаж</h3>
-                            <p class="text-xs text-[var(--wa-text-secondary)]">Этап в чате с клиентом (и авто-оценка по входящим)</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)]"
-                            aria-label="Закрыть"
-                            @click="closeFunnelModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-5 py-4 space-y-5">
+        <UiModal
+            :open="funnelModalOpen"
+            title="Воронка продаж"
+            subtitle="Этап в чате с клиентом (и авто-оценка по входящим)"
+            max-width="lg"
+            :z-index="1250"
+            aria-label="Воронка продаж"
+            body-class="px-5 py-4 space-y-5"
+            @close="closeFunnelModal"
+        >
                         <div v-if="funnelCatalogList.length === 0" class="text-sm text-[var(--wa-text-secondary)] rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
                             Нет доступных воронок. Подключите воронки к отделам чата в настройках отделов.
                         </div>
@@ -2600,11 +2537,11 @@ async function saveFunnelModal() {
                                 У выбранной воронки нет этапов.
                             </div>
                             <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
-                                <input v-model="funnelModalTracking" type="checkbox" class="rounded border-[var(--wa-border)]" />
+                                <UiCheckbox v-model="funnelModalTracking" size="sm" />
                                 Авто-оценка этапа по входящим сообщениям
                             </label>
                             <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
-                                <input v-model="funnelModalLocked" type="checkbox" class="rounded border-[var(--wa-border)]" />
+                                <UiCheckbox v-model="funnelModalLocked" size="sm" />
                                 Закрепить этап (AI не меняет)
                             </label>
 
@@ -2645,87 +2582,54 @@ async function saveFunnelModal() {
                                 <div v-else class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей</div>
                             </div>
                         </template>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        </UiModal>
 
-        <Teleport to="body">
-            <div
-                v-if="aiRiskyEnableModalOpen && aiRiskyEnableModal"
-                class="fixed inset-0 z-[1210] flex items-center justify-center bg-black/55 p-4"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="ai-risky-enable-title"
-                @click.self="closeAiRiskyEnableModal"
-            >
-                <div
-                    class="w-full max-w-[480px] max-h-[min(90vh,640px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
-                    :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+        <UiModal
+            :open="aiRiskyEnableModalOpen && !!aiRiskyEnableModal"
+            title="Включить AI при низкой готовности?"
+            :subtitle="aiRiskyEnableModal?.readinessScore != null ? `Готовность AI: ${aiRiskyEnableModal.readinessScore}%` : ''"
+            max-width="md"
+            :z-index="1210"
+            :closeable="!aiRiskyEnableConfirming"
+            body-class="px-5 py-4 space-y-4 text-sm text-[var(--wa-text)]"
+            @close="closeAiRiskyEnableModal"
+        >
+            <template v-if="aiRiskyEnableModal">
+                <p class="leading-relaxed m-0">{{ aiRiskyEnableModal.message }}</p>
+                <div v-if="aiRiskyEnableModal.warnings.length > 0">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-secondary)] mb-2">Замечания</p>
+                    <ul class="list-disc pl-5 space-y-1.5 text-[var(--wa-text)]">
+                        <li v-for="(w, i) in aiRiskyEnableModal.warnings" :key="i">{{ w }}</li>
+                    </ul>
+                </div>
+                <Link
+                    :href="aiRiskyEnableModal.settingsUrl"
+                    class="inline-flex text-sm font-medium text-[var(--wa-accent)] hover:underline"
+                    @click="closeAiRiskyEnableModal"
                 >
-                    <div class="px-5 py-4 flex items-start justify-between gap-3 border-b" :style="{ borderColor: 'var(--wa-border)' }">
-                        <div class="min-w-0">
-                            <h3 id="ai-risky-enable-title" class="text-base font-semibold text-[var(--wa-text)]">
-                                Включить AI при низкой готовности?
-                            </h3>
-                            <p v-if="aiRiskyEnableModal.readinessScore != null" class="mt-1 text-sm text-[var(--wa-text-secondary)]">
-                                Готовность AI: {{ aiRiskyEnableModal.readinessScore }}%
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] disabled:opacity-40"
-                            aria-label="Закрыть"
-                            :disabled="aiRiskyEnableConfirming"
-                            @click="closeAiRiskyEnableModal"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
+                    Открыть проверку готовности AI
+                </Link>
+            </template>
 
-                    <div class="px-5 py-4 space-y-4 overflow-y-auto wa-scrollbar text-sm text-[var(--wa-text)]">
-                        <p class="leading-relaxed">{{ aiRiskyEnableModal.message }}</p>
-                        <div v-if="aiRiskyEnableModal.warnings.length > 0">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-secondary)] mb-2">Замечания</p>
-                            <ul class="list-disc pl-5 space-y-1.5 text-[var(--wa-text)]">
-                                <li v-for="(w, i) in aiRiskyEnableModal.warnings" :key="i">{{ w }}</li>
-                            </ul>
-                        </div>
-                        <Link
-                            :href="aiRiskyEnableModal.settingsUrl"
-                            class="inline-flex text-sm font-medium text-[var(--wa-accent)] hover:underline"
-                            @click="closeAiRiskyEnableModal"
-                        >
-                            Открыть проверку готовности AI
-                        </Link>
-                    </div>
-
-                    <div
-                        class="px-5 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 border-t"
-                        :style="{ borderColor: 'var(--wa-border)' }"
-                    >
-                        <button
-                            type="button"
-                            class="py-2.5 px-4 rounded-xl text-sm font-medium border border-[var(--wa-border)] text-[var(--wa-text)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-50"
-                            :disabled="aiRiskyEnableConfirming"
-                            @click="closeAiRiskyEnableModal"
-                        >
-                            Отмена
-                        </button>
-                        <button
-                            type="button"
-                            class="py-2.5 px-4 rounded-xl text-sm font-medium text-white bg-[var(--wa-accent)] hover:opacity-95 disabled:opacity-50"
-                            :disabled="aiRiskyEnableConfirming"
-                            @click="confirmAiRiskyEnable"
-                        >
-                            {{ aiRiskyEnableConfirming ? 'Включение…' : 'Включить AI всё равно' }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+            <template #footer>
+                <button
+                    type="button"
+                    class="py-2.5 px-4 rounded-xl text-sm font-medium border border-[var(--wa-border)] text-[var(--wa-text)] hover:bg-[var(--wa-panel-hover)] disabled:opacity-50"
+                    :disabled="aiRiskyEnableConfirming"
+                    @click="closeAiRiskyEnableModal"
+                >
+                    Отмена
+                </button>
+                <button
+                    type="button"
+                    class="py-2.5 px-4 rounded-xl text-sm font-medium text-white bg-[var(--wa-accent)] hover:opacity-95 disabled:opacity-50"
+                    :disabled="aiRiskyEnableConfirming"
+                    @click="confirmAiRiskyEnable"
+                >
+                    {{ aiRiskyEnableConfirming ? 'Включение…' : 'Включить AI всё равно' }}
+                </button>
+            </template>
+        </UiModal>
 
         <ScheduledMessagesModal
             :open="scheduledMessagesOpen"
@@ -2818,11 +2722,14 @@ async function saveFunnelModal() {
 
 .header-ai-control {
     order: 3;
-    margin-left: 0.35rem;
+}
+
+.header-ai-chat-control {
+    order: 4;
 }
 
 .header-menu-control {
-    order: 4;
+    order: 5;
 }
 
 .header-deal-snapshot {
@@ -2832,7 +2739,8 @@ async function saveFunnelModal() {
     gap: 0.7rem;
     padding: 0.45rem 0.75rem;
     border-radius: 1rem;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     color: var(--wa-text);
     background: color-mix(in srgb, var(--wa-panel) 90%, var(--wa-bg) 10%);
     text-align: left;
@@ -2918,34 +2826,35 @@ async function saveFunnelModal() {
     border-radius: 9999px;
     font-size: 0.8125rem;
     color: var(--wa-text);
-    background-color: var(--wa-panel);
-    border: 1px solid var(--wa-border-strong);
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    background-color: var(--wa-control-surface);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
     max-width: 220px;
 }
 .label-pill:hover {
     background-color: var(--wa-panel-hover);
-    border-color: var(--wa-border-strong);
+    border-color: var(--wa-control-rim-hover);
+    box-shadow: var(--wa-control-rim-shadow-hover);
 }
 .label-pill-active {
     color: var(--wa-chroma-accent-fg);
-    border-color: var(--wa-chroma-accent-border-60);
     background-color: var(--wa-chroma-accent-bg-12);
 }
 .label-pill-orchestrator {
     order: 3;
     color: var(--wa-chroma-accent-fg);
-    border-color: var(--wa-chroma-accent-border-45);
     background-color: var(--wa-chroma-accent-bg-10);
 }
 .label-pill-orchestrator-wait {
     color: #f59e0b;
-    border-color: var(--wa-chroma-amber-border-50);
     background-color: var(--wa-chroma-amber-bg-12);
 }
 .label-pill-orchestrator-error {
     color: var(--wa-danger);
-    border-color: var(--wa-chroma-danger-border-50);
     background-color: var(--wa-chroma-danger-bg-12);
 }
 .label-pill-active:hover {
@@ -2955,18 +2864,15 @@ async function saveFunnelModal() {
 /* Отделы — янтарь (иерархия: не зелёный «сотрудники»); цвет текста из темы */
 .label-pill-dept {
     color: var(--wa-header-pill-dept-text);
-    border-color: color-mix(in srgb, #f59e0b 45%, var(--wa-border-strong));
     background-color: color-mix(in srgb, #f59e0b 10%, var(--wa-panel));
     padding-inline: 0.95rem;
     max-width: 14rem;
 }
 .label-pill-dept:hover:not(:disabled) {
     background-color: var(--wa-header-pill-dept-bg-hover);
-    border-color: color-mix(in srgb, #f59e0b 55%, var(--wa-border-strong));
 }
 .label-pill-dept-active {
     color: var(--wa-header-pill-dept-text-active);
-    border-color: var(--wa-chroma-amber-border-70);
     background-color: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
 }
 .label-pill-dept-active:hover:not(:disabled) {
@@ -2981,24 +2887,22 @@ async function saveFunnelModal() {
 
 .label-pill-scheduled {
     color: var(--wa-accent);
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border-strong));
     background-color: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
     max-width: none;
     padding-inline: 0.75rem;
 }
 .label-pill-scheduled:hover {
     background-color: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
-    border-color: color-mix(in srgb, var(--wa-accent) 60%, var(--wa-border-strong));
 }
 
 .header-action-group {
     display: flex;
     align-items: center;
     height: 2.35rem;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 9999px;
-    background: color-mix(in srgb, var(--wa-panel) 88%, var(--wa-bg) 12%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    background: var(--wa-control-surface);
     overflow: hidden;
 }
 
@@ -3007,25 +2911,32 @@ async function saveFunnelModal() {
 }
 
 .header-ai-group-on {
-    border-color: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
+    background: color-mix(in srgb, #8b5cf6 8%, var(--wa-panel) 92%);
 }
 
 .header-quick-task-btn {
     height: 2rem;
     padding: 0 0.75rem;
     border-radius: 9999px;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-panel-header);
-    color: var(--wa-text-secondary);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
+    background: var(--wa-control-surface);
+    color: var(--wa-text);
     font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
 .header-quick-task-btn:hover:not(:disabled) {
     background: var(--wa-panel-hover);
     color: var(--wa-text);
+    border-color: var(--wa-control-rim-hover);
+    box-shadow: var(--wa-control-rim-shadow-hover);
 }
 
 .header-quick-task-btn:disabled {
@@ -3033,8 +2944,7 @@ async function saveFunnelModal() {
     cursor: default;
 }
 
-.header-ai-toggle,
-.header-ai-assistant-btn {
+.header-ai-toggle {
     height: 100%;
     display: inline-flex;
     align-items: center;
@@ -3043,9 +2953,6 @@ async function saveFunnelModal() {
     border: 0;
     background: transparent;
     white-space: nowrap;
-}
-
-.header-ai-toggle {
     min-width: 3.25rem;
     padding: 0 0.62rem;
     color: var(--wa-text-secondary);
@@ -3086,36 +2993,88 @@ async function saveFunnelModal() {
 }
 
 .header-ai-assistant-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
     min-width: 2.35rem;
-    padding: 0 0.55rem;
-    color: #fff;
-    background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+    min-height: 2.35rem;
+    height: 2.35rem;
+    padding-inline: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        background-color 0.15s ease,
+        filter 0.15s ease,
+        transform 0.15s ease;
+}
+
+.header-ai-assistant-btn__icon {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.header-ai-assistant-btn__label {
+    letter-spacing: -0.01em;
+    font-size: 0.74rem;
     font-weight: 700;
 }
 
+.header-ai-assistant-btn__status-dot {
+    width: 0.46rem;
+    height: 0.46rem;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    background: #fff;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--wa-control-surface) 35%, #000 65%);
+}
+
+.header-ai-assistant-btn__status-dot--busy {
+    background: #fff;
+    animation: header-ai-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.header-ai-assistant-btn__status-dot--warning {
+    background: #fff;
+}
+
+.header-ai-assistant-btn__status-dot--error {
+    background: #fff;
+}
+
+@keyframes header-ai-dot-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.55;
+        transform: scale(0.82);
+    }
+}
+
 .header-ai-assistant-btn:hover {
-    background: linear-gradient(135deg, #6d28d9 0%, #be185d 100%);
+    filter: brightness(1.04);
+    transform: translateY(-1px);
 }
 
-.header-ai-assistant-btn-error {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+.header-ai-assistant-btn:active {
+    transform: translateY(0);
 }
 
-.header-ai-assistant-btn-error:hover {
-    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+.header-ai-assistant-btn.ui-status-badge--off:hover {
+    filter: none;
+    background: var(--wa-panel-hover);
+    color: var(--wa-text);
+    border-color: var(--wa-control-rim-hover);
+    box-shadow: var(--wa-control-rim-shadow-hover);
 }
 
-.header-ai-assistant-btn-busy {
-    background: var(--wa-accent);
-}
-
-.header-ai-assistant-btn-busy:hover {
-    background: var(--wa-accent-hover);
-}
-
-.label-pill-ai-text {
-    letter-spacing: 0.04em;
-    font-size: 0.74rem;
+.header-ai-assistant-btn.ui-status-badge--off .header-ai-assistant-btn__icon {
+    opacity: 1;
 }
 
 .ai-menu-trigger {
@@ -3162,8 +3121,28 @@ async function saveFunnelModal() {
     min-width: 2.15rem;
     max-width: 2.15rem;
     padding: 0;
-    gap: 0.2rem;
+    gap: 0;
     justify-content: center;
+    position: relative;
+}
+.label-pill-icon-badge,
+.label-pill-icon:has(.label-pill-badge),
+.label-pill-icon:has(.label-pill-count-badge) {
+    width: 2.15rem;
+    min-width: 2.15rem;
+    max-width: 2.15rem;
+    padding: 0;
+}
+.label-pill-count-badge {
+    position: absolute;
+    top: -0.2rem;
+    right: -0.28rem;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 0.625rem;
+    pointer-events: none;
+    box-shadow: 0 0 0 2px var(--wa-panel-header);
 }
 .label-pill-icon:has(.label-pill-badge) {
     width: auto;
@@ -3191,12 +3170,12 @@ async function saveFunnelModal() {
 
 /* Сотрудники — зелень (как акцент WhatsApp) */
 .label-pill-staff {
-    border-color: var(--wa-border-strong);
+    /* rim inherited from .label-pill */
 }
 .label-pill-staff-avatars {
     min-width: 0;
     height: 2.15rem;
-    padding: 0 0.42rem;
+    padding: 0 0.5rem;
     justify-content: center;
     overflow: visible;
 }
@@ -3218,21 +3197,37 @@ async function saveFunnelModal() {
     color: var(--wa-accent);
     border-color: var(--wa-panel-header);
 }
+.header-staff-avatar-stack {
+    display: flex;
+    align-items: center;
+}
+.header-staff-avatar-stack > :not(:first-child) {
+    margin-left: -0.35rem;
+}
+.header-staff-avatar-stack > :nth-child(1) { z-index: 1; }
+.header-staff-avatar-stack > :nth-child(2) { z-index: 2; }
+.header-staff-avatar-stack > :nth-child(3) { z-index: 3; }
+.header-staff-avatar-stack > :nth-child(4) { z-index: 4; }
 .header-staff-avatar {
+    position: relative;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px var(--wa-panel-header);
+    border-radius: 9999px;
+}
+.header-staff-more {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.55rem;
-    height: 1.55rem;
+    width: 22px;
+    height: 22px;
     border-radius: 9999px;
-    border-width: 2px;
-    font-size: 0.64rem;
-    font-weight: 800;
-}
-.header-staff-more {
+    border-width: 0;
+    font-size: 0.58rem;
+    font-weight: 700;
+    line-height: 1;
     color: var(--wa-text-secondary);
     background: color-mix(in srgb, var(--wa-panel) 82%, var(--wa-accent) 18%);
-    font-weight: 700;
+    box-shadow: 0 0 0 2px var(--wa-panel-header);
 }
 
 /* Иконка «назначить сотрудника» — показывается, когда никого не назначено. */
@@ -3357,7 +3352,8 @@ async function saveFunnelModal() {
     width: 100%;
     min-height: 2.7rem;
     padding: 0 0.75rem;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 0.75rem;
     color: var(--wa-text-secondary);
     background: color-mix(in srgb, var(--wa-panel) 72%, var(--wa-panel-input) 28%);

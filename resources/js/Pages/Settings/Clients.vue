@@ -3,6 +3,7 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
 import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { Head, router, Link } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -768,11 +769,10 @@ const companyDeleteDescription = computed(() => {
                                     :style="{ borderColor: isClientCompanySelected(company.id) ? 'var(--ui-accent)' : 'var(--ui-border)', background: 'var(--ui-surface)' }"
                                 >
                                     <label class="flex items-center gap-2 text-sm" :style="{ color: 'var(--ui-text)' }">
-                                        <input
-                                            type="checkbox"
-                                            class="rounded"
-                                            :checked="isClientCompanySelected(company.id)"
-                                            @change="toggleClientCompany(company.id)"
+                                        <UiCheckbox
+                                            size="sm"
+                                            :model-value="isClientCompanySelected(company.id)"
+                                            @update:model-value="toggleClientCompany(company.id)"
                                         />
                                         <span class="font-medium">{{ company.name }}</span>
                                     </label>

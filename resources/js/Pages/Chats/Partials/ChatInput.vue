@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 import type { Message, MessageProductAttachment } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 
 const props = defineProps<{
@@ -1422,7 +1423,7 @@ watch(anyOverlayOpen, (open) => {
                         <div
                             v-if="showAttach"
                             class="absolute bottom-full left-0 mb-2 w-[220px] rounded-lg shadow-2xl border py-1.5 attach-menu"
-                            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
+                            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-border)' }"
                         >
                             <button class="attach-item" @click="pickPhotoVideo" type="button">
                                 <span class="attach-icon" style="background: #bf59cf;">
@@ -1512,7 +1513,7 @@ watch(anyOverlayOpen, (open) => {
                     <div
                         v-if="props.isGroup && mentionOpen"
                         class="absolute bottom-full left-0 mb-2 w-[320px] rounded-lg shadow-2xl border overflow-hidden z-50"
-                        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-control-border)' }"
                     >
                         <div
                             v-if="mentionCandidates.length > 0"
@@ -1973,11 +1974,7 @@ watch(anyOverlayOpen, (open) => {
                             </div>
 
                             <label class="poll-check">
-                                <input
-                                    v-model="pollAllowMultiple"
-                                    type="checkbox"
-                                    :disabled="isSendingPoll"
-                                />
+                                <UiCheckbox v-model="pollAllowMultiple" size="sm" :disabled="isSendingPoll" />
                                 <span>Разрешить несколько ответов</span>
                             </label>
                         </div>
@@ -2015,7 +2012,7 @@ watch(anyOverlayOpen, (open) => {
                 >
                     <div
                         class="w-full sm:max-w-md max-h-[80vh] rounded-t-2xl sm:rounded-2xl shadow-2xl border flex flex-col overflow-hidden"
-                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
+                        :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-border)' }"
                     >
                         <div class="px-4 py-3 border-b flex items-center justify-between gap-3" :style="{ borderColor: 'var(--wa-border)' }">
                             <div class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">Товар из каталога</div>
@@ -2134,7 +2131,8 @@ watch(anyOverlayOpen, (open) => {
     min-height: 56px;
 
     /* Float on top of chat wallpaper (same pattern as messages). */
-    border: 1px solid color-mix(in srgb, var(--wa-border-strong) 38%, transparent);
+    border: 1px solid color-mix(in srgb, var(--wa-control-rim) 72%, transparent);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 24px;
     background: color-mix(in srgb, var(--wa-panel-header) 78%, transparent);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
@@ -2874,13 +2872,7 @@ watch(anyOverlayOpen, (open) => {
     cursor: pointer;
     user-select: none;
 }
-.poll-check input[type='checkbox'] {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--wa-accent);
-    cursor: pointer;
-}
-.poll-check:has(input:disabled) {
+.poll-check:has(.ui-checkbox-disabled) {
     opacity: 0.6;
     cursor: not-allowed;
 }

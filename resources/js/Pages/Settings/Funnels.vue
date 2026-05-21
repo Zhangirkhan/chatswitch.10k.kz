@@ -24,6 +24,7 @@ interface FunnelStage {
     stage_type: string;
     position: number;
     is_active: boolean;
+    wip_limit?: number | null;
     ai_rule?: FunnelStageAiRule | null;
 }
 
@@ -383,13 +384,14 @@ const stageForm = ref({
     color: '#9ca3af',
     stage_type: 'other' as FunnelStageTypeValue,
     is_active: true,
+    wip_limit: '' as string | number,
 });
 const savingStage = ref(false);
 const stageErrors = ref<Record<string, string>>({});
 
 function openCreateStage(funnel: Funnel) {
     stageContext.value = { funnel, editingStageId: null };
-    stageForm.value = { name: '', color: '#9ca3af', stage_type: 'other', is_active: true };
+    stageForm.value = { name: '', color: '#9ca3af', stage_type: 'other', is_active: true, wip_limit: '' };
     stageErrors.value = {};
     stageModalOpen.value = true;
 }
@@ -401,6 +403,7 @@ function openEditStage(funnel: Funnel, stage: FunnelStage) {
         color: stage.color || '#9ca3af',
         stage_type: (stage.stage_type || 'other') as FunnelStageTypeValue,
         is_active: stage.is_active !== false,
+        wip_limit: stage.wip_limit ?? '',
     };
     stageErrors.value = {};
     stageModalOpen.value = true;
@@ -428,6 +431,7 @@ async function saveStage() {
             color: stageForm.value.color,
             stage_type: stageForm.value.stage_type,
             is_active: stageForm.value.is_active,
+            wip_limit: stageForm.value.wip_limit === '' ? null : Number(stageForm.value.wip_limit),
         };
 
         if (stageContext.value.editingStageId === null) {
@@ -961,9 +965,9 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             </div>
                             <label class="ai-toggle inline-flex cursor-pointer items-center gap-2 text-sm text-[var(--ui-text)]">
                                 <UiCheckbox
-                                    :checked="scenarioDraft(funnel).enabled"
+                                    :model-value="scenarioDraft(funnel).enabled"
                                     aria-label="Включить AI-сценарий"
-                                    @change="(v) => saveAiScenario(funnel, { enabled: v })"
+                                    @update:model-value="(v) => saveAiScenario(funnel, { enabled: v })"
                                 />
                                 Включить
                             </label>
@@ -1004,9 +1008,9 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             </label>
                             <span class="inline-flex items-end gap-2 pb-1 text-[var(--ui-text)]">
                                 <UiCheckbox
-                                    :checked="scenarioDraft(funnel).manager_confirmation_required"
+                                    :model-value="scenarioDraft(funnel).manager_confirmation_required"
                                     aria-label="Подтверждать у менеджера"
-                                    @change="(v) => saveAiScenario(funnel, { manager_confirmation_required: v })"
+                                    @update:model-value="(v) => saveAiScenario(funnel, { manager_confirmation_required: v })"
                                 />
                                 Подтверждать у менеджера
                             </span>
@@ -1209,7 +1213,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 >
                                                     <UiCheckbox
                                                         size="sm"
-                                                        :checked="(stageRuleDraft(stage).allowed_actions ?? []).includes(action.id)"
+                                                        :model-value="(stageRuleDraft(stage).allowed_actions ?? []).includes(action.id)"
                                                         :aria-label="action.label"
                                                         @click.stop
                                                     />
@@ -1230,9 +1234,9 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         </label>
                                         <span class="inline-flex items-center gap-2 text-[var(--ui-text)]">
                                             <UiCheckbox
-                                                :checked="stageRuleDraft(stage).require_manager_confirmation"
+                                                :model-value="stageRuleDraft(stage).require_manager_confirmation"
                                                 aria-label="Спорные действия подтверждает менеджер"
-                                                @change="(v) => saveStageAiRule(funnel, stage, { require_manager_confirmation: v })"
+                                                @update:model-value="(v) => saveStageAiRule(funnel, stage, { require_manager_confirmation: v })"
                                             />
                                             Спорные действия подтверждает менеджер
                                         </span>
@@ -1242,9 +1246,9 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         >
                                             <span class="inline-flex items-center gap-2 text-[var(--ui-text)] font-medium">
                                                 <UiCheckbox
-                                                    :checked="stageRuleDraft(stage).follow_up_enabled"
+                                                    :model-value="stageRuleDraft(stage).follow_up_enabled"
                                                     aria-label="Авто follow-up клиенту"
-                                                    @change="(v) => saveStageAiRule(funnel, stage, { follow_up_enabled: v })"
+                                                    @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_enabled: v })"
                                                 />
                                                 Авто follow-up клиенту
                                             </span>
@@ -1700,6 +1704,23 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     <span>{{ option.label }}</span>
                                 </button>
                             </div>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-[var(--ui-text-secondary)]">
+                                Лимит WIP (необязательно)
+                            </label>
+                            <input
+                                v-model="stageForm.wip_limit"
+                                type="number"
+                                min="1"
+                                max="999"
+                                placeholder="Без лимита"
+                                class="ui-input w-full"
+                            />
+                            <p class="mt-1 mb-0 text-[11px] text-[var(--ui-text-secondary)]">
+                                Максимум карточек на этапе на доске воронки
+                            </p>
                         </div>
 
                         <div class="flex items-center gap-2 pt-1">

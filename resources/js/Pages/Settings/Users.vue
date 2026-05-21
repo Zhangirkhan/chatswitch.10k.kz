@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -612,11 +613,10 @@ const userDeleteDescription = computed(() => {
                                         paddingLeft: `${0.75 + node.depth * 1}rem`,
                                     }"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        :checked="form.department_ids.includes(node.dept.id)"
-                                        class="w-4 h-4 rounded shrink-0"
-                                        @change="toggleDepartment(node.dept.id)"
+                                    <UiCheckbox
+                                        size="sm"
+                                        :model-value="form.department_ids.includes(node.dept.id)"
+                                        @update:model-value="toggleDepartment(node.dept.id)"
                                     />
                                     <span class="text-sm text-[var(--ui-text)] truncate">
                                         {{ node.dept.name }}<span
@@ -651,11 +651,10 @@ const userDeleteDescription = computed(() => {
                                         borderColor: form.whatsapp_session_ids.includes(s.id) ? 'var(--ui-accent)' : 'var(--ui-border-strong)',
                                     }"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        :checked="form.whatsapp_session_ids.includes(s.id)"
-                                        class="w-4 h-4 rounded shrink-0"
-                                        @change="toggleSession(s.id)"
+                                    <UiCheckbox
+                                        size="sm"
+                                        :model-value="form.whatsapp_session_ids.includes(s.id)"
+                                        @update:model-value="toggleSession(s.id)"
                                     />
                                     <span
                                         class="w-2 h-2 rounded-full shrink-0"
@@ -672,7 +671,7 @@ const userDeleteDescription = computed(() => {
                         </div>
 
                         <div v-if="editingId" class="flex items-center gap-2 pt-1">
-                            <input id="user-active" v-model="form.is_active" type="checkbox" class="w-4 h-4 rounded" />
+                            <UiCheckbox id="user-active" v-model="form.is_active" size="sm" />
                             <label for="user-active" class="text-sm text-[var(--ui-text)] cursor-pointer">Активен (может входить в систему)</label>
                         </div>
                     </div>

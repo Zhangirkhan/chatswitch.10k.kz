@@ -6,6 +6,9 @@ import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import type { Department } from '@/types';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 interface DeptUser {
     id: number;
@@ -505,7 +508,7 @@ async function saveModal() {
         router.reload({ only: ['departments', 'users'] });
     } catch (err: unknown) {
         if (!applyValidationErrors(err)) {
-            alert(fallbackErrorMessage(err));
+            showToast({ message: fallbackErrorMessage(err), type: 'warning' });
         }
     } finally {
         saving.value = false;
@@ -544,7 +547,7 @@ async function confirmRemoveDepartment(): Promise<void> {
         deptDeleteTarget.value = null;
         router.reload({ only: ['departments', 'users'] });
     } catch (err: unknown) {
-        alert(fallbackErrorMessage(err));
+        showToast({ message: fallbackErrorMessage(err), type: 'warning' });
     } finally {
         deptDeleteBusy.value = false;
     }
@@ -957,8 +960,9 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                         @keydown.enter.prevent="toggleFunnel(funnel)"
                                     >
                                         <UiCheckbox
-                                            :checked="isFunnelChecked(funnel)"
+                                            :model-value="isFunnelChecked(funnel)"
                                             :aria-label="`Воронка ${funnel.name}`"
+                                            @update:model-value="toggleFunnel(funnel)"
                                             @click.stop
                                         />
                                         <span
@@ -1002,8 +1006,9 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                         >
                                             <UiCheckbox
                                                 size="sm"
-                                                :checked="isStageChecked(stage)"
+                                                :model-value="isStageChecked(stage)"
                                                 :aria-label="`Этап ${stage.name}`"
+                                                @update:model-value="toggleStage(funnel, stage)"
                                                 @click.stop
                                             />
                                             <span
@@ -1061,8 +1066,9 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 >
                                     <UiCheckbox
                                         class="mt-0.5"
-                                        :checked="selectedMemberIds.includes(u.id)"
+                                        :model-value="selectedMemberIds.includes(u.id)"
                                         :aria-label="`Сотрудник ${u.name}`"
+                                        @update:model-value="toggleMember(u.id)"
                                         @click.stop
                                     />
                                     <div class="min-w-0 flex-1">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import GuestLayout from '@/Layouts/GuestLayout.vue';
+import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -81,11 +82,7 @@ const submit = () => {
 
             <div class="flex items-center justify-between">
                 <label class="flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        v-model="form.remember"
-                        class="w-4 h-4 rounded text-[var(--wa-accent)] focus:ring-[var(--wa-accent)]"
-                    />
+                    <UiCheckbox v-model="form.remember" size="sm" />
                     <span class="text-sm text-[var(--wa-text-secondary)]">Запомнить</span>
                 </label>
             </div>
