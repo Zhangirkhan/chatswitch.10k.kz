@@ -31,7 +31,6 @@ const emit = defineEmits<{
 const participantsOpen = ref(false);
 
 const isDepartment = computed(() => props.header.type === 'department');
-const isGroupAvatar = computed(() => isDepartment.value);
 
 const statusLine = computed((): string => {
     if (props.typingLabel && props.typingLabel.trim() !== '') {
@@ -75,7 +74,12 @@ const participantsSorted = computed(() =>
             :aria-label="isDepartment ? 'Показать участников' : header.title"
             @click="isDepartment ? (participantsOpen = true) : undefined"
         >
-            <Avatar :name="header.title" :is-group="isGroupAvatar" :size="40" />
+            <Avatar
+                :name="header.title"
+                fallback-initials
+                :size="40"
+                :class="isDepartment ? 'team-chat-header-avatar--group' : 'team-chat-header-avatar--direct'"
+            />
         </button>
 
         <button
@@ -201,5 +205,11 @@ const participantsSorted = computed(() =>
 .team-chat-header-btn:disabled {
     opacity: 0.45;
     pointer-events: none;
+}
+:deep(.team-chat-header-avatar--group .avatar__initials) {
+    color: #f59e0b;
+    background:
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, #f59e0b 28%, transparent), transparent 48%),
+        color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
 }
 </style>

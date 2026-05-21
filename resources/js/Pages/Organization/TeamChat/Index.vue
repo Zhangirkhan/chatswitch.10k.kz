@@ -1032,8 +1032,16 @@ onBeforeUnmount(() => {
                     class="team-chat-thread flex-1 overflow-y-auto wa-scrollbar px-3 sm:px-4 py-3 min-h-0"
                     @scroll.passive="onThreadScroll"
                 >
-                    <div v-if="loading && messages.length === 0" class="text-sm text-[var(--wa-text-secondary)]">
-                        Загрузка сообщений…
+                    <div v-if="loading && messages.length === 0" class="space-y-3 px-1 py-2">
+                        <div v-for="n in 5" :key="n" class="flex gap-2 animate-pulse" :class="n % 2 === 0 ? 'justify-end' : ''">
+                            <div
+                                class="rounded-2xl px-4 py-3 max-w-[min(72%,420px)] space-y-2"
+                                :style="{ background: 'var(--wa-panel-header)' }"
+                            >
+                                <div class="h-2.5 rounded w-full" :style="{ background: 'var(--wa-border)' }" />
+                                <div class="h-2.5 rounded w-4/5" :style="{ background: 'var(--wa-border)' }" />
+                            </div>
+                        </div>
                     </div>
                     <div
                         v-if="replyJumpNotice"

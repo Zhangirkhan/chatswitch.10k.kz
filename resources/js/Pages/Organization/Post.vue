@@ -5,8 +5,11 @@ import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import { useToastStore } from '@/stores/toast';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
 import type { OrgPost, OrgAttachment, OrgAssignee } from './Department.vue';
+
+const { show: showToast } = useToastStore();
 
 interface OrgComment {
     id: number;
@@ -136,9 +139,9 @@ async function confirmPostDanger(): Promise<void> {
         closePostDanger();
     } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
-            alert(e.response?.data?.message || 'Не удалось выполнить действие.');
+            showToast({ message: e.response?.data?.message || 'Не удалось выполнить действие.', type: 'warning' });
         } else {
-            alert('Не удалось выполнить действие.');
+            showToast({ message: 'Не удалось выполнить действие.', type: 'warning' });
         }
     } finally {
         postDangerBusy.value = false;

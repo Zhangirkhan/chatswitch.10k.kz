@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import type { Contact } from '@/types';
@@ -92,22 +93,52 @@ async function saveName(c: Contact, name: string): Promise<void> {
                         {{ rows.length }} контактов
                     </div>
 
-                    <div class="grid grid-cols-1 gap-2">
+                    <div v-if="rows.length === 0" class="ui-empty-state ui-empty-state--dashed mx-auto max-w-md">
+                        <Avatar :size="72" variant="neutral" class="mx-auto mb-3" />
+                        <p class="text-sm font-medium text-[var(--wa-text)] m-0">
+                            {{ q.trim() ? 'Ничего не найдено' : 'Контактов пока нет' }}
+                        </p>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mt-2 mb-0">
+                            {{ q.trim()
+                                ? 'Попробуйте другой запрос или очистите поиск.'
+                                : 'Новые контакты появятся после первых сообщений в WhatsApp.' }}
+                        </p>
+                        <Link
+                            v-if="!q.trim()"
+                            :href="route('settings.connections')"
+                            class="ui-empty-state__action mt-4 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white"
+                            :style="{ background: 'var(--wa-accent)' }"
+                        >
+                            Подключить WhatsApp
+                        </Link>
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 gap-2">
                         <div
                             v-for="c in rows"
                             :key="c.id"
                             class="ui-result-card"
                         >
                             <div class="flex items-start justify-between gap-4">
-                                <div class="min-w-0">
-                                    <div class="truncate text-sm font-medium text-[var(--wa-text)]">
-                                        {{ label(c) || 'Без имени' }}
-                                    </div>
-                                    <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">
-                                        {{ formatPhone(c.phone_number) || '' }}
-                                    </div>
-                                    <div v-if="c.push_name && (!c.name || c.push_name !== c.name)" class="mt-1 text-xs text-[var(--wa-text-secondary)]">
-                                        WhatsApp: {{ c.push_name }}
+                                <div class="flex items-start gap-3 min-w-0">
+                                    <Avatar
+                                        :name="label(c)"
+                                        :avatar-url="c.profile_picture_url"
+                                        :size="44"
+                                        variant="neutral"
+                                        fallback-initials
+                                        class="shrink-0"
+                                    />
+                                    <div class="min-w-0">
+                                        <div class="truncate text-sm font-medium text-[var(--wa-text)]">
+                                            {{ label(c) || 'Без имени' }}
+                                        </div>
+                                        <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                                            {{ formatPhone(c.phone_number) || '' }}
+                                        </div>
+                                        <div v-if="c.push_name && (!c.name || c.push_name !== c.name)" class="mt-1 text-xs text-[var(--wa-text-secondary)]">
+                                            WhatsApp: {{ c.push_name }}
+                                        </div>
                                     </div>
                                 </div>
 

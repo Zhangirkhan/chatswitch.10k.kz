@@ -359,7 +359,8 @@ function initial(name: string): string {
     border-radius: 999px;
     background: transparent;
     color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     font-size: 0.85rem;
     cursor: pointer;
 }
@@ -509,7 +510,8 @@ function initial(name: string): string {
     gap: 0.4rem;
     padding: 0.3rem 0.65rem 0.3rem 0.35rem;
     border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     background: var(--wa-panel-header);
     color: var(--wa-text);
     font-size: 0.82rem;
@@ -572,7 +574,8 @@ function initial(name: string): string {
     max-width: 540px;
     max-height: 90vh;
     overflow-y: auto;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     color: var(--wa-text);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
@@ -614,7 +617,8 @@ function initial(name: string): string {
 .form-row select {
     background: var(--wa-panel-header);
     color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     border-radius: 10px;
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
@@ -633,7 +637,8 @@ function initial(name: string): string {
     gap: 0.5rem;
     padding: 0.65rem 0.85rem;
     border-radius: 12px;
-    border: 1px dashed var(--wa-border-strong);
+    border: 1px dashed var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     color: var(--wa-text-secondary);
     text-decoration: none;
     font-size: 0.83rem;

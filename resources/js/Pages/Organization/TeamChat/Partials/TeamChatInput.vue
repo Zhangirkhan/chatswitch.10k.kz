@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
                         <div
                             v-if="showAttach"
                             class="absolute bottom-full left-0 mb-2 w-[220px] rounded-lg shadow-2xl border py-1.5 attach-menu"
-                            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border-strong)' }"
+                            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                         >
                             <button class="attach-item" type="button" @click="pickPhotoVideo">
                                 <span class="attach-icon" style="background: #bf59cf;">

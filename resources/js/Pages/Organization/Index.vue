@@ -116,35 +116,15 @@ function initial(name: string): string {
                 </button>
             </div>
 
-            <!-- ── Строка-фильтр ─────────────────────────────────────── -->
-            <div class="filter-bar">
-                <div class="filter-bar-left">
-                    <button
-                        v-for="f in ([
-                            { key: 'all',         label: 'Все',        color: '' },
-                            { key: 'open',        label: 'Открытые',   color: 'open' },
-                            { key: 'in_progress', label: 'В работе',   color: 'progress' },
-                            { key: 'done',        label: 'Завершённые',color: 'done' },
-                        ] as const)"
-                        :key="f.key"
-                        type="button"
-                        class="filter-btn"
-                        :class="[`filter-btn-${f.color || 'all'}`, { 'filter-btn-active': activeFilter === f.key }]"
-                        @click="setFilter(f.key)"
-                    >
-                        {{ f.label }}
-                    </button>
-                </div>
-                <div class="filter-bar-right">
-                    <span v-if="activeFilter !== 'all'" class="filter-result-hint">
-                        {{ filteredDepartments.length }} {{ filteredDepartments.length === 1 ? 'отдел' : filteredDepartments.length < 5 ? 'отдела' : 'отделов' }},
-                        {{ filteredTasksTotal }} задач
-                    </span>
-                    <span v-else class="filter-result-hint">
-                        {{ departments.length }} {{ departments.length === 1 ? 'отдел' : departments.length < 5 ? 'отдела' : 'отделов' }}
-                    </span>
-                </div>
-            </div>
+            <p class="filter-result-hint m-0">
+                <span v-if="activeFilter !== 'all'">
+                    {{ filteredDepartments.length }} {{ filteredDepartments.length === 1 ? 'отдел' : filteredDepartments.length < 5 ? 'отдела' : 'отделов' }},
+                    {{ filteredTasksTotal }} задач
+                </span>
+                <span v-else>
+                    {{ departments.length }} {{ departments.length === 1 ? 'отдел' : departments.length < 5 ? 'отдела' : 'отделов' }}
+                </span>
+            </p>
 
             <!-- Empty state (нет отделов) -->
             <div v-if="departments.length === 0" class="empty-state">
@@ -221,7 +201,7 @@ function initial(name: string): string {
                         </span>
                         <span
                             v-if="dept.open_count === 0 && dept.in_progress_count === 0 && dept.done_count === 0"
-                            class="task-badge task-badge-empty"
+                            class="ui-tab-badge ui-tab-badge--neutral"
                         >Нет задач</span>
                     </div>
 
@@ -268,7 +248,7 @@ function initial(name: string): string {
     transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 .kpi-card:hover {
-    border-color: var(--wa-border-strong);
+    border-color: var(--wa-control-border);
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
 }
 .kpi-card-active {
@@ -306,39 +286,10 @@ function initial(name: string): string {
     font-weight: 500;
 }
 
-/* ── Filter bar ─────────────────────────────────────────────────────────── */
-.filter-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-.filter-bar-left {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-}
-.filter-bar-right {
+.filter-result-hint {
     font-size: 0.78rem;
     color: var(--wa-text-secondary);
 }
-.filter-btn {
-    padding: 0.3rem 0.85rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-panel-header);
-    color: var(--wa-text-secondary);
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.filter-btn:hover { background: var(--wa-panel-hover); color: var(--wa-text); }
-.filter-btn-active.filter-btn-all      { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); border-color: var(--wa-accent); color: var(--wa-accent); font-weight: 700; }
-.filter-btn-active.filter-btn-open     { background: color-mix(in srgb, #f59e0b 15%, var(--wa-panel-header)); border-color: #f59e0b; color: #f59e0b; font-weight: 700; }
-.filter-btn-active.filter-btn-progress { background: color-mix(in srgb, #3b82f6 15%, var(--wa-panel-header)); border-color: #3b82f6; color: #3b82f6; font-weight: 700; }
-.filter-btn-active.filter-btn-done     { background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header)); border-color: var(--wa-accent); color: var(--wa-accent); font-weight: 700; }
 
 /* ── Empty states ────────────────────────────────────────────────────────── */
 .empty-state {
@@ -363,7 +314,8 @@ function initial(name: string): string {
 .reset-filter-btn {
     padding: 0.4rem 1.1rem;
     border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
     background: transparent;
     color: var(--wa-text-secondary);
     font-size: 0.82rem;
