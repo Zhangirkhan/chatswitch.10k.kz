@@ -573,6 +573,7 @@ final class FunnelController extends Controller
             'color' => ['nullable', 'string', 'max:16'],
             'stage_type' => ['nullable', 'string', 'max:32', Rule::in(FunnelStageType::values())],
             'is_active' => ['sometimes', 'boolean'],
+            'wip_limit' => ['nullable', 'integer', 'min:1', 'max:999'],
         ]);
 
         $validated['stage_type'] = FunnelStageType::normalize(

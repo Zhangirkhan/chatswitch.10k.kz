@@ -21,6 +21,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EntityMemoryController;
+use App\Http\Controllers\FunnelBoardController;
 use App\Http\Controllers\FunnelController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\LinkPreviewController;
@@ -158,6 +159,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/calendar/events', [CalendarController::class, 'store'])->name('calendar.events.store');
         Route::put('/calendar/events/{event}', [CalendarController::class, 'update'])->name('calendar.events.update');
         Route::delete('/calendar/events/{event}', [CalendarController::class, 'destroy'])->name('calendar.events.destroy');
+
+        Route::get('/funnels/board', [FunnelBoardController::class, 'index'])->name('funnels.board');
+        Route::get('/funnels/board/data', [FunnelBoardController::class, 'data'])->name('funnels.board.data');
+        Route::get('/funnels/board/stage-cards', [FunnelBoardController::class, 'stageCards'])->name('funnels.board.stage-cards');
+        Route::post('/funnels/board/bulk-move', [FunnelBoardController::class, 'bulkMove'])->name('funnels.board.bulk-move');
+        Route::get('/funnels/board/card/{chat}', [FunnelBoardController::class, 'card'])->name('funnels.board.card');
 
         Route::get('/organization', [OrganizationController::class, 'index'])->name('organization.index');
         Route::get('/organization/chat/api/conversations', [OrganizationTeamChatController::class, 'conversations'])->name('organization.team-chat.api.conversations');

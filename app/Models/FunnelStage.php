@@ -25,6 +25,7 @@ final class FunnelStage extends Model
         'stage_type',
         'position',
         'is_active',
+        'wip_limit',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ final class FunnelStage extends Model
             'funnel_id' => 'integer',
             'position' => 'integer',
             'is_active' => 'boolean',
+            'wip_limit' => 'integer',
         ];
     }
 

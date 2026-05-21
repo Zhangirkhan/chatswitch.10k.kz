@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Funnel;
 
 use App\Events\ChatFunnelUpdated;
+use App\Events\FunnelBoardCardUpdated;
 use App\Models\Chat;
 use App\Models\ChatFunnelTransition;
 use App\Models\User;
@@ -97,6 +98,10 @@ final class ChatFunnelStateService
 
         $funnelChanged = $fromFunnelId != $funnelId || $fromStageId != $stageId;
 
+        if ($funnelChanged && $stageId !== null && (int) $fromStageId !== (int) $stageId) {
+            app(FunnelStageWipGuard::class)->assertCanAccept((int) $stageId, (int) $chat->id);
+        }
+
         DB::transaction(function () use (
             $chat,
             $funnelId,
@@ -136,13 +141,18 @@ final class ChatFunnelStateService
             app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat->fresh() ?? $chat);
         }
 
-        $this->broadcastFresh($chat->id, 'manual');
+        $this->broadcastFresh($chat->id, 'manual', null, $actor->id, $actor->name);
     }
 
-    private function broadcastFresh(int $chatId, string $source = 'sync', ?string $reasonOverride = null): void
-    {
+    private function broadcastFresh(
+        int $chatId,
+        string $source = 'sync',
+        ?string $reasonOverride = null,
+        ?int $actorUserId = null,
+        ?string $actorName = null,
+    ): void {
         $chat = Chat::query()
-            ->with(['funnel', 'funnelStage'])
+            ->with(['funnel', 'funnelStage', 'contact', 'assignments.user'])
             ->whereKey($chatId)
             ->first();
 
@@ -174,6 +184,21 @@ final class ChatFunnelStateService
         ];
 
         broadcast(new ChatFunnelUpdated($chatId, $payload));
+
+        if ($chat->funnel_id !== null) {
+            $boardCard = app(FunnelBoardService::class)->serializeCard($chat);
+            broadcast(new FunnelBoardCardUpdated(
+                (int) $chat->funnel_id,
+                $chatId,
+                $chat->funnel_stage_id !== null ? (int) $chat->funnel_stage_id : null,
+                $actorUserId,
+                $source,
+                [
+                    ...$boardCard,
+                    'actor_name' => $actorName,
+                ],
+            ));
+        }
     }
 
     /**
