@@ -3,6 +3,8 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
+import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
+import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import PwaInstallBanner from '@/Components/PwaInstallBanner.vue';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
@@ -153,6 +155,8 @@ onUnmounted(() => {
                     class="wa-rail-btn relative"
                     :class="{ active: route().current('chats.index') || route().current('chats.show') || route().current('chats.archived') }"
                     title="Чаты"
+                    aria-label="Чаты"
+                    :aria-current="route().current('chats.index') || route().current('chats.show') || route().current('chats.archived') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M19.005 3.175H4.674C3.642 3.175 3 3.789 3 4.821V21.02l3.544-3.514h12.461c1.033 0 2.064-1.06 2.064-2.093V4.821c-.001-1.032-1.032-1.646-2.064-1.646zm-4.989 9.869H7.041V11.1h6.975v1.944zm3-4H7.041V7.1h9.975v1.944z"/>
@@ -172,6 +176,8 @@ onUnmounted(() => {
                     class="wa-rail-btn"
                     :class="{ active: route().current('broadcasts.*') }"
                     title="Рассылки"
+                    aria-label="Рассылки"
+                    :aria-current="route().current('broadcasts.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -184,6 +190,8 @@ onUnmounted(() => {
                     class="wa-rail-btn"
                     :class="{ active: route().current('ai-chat.*') }"
                     title="ИИ чат"
+                    aria-label="ИИ чат"
+                    :aria-current="route().current('ai-chat.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
@@ -196,6 +204,8 @@ onUnmounted(() => {
                     class="wa-rail-btn"
                     :class="{ active: route().current('analytics.*') }"
                     title="Аналитика диалогов"
+                    aria-label="Аналитика диалогов"
+                    :aria-current="route().current('analytics.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 16l4-8 4 5 4-10" />
@@ -208,12 +218,28 @@ onUnmounted(() => {
                     class="wa-rail-btn"
                     :class="{ active: route().current('calendar.*') }"
                     title="Календарь"
+                    aria-label="Календарь"
+                    :aria-current="route().current('calendar.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
                         <line x1="16" y1="2" x2="16" y2="6" stroke-linecap="round"/>
                         <line x1="8" y1="2" x2="8" y2="6" stroke-linecap="round"/>
                         <line x1="3" y1="10" x2="21" y2="10" stroke-linecap="round"/>
+                    </svg>
+                </Link>
+
+                <Link
+                    v-if="route().has('funnels.board') && page.props.modules?.funnels"
+                    :href="route('funnels.board')"
+                    class="wa-rail-btn"
+                    :class="{ active: route().current('funnels.board') }"
+                    title="Воронки"
+                    aria-label="Воронки"
+                    :aria-current="route().current('funnels.board') ? 'page' : undefined"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h5v5H4V6zm0 7h5v5H4v-5zm7-7h9v3h-9V6zm0 5h9v3h-9v-3zm0 5h9v3h-9v-3z" />
                     </svg>
                 </Link>
 
@@ -242,12 +268,15 @@ onUnmounted(() => {
                 <Link
                     :href="route('profile.edit')"
                     :title="user?.name"
+                    aria-label="Профиль и настройки"
+                    :aria-current="route().current('profile.edit') || route().current('settings.*') ? 'page' : undefined"
                     class="block rounded-full transition"
                     :class="{ 'ring-2 ring-[var(--wa-accent)]': route().current('profile.edit') || route().current('settings.*') }"
                 >
                     <Avatar
                         :avatar-url="user?.profile_photo_url"
                         :name="user?.name"
+                        fallback-initials
                         :size="40"
                     />
                 </Link>
@@ -255,10 +284,17 @@ onUnmounted(() => {
         </aside>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <slot />
+            <UiViewTransition
+                scope="app-shell"
+                panel-class="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden"
+                class="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden"
+            >
+                <slot />
+            </UiViewTransition>
         </div>
 
         <ToastContainer />
+        <ConnectionLostOverlay />
         <PwaInstallBanner />
     </div>
 </template>
