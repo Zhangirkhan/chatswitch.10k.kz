@@ -12,6 +12,7 @@
         "@inertiajs/vue3": "^2.0.0",
         "@tailwindcss/forms": "^0.5.3",
         "@types/node": "^22.19.17",
+        "@types/sortablejs": "^1.15.9",
         "@vitejs/plugin-vue": "^6.0.0",
         "@vue/test-utils": "^2.4.6",
         "autoprefixer": "^10.4.12",
@@ -37,6 +38,7 @@
         "@tiptap/starter-kit": "^3.22.5",
         "@tiptap/vue-3": "^3.22.5",
         "chart.js": "^4.5.1",
+        "sortablejs": "^1.15.7",
         "vue-chartjs": "^5.3.3"
     }
 }
