@@ -4,6 +4,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
+import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
+import { useToastStore } from '@/stores/toast';
+
+const { show: showToast } = useToastStore();
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,7 +181,7 @@ async function confirmDeleteEvent(): Promise<void> {
         closeModal();
         await loadEvents();
     } catch {
-        alert('Не удалось удалить запись.');
+        showToast({ message: 'Не удалось удалить запись.', type: 'warning' });
     }
 }
 
@@ -448,7 +453,7 @@ const recurrenceLabels: Record<string, string> = {
                     </div>
                 </div>
                 <div class="cal-toolbar-right">
-                    <div class="ui-pill-nav">
+                    <UiPillNav>
                         <button
                             type="button"
                             class="ui-pill-nav__item"
@@ -465,7 +470,7 @@ const recurrenceLabels: Record<string, string> = {
                         >
                             Неделя
                         </button>
-                    </div>
+                    </UiPillNav>
                     <button type="button" class="ui-btn ui-btn--primary ui-btn--sm gap-1.5" @click="openCreate()">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -500,8 +505,9 @@ const recurrenceLabels: Record<string, string> = {
                 </label>
             </div>
 
-            <!-- ── Month view ────────────────────────────────────────── -->
-            <div v-if="view === 'month'" class="cal-month">
+            <UiViewTransition :transition-key="view" panel-class="cal-view-shell">
+                <!-- ── Month view ────────────────────────────────────────── -->
+                <div v-if="view === 'month'" class="cal-month">
                 <!-- Day headers -->
                 <div class="cal-month-header">
                     <div v-for="d in DAYS_SHORT" :key="d" class="cal-month-dayname">{{ d }}</div>
@@ -614,7 +620,8 @@ const recurrenceLabels: Record<string, string> = {
                         </div>
                     </div>
                 </div>
-            </div>
+                </div>
+            </UiViewTransition>
 
         </div>
 
@@ -834,6 +841,13 @@ const recurrenceLabels: Record<string, string> = {
 }
 
 /* ── Month view ─────────────────────────────────────────────────────────── */
+.cal-view-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .cal-month {
     flex: 1;
     display: flex;

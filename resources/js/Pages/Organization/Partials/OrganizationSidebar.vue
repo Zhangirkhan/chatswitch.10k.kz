@@ -3,8 +3,13 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
+import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
+import Avatar from '@/Components/Avatar.vue';
+import UserAvatar from '@/Components/UserAvatar.vue';
 import type { PageProps } from '@/types';
 import { useToastStore } from '@/stores/toast';
+import { initialsFromName } from '@/utils/initials';
 
 const { show: showToast } = useToastStore();
 
@@ -76,6 +81,10 @@ type TeamSearchMsgHit = {
     sender_name: string | null;
 };
 type TeamSearchColleagueHit = { id: number; name: string; email: string };
+
+function userInitials(name?: string | null): string {
+    return initialsFromName(name, 'С');
+}
 
 const teamGlobalSearch = ref('');
 const teamGlobalSearchLoading = ref(false);
@@ -484,7 +493,7 @@ function clearSearch() {
                 <SidebarSectionTabs active="organization" />
 
                 <div class="ui-sidebar-filters__group">
-                <div class="ui-pill-nav">
+                <UiPillNav>
                     <Link
                         :href="route('organization.index')"
                         class="ui-pill-nav__item"
@@ -497,12 +506,16 @@ function clearSearch() {
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': teamChatActive }"
                     >
-                        Чат
-                        <span v-if="teamChatUnread > 0" class="ui-pill-nav__badge">{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
+                        <span class="truncate">Чат</span>
+                        <span
+                            v-if="teamChatUnread > 0"
+                            class="ui-pill-nav__badge"
+                            :title="`Непрочитанных в чате: ${teamChatUnread}`"
+                        >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
                     </Link>
-                </div>
+                </UiPillNav>
                     <template v-if="teamChatActive">
-                        <div class="ui-pill-nav">
+                        <UiPillNav>
                             <button
                                 type="button"
                                 class="ui-pill-nav__item"
@@ -519,7 +532,7 @@ function clearSearch() {
                             >
                                 Сотрудники
                             </button>
-                        </div>
+                        </UiPillNav>
                         <div
                             v-if="chatSidebarMode === 'chats'"
                             class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
@@ -579,11 +592,7 @@ function clearSearch() {
                     :class="{ 'dept-item-selected': dept.id === selectedDepartmentId }"
                     :style="{ paddingLeft: `${0.75 + dept.depth * 1.1}rem` }"
                 >
-                    <div class="dept-icon">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                    </div>
+                    <Avatar :name="dept.name" :size="40" variant="group" />
                     <div class="flex-1 min-w-0">
                         <div class="dept-name truncate">{{ dept.name }}</div>
                         <div v-if="dept.description" class="dept-meta truncate">{{ dept.description }}</div>
@@ -591,12 +600,12 @@ function clearSearch() {
                     <div v-if="dept.posts_count > 0" class="dept-badges">
                         <span
                             v-if="dept.in_progress_count > 0"
-                            class="dept-badge dept-badge-progress"
+                            class="ui-tab-badge ui-tab-badge--warn"
                             :title="`В работе: ${dept.in_progress_count}`"
                         >{{ dept.in_progress_count > 99 ? '99+' : dept.in_progress_count }}</span>
                         <span
                             v-if="dept.open_count > 0"
-                            class="dept-badge dept-badge-open"
+                            class="ui-tab-badge ui-tab-badge--team"
                             :title="`Открыто: ${dept.open_count}`"
                         >{{ dept.open_count > 99 ? '99+' : dept.open_count }}</span>
                     </div>
@@ -617,7 +626,7 @@ function clearSearch() {
                         <div class="dept-name truncate">Архив задач</div>
                         <div class="dept-meta">Завершённые задачи</div>
                     </div>
-                    <span v-if="totalArchived > 0" class="dept-badge archive-badge" :title="`Архивных задач: ${totalArchived}`">
+                    <span v-if="totalArchived > 0" class="ui-tab-badge ui-tab-badge--neutral" :title="`Архивных задач: ${totalArchived}`">
                         {{ totalArchived > 99 ? '99+' : totalArchived }}
                     </span>
                 </Link>
@@ -625,6 +634,11 @@ function clearSearch() {
             </template>
 
             <template v-else>
+                <UiViewTransition
+                    :transition-key="chatSidebarMode"
+                    panel-class="flex flex-1 flex-col min-h-0 overflow-hidden"
+                    class="flex flex-1 flex-col min-h-0 overflow-hidden"
+                >
                 <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
                     <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
                         Группы отделов и личные сообщения
@@ -703,8 +717,14 @@ function clearSearch() {
                     />
                 </div>
                 <div class="flex-1 overflow-y-auto wa-scrollbar">
-                    <div v-if="chatSidebarMode === 'chats' && teamListLoading" class="py-8 text-center text-sm text-[var(--wa-text-secondary)]">
-                        Загрузка…
+                    <div v-if="chatSidebarMode === 'chats' && teamListLoading" class="px-3 py-3 space-y-3">
+                        <div v-for="n in 6" :key="n" class="flex items-center gap-3 animate-pulse">
+                            <div class="w-10 h-10 rounded-full shrink-0" :style="{ background: 'var(--wa-panel-header)' }" />
+                            <div class="flex-1 space-y-2">
+                                <div class="h-3 w-2/3 rounded" :style="{ background: 'var(--wa-panel-header)' }" />
+                                <div class="h-2.5 w-1/2 rounded" :style="{ background: 'var(--wa-panel-header)' }" />
+                            </div>
+                        </div>
                     </div>
                     <template v-else-if="chatSidebarMode === 'chats'">
                         <div
@@ -717,12 +737,13 @@ function clearSearch() {
                                 :href="route('organization.team-chat.show', c.id)"
                                 class="flex flex-1 min-w-0 items-center gap-3 text-inherit no-underline min-h-[44px]"
                             >
-                                <div class="dept-icon shrink-0">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                        <path v-if="c.type === 'department'" stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path v-else stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                </div>
+                                <Avatar
+                                    :name="c.title"
+                                    :size="40"
+                                    :variant="c.type === 'department' ? 'group' : 'staff'"
+                                    fallback-initials
+                                    class="shrink-0"
+                                />
                                 <div class="flex-1 min-w-0">
                                     <div class="dept-name truncate flex items-center gap-1">
                                         <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" title="Закреплено">📌</span>
@@ -731,12 +752,13 @@ function clearSearch() {
                                     <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
                                     <div v-else-if="c.subtitle" class="dept-meta truncate">{{ c.subtitle }}</div>
                                 </div>
-                                <span v-if="c.unread_count > 0" class="dept-badge dept-badge-open shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
+                                <span v-if="c.unread_count > 0" class="ui-tab-badge ui-tab-badge--team shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
                             </Link>
                             <button
                                 type="button"
                                 class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
                                 :title="c.is_pinned ? 'Открепить' : 'Закрепить'"
+                                :aria-label="c.is_pinned ? 'Открепить' : 'Закрепить'"
                                 @click.prevent.stop="toggleTeamPin(c)"
                             >
                                 <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
@@ -757,9 +779,7 @@ function clearSearch() {
                             class="dept-item w-full text-left border-0 bg-transparent"
                             @click="openContactDm(u.id)"
                         >
-                            <div class="dept-icon">
-                                <span class="text-sm font-semibold">{{ u.name.charAt(0).toUpperCase() }}</span>
-                            </div>
+                            <UserAvatar :name="u.name" :size="40" />
                             <div class="flex-1 min-w-0">
                                 <div class="dept-name truncate">{{ u.name }}</div>
                                 <div class="dept-meta truncate">{{ u.email }}</div>
@@ -770,6 +790,7 @@ function clearSearch() {
                         </div>
                     </template>
                 </div>
+                </UiViewTransition>
             </template>
         </div>
     </div>
@@ -804,6 +825,21 @@ function clearSearch() {
     justify-content: center;
     flex-shrink: 0;
 }
+.dept-icon--initials {
+    color: var(--wa-accent);
+    background:
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--wa-accent) 28%, transparent), transparent 48%),
+        color-mix(in srgb, var(--wa-accent) 14%, var(--wa-panel));
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+.dept-icon--group {
+    color: #f59e0b;
+    background:
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, #f59e0b 28%, transparent), transparent 48%),
+        color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+}
 .dept-name {
     font-size: 0.95rem;
     line-height: 1.2;
@@ -819,25 +855,6 @@ function clearSearch() {
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
-}
-.dept-badge {
-    min-width: 22px;
-    height: 22px;
-    padding: 0 0.4rem;
-    border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.dept-badge-progress {
-    background: color-mix(in srgb, #3b82f6 88%, var(--wa-chroma-blend));
-    color: #fff;
-}
-.dept-badge-open {
-    background: color-mix(in srgb, #f59e0b 85%, var(--wa-chroma-blend));
-    color: #78350f;
 }
 .archive-item {
     border-top: 1px solid var(--wa-border-strong);
