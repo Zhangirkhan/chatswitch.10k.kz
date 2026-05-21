@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { initialsFromName } from '@/utils/initials';
 
 /**
  * Avatar — renders a rounded profile picture if `avatarUrl` is provided and
- * loads successfully, otherwise falls back to a neutral WhatsApp-style silhouette.
- *
- * Note: `name` is accepted for accessibility (alt text / title) but intentionally
- * NEVER used to render initials.
+ * loads successfully. Internal user avatars can opt into initials fallback.
  */
 const props = withDefaults(
     defineProps<{
         avatarUrl?: string | null;
         name?: string | null;
         isGroup?: boolean;
+        fallbackInitials?: boolean;
+        variant?: 'neutral' | 'staff' | 'group';
         size?: number;
     }>(),
     {
         avatarUrl: null,
         name: '',
         isGroup: false,
+        fallbackInitials: false,
+        variant: 'neutral',
         size: 49,
     },
 );
@@ -32,12 +34,31 @@ watch(
     },
 );
 
+const isGroupAvatar = computed(() => props.isGroup || props.variant === 'group');
 const showImage = computed(() => !!props.avatarUrl && !failed.value);
+const initials = computed(() => initialsFromName(props.name));
+
+/** One letter in tiny circles; two max otherwise — keeps stacked header pills readable. */
+const displayInitials = computed(() => {
+    const value = initials.value;
+    if (props.size <= 26) {
+        return value.slice(0, 1);
+    }
+    return value.slice(0, 2);
+});
 
 const style = computed(() => ({
     width: `${props.size}px`,
     height: `${props.size}px`,
 }));
+
+const initialsStyle = computed(() => {
+    const px = Math.round(Math.max(7, props.size * 0.38));
+    return {
+        fontSize: `${px}px`,
+        letterSpacing: props.size <= 28 ? '-0.03em' : '0.01em',
+    };
+});
 
 function onError() {
     failed.value = true;
@@ -45,7 +66,12 @@ function onError() {
 </script>
 
 <template>
-    <div class="avatar" :style="style" :title="name || undefined">
+    <div
+        class="avatar"
+        :class="`avatar--${variant}`"
+        :style="style"
+        :title="name || undefined"
+    >
         <img
             v-if="showImage"
             :src="avatarUrl!"
@@ -54,15 +80,23 @@ function onError() {
             draggable="false"
             @error="onError"
         />
+        <span
+            v-else-if="fallbackInitials && !isGroupAvatar"
+            class="avatar__initials"
+            :style="initialsStyle"
+            aria-hidden="true"
+        >
+            {{ displayInitials }}
+        </span>
         <svg
             v-else
             class="avatar__icon"
-            :class="props.isGroup ? 'avatar__icon--group' : 'avatar__icon--user'"
-            :viewBox="props.isGroup ? '0 0 24 24' : '0 0 212 212'"
+            :class="isGroupAvatar ? 'avatar__icon--group' : 'avatar__icon--user'"
+            :viewBox="isGroupAvatar ? '0 0 24 24' : '0 0 212 212'"
             aria-hidden="true"
             focusable="false"
         >
-            <template v-if="props.isGroup">
+            <template v-if="isGroupAvatar">
                 <path
                     fill="currentColor"
                     d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3Zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-1.5C15 14.17 10.33 13 8 13Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 2.02 1.97 3.45V20h7v-1.5c0-2.33-4.67-3.5-7-3.5Z"
@@ -118,5 +152,36 @@ function onError() {
 .avatar__icon--user {
     width: 100%;
     height: 100%;
+}
+
+.avatar__initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.avatar--staff .avatar__initials {
+    color: var(--wa-accent);
+    background:
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--wa-accent) 30%, transparent), transparent 48%),
+        color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel));
+}
+
+.avatar--neutral .avatar__initials {
+    color: var(--wa-text);
+    background: color-mix(in srgb, var(--wa-text-secondary) 16%, var(--wa-panel));
+}
+
+.avatar--group {
+    background: color-mix(in srgb, var(--wa-tab-badge-team-bg, #8b5cf6) 18%, var(--wa-panel));
+    color: var(--wa-tab-badge-team-bg, #8b5cf6);
 }
 </style>
