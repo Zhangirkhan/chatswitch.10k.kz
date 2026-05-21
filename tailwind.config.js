@@ -18,6 +18,8 @@ const uiColors = {
 
     border: 'var(--ui-border)',
     'border-strong': 'var(--ui-border-strong)',
+    'control-border': 'var(--ui-control-border)',
+    'control-border-hover': 'var(--ui-control-border-hover)',
 
     text: 'var(--ui-text)',
     'text-secondary': 'var(--ui-text-secondary)',
@@ -45,6 +47,10 @@ const waColors = {
 
     border: 'var(--wa-border)',
     'border-strong': 'var(--wa-border-strong)',
+    'control-border': 'var(--wa-control-rim)',
+    'control-border-hover': 'var(--wa-control-rim-hover)',
+    'control-rim': 'var(--wa-control-rim)',
+    'control-rim-hover': 'var(--wa-control-rim-hover)',
     divider: 'var(--wa-divider)',
 
     text: 'var(--wa-text)',

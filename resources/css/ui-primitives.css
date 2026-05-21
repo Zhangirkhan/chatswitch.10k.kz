@@ -48,6 +48,8 @@
         --primitive-gap-sm: 8px;
         --primitive-gap-md: 12px;
         --primitive-gap-lg: 16px;
+        --pill-nav-indicator-duration: 0.48s;
+        --pill-nav-indicator-ease: cubic-bezier(0.33, 1, 0.68, 1);
     }
 
     /* ─── Chat sidebar: compact filter stack (no stacked underlines) ─── */
@@ -87,7 +89,8 @@
         gap: var(--primitive-gap-xs);
         padding: 4px;
         border-radius: var(--primitive-radius-md);
-        border: 1px solid var(--wa-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         background: var(--wa-panel-header);
         flex-shrink: 0;
     }
@@ -157,8 +160,118 @@
     }
 
     .ui-tab-badge--warn {
-        background: var(--wa-chroma-yellow-fg);
-        color: #1c1917;
+        background: var(--wa-tab-badge-warn-bg, var(--wa-chroma-yellow-fg));
+        color: var(--wa-tab-badge-warn-text, #ffffff);
+    }
+
+    .ui-tab-badge--team {
+        background: var(--wa-tab-badge-team-bg, #8b5cf6);
+        color: var(--wa-tab-badge-team-text, #ffffff);
+    }
+
+    .ui-tab-badge--neutral {
+        background: var(--ui-surface-muted, var(--wa-panel-header));
+        color: var(--ui-text-secondary, var(--wa-text-secondary));
+        font-weight: 600;
+    }
+
+    /* ─── Control rim (pill buttons — hairline + inset, not flat solid border) ─── */
+    .ui-control-rim,
+    .ui-control-outline {
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        transition:
+            border-color 0.15s ease,
+            box-shadow 0.15s ease,
+            background-color 0.15s ease,
+            color 0.15s ease,
+            filter 0.15s ease;
+    }
+
+    .ui-control-rim:hover:not(:disabled),
+    .ui-control-outline:hover:not(:disabled) {
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
+    }
+
+    .ui-control-outline--dashed {
+        border-style: dashed;
+    }
+
+    /* Status badge tones — shared with chat header AI button */
+    .ui-status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        min-height: 1.65rem;
+        padding: 0 0.55rem;
+        border-radius: var(--primitive-radius-pill);
+        font-size: 0.74rem;
+        font-weight: 700;
+        line-height: 1;
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        transition:
+            border-color 0.15s ease,
+            box-shadow 0.15s ease,
+            background-color 0.15s ease,
+            filter 0.15s ease;
+    }
+
+    .ui-status-badge:hover:not(:disabled) {
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
+    }
+
+    .ui-status-badge--idle {
+        color: var(--wa-unread-text, #fff);
+        background: var(--wa-accent);
+    }
+
+    .ui-status-badge--busy {
+        color: var(--wa-tab-badge-team-text, #fff);
+        background: var(--wa-tab-badge-team-bg, #8b5cf6);
+    }
+
+    .ui-status-badge--warning {
+        color: var(--wa-tab-badge-warn-text, #fff);
+        background: var(--wa-tab-badge-warn-bg, var(--wa-chroma-yellow-fg));
+    }
+
+    .ui-status-badge--error {
+        color: #fff;
+        background: var(--wa-chroma-critical-fg, #ef4444);
+    }
+
+    .ui-status-badge--off {
+        color: var(--wa-text);
+        background: var(--wa-control-surface);
+        font-weight: 600;
+    }
+
+    .ui-status-badge--off:hover {
+        background: var(--wa-panel-hover);
+        color: var(--wa-text);
+        filter: none;
+    }
+
+    /* ─── Modal shell (UiModal.vue) ─── */
+    .ui-modal-backdrop {
+        backdrop-filter: blur(2px);
+    }
+
+    .ui-modal-panel:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--wa-accent) 45%, transparent);
+        outline-offset: 2px;
+    }
+
+    .ui-modal-body:not(:empty) {
+        padding: 0;
+    }
+
+    .ui-modal-header + .ui-modal-body:not(.p-0) {
+        padding: 1rem 1.25rem;
     }
 
     .ui-segment-row,
@@ -168,7 +281,8 @@
         gap: var(--primitive-gap-xs);
         padding: 4px;
         border-radius: var(--primitive-radius-md);
-        border: 1px solid var(--wa-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         background: var(--wa-panel-header);
         flex-shrink: 0;
     }
@@ -225,12 +339,107 @@
     /* ─── Chat: segmented pill nav (Задачи|Чат, Беседы|Сотрудники) ─── */
     .ui-pill-nav {
         display: flex;
-        align-items: stretch;
+        align-items: center;
         gap: var(--primitive-gap-xs);
         padding: 4px;
         border-radius: var(--primitive-radius-md);
-        border: 1px solid var(--wa-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         background: var(--wa-panel-header);
+    }
+
+    .ui-pill-nav--sliding {
+        position: relative;
+        isolation: isolate;
+    }
+
+    .ui-pill-nav__indicator {
+        position: absolute;
+        left: 0;
+        height: auto;
+        border-radius: calc(var(--primitive-radius-md) - 2px);
+        background: var(--wa-control-surface, var(--wa-panel));
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        pointer-events: none;
+        z-index: 0;
+        will-change: transform, width, opacity;
+    }
+
+    .ui-pill-nav--sliding[data-pill-nav-animate='1'] .ui-pill-nav__indicator {
+        transition:
+            transform var(--pill-nav-indicator-duration) var(--pill-nav-indicator-ease),
+            width var(--pill-nav-indicator-duration) var(--pill-nav-indicator-ease),
+            opacity calc(var(--pill-nav-indicator-duration) * 0.75) ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ui-pill-nav__indicator {
+            transition: none !important;
+        }
+    }
+
+    .ui-pill-nav--sliding .ui-pill-nav__item {
+        position: relative;
+        z-index: 1;
+        height: var(--primitive-control-h-sm);
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .ui-pill-nav--sliding .ui-pill-nav__item:hover {
+        background: color-mix(in srgb, var(--wa-panel-hover) 45%, transparent);
+    }
+
+    .ui-pill-nav--sliding .ui-pill-nav__item.is-active {
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .ui-pill-nav--sliding .ui-pill-nav__item.is-active:hover {
+        background: transparent;
+    }
+
+    /* ─── View transitions (synced with pill nav timing) ─── */
+    .ui-view-transition {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+    }
+
+    .ui-view-transition__panel {
+        min-height: 0;
+        min-width: 0;
+    }
+
+    .ui-view-enter-active,
+    .ui-view-leave-active {
+        transition:
+            opacity var(--pill-nav-indicator-duration) var(--pill-nav-indicator-ease),
+            transform var(--pill-nav-indicator-duration) var(--pill-nav-indicator-ease);
+    }
+
+    .ui-view-enter-from {
+        opacity: 0;
+        transform: translate3d(0, 5px, 0);
+    }
+
+    .ui-view-leave-to {
+        opacity: 0;
+        transform: translate3d(0, -4px, 0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ui-view-enter-active,
+        .ui-view-leave-active {
+            transition: none !important;
+        }
+
+        .ui-view-enter-from,
+        .ui-view-leave-to {
+            transform: none;
+        }
     }
 
     .ui-pill-nav__item {
@@ -239,6 +448,7 @@
         align-items: center;
         justify-content: center;
         gap: 6px;
+        line-height: 1.25;
         min-height: var(--primitive-control-h-sm);
         padding: 0 10px;
         font-size: 0.8125rem;
@@ -250,7 +460,8 @@
         background: transparent;
         cursor: pointer;
         transition:
-            color 0.15s ease,
+            color var(--pill-nav-indicator-duration) var(--pill-nav-indicator-ease),
+            font-weight 0.2s ease,
             background-color 0.15s ease,
             box-shadow 0.15s ease;
     }
@@ -267,16 +478,27 @@
         box-shadow: 0 1px 3px color-mix(in srgb, var(--wa-text) 8%, transparent);
     }
 
+    .ui-pill-nav--sliding .ui-pill-nav__item.is-active {
+        background: transparent;
+        box-shadow: none;
+    }
+
     .ui-pill-nav__badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        align-self: center;
         min-width: 18px;
         height: 18px;
         padding: 0 5px;
         border-radius: var(--primitive-radius-pill);
-        background: #8b5cf6;
-        color: #fff;
+        background: var(--wa-tab-badge-team-bg, #8b5cf6);
+        color: var(--wa-tab-badge-team-text, #ffffff);
         font-size: 0.68rem;
         font-weight: 700;
         line-height: 1;
+        font-variant-numeric: tabular-nums;
     }
 
     /* ─── Chat: filter chips ─── */
@@ -314,26 +536,29 @@
         font-size: 0.75rem;
         font-weight: 500;
         line-height: 1;
-        color: var(--wa-text-secondary);
-        background: var(--wa-panel-header);
-        border: 1px solid var(--wa-border);
+        color: var(--wa-text);
+        background: var(--wa-control-surface);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         border-radius: var(--primitive-radius-pill);
         cursor: pointer;
         transition:
             color 0.15s ease,
             background-color 0.15s ease,
-            border-color 0.15s ease;
+            border-color 0.15s ease,
+            box-shadow 0.15s ease;
     }
 
     .ui-chip:hover {
         color: var(--wa-text);
         background: var(--wa-panel-hover);
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
     }
 
     .ui-chip.is-active {
         color: var(--wa-chroma-accent-fg);
         font-weight: 600;
-        border-color: var(--wa-chroma-accent-border-45);
         background: var(--wa-chroma-accent-bg-12);
     }
 
@@ -364,13 +589,14 @@
         min-height: 38px;
         padding: 0 12px;
         border-radius: var(--primitive-radius-md);
-        border: 1px solid var(--wa-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         background: var(--wa-panel-header);
     }
 
     .ui-search-input--boxed:focus {
-        border-color: var(--wa-chroma-accent-border-45);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--wa-accent) 20%, transparent);
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover), 0 0 0 2px color-mix(in srgb, var(--wa-accent) 20%, transparent);
     }
 
     /* ─── Settings: surfaces ─── */
@@ -468,41 +694,48 @@
     .ui-btn--primary {
         color: var(--ui-accent-on);
         background: var(--ui-accent);
-        border-color: color-mix(in srgb, var(--ui-accent) 80%, #000 20%);
-        box-shadow: 0 1px 2px color-mix(in srgb, var(--ui-accent) 30%, transparent);
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--primary:hover:not(:disabled) {
         background: var(--ui-accent-hover);
+        border-color: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
+        box-shadow: var(--wa-control-rim-shadow-hover);
         filter: brightness(1.03);
     }
 
     .ui-btn--secondary {
         color: var(--ui-text);
-        background: var(--ui-surface-muted);
-        border-color: var(--ui-border);
+        background: var(--wa-control-surface, var(--ui-surface-muted));
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--secondary:hover:not(:disabled) {
         background: var(--ui-surface-hover);
-        border-color: var(--ui-border-strong);
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
     }
 
     .ui-btn--ghost {
         color: var(--ui-chroma-accent-fg, var(--ui-accent));
         background: transparent;
-        border-color: var(--ui-border-strong);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--ghost:hover:not(:disabled) {
         background: var(--ui-accent-soft);
-        border-color: var(--ui-accent-border);
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
     }
 
     .ui-btn--danger-ghost {
         color: var(--ui-danger);
         background: transparent;
-        border-color: color-mix(in srgb, var(--ui-danger) 45%, var(--ui-border));
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--danger-ghost:hover:not(:disabled) {
@@ -512,7 +745,8 @@
     .ui-btn--danger {
         color: #fff;
         background: var(--ui-danger);
-        border-color: color-mix(in srgb, var(--ui-danger) 80%, #000 20%);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--danger:hover:not(:disabled) {
@@ -534,7 +768,8 @@
     .ui-btn--accent-soft {
         color: var(--wa-chroma-accent-fg);
         background: var(--ui-accent-soft);
-        border-color: var(--ui-accent-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
     }
 
     .ui-btn--accent-soft:hover:not(:disabled) {
@@ -601,7 +836,8 @@
         font-size: 0.875rem;
         color: var(--wa-text);
         background: var(--wa-panel);
-        border: 1px solid var(--wa-border);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
         border-radius: var(--primitive-radius-pill);
         outline: none;
     }
@@ -871,6 +1107,205 @@
         border-color: color-mix(in srgb, var(--ui-accent) 80%, #000 20%);
     }
 
+    /* ─── Profile / chats settings: theme switch, language grid, pick card ─── */
+    .ui-theme-switch {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        padding: 4px;
+        border-radius: var(--primitive-radius-md);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        background: var(--wa-panel-header);
+    }
+
+    .ui-theme-switch__thumb {
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc(50% - 4px);
+        border-radius: calc(var(--primitive-radius-md) - 3px);
+        background: var(--wa-panel);
+        box-shadow: 0 1px 4px color-mix(in srgb, var(--wa-text) 12%, transparent);
+        pointer-events: none;
+        transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .ui-theme-switch.is-dark .ui-theme-switch__thumb {
+        transform: translateX(100%);
+    }
+
+    .ui-theme-switch__option {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: var(--primitive-control-h);
+        padding: 0 12px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--wa-text-secondary);
+        background: transparent;
+        border: none;
+        border-radius: calc(var(--primitive-radius-md) - 3px);
+        cursor: pointer;
+        transition: color 0.15s ease;
+    }
+
+    .ui-theme-switch__option:hover {
+        color: var(--wa-text);
+    }
+
+    .ui-theme-switch__option.is-active {
+        color: var(--wa-chroma-accent-fg);
+        font-weight: 600;
+    }
+
+    .ui-theme-switch__icon {
+        width: 1.125rem;
+        height: 1.125rem;
+        flex-shrink: 0;
+        opacity: 0.85;
+    }
+
+    .ui-lang-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    @media (min-width: 360px) {
+        .ui-lang-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    .ui-lang-chip {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 72px;
+        padding: 10px 8px;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1.25;
+        color: var(--wa-text-secondary);
+        background: var(--wa-panel-header);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        border-radius: var(--primitive-radius-md);
+        cursor: pointer;
+        transition:
+            border-color 0.15s ease,
+            background-color 0.15s ease,
+            color 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .ui-lang-chip:hover {
+        color: var(--wa-text);
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
+        background: var(--wa-panel-hover);
+    }
+
+    .ui-lang-chip.is-active {
+        color: var(--wa-chroma-accent-fg);
+        font-weight: 600;
+        background: var(--wa-chroma-accent-bg-12);
+    }
+
+    .ui-lang-chip.is-off.is-active {
+        color: var(--wa-text);
+        background: color-mix(in srgb, var(--wa-text-secondary) 14%, var(--wa-panel));
+    }
+
+    .ui-lang-chip__flag {
+        font-size: 1.35rem;
+        line-height: 1;
+    }
+
+    .ui-lang-chip__badge {
+        margin-top: 2px;
+        padding: 1px 6px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        color: var(--wa-chroma-accent-fg);
+        background: var(--wa-chroma-accent-bg-10);
+        border-radius: var(--primitive-radius-pill);
+    }
+
+    .ui-settings-pick-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 14px;
+        text-align: left;
+        color: inherit;
+        background: var(--wa-panel-header);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        border-radius: var(--primitive-radius-md);
+        cursor: pointer;
+        transition:
+            border-color 0.15s ease,
+            background-color 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .ui-settings-pick-card:hover {
+        border-color: var(--wa-control-rim-hover);
+        box-shadow: var(--wa-control-rim-shadow-hover);
+        background: var(--wa-panel-hover);
+    }
+
+    .ui-settings-pick-card__preview {
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        border-radius: var(--primitive-radius-md);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        overflow: hidden;
+    }
+
+    .ui-settings-pick-card__chevron {
+        flex-shrink: 0;
+        color: var(--wa-text-muted);
+    }
+
+    .ui-settings-block-title {
+        margin: 0 0 4px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--wa-text);
+    }
+
+    .ui-settings-block-hint {
+        margin: 0 0 12px;
+        font-size: 0.75rem;
+        line-height: 1.45;
+        color: var(--wa-text-secondary);
+    }
+
+    .ui-settings-field-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--wa-text);
+    }
+
     .action-chip {
         display: inline-flex;
         align-items: center;
@@ -942,7 +1377,8 @@
         flex-direction: column;
         min-height: 0;
         width: 340px;
-        background: var(--wa-sidebar-bg);
+        background: var(--wa-panel-header);
+        color: var(--wa-text);
     }
 
     @media (min-width: 1024px) {
@@ -959,9 +1395,14 @@
 
     .ui-result-card {
         border-radius: var(--primitive-radius-lg);
-        border: 1px solid var(--wa-border);
-        background: var(--wa-panel);
+        border: 1px solid var(--wa-control-rim);
+        box-shadow: var(--wa-control-rim-shadow);
+        background: var(--wa-control-surface);
         padding: 12px;
         font-size: 0.875rem;
+    }
+
+    .ui-tool-page .ui-chip {
+        background: var(--wa-panel);
     }
 }

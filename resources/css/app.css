@@ -9,6 +9,7 @@
  *
  * Chat surfaces (bubbles, list, composer): use `--wa-*` or Tailwind `wa-*`.
  * Settings, admin, shared forms: prefer `--ui-*` or Tailwind `ui-*`.
+ * Control outlines (pills, secondary buttons): `--wa-control-rim` + `--wa-control-rim-shadow`.
  * Themes are switched by [data-theme] on <html>.
  */
 
@@ -33,6 +34,24 @@
     /* Borders & dividers */
     --wa-border: rgba(134, 150, 160, 0.13);
     --wa-border-strong: rgba(134, 150, 160, 0.22);
+    /* Rim пилюль/кнопок: crisp hairline + лёгкий inset (как на референсе) */
+    --wa-control-surface: color-mix(in srgb, #ffffff 7%, var(--wa-panel-header) 93%);
+    --wa-control-rim: rgba(255, 255, 255, 0.04);
+    --wa-control-rim-hover: rgba(255, 255, 255, 0.46);
+    --wa-control-rim-inset-top: rgba(255, 255, 255, 0.22);
+    --wa-control-rim-inset-bottom: rgba(0, 0, 0, 0.14);
+    --wa-control-rim-outer: rgba(0, 0, 0, 0.24);
+    --wa-control-rim-shadow:
+        inset 0 1px 0 0 var(--wa-control-rim-inset-top),
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-rim-shadow-hover:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+        inset 0 -1px 0 0 rgba(0, 0, 0, 0.12),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    /* legacy alias */
+    --wa-control-border: var(--wa-control-rim);
+    --wa-control-border-hover: var(--wa-control-rim-hover);
     --wa-divider: rgba(134, 150, 160, 0.13);
     --wa-sidebar-divider: #343636;
 
@@ -81,6 +100,8 @@
     --wa-chroma-orange-fg: #f97316;
     --wa-chroma-yellow-bg: color-mix(in srgb, #eab308 18%, var(--wa-chroma-blend));
     --wa-chroma-yellow-fg: #ca8a04;
+    --wa-tab-badge-warn-bg: #ca8a04;
+    --wa-tab-badge-warn-text: #ffffff;
     --wa-chroma-violet-border-45: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
     --wa-chroma-muted-bar: color-mix(in srgb, var(--wa-text-secondary) 18%, var(--wa-chroma-blend));
     --wa-chroma-dot-ring: color-mix(in srgb, currentColor 8%, var(--wa-chroma-blend));
@@ -180,17 +201,21 @@
 
     /* Settings/admin surfaces — WhatsApp graphite with clearer depth, not slate-blue. */
     --ui-bg: var(--wa-bg);
-    --ui-surface: color-mix(in srgb, #ffffff 3%, var(--wa-bg));
+    --ui-surface: var(--wa-panel);
     --ui-surface-muted: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
     --ui-surface-raised: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
     --ui-surface-inset: color-mix(in srgb, #ffffff 4%, var(--wa-panel));
     --ui-input-bg: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
     --ui-border: rgba(174, 186, 193, 0.2);
     --ui-border-strong: rgba(174, 186, 193, 0.34);
-    --ui-accent: var(--brand-accent);
-    --ui-accent-hover: var(--brand-accent-hover);
-    --ui-accent-soft: color-mix(in srgb, var(--brand-accent) 16%, var(--ui-surface));
-    --ui-accent-border: color-mix(in srgb, var(--brand-accent) 38%, var(--ui-border));
+    --ui-control-border: var(--wa-control-rim);
+    --ui-control-border-hover: var(--wa-control-rim-hover);
+    --ui-control-rim-shadow: var(--wa-control-rim-shadow);
+    --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
+    --ui-accent: var(--wa-accent);
+    --ui-accent-hover: var(--wa-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 16%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--wa-accent) 38%, var(--ui-border));
     --ui-text: var(--wa-text);
     --ui-text-secondary: var(--wa-text-secondary);
     --ui-text-muted: var(--wa-text-muted);
@@ -207,6 +232,7 @@
 [data-theme='light'] {
     /* Backgrounds */
     --wa-bg: #E5DDD5;              /* classic parchment chat background */
+    --wa-sidebar-bg: #FFFFFF;
     --wa-panel: #FFFFFF;
     --wa-panel-header: #F0F2F5;
     --wa-panel-input: #FFFFFF;
@@ -222,6 +248,22 @@
     /* Borders & dividers */
     --wa-border: #D1D7DB;
     --wa-border-strong: #D1D7DB;
+    --wa-control-surface: color-mix(in srgb, var(--wa-page-bg) 14%, var(--wa-panel) 86%);
+    --wa-control-rim: rgba(17, 27, 33, 0.28);
+    --wa-control-rim-hover: rgba(17, 27, 33, 0.38);
+    --wa-control-rim-inset-top: rgba(255, 255, 255, 0.98);
+    --wa-control-rim-inset-bottom: rgba(17, 27, 33, 0.09);
+    --wa-control-rim-outer: rgba(17, 27, 33, 0.14);
+    --wa-control-rim-shadow:
+        inset 0 1px 0 0 var(--wa-control-rim-inset-top),
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-rim-shadow-hover:
+        inset 0 1px 0 0 rgba(255, 255, 255, 1),
+        inset 0 -1px 0 0 rgba(17, 27, 33, 0.05),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --wa-control-border: var(--wa-control-rim);
+    --wa-control-border-hover: var(--wa-control-rim-hover);
     --wa-divider: #E9EDEF;
     --wa-sidebar-divider: #d1d7db;
 
@@ -266,6 +308,8 @@
     --wa-chroma-orange-fg: #c2410c;
     --wa-chroma-yellow-bg: color-mix(in srgb, #eab308 24%, var(--wa-chroma-blend));
     --wa-chroma-yellow-fg: #a16207;
+    --wa-tab-badge-warn-bg: #d97706;
+    --wa-tab-badge-warn-text: #ffffff;
     --wa-chroma-violet-border-45: color-mix(in srgb, #7c3aed 48%, var(--wa-border-strong));
     --wa-chroma-muted-bar: color-mix(in srgb, var(--wa-text-secondary) 28%, var(--wa-chroma-blend));
     --wa-chroma-dot-ring: color-mix(in srgb, currentColor 14%, var(--wa-chroma-blend));
@@ -368,10 +412,14 @@
     --ui-input-bg: var(--wa-panel-input);
     --ui-border: rgba(17, 27, 33, 0.15);
     --ui-border-strong: rgba(17, 27, 33, 0.26);
-    --ui-accent: var(--brand-accent);
-    --ui-accent-hover: var(--brand-accent-hover);
-    --ui-accent-soft: color-mix(in srgb, var(--brand-accent) 22%, var(--ui-surface));
-    --ui-accent-border: color-mix(in srgb, var(--brand-accent) 42%, var(--ui-border));
+    --ui-control-border: var(--wa-control-rim);
+    --ui-control-border-hover: var(--wa-control-rim-hover);
+    --ui-control-rim-shadow: var(--wa-control-rim-shadow);
+    --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
+    --ui-accent: var(--wa-accent);
+    --ui-accent-hover: var(--wa-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 22%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--wa-accent) 42%, var(--ui-border));
     --ui-text: var(--wa-text);
     --ui-text-secondary: var(--wa-text-secondary);
     --ui-text-muted: var(--wa-text-muted);
@@ -384,9 +432,14 @@
     --ui-shadow-soft: 0 8px 24px rgba(17, 27, 33, 0.08);
 }
 
-html,
-body {
-    height: 100%;
+.wa-control-rim {
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
+}
+
+.wa-control-rim:hover:not(:disabled) {
+    border-color: var(--wa-control-rim-hover);
+    box-shadow: var(--wa-control-rim-shadow-hover);
 }
 
 body {
@@ -864,8 +917,9 @@ a.wa-link:hover {
     width: 1.125rem;
     height: 1.125rem;
     border-radius: 0.375rem;
-    border: 1.5px solid var(--ui-border-strong, var(--wa-border-strong));
-    background: var(--ui-surface, var(--wa-panel));
+    border: 1px solid var(--wa-control-rim, var(--ui-border-strong, var(--wa-border-strong)));
+    background: var(--wa-control-surface, var(--ui-surface, var(--wa-panel)));
+    box-shadow: var(--wa-control-rim-shadow, none);
     color: var(--ui-accent-on, #111b21);
     transition:
         background-color 0.15s ease,
@@ -896,8 +950,9 @@ a.wa-link:hover {
 }
 
 .ui-checkbox:hover:not(.ui-checkbox-disabled) .ui-checkbox-box {
-    border-color: color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 45%, var(--ui-border-strong, var(--wa-border-strong)));
-    background: color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 8%, var(--ui-surface, var(--wa-panel)));
+    border-color: var(--wa-control-rim-hover, color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 45%, var(--ui-border-strong, var(--wa-border-strong))));
+    box-shadow: var(--wa-control-rim-shadow-hover, none);
+    background: color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 8%, var(--wa-control-surface, var(--ui-surface, var(--wa-panel))));
 }
 
 .ui-checkbox-checked .ui-checkbox-box {
@@ -906,6 +961,12 @@ a.wa-link:hover {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 18%, transparent);
 }
 
+.ui-checkbox.ui-checkbox-checked:hover:not(.ui-checkbox-disabled) .ui-checkbox-box {
+    background: var(--ui-accent, var(--wa-accent));
+    border-color: var(--ui-accent, var(--wa-accent));
+}
+
+.ui-checkbox.ui-checkbox-checked .ui-checkbox-icon,
 .ui-checkbox-checked .ui-checkbox-icon {
     opacity: 1;
     transform: scale(1);
@@ -930,14 +991,21 @@ input[type='checkbox'].ui-checkbox-legacy {
     margin: 0;
     flex-shrink: 0;
     border-radius: 0.375rem;
-    border: 1.5px solid var(--ui-border-strong, var(--wa-border-strong));
-    background: var(--ui-surface, var(--wa-panel));
+    border: 1px solid var(--wa-control-rim, var(--ui-border-strong, var(--wa-border-strong)));
+    background: var(--wa-control-surface, var(--ui-surface, var(--wa-panel)));
+    box-shadow: var(--wa-control-rim-shadow, none);
     cursor: pointer;
     vertical-align: middle;
     transition:
         background-color 0.15s ease,
         border-color 0.15s ease,
         box-shadow 0.15s ease;
+}
+
+input[type='checkbox'].kb-checkbox:hover:not(:disabled),
+input[type='checkbox'].ui-checkbox-legacy:hover:not(:disabled) {
+    border-color: var(--wa-control-rim-hover, var(--ui-border-strong, var(--wa-border-strong)));
+    box-shadow: var(--wa-control-rim-shadow-hover, none);
 }
 
 input[type='checkbox'].kb-checkbox:checked,
