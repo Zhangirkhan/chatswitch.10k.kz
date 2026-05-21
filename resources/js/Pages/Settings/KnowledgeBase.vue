@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import UiModal from '@/Components/Ui/UiModal.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -42,6 +43,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const kbModalPanelClass = '![background:var(--ui-surface)] ![border-color:var(--ui-border)] shadow-[var(--ui-shadow-soft)]';
 const localItems = ref<KnowledgeItem[]>([...props.items]);
 const editing = ref<KnowledgeItem | null>(null);
 const showForm = ref(false);
@@ -1215,17 +1217,19 @@ async function confirmDelete(): Promise<void> {
             </div>
 
             <section v-else class="kb-list-panel ui-panel overflow-hidden">
-                <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-                    <div
-                        class="flex items-center gap-2 text-sm text-[var(--ui-text-secondary)] cursor-pointer"
-                        role="button"
-                        tabindex="0"
-                        @click="toggleSelectAll"
-                        @keydown.enter.prevent="toggleSelectAll"
-                    >
-                        <UiCheckbox :checked="allSelected" aria-label="Выбрать показанные" @click.stop.prevent="toggleSelectAll" />
-                        Выбрать показанные
-                    </div>
+                    <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                        <div class="flex items-center gap-2 text-sm text-[var(--ui-text-secondary)]">
+                            <UiCheckbox :model-value="allSelected" aria-label="Выбрать показанные" @update:model-value="toggleSelectAll" />
+                            <span
+                                class="cursor-pointer select-none"
+                                role="button"
+                                tabindex="0"
+                                @click="toggleSelectAll"
+                                @keydown.enter.prevent="toggleSelectAll"
+                            >
+                                Выбрать показанные
+                            </span>
+                        </div>
                     <span class="text-xs text-[var(--ui-text-secondary)]">Показано {{ filteredItems.length }} из {{ localItems.length }}</span>
                 </div>
 
@@ -1234,8 +1238,8 @@ async function confirmDelete(): Promise<void> {
                         <div class="flex items-start gap-3">
                             <UiCheckbox
                                 class="mt-0.5"
-                                :checked="selectedIds.includes(item.id)"
-                                @click.prevent="toggleRowSelection(item.id)"
+                                :model-value="selectedIds.includes(item.id)"
+                                @update:model-value="toggleRowSelection(item.id)"
                             />
                             <div v-if="section === 'products'" class="kb-product-thumb">
                                 <img v-if="item.image_url" :src="item.image_url" :alt="itemTitle(item)" />
@@ -1275,60 +1279,73 @@ async function confirmDelete(): Promise<void> {
             </section>
         </div>
 
-        <div v-if="deleteTarget" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/50 p-4" @click.self="closeDeleteModal">
-            <div class="kb-modal-card w-full max-w-md rounded-2xl border p-5 shadow-xl">
-                <h3 class="text-lg text-[var(--ui-text)]">Удалить запись?</h3>
-                <p class="mt-2 text-sm text-[var(--ui-text-secondary)]">
-                    Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
-                    <span class="font-medium text-[var(--ui-text)]">{{ itemTitle(deleteTarget) }}</span>
-                </p>
-                <input
-                    v-model="deleteConfirmInput"
-                    type="text"
-                    class="settings-input mt-4 w-full"
-                    placeholder="Название для подтверждения"
-                    autocomplete="off"
-                />
-                <div class="mt-4 flex justify-end gap-2">
-                    <button type="button" class="ui-btn ui-btn--secondary" @click="closeDeleteModal">Отмена</button>
-                    <button type="button" class="ui-btn ui-btn--danger" @click="confirmDelete">Удалить</button>
+        <UiModal
+            :open="!!deleteTarget"
+            title="Удалить запись?"
+            max-width="md"
+            :z-index="55"
+            :panel-class="kbModalPanelClass"
+            body-class="p-5"
+            @close="closeDeleteModal"
+        >
+            <p class="text-sm text-[var(--ui-text-secondary)]">
+                Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
+                <span class="font-medium text-[var(--ui-text)]">{{ deleteTarget ? itemTitle(deleteTarget) : '' }}</span>
+            </p>
+            <input
+                v-model="deleteConfirmInput"
+                type="text"
+                class="settings-input mt-4 w-full"
+                placeholder="Название для подтверждения"
+                autocomplete="off"
+            />
+            <template #footer>
+                <button type="button" class="ui-btn ui-btn--secondary" @click="closeDeleteModal">Отмена</button>
+                <button type="button" class="ui-btn ui-btn--danger" @click="confirmDelete">Удалить</button>
+            </template>
+        </UiModal>
+
+        <UiModal
+            :open="previewOpen"
+            max-width="3xl"
+            :z-index="60"
+            :panel-class="kbModalPanelClass"
+            body-class="p-0 flex flex-col min-h-0"
+            @close="closePreview"
+        >
+            <template #header>
+                <div>
+                    <h3 class="text-lg text-[var(--ui-text)] m-0">Предпросмотр блока для AI</h3>
+                    <p v-if="previewCounts" class="mt-1 text-xs text-[var(--ui-text-secondary)] mb-0">
+                        Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
+                        <span v-if="previewUsedRag"> · RAG</span>
+                        <span v-if="previewTruncated"> · показ обрезан для экрана</span>
+                    </p>
                 </div>
+            </template>
+            <p v-if="previewHint" class="border-b border-[var(--ui-border)] px-5 py-2 text-xs text-[var(--ui-text-secondary)] shrink-0">{{ previewHint }}</p>
+            <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4 min-h-0">
+                <pre class="kb-pre">{{ previewText }}</pre>
             </div>
-        </div>
+        </UiModal>
 
-        <div v-if="previewOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @click.self="closePreview">
-            <div class="kb-modal-card flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border shadow-xl">
-                <div class="flex shrink-0 items-center justify-between border-b border-[var(--ui-border)] px-5 py-4">
-                    <div>
-                        <h3 class="text-lg text-[var(--ui-text)]">Предпросмотр блока для AI</h3>
-                        <p v-if="previewCounts" class="mt-1 text-xs text-[var(--ui-text-secondary)]">
-                            Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
-                            <span v-if="previewUsedRag"> · RAG</span>
-                            <span v-if="previewTruncated"> · показ обрезан для экрана</span>
-                        </p>
-                    </div>
-                    <button type="button" class="text-[var(--ui-text-secondary)]" @click="closePreview">Закрыть</button>
+        <UiModal
+            :open="showForm"
+            max-width="4xl"
+            :panel-class="kbModalPanelClass"
+            body-class="p-0 flex flex-col min-h-0"
+            @close="closeForm"
+        >
+            <template #header>
+                <div>
+                    <h3 class="text-lg font-semibold text-[var(--ui-text)] m-0">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
+                    <p class="mt-1 text-xs text-[var(--ui-text-secondary)] mb-0">
+                        Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
+                    </p>
                 </div>
-                <p v-if="previewHint" class="border-b border-[var(--ui-border)] px-5 py-2 text-xs text-[var(--ui-text-secondary)]">{{ previewHint }}</p>
-                <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
-                    <pre class="kb-pre">{{ previewText }}</pre>
-                </div>
-            </div>
-        </div>
+            </template>
 
-        <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 md:p-4">
-            <div class="kb-modal-card flex max-h-[calc(100vh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-xl">
-                <div class="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--ui-border)] px-5 py-4">
-                    <div>
-                        <h3 class="text-lg font-semibold text-[var(--ui-text)]">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
-                        <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
-                            Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
-                        </p>
-                    </div>
-                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="closeForm">Закрыть</button>
-                </div>
-
-                <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4">
+            <div class="wa-scrollbar flex-1 overflow-y-auto px-5 py-4 min-h-0">
                     <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
                         <section class="space-y-4">
                             <div class="kb-form-section ui-settings-section">
@@ -1464,12 +1481,11 @@ async function confirmDelete(): Promise<void> {
                     </div>
                 </div>
 
-                <div class="flex shrink-0 justify-end gap-2 border-t border-[var(--ui-border)] px-5 py-4">
-                    <button type="button" class="ui-btn ui-btn--secondary" @click="closeForm">Отмена</button>
-                    <button type="button" class="ui-btn ui-btn--primary" @click="save">Сохранить</button>
-                </div>
-            </div>
-        </div>
+            <template #footer>
+                <button type="button" class="ui-btn ui-btn--secondary" @click="closeForm">Отмена</button>
+                <button type="button" class="ui-btn ui-btn--primary" @click="save">Сохранить</button>
+            </template>
+        </UiModal>
     </SettingsLayout>
 </template>
 
