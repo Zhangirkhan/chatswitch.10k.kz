@@ -67,7 +67,7 @@ final class BroadcastRecipientResolver
 
     /**
      * @param  array<string, mixed>  $filters
-     * @return list<array{row: int, phone: string, message: string, contact_id: int, chat_id: int}>
+     * @return list<array{row: int, phone: string, message: string, contact_id: int, chat_id: int, contact_name: string|null}>
      */
     public function rowsFromFilters(array $filters, string $messageTemplate, User $actor, WhatsappSession $session): array
     {
@@ -111,12 +111,14 @@ final class BroadcastRecipientResolver
             }
             $row++;
             $phone = (string) ($contact->phone_number ?: $contact->whatsapp_id ?: '');
+            $name = trim((string) ($contact->name ?: $contact->push_name ?: ''));
             $rows[] = [
                 'row' => $row,
                 'phone' => $phone,
                 'message' => $message,
                 'contact_id' => $contact->id,
                 'chat_id' => $chat->id,
+                'contact_name' => $name !== '' ? $name : null,
             ];
         }
 

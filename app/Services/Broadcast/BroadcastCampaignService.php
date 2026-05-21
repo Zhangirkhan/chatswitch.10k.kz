@@ -57,7 +57,7 @@ final class BroadcastCampaignService
                 'status' => 'ready',
                 'contact_id' => $row['contact_id'],
                 'chat_id' => $row['chat_id'],
-                'contact_name' => null,
+                'contact_name' => $row['contact_name'] ?? null,
                 'skip_reason' => null,
             ];
         }

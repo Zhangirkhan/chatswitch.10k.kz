@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
+import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import { formatPhone } from '@/utils/phone';
 
 type SessionOpt = { id: number; label: string; phone_number: string | null; status: string };
@@ -64,7 +66,10 @@ const loadingPreview = ref(false);
 const starting = ref(false);
 const error = ref<string | null>(null);
 const activeCampaignId = ref<number | null>(null);
+const previewFetched = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let previewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let previewRequestId = 0;
 
 const canPreview = computed(() => {
     if (!sessionId.value) {
@@ -79,8 +84,38 @@ const canPreview = computed(() => {
 function onFileChange(e: Event): void {
     const input = e.target as HTMLInputElement;
     file.value = input.files?.[0] ?? null;
-    previewRows.value = [];
+    resetPreview();
 }
+
+function resetPreview(): void {
+    previewRows.value = [];
+    previewSummary.value = { total: 0, ready: 0, skipped: 0 };
+    previewFetched.value = false;
+}
+
+function scheduleAutoPreview(): void {
+    if (mode.value !== 'filters') {
+        return;
+    }
+    resetPreview();
+    if (!canPreview.value) {
+        return;
+    }
+    if (previewDebounceTimer) {
+        clearTimeout(previewDebounceTimer);
+    }
+    previewDebounceTimer = setTimeout(() => {
+        void runPreview();
+    }, 450);
+}
+
+watch([mode, sessionId, filterMessage, filterSearch, filterCompany], () => {
+    if (mode.value === 'filters') {
+        scheduleAutoPreview();
+    } else {
+        resetPreview();
+    }
+});
 
 async function runPreview(): Promise<void> {
     if (!canPreview.value) {
@@ -88,6 +123,7 @@ async function runPreview(): Promise<void> {
     }
     error.value = null;
     loadingPreview.value = true;
+    const requestId = ++previewRequestId;
     const form = new FormData();
     form.append('source', mode.value);
     form.append('whatsapp_session_id', String(sessionId.value));
@@ -103,20 +139,29 @@ async function runPreview(): Promise<void> {
         const { data } = await axios.post(route('broadcasts.preview'), form, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
+        if (requestId !== previewRequestId) {
+            return;
+        }
         previewRows.value = data.rows ?? [];
         previewSummary.value = data.summary ?? { total: 0, ready: 0, skipped: 0 };
+        previewFetched.value = true;
         if (data.rate_limit) {
             rateLimit.value = data.rate_limit;
         }
     } catch (e: unknown) {
+        if (requestId !== previewRequestId) {
+            return;
+        }
         error.value = axios.isAxiosError(e) && typeof e.response?.data?.message === 'string'
             ? e.response.data.message
             : (e as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors
                 ? Object.values((e as any).response.data.errors).flat().join(' ')
                 : 'Не удалось построить предпросмотр.';
-        previewRows.value = [];
+        resetPreview();
     } finally {
-        loadingPreview.value = false;
+        if (requestId === previewRequestId) {
+            loadingPreview.value = false;
+        }
     }
 }
 
@@ -216,7 +261,7 @@ function statusLabel(status: string): string {
                 <p v-if="error" class="text-sm text-red-500 rounded-lg border border-red-500/30 px-3 py-2">{{ error }}</p>
 
                 <section class="ui-panel p-4 space-y-4">
-                    <div class="ui-pill-nav max-w-md">
+                    <UiPillNav class="max-w-md">
                         <button
                             type="button"
                             class="ui-pill-nav__item"
@@ -233,7 +278,7 @@ function statusLabel(status: string): string {
                         >
                             По фильтрам
                         </button>
-                    </div>
+                    </UiPillNav>
 
                     <div class="grid md:grid-cols-2 gap-4">
                         <label class="block text-sm">
@@ -273,46 +318,49 @@ function statusLabel(status: string): string {
                         </div>
                     </div>
 
-                    <div v-if="mode === 'excel'">
-                        <label class="block text-sm text-[var(--wa-text-secondary)]">
-                            Файл .xlsx или .csv (номер + текст)
-                            <input
-                                type="file"
-                                accept=".xlsx,.csv"
-                                class="mt-2 block w-full text-sm"
-                                @change="onFileChange"
-                            />
-                        </label>
-                    </div>
-
-                    <div v-else class="space-y-3">
-                        <label class="block text-sm">
-                            <span class="text-[var(--wa-text-secondary)]">Текст для всех</span>
-                            <textarea
-                                v-model="filterMessage"
-                                rows="3"
-                                class="ui-input mt-1 w-full resize-y min-h-[4.5rem]"
-                                placeholder="Сообщение для отфильтрованных закрытых чатов"
-                            />
-                        </label>
-                        <div class="grid md:grid-cols-2 gap-3">
-                            <input
-                                v-model="filterSearch"
-                                type="text"
-                                placeholder="Поиск по имени/телефону"
-                                class="ui-input"
-                            />
-                            <input
-                                v-model="filterCompany"
-                                type="text"
-                                placeholder="Компания"
-                                class="ui-input"
-                            />
+                    <UiViewTransition :transition-key="mode">
+                        <div v-if="mode === 'excel'">
+                            <label class="block text-sm text-[var(--wa-text-secondary)]">
+                                Файл .xlsx или .csv (номер + текст)
+                                <input
+                                    type="file"
+                                    accept=".xlsx,.csv"
+                                    class="mt-2 block w-full text-sm"
+                                    @change="onFileChange"
+                                />
+                            </label>
                         </div>
-                    </div>
 
-                    <div class="flex flex-wrap gap-2">
+                        <div v-else class="space-y-3">
+                            <label class="block text-sm">
+                                <span class="text-[var(--wa-text-secondary)]">Текст для всех</span>
+                                <textarea
+                                    v-model="filterMessage"
+                                    rows="3"
+                                    class="ui-input mt-1 w-full resize-y min-h-[4.5rem]"
+                                    placeholder="Сообщение для отфильтрованных закрытых чатов"
+                                />
+                            </label>
+                            <div class="grid md:grid-cols-2 gap-3">
+                                <input
+                                    v-model="filterSearch"
+                                    type="text"
+                                    placeholder="Поиск по имени/телефону"
+                                    class="ui-input"
+                                />
+                                <input
+                                    v-model="filterCompany"
+                                    type="text"
+                                    placeholder="Компания"
+                                    class="ui-input"
+                                />
+                            </div>
+                        </div>
+                    </UiViewTransition>
+
+                    <div class="flex flex-wrap items-center gap-2">
                         <button
+                            v-if="mode === 'excel'"
                             type="button"
                             class="ui-btn ui-btn--secondary"
                             :disabled="!canPreview || loadingPreview"
@@ -323,12 +371,27 @@ function statusLabel(status: string): string {
                         <button
                             type="button"
                             class="ui-btn ui-btn--primary"
-                            :disabled="starting || previewSummary.ready === 0"
+                            :disabled="starting || loadingPreview || previewSummary.ready === 0"
                             @click="startBroadcast"
                         >
-                            {{ starting ? 'Запуск…' : `Отправить (${previewSummary.ready})` }}
+                            {{ starting ? 'Запуск…' : loadingPreview ? 'Считаю…' : `Отправить (${previewSummary.ready})` }}
                         </button>
+                        <span
+                            v-if="mode === 'filters' && loadingPreview"
+                            class="text-xs text-[var(--wa-text-secondary)]"
+                        >
+                            Ищем в архиве…
+                        </span>
                     </div>
+
+                    <p
+                        v-if="mode === 'filters' && previewFetched && !loadingPreview && previewSummary.total === 0"
+                        class="text-sm rounded-lg border px-3 py-2"
+                        :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
+                    >
+                        Не найдено закрытых чатов по фильтрам на выбранном WhatsApp-номере.
+                        Оставьте поиск пустым, чтобы увидеть все архивные чаты.
+                    </p>
                 </section>
 
                 <section v-if="previewRows.length" class="ui-panel ui-table-panel overflow-hidden p-0">

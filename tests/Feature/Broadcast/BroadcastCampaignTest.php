@@ -95,6 +95,36 @@ final class BroadcastCampaignTest extends TestCase
         Queue::assertPushed(SendBroadcastCampaignItemJob::class, 1);
     }
 
+    public function test_filter_preview_finds_archived_chat_by_name(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+        $session = WhatsappSession::factory()->create(['is_active' => true]);
+
+        $contact = Contact::factory()->create([
+            'name' => 'Нургалиев Жангирхан',
+            'phone_number' => '77001234567',
+        ]);
+        Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+            'is_archived' => true,
+            'whatsapp_chat_id' => '77001234567@c.us',
+        ]);
+
+        $preview = $this->actingAs($admin)->post(route('broadcasts.preview'), [
+            'source' => 'filters',
+            'whatsapp_session_id' => $session->id,
+            'filter_message' => 'Привет',
+            'filters' => ['search' => 'Жангирхан'],
+        ]);
+
+        $preview->assertOk();
+        $preview->assertJsonPath('summary.ready', 1);
+        $preview->assertJsonPath('rows.0.contact_name', 'Нургалиев Жангирхан');
+    }
+
     public function test_rejects_broadcast_when_hourly_quota_exceeded(): void
     {
         Queue::fake();
