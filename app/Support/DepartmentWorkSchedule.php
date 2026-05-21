@@ -192,7 +192,7 @@ final class DepartmentWorkSchedule
         $key = self::ISO_TO_KEY[(int) $local->format('N')] ?? 'mon';
         $dayLabel = self::DAY_LABELS[$key] ?? $key;
         $today = Carbon::instance($moment->toDateTime())->timezone($this->timezone)->startOfDay();
-        $prefix = $local->startOfDay()->equalTo($today) ? 'сегодня' : $dayLabel;
+        $prefix = $local->copy()->startOfDay()->equalTo($today) ? 'сегодня' : $dayLabel;
 
         return $prefix.' в '.$local->format('H:i');
     }

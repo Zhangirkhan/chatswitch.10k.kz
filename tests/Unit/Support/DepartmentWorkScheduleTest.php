@@ -27,6 +27,16 @@ final class DepartmentWorkScheduleTest extends TestCase
         $this->assertFalse($schedule->contains($moment));
     }
 
+    public function test_next_open_label_preserves_opening_time(): void
+    {
+        $week = DepartmentWorkSchedule::defaultWeek();
+        $week['thu']['to'] = '12:00';
+        $schedule = new DepartmentWorkSchedule('Asia/Almaty', $week);
+        $moment = Carbon::parse('2026-05-21 12:13:00', 'Asia/Almaty'); // Thursday
+
+        $this->assertSame('пятница в 09:00', $schedule->nextOpenLabel($moment));
+    }
+
     public function test_from_department_returns_null_when_schedule_disabled(): void
     {
         $department = new Department([
