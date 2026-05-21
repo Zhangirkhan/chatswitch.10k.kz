@@ -17,6 +17,7 @@ return [
     'department_routing' => [
         'enabled' => (bool) env('FUNNEL_DEPARTMENT_ROUTING_ENABLED', true),
         'min_confidence' => (float) env('FUNNEL_DEPARTMENT_ROUTING_MIN_CONFIDENCE', 0.55),
+        'keyword_min_score' => (int) env('FUNNEL_DEPARTMENT_ROUTING_KEYWORD_MIN_SCORE', 6),
         'temperature' => (float) env('FUNNEL_DEPARTMENT_ROUTING_TEMPERATURE', 0.1),
         'max_tokens' => (int) env('FUNNEL_DEPARTMENT_ROUTING_MAX_TOKENS', 350),
     ],

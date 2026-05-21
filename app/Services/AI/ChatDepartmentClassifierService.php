@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Models\Chat;
-use App\Models\Department;
 use App\Models\Message;
 use App\Support\ClientMessageHeuristics;
+use App\Support\DepartmentIntentMatcher;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -17,6 +17,7 @@ final class ChatDepartmentClassifierService
 {
     public function __construct(
         private readonly OpenAiChatService $openAi,
+        private readonly DepartmentIntentMatcher $intentMatcher,
     ) {}
 
     public function classify(Chat $chat, Message $triggerMessage): ?ChatDepartmentClassification
@@ -34,6 +35,17 @@ final class ChatDepartmentClassifierService
             );
         }
 
+        $body = OperatorSignature::strip(trim((string) $triggerMessage->body));
+
+        $keywordMatch = $this->intentMatcher->match($body, $catalog);
+        if ($keywordMatch !== null) {
+            return new ChatDepartmentClassification(
+                departmentId: (int) $keywordMatch['id'],
+                confidence: 0.88,
+                reason: 'Отдел определён по формулировкам клиента (бухгалтерия, HR, продажи и т.п.).',
+            );
+        }
+
         try {
             $raw = $this->openAi->chatJson(
                 $this->messages($chat, $triggerMessage, $catalog),
@@ -46,10 +58,10 @@ final class ChatDepartmentClassifierService
                 'error' => $e->getMessage(),
             ]);
 
-            return $this->fallbackClassification($catalog, $triggerMessage);
+            return $this->fallbackClassification($catalog, $body);
         }
 
-        return $this->normalize($catalog, $raw) ?? $this->fallbackClassification($catalog, $triggerMessage);
+        return $this->normalize($catalog, $raw) ?? $this->fallbackClassification($catalog, $body);
     }
 
     /**
@@ -57,12 +69,12 @@ final class ChatDepartmentClassifierService
      */
     private function departmentCatalog(): array
     {
-        return Department::query()
+        return \App\Models\Department::query()
             ->where('is_active', true)
             ->with(['funnels' => static fn ($q) => $q->where('is_active', true)->orderBy('position')->orderBy('id')])
             ->orderBy('name')
             ->get()
-            ->map(static fn (Department $department): array => [
+            ->map(static fn (\App\Models\Department $department): array => [
                 'id' => $department->id,
                 'name' => $department->name,
                 'description' => $department->description,
@@ -96,7 +108,7 @@ final class ChatDepartmentClassifierService
 
         $reason = trim((string) ($raw['reason'] ?? ''));
         if ($reason === '') {
-            $reason = 'Отдел выбран по смыслу первого сообщения клиента.';
+            $reason = 'Отдел выбран по смыслу сообщения клиента.';
         }
 
         return new ChatDepartmentClassification(
@@ -109,26 +121,31 @@ final class ChatDepartmentClassifierService
     /**
      * @param  list<array{id: int, name: string, description: string|null, funnels: list<string>}>  $catalog
      */
-    private function fallbackClassification(array $catalog, Message $triggerMessage): ?ChatDepartmentClassification
+    private function fallbackClassification(array $catalog, string $messageBody): ?ChatDepartmentClassification
     {
-        $body = mb_strtolower(OperatorSignature::strip(trim((string) $triggerMessage->body)));
+        $body = mb_strtolower(trim($messageBody));
 
-        foreach ($catalog as $department) {
-            $name = mb_strtolower((string) $department['name']);
-            if ($name !== '' && str_contains($body, $name)) {
+        $keywordMatch = $this->intentMatcher->match($messageBody, $catalog);
+        if ($keywordMatch !== null) {
+            return new ChatDepartmentClassification(
+                departmentId: (int) $keywordMatch['id'],
+                confidence: 0.75,
+                reason: 'Отдел определён по ключевым словам в сообщении клиента.',
+            );
+        }
+
+        if (ClientMessageHeuristics::isShortGreetingOnly($messageBody)) {
+            $reception = $this->intentMatcher->receptionDepartment($catalog);
+            if ($reception !== null) {
                 return new ChatDepartmentClassification(
-                    departmentId: (int) $department['id'],
-                    confidence: 0.7,
-                    reason: 'Отдел совпал с упоминанием в сообщении клиента.',
+                    departmentId: (int) $reception['id'],
+                    confidence: 0.6,
+                    reason: 'Клиент только поздоровался — назначен отдел первичного приёма.',
                 );
             }
         }
 
-        return new ChatDepartmentClassification(
-            departmentId: (int) $catalog[0]['id'],
-            confidence: 0.5,
-            reason: 'Отдел выбран по умолчанию (первый активный).',
-        );
+        return null;
     }
 
     /**
@@ -155,7 +172,7 @@ final class ChatDepartmentClassifierService
         $triggerBody = Str::limit(OperatorSignature::strip(trim((string) $triggerMessage->body)), 800, '…');
         $greetingHint = ClientMessageHeuristics::isShortGreetingOnly((string) $triggerMessage->body)
             ? 'Клиент, скорее всего, только поздоровался — выбери отдел первичного приёма (продажи, консультации).'
-            : 'Учти тему запроса: замер, монтаж, доставка, цены, запись, рекламации.';
+            : 'Учти тему: бухгалтерия/оплата/счета → отдел бухгалтерии; HR/кадры → HR; замер/монтаж → замерщики; покупка/цены → продажи.';
 
         $schema = <<<'TXT'
 Верни только JSON без Markdown:
@@ -168,14 +185,15 @@ final class ChatDepartmentClassifierService
 TXT;
 
         $system = <<<PROMPT
-Ты маршрутизатор входящих WhatsApp-обращений в CRM ChatSwitch. По первому сообщению клиента выбери один отдел, который должен вести диалог.
+Ты маршрутизатор входящих WhatsApp-обращений в CRM ChatSwitch. По сообщению клиента выбери один отдел, который должен вести диалог.
 
 Правила:
 1. department_id — только из каталога ниже.
-2. Если сообщение — только приветствие без запроса, назначь отдел первичного приёма/продаж (если есть в каталоге).
-3. Если запрос явно про исполнение (монтаж, доставка, замер на объекте) — отдел операций/замерщиков/исполнителей.
-4. Если не уверен — should_assign: true и отдел с наиболее общим профилем (продажи), confidence ниже.
-5. reason — кратко по-русски.
+2. Если клиент просит бухгалтера, счёт, оплату, реквизиты, акт — выбери отдел бухгалтерии/финансов (по name/description в каталоге), а не HR и не продажи.
+3. Если сообщение — только приветствие без запроса, назначь отдел первичного приёма/продаж (если есть в каталоге).
+4. Если запрос про замер, монтаж, установку — отдел замерщиков/исполнителей.
+5. Если не уверен — should_assign: false (не назначай случайный отдел).
+6. reason — кратко по-русски.
 
 {$greetingHint}
 
