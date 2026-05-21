@@ -14,7 +14,11 @@ use App\Models\FunnelStage;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\ChatDepartmentClassifierService;
 use App\Services\AI\ChatDepartmentRoutingService;
+use App\Services\AI\ChatOffHoursReplyService;
+use App\Support\DepartmentWorkSchedule;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -202,5 +206,103 @@ final class ChatDepartmentRoutingTest extends TestCase
         $chat->refresh();
         $this->assertTrue($chat->departments()->where('departments.id', $department->id)->exists());
         $this->assertSame($funnel->id, (int) $chat->funnel_id);
+    }
+
+    public function test_accountant_request_routes_to_accounting_not_first_department(): void
+    {
+        Department::query()->create(['name' => 'HR-отдел', 'is_active' => true]);
+        $accounting = Department::query()->create([
+            'name' => 'Бухгалтерия',
+            'description' => 'Счета, оплата, акты',
+            'is_active' => true,
+        ]);
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'ai_enabled' => true,
+        ]);
+
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'здравствуйте, свяжите с бухгалтером',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $classification = $this->app->make(ChatDepartmentClassifierService::class)->classify($chat, $trigger);
+
+        $this->assertNotNull($classification);
+        $this->assertSame($accounting->id, $classification->departmentId);
+        $this->assertStringNotContainsString('первый активный', mb_strtolower($classification->reason));
+
+        $department = $this->app->make(ChatDepartmentRoutingService::class)
+            ->resolveAndAssignDepartment($chat, $trigger);
+
+        $this->assertSame($accounting->id, (int) $department?->id);
+    }
+
+    public function test_accountant_request_gets_accounting_off_hours_not_hr(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-17 20:00:00', 'Asia/Almaty'));
+
+        $company = Company::create(['name' => 'Company']);
+        $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
+        $manager->assignRole('manager');
+
+        Department::query()->create([
+            'name' => 'HR-отдел',
+            'is_active' => true,
+            'work_schedule_enabled' => false,
+        ]);
+        $accounting = Department::query()->create([
+            'name' => 'Бухгалтерия',
+            'description' => 'Счета и оплата',
+            'is_active' => true,
+            'work_schedule_enabled' => true,
+            'work_schedule_timezone' => 'Asia/Almaty',
+            'work_schedule' => DepartmentWorkSchedule::defaultWeek(),
+        ]);
+        $accounting->users()->sync([$manager->id]);
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+            'ai_enabled' => true,
+            'ai_mode' => 'auto',
+        ]);
+
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'здравствуйте, свяжите с бухгалтером',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $department = $this->app->make(ChatDepartmentRoutingService::class)
+            ->resolveAndAssignDepartment($chat, $trigger);
+
+        $this->assertSame($accounting->id, (int) $department?->id);
+
+        $sent = $this->app->make(ChatOffHoursReplyService::class)->tryReply($chat, $trigger, $department);
+        $this->assertTrue($sent);
+
+        $outbound = Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'outbound')
+            ->latest('id')
+            ->first();
+
+        $this->assertStringContainsString('Бухгалтерия', (string) $outbound?->body);
+        $this->assertStringNotContainsString('HR', (string) $outbound?->body);
+
+        Carbon::setTestNow();
     }
 }
