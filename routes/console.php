@@ -87,3 +87,13 @@ Schedule::command('knowledge:catalog-audit')
     ->weeklyOn(0, '3:05')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('subscriptions:expire-trials')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('billing:send-payment-reminders')
+    ->dailyAt(config('billing.payment_reminders.schedule_at', '09:00'))
+    ->withoutOverlapping()
+    ->runInBackground();

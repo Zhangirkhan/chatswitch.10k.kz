@@ -7,55 +7,69 @@ use App\Models\Funnel;
 use App\Models\SystemSetting;
 use App\Models\TeamConversation;
 use App\Models\User;
+use App\Tenancy\TenantChannels;
 use Illuminate\Support\Facades\Broadcast;
 
-Broadcast::channel('chat.{chatId}', function (User $user, int $chatId): bool {
-    $chat = Chat::find($chatId);
-    if (! $chat) {
+Broadcast::channel(TenantChannels::CHAT, function (User $user, int $companyId, int $chatId): bool {
+    if ((int) $user->company_id !== $companyId) {
+        return false;
+    }
+
+    $chat = Chat::withoutGlobalScope('tenant')->find($chatId);
+    if (! $chat || (int) $chat->company_id !== $companyId) {
         return false;
     }
 
     return $user->can('view', $chat);
 });
 
-Broadcast::channel('chats.list.{userId}', function (User $user, int $userId): bool {
-    return $user->id === $userId;
+Broadcast::channel(TenantChannels::CHATS_LIST, function (User $user, int $companyId, int $userId): bool {
+    return $user->id === $userId && (int) $user->company_id === $companyId;
 });
 
-Broadcast::channel('team-conversation.{conversationId}', function (User $user, int $conversationId): bool {
-    $conversation = TeamConversation::query()->find($conversationId);
-    if ($conversation === null) {
+Broadcast::channel(TenantChannels::TEAM_CONVERSATION, function (User $user, int $companyId, int $conversationId): bool {
+    if ((int) $user->company_id !== $companyId) {
+        return false;
+    }
+
+    $conversation = TeamConversation::withoutGlobalScope('tenant')->find($conversationId);
+    if ($conversation === null || (int) $conversation->company_id !== $companyId) {
         return false;
     }
 
     return $conversation->participants()->where('users.id', $user->id)->exists();
 });
 
-Broadcast::channel('team-inbox.{userId}', function (User $user, int $userId): bool {
-    return $user->id === $userId;
+Broadcast::channel(TenantChannels::TEAM_INBOX, function (User $user, int $companyId, int $userId): bool {
+    return $user->id === $userId && (int) $user->company_id === $companyId;
 });
 
-Broadcast::channel('whatsapp-status', function (User $user): bool {
-    return $user->hasAnyRole(['administrator', 'manager']);
+Broadcast::channel(TenantChannels::WHATSAPP_STATUS, function (User $user, int $companyId): bool {
+    return $user->hasAnyRole(['administrator', 'manager'])
+        && (int) $user->company_id === $companyId;
 });
 
-Broadcast::channel('funnel-board.{funnelId}', function (User $user, int $funnelId): bool {
+Broadcast::channel(TenantChannels::FUNNEL_BOARD, function (User $user, int $companyId, int $funnelId): bool {
     if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
         return false;
     }
 
-    $funnel = Funnel::query()->find($funnelId);
+    $funnel = Funnel::withoutGlobalScope('tenant')->find($funnelId);
 
-    return $funnel !== null && (int) $funnel->company_id === (int) $user->company_id;
+    return $funnel !== null
+        && (int) $funnel->company_id === $companyId
+        && (int) $user->company_id === $companyId;
 });
 
-Broadcast::channel('funnel-board-presence.{funnelId}', function (User $user, int $funnelId): array|false {
+Broadcast::channel(TenantChannels::FUNNEL_BOARD_PRESENCE, function (User $user, int $companyId, int $funnelId): array|false {
     if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
         return false;
     }
 
-    $funnel = Funnel::query()->find($funnelId);
-    if ($funnel === null || (int) $funnel->company_id !== (int) $user->company_id) {
+    $funnel = Funnel::withoutGlobalScope('tenant')->find($funnelId);
+    if ($funnel === null
+        || (int) $funnel->company_id !== $companyId
+        || (int) $user->company_id !== $companyId) {
         return false;
     }
 

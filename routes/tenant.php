@@ -36,17 +36,28 @@ use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ToneProfileController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\Tenant\ImpersonationController;
 use App\Http\Controllers\WhatsappSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('login'));
 
+Route::get('/impersonate/accept', [ImpersonationController::class, 'accept'])
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('tenant.impersonate.accept');
+
+Route::post('/impersonate/leave', [ImpersonationController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('tenant.impersonate.leave');
+
 Route::redirect('/docs/api/mobile-v1', '/docs/api', 301);
 
-Route::prefix('docs/api')->group(function (): void {
-    Route::get('/', [ApiDocumentationController::class, 'swagger'])->name('docs.api');
-    Route::get('/openapi.yaml', [ApiDocumentationController::class, 'openApiYaml'])->name('docs.api.openapi');
-});
+Route::prefix('docs/api')
+    ->middleware(['docs.password'])
+    ->group(function (): void {
+        Route::get('/', [ApiDocumentationController::class, 'swagger'])->name('docs.api');
+        Route::get('/openapi.yaml', [ApiDocumentationController::class, 'openApiYaml'])->name('docs.api.openapi');
+    });
 
 Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('/dashboard', fn () => redirect()->route('chats.index'))->name('dashboard');
@@ -128,6 +139,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/messages/{message}/react', [MessageController::class, 'react'])->name('messages.react');
         Route::post('/messages/{message}/retry', [MessageController::class, 'retry'])->name('messages.retry');
         Route::post('/messages/{message}/forward', [MessageController::class, 'forward'])->name('messages.forward');
+        Route::post('/messages/{message}/share-to-team', [MessageController::class, 'shareToTeam'])->name('messages.share-to-team');
         Route::post('/messages/forward-bulk', [MessageController::class, 'forwardBulk'])->name('messages.forward-bulk');
         Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
         Route::post('/messages/{message}/translate', [MessageTranslationController::class, 'translate'])->name('messages.translate');
@@ -177,6 +189,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/organization/chat/api/{team_conversation}/participants', [OrganizationTeamChatController::class, 'participants'])->name('organization.team-chat.api.participants');
         Route::get('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'messages'])->name('organization.team-chat.api.messages');
         Route::post('/organization/chat/api/{team_conversation}/messages', [OrganizationTeamChatController::class, 'storeMessage'])->name('organization.team-chat.api.messages.store');
+        Route::post('/organization/chat/api/messages/{team_message}/share-to-clients', [OrganizationTeamChatController::class, 'shareToClients'])->name('organization.team-chat.api.messages.share-to-clients');
         Route::post('/organization/chat/api/{team_conversation}/messages/{team_message}/react', [OrganizationTeamChatController::class, 'reactToMessage'])->name('organization.team-chat.api.messages.react');
         Route::post('/organization/chat/api/{team_conversation}/read', [OrganizationTeamChatController::class, 'markRead'])->name('organization.team-chat.api.read');
         Route::post('/organization/chat/api/{team_conversation}/delivered', [OrganizationTeamChatController::class, 'markDelivered'])->name('organization.team-chat.api.delivered');
@@ -290,3 +303,10 @@ Route::middleware(['auth', 'role:administrator,manager,employee'])->prefix('api'
 });
 
 require __DIR__.'/auth.php';
+
+// Любой нераспознанный путь под `{tenant}.accel.kz` должен пройти через
+// tenant.resolve, чтобы неизвестный поддомен был перенаправлен на /404
+// лендинга, а на существующих тенантах — отдан 404 страницу логина.
+Route::fallback(function () {
+    return redirect()->route('login');
+});
