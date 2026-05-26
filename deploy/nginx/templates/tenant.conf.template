@@ -1,0 +1,13 @@
+server {
+    server_name __FQDN__;
+    root /var/www/accel.kz/public;
+
+    include snippets/accel-app.conf;
+
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate     /etc/letsencrypt/live/__FQDN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__FQDN__/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}

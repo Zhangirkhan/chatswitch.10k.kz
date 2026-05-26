@@ -1,0 +1,3 @@
+# Скопировать: sudo install -m 0440 deploy/sudoers/accel-nginx-reload /etc/sudoers.d/accel-nginx-reload
+www-data ALL=(root) NOPASSWD: /var/www/accel.kz/deploy/nginx/reload-nginx.sh
+Defaults!/var/www/accel.kz/deploy/nginx/reload-nginx.sh !requiretty
