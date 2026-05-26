@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\SuperAdmin;
 
 use App\Models\Company;
+use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\SuperAdminAuditLog;
 use App\Models\User;
@@ -143,7 +145,95 @@ final class SuperAdminOperationsTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('SuperAdmin/AuditLogs/Index')
+            ->where('tab', 'actions')
             ->has('auditLogs.data', 1)
             ->where('auditLogs.data.0.action', 'impersonation.start'));
+    }
+
+    public function test_global_journal_transactions_tab_lists_payments_from_all_companies(): void
+    {
+        $plan = Plan::query()->firstOrCreate(
+            ['code' => 'standard'],
+            [
+                'name' => 'Стандарт',
+                'price_cents' => 4_000_000,
+                'currency' => 'KZT',
+                'interval' => 'month',
+                'trial_days' => 14,
+                'is_active' => true,
+            ],
+        );
+
+        $companyA = Company::query()->create([
+            'name' => 'Pay Co A',
+            'slug' => 'pay-co-a',
+            'is_active' => true,
+            'plan_id' => $plan->id,
+            'subscription_status' => 'active',
+        ]);
+
+        $companyB = Company::query()->create([
+            'name' => 'Pay Co B',
+            'slug' => 'pay-co-b',
+            'is_active' => true,
+            'plan_id' => $plan->id,
+            'subscription_status' => 'active',
+        ]);
+
+        $admin = User::factory()->create([
+            'is_super_admin' => true,
+            'company_id' => null,
+        ]);
+
+        $invoiceA = Invoice::query()->create([
+            'company_id' => $companyA->id,
+            'number' => 'TX-A-001',
+            'amount_cents' => 4_000_000,
+            'currency' => 'KZT',
+            'status' => 'paid',
+            'issued_at' => now(),
+            'paid_at' => now(),
+        ]);
+
+        $invoiceB = Invoice::query()->create([
+            'company_id' => $companyB->id,
+            'number' => 'TX-B-001',
+            'amount_cents' => 4_000_000,
+            'currency' => 'KZT',
+            'status' => 'paid',
+            'issued_at' => now(),
+            'paid_at' => now(),
+        ]);
+
+        Payment::query()->create([
+            'invoice_id' => $invoiceA->id,
+            'company_id' => $companyA->id,
+            'amount_cents' => 4_000_000,
+            'method' => 'kaspi',
+            'paid_at' => now()->subDay(),
+            'recorded_by_user_id' => $admin->id,
+        ]);
+
+        Payment::query()->create([
+            'invoice_id' => $invoiceB->id,
+            'company_id' => $companyB->id,
+            'amount_cents' => 4_000_000,
+            'method' => 'bank_transfer',
+            'paid_at' => now(),
+            'recorded_by_user_id' => $admin->id,
+        ]);
+
+        $host = $this->adminHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $response = $this->actingAs($admin)->get("https://{$host}/audit-logs?tab=transactions");
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('SuperAdmin/AuditLogs/Index')
+            ->where('tab', 'transactions')
+            ->has('transactions.data', 2)
+            ->where('transactions.data.0.company.name', 'Pay Co B')
+            ->where('transactions.data.1.company.name', 'Pay Co A'));
     }
 }
