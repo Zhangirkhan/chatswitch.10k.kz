@@ -6,7 +6,7 @@
 /var/www/accel/
 ├── shared/
 │   ├── .env
-│   ├── backups/mysql/    # ежедневные mysqldump (cron)
+│   ├── backups/mysql/    # почасовые mysqldump, хранение 5 ч (cron)
 │   ├── storage/          # логи, uploads, sessions
 │   └── bootstrap/cache/
 ├── releases/

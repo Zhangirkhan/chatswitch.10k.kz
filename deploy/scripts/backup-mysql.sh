@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Ежедневный дамп MySQL для Accel (chatswitch).
-# Cron: deploy/cron/accel-mysql-backup (03:15 Asia/Almaty)
+# Почасовой дамп MySQL для Accel (chatswitch).
+# Cron: deploy/cron/accel-mysql-backup (каждый час, хранение 5 ч)
 
 set -euo pipefail
 
 ENV_FILE="${ACCEL_ENV_FILE:-/var/www/accel/shared/.env}"
 BACKUP_DIR="${ACCEL_BACKUP_DIR:-/var/www/accel/shared/backups/mysql}"
-RETENTION_DAYS="${ACCEL_BACKUP_RETENTION_DAYS:-30}"
+RETENTION_HOURS="${ACCEL_BACKUP_RETENTION_HOURS:-5}"
 LOG_FILE="${ACCEL_BACKUP_LOG:-/var/www/accel/shared/storage/logs/mysql-backup.log}"
 
 log() {
@@ -57,14 +57,15 @@ chmod 640 "$OUT_GZ"
 SIZE="$(du -h "$OUT_GZ" | awk '{print $1}')"
 log "OK ${OUT_GZ} (${SIZE})"
 
+RETENTION_MINUTES=$((RETENTION_HOURS * 60))
 DELETED=0
 while IFS= read -r -d '' old; do
     rm -f "$old"
     DELETED=$((DELETED + 1))
-done < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'chatswitch-*.sql.gz' -mtime +"$RETENTION_DAYS" -print0)
+done < <(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'chatswitch-*.sql.gz' -mmin +"$RETENTION_MINUTES" -print0)
 
 if [[ "$DELETED" -gt 0 ]]; then
-    log "CLEANUP removed ${DELETED} file(s) older than ${RETENTION_DAYS} days"
+    log "CLEANUP removed ${DELETED} file(s) older than ${RETENTION_HOURS} hour(s)"
 fi
 
 log "DONE"
