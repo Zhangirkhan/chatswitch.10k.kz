@@ -14,6 +14,7 @@ use App\Models\MessageReaction;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
+use App\Services\CrossChannelMessageShareService;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
@@ -26,6 +27,7 @@ final class MessageController extends Controller
 {
     public function __construct(
         private readonly ChatService $chatService,
+        private readonly CrossChannelMessageShareService $crossChannelShare,
     ) {}
 
     public function react(Request $request, Message $message, WhatsappService $whatsappService): JsonResponse
@@ -505,6 +507,34 @@ final class MessageController extends Controller
         }
 
         return response()->json(['success' => true, 'sent' => $sent]);
+    }
+
+    public function shareToTeam(Request $request, Message $message): JsonResponse
+    {
+        $user = $request->user();
+        $message->loadMissing('chat');
+        if ($message->chat === null) {
+            abort(404);
+        }
+        $this->authorize('view', $message->chat);
+
+        $data = $request->validate([
+            'team_conversation_ids' => ['required', 'array', 'min:1'],
+            'team_conversation_ids.*' => ['integer', 'exists:team_conversations,id'],
+            'body' => ['nullable', 'string', 'max:16000'],
+        ]);
+
+        $result = $this->crossChannelShare->shareWhatsappMessageToTeam(
+            $user,
+            $message,
+            array_map('intval', $data['team_conversation_ids']),
+            trim((string) ($data['body'] ?? '')),
+        );
+
+        return response()->json([
+            'success' => true,
+            'sent' => $result['sent'],
+        ]);
     }
 
     public function forwardBulk(Request $request): JsonResponse

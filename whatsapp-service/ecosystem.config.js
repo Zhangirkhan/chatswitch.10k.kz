@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'chatswitch-whatsapp',
+      name: 'accel-whatsapp',
       script: 'src/index.js',
       cwd: __dirname,
       instances: 1,

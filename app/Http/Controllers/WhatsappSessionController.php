@@ -9,10 +9,12 @@ use App\Models\Message;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
 use App\Services\WhatsappService;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -109,7 +111,13 @@ final class WhatsappSessionController extends Controller
         }
 
         $request->validate([
-            'session_name' => 'nullable|string|max:100|unique:whatsapp_sessions,session_name',
+            'session_name' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('whatsapp_sessions', 'session_name')
+                    ->where('company_id', app(TenantContext::class)->companyId()),
+            ],
             'display_name' => 'nullable|string|max:100',
         ]);
 
@@ -120,6 +128,7 @@ final class WhatsappSessionController extends Controller
             $session = WhatsappSession::create([
                 'session_name' => $sessionName,
                 'display_name' => $displayName,
+                'display_color' => $this->defaultDisplayColorForNewSession(),
                 'status' => 'connecting',
                 'desired_state' => WhatsappSession::DESIRED_ACTIVE,
             ]);
@@ -144,7 +153,7 @@ final class WhatsappSessionController extends Controller
     {
         do {
             $name = 'wa-'.strtolower(substr(bin2hex(random_bytes(4)), 0, 8));
-        } while (WhatsappSession::where('session_name', $name)->exists());
+        } while (WhatsappSession::query()->where('session_name', $name)->exists());
 
         return $name;
     }
@@ -154,6 +163,23 @@ final class WhatsappSessionController extends Controller
         $count = WhatsappSession::count() + 1;
 
         return 'WhatsApp #'.$count;
+    }
+
+    private function defaultDisplayColorForNewSession(): string
+    {
+        $palette = [
+            '#01b964',
+            '#f5c518',
+            '#3b82f6',
+            '#f97316',
+            '#a855f7',
+            '#ec4899',
+            '#14b8a6',
+            '#ef4444',
+        ];
+        $index = WhatsappSession::count() % count($palette);
+
+        return $palette[$index];
     }
 
     public function update(Request $request, WhatsappSession $session): JsonResponse

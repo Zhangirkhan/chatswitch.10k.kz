@@ -45,8 +45,10 @@ use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
+use App\Support\OrganizationDepartmentTasks;
 use App\Support\PhoneFormatter;
 use App\Support\VCard;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -471,7 +473,7 @@ final class ChatController extends Controller
         $appointment = is_array($pending['appointment_request'] ?? null) ? $pending['appointment_request'] : null;
         if ($appointment !== null && is_string($appointment['starts_at'] ?? null)) {
             try {
-                $startsAt = \Carbon\Carbon::parse($appointment['starts_at']);
+                $startsAt = Carbon::parse($appointment['starts_at']);
                 $time = $startsAt->format('H:i');
                 $appointmentLabel = $startsAt->isToday()
                     ? 'сегодня в '.$time
@@ -874,6 +876,12 @@ final class ChatController extends Controller
     public function createQuickTask(Request $request, Chat $chat): JsonResponse
     {
         $this->authorize('view', $chat);
+
+        abort_unless(
+            OrganizationDepartmentTasks::enabled(),
+            403,
+            'Задачи по отделам временно отключены.',
+        );
 
         $data = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],

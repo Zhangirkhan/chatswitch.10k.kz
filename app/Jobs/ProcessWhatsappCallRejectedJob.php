@@ -77,7 +77,7 @@ final class ProcessWhatsappCallRejectedJob implements ShouldQueue
         }
         RateLimiter::hit($rateKey, 90);
 
-        $email = (string) config('chatswitch.system_user_email', 'system@chatswitch.internal');
+        $email = (string) config('accel.system_user_email', 'system@chatswitch.internal');
         $systemUser = User::query()->where('email', $email)->first();
         if ($systemUser === null) {
             Log::error('[wa-call-reject] system user missing', ['email' => $email]);

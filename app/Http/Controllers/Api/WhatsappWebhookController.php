@@ -49,11 +49,18 @@ final class WhatsappWebhookController extends Controller
             abort(401);
         }
 
+        $allowedMimes = config('accel.inbound_media_mimetypes', []);
+
         $validated = $request->validate([
             'session' => ['required', 'string', 'max:128'],
             'messageId' => ['required', 'string', 'max:191'],
             'mimetype' => ['nullable', 'string', 'max:255'],
-            'file' => ['required', 'file', 'max:102400'],
+            'file' => [
+                'required',
+                'file',
+                'max:102400',
+                'mimetypes:'.implode(',', is_array($allowedMimes) ? $allowedMimes : []),
+            ],
         ]);
 
         $session = WhatsappSession::query()->where('session_name', $validated['session'])->first();

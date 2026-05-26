@@ -14,8 +14,11 @@ final class CommunityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $sessionIds = $this->accessibleSessionIds($request);
+
         $communities = Community::with(['groups:id,community_id,chat_name,is_pinned,last_message_at,unread_count,whatsapp_session_id'])
             ->where('is_archived', false)
+            ->whereIn('whatsapp_session_id', $sessionIds)
             ->orderByDesc('id')
             ->get(['id', 'whatsapp_session_id', 'name', 'description', 'avatar_path', 'created_at']);
 
@@ -26,6 +29,8 @@ final class CommunityController extends Controller
 
     public function show(Request $request, Community $community): JsonResponse
     {
+        $this->ensureCommunityAccess($request, $community);
+
         $community->load([
             'groups:id,community_id,chat_name,is_pinned,last_message_at,last_message_text,unread_count,whatsapp_session_id',
             'whatsappSession:id,session_name,display_name',
@@ -45,6 +50,8 @@ final class CommunityController extends Controller
         ]);
 
         $session = WhatsappSession::findOrFail($data['whatsapp_session_id']);
+        $this->authorize('use', $session);
+
         $user = $request->user();
 
         $community = Community::create([
@@ -62,6 +69,8 @@ final class CommunityController extends Controller
 
     public function update(Request $request, Community $community): JsonResponse
     {
+        $this->ensureCommunityAccess($request, $community);
+
         $data = $request->validate([
             'name' => 'required|string|max:100',
             'description' => 'nullable|string|max:2048',
@@ -78,25 +87,26 @@ final class CommunityController extends Controller
         ]);
     }
 
-    public function destroy(Community $community): JsonResponse
+    public function destroy(Request $request, Community $community): JsonResponse
     {
-        // Отвязываем группы от сообщества, затем удаляем само сообщество.
+        $this->ensureCommunityAccess($request, $community);
+
         Chat::where('community_id', $community->id)->update(['community_id' => null]);
         $community->delete();
 
         return response()->json(['success' => true]);
     }
 
-    /**
-     * Привязать уже существующую группу к сообществу.
-     */
     public function linkGroup(Request $request, Community $community): JsonResponse
     {
+        $this->ensureCommunityAccess($request, $community);
+
         $data = $request->validate([
             'chat_id' => 'required|integer|exists:chats,id',
         ]);
 
         $chat = Chat::findOrFail($data['chat_id']);
+        $this->authorize('view', $chat);
 
         if (! $chat->is_group) {
             return response()->json([
@@ -120,11 +130,11 @@ final class CommunityController extends Controller
         ]);
     }
 
-    /**
-     * Отвязать группу от сообщества.
-     */
     public function unlinkGroup(Request $request, Community $community, Chat $chat): JsonResponse
     {
+        $this->ensureCommunityAccess($request, $community);
+        $this->authorize('view', $chat);
+
         if ($chat->community_id !== $community->id) {
             return response()->json([
                 'success' => false,
@@ -137,12 +147,10 @@ final class CommunityController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /**
-     * Список групп, доступных для добавления в сообщество
-     * (групповые чаты той же WhatsApp-сессии, ещё не привязанные к этому сообществу).
-     */
     public function availableGroups(Request $request, Community $community): JsonResponse
     {
+        $this->ensureCommunityAccess($request, $community);
+
         $groups = Chat::where('is_group', true)
             ->where('whatsapp_session_id', $community->whatsapp_session_id)
             ->where(function ($q) use ($community) {
@@ -153,5 +161,26 @@ final class CommunityController extends Controller
             ->get(['id', 'chat_name', 'community_id', 'last_message_text']);
 
         return response()->json(['groups' => $groups]);
+    }
+
+    /** @return list<int> */
+    private function accessibleSessionIds(Request $request): array
+    {
+        return WhatsappSession::query()
+            ->get()
+            ->filter(fn (WhatsappSession $session): bool => $request->user()->can('use', $session))
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function ensureCommunityAccess(Request $request, Community $community): void
+    {
+        $session = $community->whatsappSession ?? WhatsappSession::query()->find($community->whatsapp_session_id);
+
+        if ($session === null || ! $request->user()->can('use', $session)) {
+            abort(403);
+        }
     }
 }

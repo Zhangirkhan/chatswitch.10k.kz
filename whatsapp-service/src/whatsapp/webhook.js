@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const { laravelAxiosOptions } = require('../laravelHttp');
 
 const laravelUrl = (process.env.LARAVEL_URL || 'http://127.0.0.1').replace(/\/+$/, '');
 const apiToken = process.env.LARAVEL_API_TOKEN || '';
@@ -19,11 +20,13 @@ async function notifyLaravel(event, data) {
 
   try {
     const res = await axios.post(url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-        ...(signature ? { 'X-Webhook-Signature': signature } : {}),
-      },
+      ...laravelAxiosOptions({
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+          ...(signature ? { 'X-Webhook-Signature': signature } : {}),
+        },
+      }),
       timeout: 30000,
       maxBodyLength: 100 * 1024 * 1024,
       transformRequest: [(v) => v],

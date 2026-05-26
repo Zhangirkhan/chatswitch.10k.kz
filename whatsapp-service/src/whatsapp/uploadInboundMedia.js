@@ -1,5 +1,6 @@
 const axios = require('axios');
 const FormData = require('form-data');
+const { laravelAxiosOptions } = require('../laravelHttp');
 
 const laravelUrl = (process.env.LARAVEL_URL || 'http://127.0.0.1').replace(/\/+$/, '');
 const apiToken = process.env.LARAVEL_API_TOKEN || '';
@@ -44,10 +45,12 @@ async function uploadInboundMediaBuffer(service, waMessageId, media) {
 
     try {
       const res = await axios.post(url, form, {
-        headers: {
-          ...form.getHeaders(),
-          Authorization: `Bearer ${apiToken}`,
-        },
+        ...laravelAxiosOptions({
+          headers: {
+            ...form.getHeaders(),
+            Authorization: `Bearer ${apiToken}`,
+          },
+        }),
         timeout: 120000,
         maxBodyLength: Infinity,
         maxContentLength: Infinity,

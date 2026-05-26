@@ -439,6 +439,8 @@ final class ContactController extends Controller
 
     public function update(Request $request, Contact $contact): JsonResponse
     {
+        $this->authorize('update', $contact);
+
         $data = $request->validate([
             'name' => ['nullable', 'string', 'max:120'],
         ]);
@@ -476,6 +478,8 @@ final class ContactController extends Controller
 
     public function syncCompanies(Request $request, Contact $contact): JsonResponse
     {
+        $this->authorize('syncCompanies', $contact);
+
         $data = $request->validate([
             'companies' => ['array'],
             'companies.*.company_id' => ['required', 'integer', 'exists:companies,id'],

@@ -12,6 +12,7 @@ use App\Models\WhatsappSession;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\ChatService;
+use App\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -38,15 +39,24 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
         ChatService $chatService,
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
+        TenantContext $tenantContext,
     ): void
     {
         $sessionName = (string) ($this->data['session'] ?? 'default');
-        $session = WhatsappSession::where('session_name', $sessionName)->first();
+        $session = WhatsappSession::query()
+            ->withoutGlobalScope('tenant')
+            ->where('session_name', $sessionName)
+            ->first();
 
         if (! $session) {
             Log::warning('[whatsapp-inbound] session not found', ['session' => $sessionName]);
 
             return;
+        }
+
+        $company = $session->tenantCompany;
+        if ($company !== null) {
+            $tenantContext->setCompany($company);
         }
 
         $message = DB::transaction(function () use ($chatService, $session): Message {

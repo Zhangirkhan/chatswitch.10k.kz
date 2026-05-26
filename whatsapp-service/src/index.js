@@ -131,7 +131,7 @@ async function autoRestoreAllSessions() {
 }
 
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[ChatSwitch WA Service] running on port ${PORT}`);
+  console.log(`[Accel WA Service] running on port ${PORT}`);
   // Снимаем «осиротевшие» SingletonLock от предыдущего запуска Node (pm2 restart / crash),
   // иначе новый Chromium не сможет открыть userDataDir.
   try {
