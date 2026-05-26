@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\TeamMessageReaction;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -28,7 +29,9 @@ final class TeamMessageReactionsUpdated implements ShouldBroadcastNow
     /** @return array<int, Channel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('team-conversation.'.$this->conversationId)];
+        $companyId = TenantChannels::companyIdForConversation($this->conversationId);
+
+        return [new PrivateChannel(TenantChannels::teamConversation($companyId, $this->conversationId))];
     }
 
     public function broadcastAs(): string

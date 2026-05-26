@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\MessageReaction;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -28,7 +29,7 @@ final class MessageReactionsUpdated implements ShouldBroadcastNow
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("chat.{$this->chatId}")];
+        return [new PrivateChannel(TenantChannels::chat(TenantChannels::companyIdForChat($this->chatId), $this->chatId))];
     }
 
     public function broadcastAs(): string

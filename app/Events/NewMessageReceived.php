@@ -7,6 +7,7 @@ namespace App\Events;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Support\ChatBroadcastAudience;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -26,12 +27,13 @@ final class NewMessageReceived implements ShouldBroadcastNow
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
-        $channels = [new PrivateChannel("chat.{$this->chatId}")];
+        $chat = Chat::withoutGlobalScope('tenant')->find($this->chatId);
+        $companyId = (int) ($chat?->company_id ?? 0);
+        $channels = [new PrivateChannel(TenantChannels::chat($companyId, $this->chatId))];
 
-        $chat = Chat::find($this->chatId);
         if ($chat) {
             foreach (ChatBroadcastAudience::userIdsWithAccessToChat($chat) as $userId) {
-                $channels[] = new PrivateChannel("chats.list.{$userId}");
+                $channels[] = new PrivateChannel(TenantChannels::chatsList($companyId, $userId));
             }
         }
 

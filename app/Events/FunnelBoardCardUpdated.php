@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Models\Funnel;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -29,7 +31,9 @@ final class FunnelBoardCardUpdated implements ShouldBroadcastNow
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("funnel-board.{$this->funnelId}")];
+        $companyId = (int) Funnel::withoutGlobalScope('tenant')->whereKey($this->funnelId)->value('company_id');
+
+        return [new PrivateChannel(TenantChannels::funnelBoard($companyId, $this->funnelId))];
     }
 
     public function broadcastAs(): string

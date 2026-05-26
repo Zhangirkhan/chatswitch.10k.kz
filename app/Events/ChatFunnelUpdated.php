@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -25,7 +26,7 @@ final class ChatFunnelUpdated implements ShouldBroadcastNow
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("chat.{$this->chatId}")];
+        return [new PrivateChannel(TenantChannels::chat(TenantChannels::companyIdForChat($this->chatId), $this->chatId))];
     }
 
     public function broadcastAs(): string

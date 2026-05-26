@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -24,7 +25,10 @@ final class TeamChatDeliveredUpdated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('team-conversation.'.$this->conversationId),
+            new PrivateChannel(TenantChannels::teamConversation(
+                TenantChannels::companyIdForConversation($this->conversationId),
+                $this->conversationId,
+            )),
         ];
     }
 

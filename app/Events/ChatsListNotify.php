@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Models\Chat;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -36,9 +38,10 @@ final class ChatsListNotify implements ShouldBroadcastNow
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
+        $companyId = (int) Chat::withoutGlobalScope('tenant')->whereKey($this->chatId)->value('company_id');
         $channels = [];
         foreach ($this->recipientUserIds as $userId) {
-            $channels[] = new PrivateChannel('chats.list.'.$userId);
+            $channels[] = new PrivateChannel(TenantChannels::chatsList($companyId, $userId));
         }
 
         return $channels;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Models\WhatsappSession;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -25,7 +27,12 @@ final class WhatsappStatusChanged implements ShouldBroadcast
     /** @return array<Channel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('whatsapp-status')];
+        $companyId = (int) WhatsappSession::query()
+            ->withoutGlobalScope('tenant')
+            ->where('session_name', $this->sessionName)
+            ->value('company_id');
+
+        return [new PrivateChannel(TenantChannels::whatsappStatus($companyId))];
     }
 
     public function broadcastAs(): string

@@ -7,6 +7,7 @@ namespace App\Events;
 use App\Models\TeamMessage;
 use App\Models\TeamMessageReaction;
 use App\Models\User;
+use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -32,13 +33,14 @@ final class TeamMessageReceived implements ShouldBroadcastNow
             return [];
         }
 
+        $companyId = (int) $conversation->company_id;
         $channels = [
-            new PrivateChannel('team-conversation.'.$conversation->id),
+            new PrivateChannel(TenantChannels::teamConversation($companyId, (int) $conversation->id)),
         ];
 
         $userIds = $conversation->participants()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
         foreach ($userIds as $uid) {
-            $channels[] = new PrivateChannel('team-inbox.'.$uid);
+            $channels[] = new PrivateChannel(TenantChannels::teamInbox($companyId, $uid));
         }
 
         return $channels;
@@ -70,9 +72,14 @@ final class TeamMessageReceived implements ShouldBroadcastNow
         }
 
         $forward = null;
-        if ($m->forwarded_from_team_message_id !== null && (int) $m->forwarded_from_team_message_id > 0) {
+        $fromTeam = $m->forwarded_from_team_message_id !== null && (int) $m->forwarded_from_team_message_id > 0;
+        $fromWhatsapp = $m->forwarded_from_message_id !== null && (int) $m->forwarded_from_message_id > 0;
+        if ($fromTeam || $fromWhatsapp) {
             $forward = [
-                'from_message_id' => (int) $m->forwarded_from_team_message_id,
+                'from_message_id' => $fromTeam
+                    ? (int) $m->forwarded_from_team_message_id
+                    : (int) $m->forwarded_from_message_id,
+                'source_kind' => $fromWhatsapp ? 'whatsapp' : 'team',
                 'source_title' => (string) ($m->forward_source_title ?? ''),
                 'quote_sender_name' => (string) ($m->forward_quote_sender_name ?? ''),
                 'quote_body' => (string) ($m->forward_quote_body ?? ''),
