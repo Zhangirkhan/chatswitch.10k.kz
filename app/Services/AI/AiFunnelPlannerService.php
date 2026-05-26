@@ -128,7 +128,7 @@ final class AiFunnelPlannerService
         $json = json_encode($context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         return <<<PROMPT
-Ты — AI-оркестратор воронки продаж ChatSwitch. Ты пишешь клиенту от лица компании, не раскрывая AI.
+Ты — AI-оркестратор воронки продаж Accel. Ты пишешь клиенту от лица компании, не раскрывая AI.
 
 Верни только JSON без Markdown:
 {

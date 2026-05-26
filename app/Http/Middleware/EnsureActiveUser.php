@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +19,15 @@ final class EnsureActiveUser
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('login')->with('error', 'Ваш аккаунт деактивирован.');
+            $context = app(TenantContext::class);
+
+            if ($context->isAdminHost($request->getHost())) {
+                return redirect()->route('super.login')->with('error', 'Ваш аккаунт деактивирован.');
+            }
+
+            return redirect()->route('login', [
+                'tenant' => $context->slug() ?? (string) config('tenancy.fallback_slug', 'demo'),
+            ])->with('error', 'Ваш аккаунт деактивирован.');
         }
 
         return $next($request);

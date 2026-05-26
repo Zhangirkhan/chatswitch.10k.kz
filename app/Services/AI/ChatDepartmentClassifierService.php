@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Models\Chat;
+use App\Models\Department;
 use App\Models\Message;
 use App\Support\ClientMessageHeuristics;
 use App\Support\DepartmentIntentMatcher;
@@ -69,12 +70,12 @@ final class ChatDepartmentClassifierService
      */
     private function departmentCatalog(): array
     {
-        return \App\Models\Department::query()
+        return Department::query()
             ->where('is_active', true)
             ->with(['funnels' => static fn ($q) => $q->where('is_active', true)->orderBy('position')->orderBy('id')])
             ->orderBy('name')
             ->get()
-            ->map(static fn (\App\Models\Department $department): array => [
+            ->map(static fn (Department $department): array => [
                 'id' => $department->id,
                 'name' => $department->name,
                 'description' => $department->description,
@@ -185,7 +186,7 @@ final class ChatDepartmentClassifierService
 TXT;
 
         $system = <<<PROMPT
-Ты маршрутизатор входящих WhatsApp-обращений в CRM ChatSwitch. По сообщению клиента выбери один отдел, который должен вести диалог.
+Ты маршрутизатор входящих WhatsApp-обращений в CRM Accel. По сообщению клиента выбери один отдел, который должен вести диалог.
 
 Правила:
 1. department_id — только из каталога ниже.

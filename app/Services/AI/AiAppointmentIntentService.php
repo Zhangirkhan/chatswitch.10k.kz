@@ -102,7 +102,7 @@ final class AiAppointmentIntentService
 TXT;
 
         $system = <<<PROMPT
-Ты классифицируешь переписку для внутреннего календаря ChatSwitch.
+Ты классифицируешь переписку для внутреннего календаря Accel.
 Текущие дата и время: {$now}. Часовой пояс: {$timezone}.
 
 Правила:

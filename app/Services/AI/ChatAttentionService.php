@@ -14,13 +14,6 @@ final class ChatAttentionService
 {
     public const FILTER_ATTENTION = 'attention';
 
-    private const WAITING_MINUTES = 10;
-
-    public function waitingThreshold(): Carbon
-    {
-        return now()->subMinutes(self::WAITING_MINUTES);
-    }
-
     public function attentionConfidenceMax(): float
     {
         return (float) config('funnel.orchestrator.attention_confidence_max', 0.85);
@@ -39,7 +32,6 @@ final class ChatAttentionService
      */
     public function applyAttentionScope(Builder $query): Builder
     {
-        $waitingThreshold = $this->waitingThreshold();
         $confidenceMax = $this->attentionConfidenceMax();
         $runSince = $this->attentionRunSince();
 
@@ -47,18 +39,12 @@ final class ChatAttentionService
             ->where('company_id', TenantCompany::id())
             ->where('is_archived', false)
             ->where('is_group', false)
-            ->where(function (Builder $inner) use ($waitingThreshold, $confidenceMax, $runSince): void {
+            ->where(function (Builder $inner) use ($confidenceMax, $runSince): void {
                 $inner
                     ->whereIn('ai_orchestrator_status', [
                         AiOrchestratorRun::STATUS_NEEDS_MANAGER,
                         AiOrchestratorRun::STATUS_FAILED,
                     ])
-                    ->orWhere(function (Builder $waiting) use ($waitingThreshold): void {
-                        $waiting
-                            ->where('last_message_direction', 'inbound')
-                            ->whereNotNull('last_message_at')
-                            ->where('last_message_at', '<=', $waitingThreshold);
-                    })
                     ->orWhere('unread_count', '>', 0)
                     ->orWhere(function (Builder $uncertain) use ($confidenceMax, $runSince): void {
                         $this->applyLowConfidenceLastRunScope($uncertain, $confidenceMax, $runSince);
@@ -75,8 +61,7 @@ final class ChatAttentionService
                       AND r.status = ?
                       AND r.completed_at >= ?
                 ) THEN 2
-                WHEN last_message_direction = 'inbound' THEN 3
-                ELSE 4
+                ELSE 3
             END", [
                 $confidenceMax,
                 AiOrchestratorRun::STATUS_COMPLETED,
@@ -188,17 +173,11 @@ final class ChatAttentionService
             return $uncertain;
         }
 
-        if ($chat->last_message_direction === 'inbound'
-            && $chat->last_message_at !== null
-            && $chat->last_message_at->lte($this->waitingThreshold())) {
-            return 'Клиент ждёт ответа.';
-        }
-
         if ((int) $chat->unread_count > 0) {
             return 'Есть непрочитанные сообщения.';
         }
 
-        return 'Чат требует внимания.';
+        return '';
     }
 
     /**
@@ -218,11 +197,11 @@ final class ChatAttentionService
             return 'warning';
         }
 
-        $waitMinutes = $chat->last_message_at !== null
-            ? (int) $chat->last_message_at->diffInMinutes(now())
-            : 0;
+        if ((int) $chat->unread_count > 0) {
+            return 'warning';
+        }
 
-        return $waitMinutes >= 30 ? 'warning' : 'normal';
+        return 'normal';
     }
 
     private function uncertainRunReason(Chat $chat): ?string

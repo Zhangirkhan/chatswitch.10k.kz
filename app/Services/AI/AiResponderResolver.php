@@ -67,7 +67,7 @@ final class AiResponderResolver
             }
         }
 
-        $email = (string) config('chatswitch.system_user_email', 'system@chatswitch.internal');
+        $email = (string) config('accel.system_user_email', 'system@chatswitch.internal');
 
         return User::query()->where('email', $email)->first();
     }

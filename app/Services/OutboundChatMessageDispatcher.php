@@ -162,7 +162,7 @@ final class OutboundChatMessageDispatcher
         )));
 
         $skipSignature = data_get($metadata, 'ai.generated') === true
-            && $user->email === (string) config('chatswitch.system_user_email', 'system@chatswitch.internal');
+            && $user->email === (string) config('accel.system_user_email', 'system@chatswitch.internal');
         $signedText = $skipSignature ? $text : OperatorSignature::prepend($user, $text);
         $signedDisplayText = $skipSignature ? $displayText : OperatorSignature::prepend($user, $displayText);
         $waText = $signedText;

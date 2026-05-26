@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Company;
+use App\Tenancy\TenantContext;
 
 /**
- * Один инстанс приложения = одна компания (id 1). Разделение тенантов — на уровне поддомена/деплоя.
+ * Обратная совместимость: делегирует в {@see TenantContext}.
  */
 final class TenantCompany
 {
@@ -15,16 +16,41 @@ final class TenantCompany
 
     public static function id(): int
     {
-        self::ensureExists();
+        $context = app(TenantContext::class);
 
-        return self::ID;
+        if ($context->isResolved()) {
+            return $context->companyId();
+        }
+
+        return (int) (Company::query()
+            ->withoutGlobalScope('tenant')
+            ->where('slug', config('tenancy.fallback_slug', 'demo'))
+            ->value('id') ?? self::ID);
     }
 
     public static function ensureExists(): Company
     {
-        return Company::query()->updateOrCreate(
-            ['id' => self::ID],
-            ['name' => 'Компания'],
-        );
+        $slug = (string) config('tenancy.fallback_slug', 'demo');
+
+        $company = Company::query()
+            ->withoutGlobalScope('tenant')
+            ->where('slug', $slug)
+            ->first();
+
+        if ($company !== null) {
+            return $company;
+        }
+
+        return Company::query()
+            ->withoutGlobalScope('tenant')
+            ->updateOrCreate(
+                ['id' => self::ID],
+                [
+                    'name' => 'Компания',
+                    'slug' => $slug,
+                    'is_active' => true,
+                    'subscription_status' => 'active',
+                ],
+            );
     }
 }

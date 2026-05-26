@@ -78,7 +78,7 @@ final class PromptBuilder
         $responderName = trim($responder->name) !== '' ? $responder->name : 'сотрудник';
 
         return <<<PROMPT
-Ты — AI-ассистент поддержки в ChatSwitch. Ты формируешь ответ клиенту от имени сотрудника "{$responderName}".
+Ты — AI-ассистент поддержки в Accel. Ты формируешь ответ клиенту от имени сотрудника "{$responderName}".
 
 Правила:
 1. Отвечай только на основании базы знаний, истории чата и профиля тона.

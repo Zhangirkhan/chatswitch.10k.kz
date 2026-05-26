@@ -22,8 +22,8 @@ final class CompanyOnboardingService
     public function bootstrap(Company $company, ?User $owner = null): void
     {
         DB::transaction(function () use ($company, $owner): void {
-            $salesDepartment = $this->department('Отдел продаж', 'Первичная обработка клиентов, продажи и контроль сделок.');
-            $operationsDepartment = $this->department('Операционный отдел', 'Исполнители, доставка, монтаж, сервис и выполнение заказов.');
+            $salesDepartment = $this->department($company, 'Отдел продаж', 'Первичная обработка клиентов, продажи и контроль сделок.');
+            $operationsDepartment = $this->department($company, 'Операционный отдел', 'Исполнители, доставка, монтаж, сервис и выполнение заказов.');
 
             if ($owner instanceof User) {
                 $owner->forceFill([
@@ -70,10 +70,10 @@ final class CompanyOnboardingService
         });
     }
 
-    private function department(string $name, string $description): Department
+    private function department(Company $company, string $name, string $description): Department
     {
-        return Department::query()->firstOrCreate(
-            ['name' => $name],
+        return Department::query()->withoutGlobalScope('tenant')->firstOrCreate(
+            ['company_id' => $company->id, 'name' => $name],
             ['description' => $description, 'is_active' => true],
         );
     }
