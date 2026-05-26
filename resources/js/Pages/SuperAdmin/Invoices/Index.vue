@@ -79,7 +79,7 @@ function formatDate(iso: string | null): string {
             </template>
         </UiFilterPanel>
 
-        <div class="ui-panel overflow-hidden p-0">
+        <div class="ui-panel ui-table-panel overflow-hidden p-0">
             <table class="min-w-[720px] w-full text-left text-sm">
                 <thead>
                     <tr>
