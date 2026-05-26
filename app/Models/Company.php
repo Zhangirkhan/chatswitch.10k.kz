@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 final class Company extends Model
 {
@@ -34,6 +35,30 @@ final class Company extends Model
             'trial_ends_at' => 'datetime',
             'current_period_ends_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Company $company): void {
+            if (filled($company->slug)) {
+                return;
+            }
+
+            $base = Str::slug((string) $company->name) ?: 'company';
+            $slug = $base;
+            $suffix = 0;
+
+            while (
+                self::query()
+                    ->withoutGlobalScopes()
+                    ->where('slug', $slug)
+                    ->exists()
+            ) {
+                $slug = $base.'-'.(++$suffix);
+            }
+
+            $company->slug = $slug;
+        });
     }
 
     public function owner(): BelongsTo
