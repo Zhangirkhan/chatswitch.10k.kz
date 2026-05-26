@@ -9,6 +9,7 @@ import type { MessageReaction, PageProps } from '@/types';
 
 export type TeamForward = {
     from_message_id: number;
+    source_kind?: 'team' | 'whatsapp';
     source_title: string;
     quote_sender_name: string;
     quote_body: string;

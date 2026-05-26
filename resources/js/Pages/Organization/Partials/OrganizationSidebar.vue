@@ -32,8 +32,10 @@ const props = defineProps<{
 }>();
 
 const page = usePage<PageProps>();
+const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
 const teamChatActive = computed(
-    () => typeof page.url === 'string' && page.url.startsWith('/organization/chat'),
+    () => !orgTasksEnabled.value
+        || (typeof page.url === 'string' && page.url.startsWith('/organization/chat')),
 );
 const showTeamMentionNotifPrompt = computed((): boolean => {
     if (typeof window === 'undefined') return false;
@@ -117,6 +119,34 @@ function setConvFilter(f: '' | 'unread' | 'department' | 'direct') {
     conversationFilter.value = f;
     void loadTeamConversations();
 }
+
+const teamDepartmentConversations = computed(() =>
+    teamConversations.value.filter((c) => c.type === 'department'),
+);
+
+const teamDirectConversations = computed(() =>
+    teamConversations.value.filter((c) => c.type === 'direct'),
+);
+
+const showTeamChatSections = computed(
+    () =>
+        conversationFilter.value === ''
+        && teamDepartmentConversations.value.length > 0
+        && teamDirectConversations.value.length > 0,
+);
+
+type TeamConversationSection = { key: string; label: string | null; items: TeamConvRow[] };
+
+const teamConversationSections = computed((): TeamConversationSection[] => {
+    if (!showTeamChatSections.value) {
+        return [{ key: 'all', label: null, items: teamConversations.value }];
+    }
+
+    return [
+        { key: 'department', label: 'Отделы', items: teamDepartmentConversations.value },
+        { key: 'direct', label: 'Личные', items: teamDirectConversations.value },
+    ];
+});
 
 function clearTeamGlobalSearch() {
     teamGlobalSearch.value = '';
@@ -250,7 +280,8 @@ function setupTeamInboxEcho() {
     const uid = page.props.auth?.user?.id;
     if (!Echo || !uid) return;
     teardownTeamInboxEcho();
-    inboxEcho = Echo.private(`team-inbox.${uid}`);
+    const tenantId = Number(page.props.tenantCompanyId || 0);
+    inboxEcho = Echo.private(`t.${tenantId}.team-inbox.${uid}`);
     inboxEcho.listen('.team.message', (e: any) => {
         void loadTeamConversations();
         notifyTeamMentionIfNeeded(e);
@@ -418,7 +449,7 @@ function clearSearch() {
             <!-- Panel header (same shell as clients) -->
             <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
                 <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
-                    ChatSwitch
+                    Accel
                 </h1>
             </div>
 
@@ -493,7 +524,7 @@ function clearSearch() {
                 <SidebarSectionTabs active="organization" />
 
                 <div class="ui-sidebar-filters__group">
-                <UiPillNav>
+                <UiPillNav v-if="orgTasksEnabled">
                     <Link
                         :href="route('organization.index')"
                         class="ui-pill-nav__item"
@@ -514,6 +545,12 @@ function clearSearch() {
                         >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
                     </Link>
                 </UiPillNav>
+                <p
+                    v-else
+                    class="m-0 px-1 text-xs text-[var(--wa-text-secondary)] leading-snug"
+                >
+                    Внутренний чат команды
+                </p>
                     <template v-if="teamChatActive">
                         <UiPillNav>
                             <button
@@ -641,7 +678,7 @@ function clearSearch() {
                 >
                 <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
                     <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
-                        Группы отделов и личные сообщения
+                        Сначала чаты отделов, ниже — личные переписки
                     </p>
                     <button
                         v-if="showTeamMentionNotifPrompt"
@@ -727,43 +764,51 @@ function clearSearch() {
                         </div>
                     </div>
                     <template v-else-if="chatSidebarMode === 'chats'">
-                        <div
-                            v-for="c in teamConversations"
-                            :key="c.id"
-                            class="dept-item flex flex-row items-stretch gap-0 pr-0"
-                            :class="{ 'dept-item-selected': c.id === selectedConversationId }"
-                        >
-                            <Link
-                                :href="route('organization.team-chat.show', c.id)"
-                                class="flex flex-1 min-w-0 items-center gap-3 text-inherit no-underline min-h-[44px]"
+                        <template v-for="section in teamConversationSections" :key="section.key">
+                            <div
+                                v-if="section.label"
+                                class="team-chat-section-label"
                             >
-                                <Avatar
-                                    :name="c.title"
-                                    :size="40"
-                                    :variant="c.type === 'department' ? 'group' : 'staff'"
-                                    fallback-initials
-                                    class="shrink-0"
-                                />
-                                <div class="flex-1 min-w-0">
-                                    <div class="dept-name truncate flex items-center gap-1">
-                                        <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" title="Закреплено">📌</span>
-                                        <span class="truncate">{{ c.title }}</span>
+                                {{ section.label }}
+                            </div>
+                            <div
+                                v-for="c in section.items"
+                                :key="c.id"
+                                class="dept-item flex flex-row items-stretch gap-0 pr-0"
+                                :class="{ 'dept-item-selected': c.id === selectedConversationId }"
+                            >
+                                <Link
+                                    :href="route('organization.team-chat.show', c.id)"
+                                    class="flex flex-1 min-w-0 items-center gap-3 text-inherit no-underline min-h-[44px]"
+                                >
+                                    <Avatar
+                                        :name="c.title"
+                                        :size="40"
+                                        :variant="c.type === 'department' ? 'group' : 'staff'"
+                                        fallback-initials
+                                        class="shrink-0"
+                                    />
+                                    <div class="flex-1 min-w-0">
+                                        <div class="dept-name truncate flex items-center gap-1">
+                                            <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" title="Закреплено">📌</span>
+                                            <span class="truncate">{{ c.title }}</span>
+                                        </div>
+                                        <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
+                                        <div v-else-if="c.subtitle" class="dept-meta truncate">{{ c.subtitle }}</div>
                                     </div>
-                                    <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
-                                    <div v-else-if="c.subtitle" class="dept-meta truncate">{{ c.subtitle }}</div>
-                                </div>
-                                <span v-if="c.unread_count > 0" class="ui-tab-badge ui-tab-badge--team shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
-                            </Link>
-                            <button
-                                type="button"
-                                class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
-                                :title="c.is_pinned ? 'Открепить' : 'Закрепить'"
-                                :aria-label="c.is_pinned ? 'Открепить' : 'Закрепить'"
-                                @click.prevent.stop="toggleTeamPin(c)"
-                            >
-                                <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
-                            </button>
-                        </div>
+                                    <span v-if="c.unread_count > 0" class="ui-tab-badge ui-tab-badge--team shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
+                                </Link>
+                                <button
+                                    type="button"
+                                    class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
+                                    :title="c.is_pinned ? 'Открепить' : 'Закрепить'"
+                                    :aria-label="c.is_pinned ? 'Открепить' : 'Закрепить'"
+                                    @click.prevent.stop="toggleTeamPin(c)"
+                                >
+                                    <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
+                                </button>
+                            </div>
+                        </template>
                         <div v-if="!teamListLoading && teamConversations.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
                             <span v-if="conversationFilter === 'unread'">Нет непрочитанных бесед.</span>
                             <span v-else-if="conversationFilter === 'department'">Нет чатов отделов в списке.</span>
@@ -849,6 +894,19 @@ function clearSearch() {
     font-size: 0.8rem;
     color: var(--wa-text-secondary);
     margin-top: 2px;
+}
+.team-chat-section-label {
+    padding: 0.625rem 0.75rem 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--wa-text-secondary);
+}
+.team-chat-section-label:not(:first-child) {
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--wa-border);
 }
 .dept-badges {
     display: flex;

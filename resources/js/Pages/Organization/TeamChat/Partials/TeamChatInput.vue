@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
 import { useToastStore } from '@/stores/toast';
+import type { TeamMentionCandidate } from '@/utils/teamChatMentions';
 
 const { show: showToast } = useToastStore();
 
@@ -11,11 +12,13 @@ const props = withDefaults(
         attachments?: File[];
         disabled?: boolean;
         placeholder?: string;
+        mentionCandidates?: TeamMentionCandidate[];
     }>(),
     {
         attachments: () => [],
         disabled: false,
         placeholder: 'Введите сообщение',
+        mentionCandidates: () => [],
     },
 );
 
@@ -45,6 +48,30 @@ const showEmoji = ref(false);
 const mediaInput = ref<HTMLInputElement | null>(null);
 const docInput = ref<HTMLInputElement | null>(null);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+
+const mentionOpen = ref(false);
+const mentionQuery = ref('');
+const mentionActiveIndex = ref(0);
+
+const filteredMentionCandidates = computed(() => {
+    const list = props.mentionCandidates.filter((p) => p.name.trim() !== '');
+    const q = mentionQuery.value.trim().toLowerCase();
+    if (!q) {
+        return list.slice(0, 12);
+    }
+    const matched = list.filter((p) => {
+        const name = p.name.toLowerCase();
+        return name.startsWith(q) || name.includes(q);
+    });
+    return (matched.length > 0 ? matched : list).slice(0, 12);
+});
+
+watch(
+    () => [mentionOpen.value, mentionQuery.value, filteredMentionCandidates.value.length] as const,
+    () => {
+        mentionActiveIndex.value = 0;
+    },
+);
 
 const recording = ref(false);
 const recordingTime = ref(0);
@@ -117,19 +144,112 @@ function insertEmoji(emoji: string): void {
     });
 }
 
+function updateMentionStateFromCaret(): void {
+    if (props.mentionCandidates.length === 0) {
+        mentionOpen.value = false;
+        mentionQuery.value = '';
+        return;
+    }
+    const el = textareaRef.value;
+    const text = draft.value;
+    const pos = el?.selectionStart ?? text.length;
+    const left = text.slice(0, pos).replace(/\s+$/g, '');
+    const match = left.match(/(^|\s)@([^\s@]*)$/);
+    if (!match) {
+        mentionOpen.value = false;
+        mentionQuery.value = '';
+        return;
+    }
+    mentionOpen.value = true;
+    mentionQuery.value = match[2] ?? '';
+}
+
+function applyMention(candidate: TeamMentionCandidate): void {
+    const el = textareaRef.value;
+    const name = candidate.name.trim();
+    if (!el || !name) {
+        return;
+    }
+
+    const text = draft.value;
+    const pos = el.selectionStart ?? text.length;
+    const left = text.slice(0, pos);
+    const match = left.match(/(^|\s)@([^\s@]*)$/);
+    const atIndex = match ? left.lastIndexOf('@') : pos;
+    const insert = `@${name} `;
+    const newText = `${text.slice(0, atIndex)}${insert}${text.slice(pos)}`;
+    draft.value = newText;
+    mentionOpen.value = false;
+    mentionQuery.value = '';
+    emit('typing');
+
+    const newPos = atIndex + insert.length;
+    nextTick(() => {
+        el.focus();
+        el.setSelectionRange(newPos, newPos);
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    });
+}
+
 function onInput(): void {
     emit('typing');
     const el = textareaRef.value;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    updateMentionStateFromCaret();
 }
 
 function onKeydown(e: KeyboardEvent): void {
+    if (mentionOpen.value && filteredMentionCandidates.value.length > 0) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            mentionActiveIndex.value = Math.min(
+                filteredMentionCandidates.value.length - 1,
+                mentionActiveIndex.value + 1,
+            );
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            mentionActiveIndex.value = Math.max(0, mentionActiveIndex.value - 1);
+            return;
+        }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const max = filteredMentionCandidates.value.length - 1;
+            if (e.shiftKey) {
+                mentionActiveIndex.value = mentionActiveIndex.value <= 0 ? max : mentionActiveIndex.value - 1;
+            } else {
+                mentionActiveIndex.value = mentionActiveIndex.value >= max ? 0 : mentionActiveIndex.value + 1;
+            }
+            return;
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const picked = filteredMentionCandidates.value[mentionActiveIndex.value];
+            if (picked) {
+                applyMention(picked);
+            }
+            return;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            mentionOpen.value = false;
+            mentionQuery.value = '';
+            return;
+        }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         trySubmit();
     }
+}
+
+function onClick(): void {
+    updateMentionStateFromCaret();
 }
 
 function trySubmit(): void {
@@ -310,16 +430,39 @@ onBeforeUnmount(() => {
                     </svg>
                 </button>
 
-                <div class="wa-input-pill">
+                <div class="wa-input-pill relative">
+                    <div
+                        v-if="mentionOpen"
+                        class="team-mention-menu"
+                    >
+                        <button
+                            v-for="(p, idx) in filteredMentionCandidates"
+                            :key="p.id"
+                            type="button"
+                            class="team-mention-menu__item"
+                            :class="{ 'is-active': mentionActiveIndex === idx }"
+                            @mousedown.prevent
+                            @click="applyMention(p)"
+                        >
+                            <span class="team-mention-menu__at">@</span>{{ p.name }}
+                        </button>
+                        <p
+                            v-if="filteredMentionCandidates.length === 0"
+                            class="team-mention-menu__empty"
+                        >
+                            Никого не найдено
+                        </p>
+                    </div>
                     <textarea
                         ref="textareaRef"
                         v-model="draft"
                         rows="1"
                         class="wa-composer-field wa-scrollbar"
-                        :placeholder="placeholder"
+                        :placeholder="mentionCandidates.length ? 'Введите сообщение, @ — упомянуть' : placeholder"
                         :disabled="disabled"
                         @input="onInput"
                         @keydown="onKeydown"
+                        @click="onClick"
                     />
                 </div>
 
@@ -353,3 +496,48 @@ onBeforeUnmount(() => {
         </div>
     </div>
 </template>
+
+<style scoped>
+.team-mention-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 6px);
+    z-index: 50;
+    max-height: 220px;
+    overflow-y: auto;
+    border-radius: 0.5rem;
+    border: 1px solid var(--wa-control-border, var(--wa-border));
+    background: var(--wa-panel);
+    box-shadow: var(--wa-control-rim-shadow, 0 8px 24px rgba(0, 0, 0, 0.28));
+}
+
+.team-mention-menu__item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 0.8125rem;
+    color: var(--wa-text);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+.team-mention-menu__item:hover,
+.team-mention-menu__item.is-active {
+    background: var(--wa-selected);
+}
+
+.team-mention-menu__at {
+    color: var(--wa-accent);
+    font-weight: 600;
+}
+
+.team-mention-menu__empty {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--wa-text-secondary);
+}
+</style>

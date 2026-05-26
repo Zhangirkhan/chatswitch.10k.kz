@@ -10,8 +10,10 @@ use App\Models\DepartmentPostAttachment;
 use App\Models\DepartmentPostComment;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Support\OrganizationDepartmentTasks;
 use App\Support\OrganizationRichTextSanitizer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -22,18 +24,24 @@ use Inertia\Response;
 
 final class OrganizationController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $this->ensureModuleEnabled();
+
+        if (! OrganizationDepartmentTasks::enabled()) {
+            return redirect()->route('organization.team-chat.index');
+        }
 
         return Inertia::render('Organization/Index', [
             'departments' => $this->departmentsPayload($request->user()),
         ]);
     }
 
-    public function showDepartment(Request $request, Department $department): Response
+    public function showDepartment(Request $request, Department $department): Response|RedirectResponse
     {
-        $this->ensureModuleEnabled();
+        if ($redirect = $this->redirectUnlessDepartmentTasksEnabled()) {
+            return $redirect;
+        }
         $this->authorizeDepartmentAccess($request->user(), $department);
 
         $activePosts = $department->posts()
@@ -58,9 +66,11 @@ final class OrganizationController extends Controller
         ]);
     }
 
-    public function archive(Request $request): Response
+    public function archive(Request $request): Response|RedirectResponse
     {
-        $this->ensureModuleEnabled();
+        if ($redirect = $this->redirectUnlessDepartmentTasksEnabled()) {
+            return $redirect;
+        }
 
         $user = $request->user();
 
@@ -88,9 +98,11 @@ final class OrganizationController extends Controller
         ]);
     }
 
-    public function showPost(Request $request, DepartmentPost $post): Response
+    public function showPost(Request $request, DepartmentPost $post): Response|RedirectResponse
     {
-        $this->ensureModuleEnabled();
+        if ($redirect = $this->redirectUnlessDepartmentTasksEnabled()) {
+            return $redirect;
+        }
         $department = $post->department()->firstOrFail();
         $this->authorizeDepartmentAccess($request->user(), $department);
 
@@ -114,7 +126,7 @@ final class OrganizationController extends Controller
 
     public function storePost(Request $request, Department $department): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
         $this->authorizeDepartmentAccess($request->user(), $department);
 
         $data = $this->validatePostPayload($request);
@@ -143,7 +155,7 @@ final class OrganizationController extends Controller
 
     public function updatePost(Request $request, DepartmentPost $post): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
         $department = $post->department()->firstOrFail();
         $this->authorizeDepartmentAccess($request->user(), $department);
         $this->authorizeAuthorOrAdmin($request->user(), $post->author_id);
@@ -177,7 +189,7 @@ final class OrganizationController extends Controller
 
     public function destroyPost(Request $request, DepartmentPost $post): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
         $department = $post->department()->firstOrFail();
         $this->authorizeDepartmentAccess($request->user(), $department);
         $this->authorizeAuthorOrAdmin($request->user(), $post->author_id);
@@ -189,7 +201,7 @@ final class OrganizationController extends Controller
 
     public function storeComment(Request $request, DepartmentPost $post): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
         $department = $post->department()->firstOrFail();
         $this->authorizeDepartmentAccess($request->user(), $department);
 
@@ -213,7 +225,7 @@ final class OrganizationController extends Controller
 
     public function storeAttachment(Request $request, DepartmentPost $post): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
         $department = $post->department()->firstOrFail();
         $this->authorizeDepartmentAccess($request->user(), $department);
 
@@ -241,7 +253,7 @@ final class OrganizationController extends Controller
 
     public function destroyAttachment(Request $request, DepartmentPost $post, DepartmentPostAttachment $attachment): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
 
         if ($attachment->department_post_id !== $post->id) {
             abort(404);
@@ -259,7 +271,7 @@ final class OrganizationController extends Controller
 
     public function destroyComment(Request $request, DepartmentPost $post, DepartmentPostComment $comment): JsonResponse
     {
-        $this->ensureModuleEnabled();
+        $this->ensureDepartmentTasksEnabled();
 
         if ($comment->department_post_id !== $post->id) {
             abort(404);
@@ -351,6 +363,28 @@ final class OrganizationController extends Controller
             403,
             'Модуль «Задачи» отключён администратором.',
         );
+    }
+
+    private function ensureDepartmentTasksEnabled(): void
+    {
+        $this->ensureModuleEnabled();
+
+        abort_unless(
+            OrganizationDepartmentTasks::enabled(),
+            403,
+            'Задачи по отделам временно отключены.',
+        );
+    }
+
+    private function redirectUnlessDepartmentTasksEnabled(): ?RedirectResponse
+    {
+        $this->ensureModuleEnabled();
+
+        if (! OrganizationDepartmentTasks::enabled()) {
+            return redirect()->route('organization.team-chat.index');
+        }
+
+        return null;
     }
 
     private function authorizeDepartmentAccess(User $user, Department $department): void

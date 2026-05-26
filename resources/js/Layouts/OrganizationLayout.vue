@@ -17,7 +17,11 @@ defineProps<{
 }>();
 
 const page = usePage();
-const isTeamChatUrl = computed(() => typeof page.url === 'string' && page.url.startsWith('/organization/chat'));
+const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
+const isTeamChatUrl = computed(
+    () => !orgTasksEnabled.value
+        || (typeof page.url === 'string' && page.url.startsWith('/organization/chat')),
+);
 
 const sidebarResize = useResizablePanelWidth({
     storageKey: LIST_SIDEBAR_WIDTH_STORAGE_KEY,

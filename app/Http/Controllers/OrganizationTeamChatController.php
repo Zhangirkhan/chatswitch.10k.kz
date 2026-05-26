@@ -15,6 +15,7 @@ use App\Models\TeamMessage;
 use App\Models\TeamMessageAttachment;
 use App\Models\TeamMessageReaction;
 use App\Models\User;
+use App\Services\CrossChannelMessageShareService;
 use App\Services\TeamChatService;
 use App\Services\TeamDepartmentChatSyncService;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,6 +34,7 @@ final class OrganizationTeamChatController extends Controller
     public function __construct(
         private readonly TeamChatService $teamChatService,
         private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
+        private readonly CrossChannelMessageShareService $crossChannelShare,
     ) {}
 
     public function index(Request $request): Response
@@ -95,6 +97,8 @@ final class OrganizationTeamChatController extends Controller
                 return ((int) ($unreadMap[$c->id] ?? 0)) > 0;
             })->values();
         }
+
+        $conversations = $this->sortConversationsForSidebar($conversations);
 
         $items = $conversations->map(fn (TeamConversation $c) => $this->transformConversationListItem($user, $c, (int) ($unreadMap[$c->id] ?? 0)));
 
@@ -253,6 +257,7 @@ final class OrganizationTeamChatController extends Controller
             ->get();
 
         $conversations = $this->filterConversationsVisibleToUser($conversations, $user);
+        $conversations = $this->sortConversationsForSidebar($conversations);
 
         $conversationRows = $conversations->map(function (TeamConversation $c) use ($user): array {
             $row = $this->transformConversationListItem($user, $c, 0);
@@ -519,6 +524,28 @@ final class OrganizationTeamChatController extends Controller
                 'last_message_preview' => $teamConversation->fresh()->last_message_preview,
             ],
         ]);
+    }
+
+    public function shareToClients(Request $request, TeamMessage $teamMessage): JsonResponse
+    {
+        $this->ensureModuleEnabled();
+
+        $data = $request->validate([
+            'contact_ids' => ['required', 'array', 'min:1'],
+            'contact_ids.*' => ['integer', 'exists:contacts,id'],
+            'whatsapp_session_id' => ['required', 'integer', 'exists:whatsapp_sessions,id'],
+            'body' => ['nullable', 'string', 'max:16000'],
+        ]);
+
+        $sent = $this->crossChannelShare->shareTeamMessageToClients(
+            $request->user(),
+            $teamMessage,
+            array_map('intval', $data['contact_ids']),
+            (int) $data['whatsapp_session_id'],
+            trim((string) ($data['body'] ?? '')),
+        );
+
+        return response()->json(['success' => true, 'sent' => $sent]);
     }
 
     public function markRead(Request $request, TeamConversation $teamConversation): JsonResponse
@@ -904,9 +931,14 @@ final class OrganizationTeamChatController extends Controller
         }
 
         $forward = null;
-        if ($m->forwarded_from_team_message_id !== null && (int) $m->forwarded_from_team_message_id > 0) {
+        $fromTeam = $m->forwarded_from_team_message_id !== null && (int) $m->forwarded_from_team_message_id > 0;
+        $fromWhatsapp = $m->forwarded_from_message_id !== null && (int) $m->forwarded_from_message_id > 0;
+        if ($fromTeam || $fromWhatsapp) {
             $forward = [
-                'from_message_id' => (int) $m->forwarded_from_team_message_id,
+                'from_message_id' => $fromTeam
+                    ? (int) $m->forwarded_from_team_message_id
+                    : (int) $m->forwarded_from_message_id,
+                'source_kind' => $fromWhatsapp ? 'whatsapp' : 'team',
                 'source_title' => (string) ($m->forward_source_title ?? ''),
                 'quote_sender_name' => (string) ($m->forward_quote_sender_name ?? ''),
                 'quote_body' => (string) ($m->forward_quote_body ?? ''),
@@ -987,6 +1019,60 @@ final class OrganizationTeamChatController extends Controller
 
             return in_array((int) $c->department_id, $deptIds, true);
         })->values();
+    }
+
+    /**
+     * @param  Collection<int, TeamConversation>  $conversations
+     * @return Collection<int, TeamConversation>
+     */
+    private function sortConversationsForSidebar(Collection $conversations): Collection
+    {
+        return $conversations
+            ->sort(function (TeamConversation $a, TeamConversation $b): int {
+                $pinA = $a->pivot?->pinned_at;
+                $pinB = $b->pivot?->pinned_at;
+                if ($pinA !== null && $pinB === null) {
+                    return -1;
+                }
+                if ($pinA === null && $pinB !== null) {
+                    return 1;
+                }
+                if ($pinA !== null && $pinB !== null) {
+                    $pinnedCmp = $pinB <=> $pinA;
+                    if ($pinnedCmp !== 0) {
+                        return $pinnedCmp;
+                    }
+                }
+
+                $typeRank = static fn (TeamConversation $c): int => match ($c->type) {
+                    TeamConversation::TYPE_DEPARTMENT => 0,
+                    TeamConversation::TYPE_DIRECT => 1,
+                    default => 2,
+                };
+                $typeCmp = $typeRank($a) <=> $typeRank($b);
+                if ($typeCmp !== 0) {
+                    return $typeCmp;
+                }
+
+                if ($a->isDepartment() && $b->isDepartment()) {
+                    $nameCmp = strcasecmp(
+                        (string) ($a->department?->name ?? ''),
+                        (string) ($b->department?->name ?? ''),
+                    );
+                    if ($nameCmp !== 0) {
+                        return $nameCmp;
+                    }
+                }
+
+                $timeA = $a->last_message_at?->getTimestamp() ?? 0;
+                $timeB = $b->last_message_at?->getTimestamp() ?? 0;
+                if ($timeA !== $timeB) {
+                    return $timeB <=> $timeA;
+                }
+
+                return $b->id <=> $a->id;
+            })
+            ->values();
     }
 
     private function departmentsPayload(User $user): Collection

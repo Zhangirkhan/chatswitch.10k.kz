@@ -7,11 +7,13 @@ namespace App\Services;
 use App\Events\TeamChatDeliveredUpdated;
 use App\Events\TeamChatReadUpdated;
 use App\Events\TeamMessageReceived;
+use App\Models\Message;
 use App\Models\TeamConversation;
 use App\Models\TeamMessage;
 use App\Models\TeamMessageAttachment;
 use App\Models\TeamMessageMention;
 use App\Models\User;
+use App\Support\SharedMessageQuote;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -303,6 +305,96 @@ final class TeamChatService
 
             return new TeamChatSendResult($message, false);
         });
+    }
+
+    public function shareFromWhatsappMessage(
+        User $sender,
+        TeamConversation $targetConversation,
+        Message $source,
+        string $caption,
+        ?string $clientMessageId = null,
+    ): TeamChatSendResult {
+        $caption = trim($caption);
+        if (mb_strlen($caption) > 16000) {
+            throw ValidationException::withMessages(['body' => 'Комментарий слишком длинный.']);
+        }
+
+        if (! $this->userIsParticipant($sender, $targetConversation)) {
+            throw ValidationException::withMessages([
+                'team_conversation_id' => 'Нет доступа к этой беседе.',
+            ]);
+        }
+
+        $source->loadMissing(['chat.contact', 'media', 'sentByUser:id,name']);
+        [$sourceTitle, $quoteSender, $quoteBody] = SharedMessageQuote::fromWhatsappMessage($source);
+        $clientKey = $this->normalizeClientMessageId($clientMessageId);
+
+        return DB::transaction(function () use ($sender, $targetConversation, $source, $caption, $clientKey, $sourceTitle, $quoteSender, $quoteBody): TeamChatSendResult {
+            if ($clientKey !== null) {
+                $existing = TeamMessage::query()
+                    ->where('team_conversation_id', $targetConversation->id)
+                    ->where('sender_id', $sender->id)
+                    ->where('client_message_id', $clientKey)
+                    ->first();
+                if ($existing !== null) {
+                    return new TeamChatSendResult($existing, true);
+                }
+            }
+
+            $preview = $caption !== ''
+                ? mb_substr(preg_replace('/\s+/u', ' ', $caption) ?? '', 0, 240)
+                : mb_substr('Переслано: '.$quoteBody, 0, 240);
+
+            try {
+                $message = TeamMessage::query()->create([
+                    'team_conversation_id' => $targetConversation->id,
+                    'sender_id' => $sender->id,
+                    'body' => $caption,
+                    'client_message_id' => $clientKey,
+                    'mentioned_user_ids' => null,
+                    'forwarded_from_message_id' => $source->id,
+                    'forward_source_title' => $sourceTitle,
+                    'forward_quote_sender_name' => $quoteSender,
+                    'forward_quote_body' => $quoteBody !== '' ? $quoteBody : null,
+                ]);
+            } catch (QueryException $e) {
+                if ($clientKey === null) {
+                    throw $e;
+                }
+
+                $message = TeamMessage::query()
+                    ->where('team_conversation_id', $targetConversation->id)
+                    ->where('sender_id', $sender->id)
+                    ->where('client_message_id', $clientKey)
+                    ->first();
+                if ($message === null) {
+                    throw $e;
+                }
+
+                return new TeamChatSendResult($message, true);
+            }
+
+            $targetConversation->forceFill([
+                'last_message_at' => $message->created_at,
+                'last_message_preview' => $preview,
+            ])->save();
+
+            DB::afterCommit(function () use ($message): void {
+                broadcast(new TeamMessageReceived($message));
+            });
+
+            return new TeamChatSendResult($message, false);
+        });
+    }
+
+    public function userCanAccessConversation(User $user, TeamConversation $conversation): bool
+    {
+        return $this->userIsParticipant($user, $conversation);
+    }
+
+    public function conversationTitleForShare(TeamConversation $conversation): string
+    {
+        return $this->conversationForwardSourceTitle($conversation);
     }
 
     public function markRead(User $user, TeamConversation $conversation, ?int $messageId = null): void
