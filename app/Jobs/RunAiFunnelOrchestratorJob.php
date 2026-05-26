@@ -55,6 +55,6 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
 
     public function viaQueue(): string
     {
-        return 'ai';
+        return 'default';
     }
 }
