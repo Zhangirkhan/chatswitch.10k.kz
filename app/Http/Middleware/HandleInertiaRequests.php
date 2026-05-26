@@ -9,9 +9,13 @@ use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\Security\RecaptchaVerifier;
 use App\Services\TeamDepartmentChatSyncService;
+use App\Support\OrganizationDepartmentTasks;
 use App\Support\QuickReactions;
 use App\Support\TenantCompany;
+use App\Models\TenantSignupRequest;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +59,10 @@ final class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
-            'tenantCompanyId' => TenantCompany::id(),
+            'tenantCompanyId' => fn () => app(TenantContext::class)->companyIdOrNull() ?? TenantCompany::id(),
+            'tenantSlug' => fn () => app(TenantContext::class)->slug(),
+            'isSuperAdminHost' => fn () => app(TenantContext::class)->isAdminHost($request->getHost()),
+            'impersonation' => fn () => $request->session()->get(\App\Services\SuperAdmin\TenantImpersonationService::SESSION_KEY),
             'auth' => [
                 'user' => $user ? array_merge(
                     $user->toArray(),
@@ -76,16 +83,30 @@ final class HandleInertiaRequests extends Middleware
             'unreadChatsCountMine' => fn () => $user ? $this->unreadChatsCountMine($user) : 0,
             'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
             'teamChatUnreadCount' => fn () => $user ? $this->teamChatUnreadTotal($user) : 0,
-            'whatsappSessions' => fn () => $user ? $this->whatsappSessionsForUser($user) : [],
+            'whatsappSessions' => fn () => (
+                $user && ! app(TenantContext::class)->isAdminHost($request->getHost())
+            ) ? $this->whatsappSessionsForUser($user) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            'rootDomain' => fn () => (string) config('tenancy.root_domain', 'accel.kz'),
+            'superAdminNav' => fn () => app(TenantContext::class)->isAdminHost($request->getHost())
+                ? [
+                    'pending_signups' => TenantSignupRequest::query()->where('status', 'pending')->count(),
+                ]
+                : null,
             'quickReactions' => fn () => QuickReactions::configured(),
+            'recaptcha' => fn (): array => [
+                'enabled' => RecaptchaVerifier::isEnabled(),
+                'siteKey' => config('recaptcha.site_key'),
+                'version' => config('recaptcha.version') === 'v2' ? 'v2' : 'v3',
+            ],
             'modules' => fn () => [
                 'calendar' => SystemSetting::getValue('module_calendar', 'on') === 'on',
                 'analytics' => SystemSetting::getValue('module_analytics', 'on') === 'on',
                 'tasks' => SystemSetting::getValue('module_tasks', 'on') === 'on',
+                'org_tasks' => OrganizationDepartmentTasks::enabled(),
                 'funnels' => SystemSetting::getValue('module_funnels', 'on') === 'on',
                 'products' => SystemSetting::getValue('module_products', 'on') === 'on',
                 'services' => SystemSetting::getValue('module_services', 'on') === 'on',
@@ -97,7 +118,7 @@ final class HandleInertiaRequests extends Middleware
 
     private function orgOpenTasksCount(User $user): int
     {
-        if (SystemSetting::getValue('module_tasks', 'on') !== 'on') {
+        if (! OrganizationDepartmentTasks::enabled()) {
             return 0;
         }
 

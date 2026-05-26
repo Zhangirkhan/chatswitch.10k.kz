@@ -6,8 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Models\SystemSetting;
 use App\Services\Calendar\AppointmentReminderSettings;
+use App\Support\CompanyModules;
 use App\Support\QuickReactions;
 use App\Support\SlaReminderSettings;
+use App\Support\SystemSettingKeys;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +40,12 @@ final class SettingsController extends Controller
         $settings = $this->normalizeSettings($validated['settings']);
 
         foreach ($settings as $key => $value) {
+            if (! SystemSettingKeys::isAllowed($key)) {
+                throw ValidationException::withMessages([
+                    'settings' => "Недопустимый ключ настройки: {$key}",
+                ]);
+            }
+
             SystemSetting::setValue($key, $value);
         }
 
@@ -50,6 +58,12 @@ final class SettingsController extends Controller
      */
     private function normalizeSettings(array $settings): array
     {
+        $settings = array_filter(
+            $settings,
+            static fn (mixed $value, string $key): bool => ! CompanyModules::isModuleKey($key),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
         if (array_key_exists(AppointmentReminderSettings::ENABLED_KEY, $settings)) {
             $enabled = $settings[AppointmentReminderSettings::ENABLED_KEY];
             if (! in_array($enabled, ['on', 'off'], true)) {
