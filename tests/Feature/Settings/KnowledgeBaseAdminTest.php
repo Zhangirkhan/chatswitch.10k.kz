@@ -26,7 +26,7 @@ final class KnowledgeBaseAdminTest extends TestCase
 
     public function test_admin_can_fetch_knowledge_prompt_preview(): void
     {
-        $company = Company::create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         Product::create([
             'company_id' => $company->id,
             'name' => 'Test slippers',
@@ -49,7 +49,7 @@ final class KnowledgeBaseAdminTest extends TestCase
 
     public function test_manager_cannot_fetch_prompt_preview(): void
     {
-        $company = Company::create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $manager = User::factory()->create();
         $manager->assignRole('manager');
 
@@ -60,7 +60,7 @@ final class KnowledgeBaseAdminTest extends TestCase
 
     public function test_admin_can_bulk_toggle_product_prompt_flag(): void
     {
-        $company = Company::create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $p1 = Product::create([
             'company_id' => $company->id,
             'name' => 'A',
@@ -90,7 +90,7 @@ final class KnowledgeBaseAdminTest extends TestCase
 
     public function test_store_product_writes_knowledge_audit_log(): void
     {
-        $company = Company::create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
 
@@ -114,7 +114,7 @@ final class KnowledgeBaseAdminTest extends TestCase
 
     public function test_admin_can_list_knowledge_audit(): void
     {
-        $company = Company::create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
 

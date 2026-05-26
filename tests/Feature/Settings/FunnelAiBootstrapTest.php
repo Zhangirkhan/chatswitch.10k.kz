@@ -38,7 +38,12 @@ final class FunnelAiBootstrapTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
 
-        $department = Department::factory()->create(['is_active' => true]);
+        $department = Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
 
         $response = $this->actingAs($admin)->postJson(route('settings.funnels.store'), [
             'name' => 'Тестовая воронка',
@@ -81,9 +86,20 @@ final class FunnelAiBootstrapTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
 
-        Department::factory()->create(['is_active' => true]);
+        Department::query()->create([
+            'name' => 'Продажи',
+            'description' => null,
+            'parent_id' => null,
+            'is_active' => true,
+        ]);
 
-        $funnel = Funnel::factory()->create(['company_id' => TenantCompany::id()]);
+        $funnel = Funnel::query()->create([
+            'company_id' => TenantCompany::id(),
+            'name' => 'Тестовая воронка',
+            'color' => '#01b964',
+            'position' => 0,
+            'is_active' => true,
+        ]);
 
         $response = $this->actingAs($admin)->postJson(route('settings.funnels.stages.store', $funnel), [
             'name' => 'Оплата',
