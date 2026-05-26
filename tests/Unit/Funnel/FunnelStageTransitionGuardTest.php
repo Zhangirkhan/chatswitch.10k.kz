@@ -18,7 +18,7 @@ final class FunnelStageTransitionGuardTest extends TestCase
 
     public function test_blocks_rollback_without_high_confidence(): void
     {
-        $company = Company::create(['name' => 'Co']);
+        $company = $this->createTenantCompany(['name' => 'Co']);
         $funnel = Funnel::create(['company_id' => $company->id, 'name' => 'Sales', 'is_active' => true, 'position' => 1]);
         $stageA = FunnelStage::create(['funnel_id' => $funnel->id, 'name' => 'A', 'position' => 1, 'is_active' => true]);
         $stageB = FunnelStage::create(['funnel_id' => $funnel->id, 'name' => 'B', 'position' => 2, 'is_active' => true]);
