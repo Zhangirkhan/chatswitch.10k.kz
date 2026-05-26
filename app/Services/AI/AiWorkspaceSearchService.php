@@ -6,9 +6,16 @@ namespace App\Services\AI;
 
 use App\Models\Chat;
 use App\Models\Contact;
+use App\Models\DepartmentPost;
+use App\Models\Funnel;
+use App\Models\FunnelStage;
+use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Models\User;
+use App\Services\Calendar\CalendarEventsInRangeCollector;
 use App\Services\ChatService;
+use App\Services\Funnel\FunnelBoardService;
+use App\Support\FunnelBoardFilters;
 use App\Support\TenantCompany;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +24,9 @@ final class AiWorkspaceSearchService
 {
     public function __construct(
         private readonly ChatService $chatService,
+        private readonly FunnelBoardService $funnelBoard,
+        private readonly CalendarEventsInRangeCollector $calendarCollector,
+        private readonly AiWorkspaceAccessService $access,
     ) {}
 
     /**
@@ -189,6 +199,324 @@ final class AiWorkspaceSearchService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return list<array<string, mixed>>
+     */
+    public function searchMessages(User $user, array $filters): array
+    {
+        $textQuery = $this->nullableString($filters['text_query'] ?? $filters['query'] ?? null);
+        if ($textQuery === null) {
+            return [];
+        }
+
+        $limit = min(40, max(1, (int) ($filters['limit'] ?? 20)));
+        $contactText = $this->nullableString($filters['contact_text'] ?? null);
+        $dateFrom = $this->parseDate($filters['date_from'] ?? null);
+        $dateTo = $this->parseDate($filters['date_to'] ?? null, endOfDay: true);
+
+        $visibleChatIds = $this->chatService->queryVisibleToUser($user)->select('id');
+
+        $query = Message::query()
+            ->whereIn('chat_id', $visibleChatIds)
+            ->where('body', 'like', "%{$textQuery}%")
+            ->with([
+                'chat:id,contact_id,chat_name,is_group',
+                'chat.contact:id,name,push_name,phone_number',
+            ]);
+
+        if ($contactText !== null) {
+            $digits = preg_replace('/\D/', '', $contactText);
+            $query->whereHas('chat.contact', function (Builder $q) use ($contactText, $digits): void {
+                $q->where('name', 'like', "%{$contactText}%")
+                    ->orWhere('push_name', 'like', "%{$contactText}%");
+                if (is_string($digits) && $digits !== '') {
+                    $q->orWhere('phone_number', 'like', "%{$digits}%");
+                }
+            });
+        }
+
+        if ($dateFrom !== null) {
+            $query->whereRaw('COALESCE(message_timestamp, created_at) >= ?', [$dateFrom]);
+        }
+        if ($dateTo !== null) {
+            $query->whereRaw('COALESCE(message_timestamp, created_at) <= ?', [$dateTo]);
+        }
+
+        return $query
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get(['id', 'chat_id', 'body', 'message_timestamp', 'created_at', 'direction'])
+            ->map(function (Message $message): array {
+                $chat = $message->chat;
+                $contact = $chat?->contact;
+                $contactName = $contact
+                    ? trim((string) ($contact->name ?: $contact->push_name ?: $contact->phone_number ?: ''))
+                    : null;
+
+                return [
+                    'id' => (int) $message->id,
+                    'body' => (string) ($message->body ?? ''),
+                    'direction' => (string) $message->direction,
+                    'chat_id' => $chat?->id,
+                    'chat_name' => $chat?->chat_name,
+                    'contact_name' => $contactName,
+                    'message_at' => optional($message->message_timestamp ?: $message->created_at)?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array{meta: array<string, mixed>, events: list<array<string, mixed>>}
+     */
+    public function searchCalendarEvents(User $user, array $filters): array
+    {
+        $employeeName = $this->nullableString($filters['employee_name'] ?? $filters['assignee_name'] ?? null);
+        $employeeId = isset($filters['employee_id']) ? (int) $filters['employee_id'] : null;
+        $daysAhead = min(90, max(1, (int) ($filters['days_ahead'] ?? 14)));
+
+        $dateFrom = $this->parseDate($filters['date_from'] ?? null) ?? Carbon::now()->startOfDay();
+        $dateTo = $this->parseDate($filters['date_to'] ?? null, endOfDay: true)
+            ?? Carbon::now()->addDays($daysAhead)->endOfDay();
+
+        $meta = [
+            'date_from' => $dateFrom->toDateString(),
+            'date_to' => $dateTo->toDateString(),
+        ];
+
+        $assignee = null;
+
+        if ($employeeId !== null && $employeeId > 0) {
+            $assignee = User::query()->find($employeeId);
+            if ($assignee === null || ! $this->access->canViewEmployee($user, $assignee)) {
+                return [
+                    'meta' => array_merge($meta, ['access_denied' => true]),
+                    'events' => [],
+                ];
+            }
+        } elseif ($employeeName !== null) {
+            $matches = $this->access->resolveEmployeesByName($user, $employeeName);
+            if ($matches === []) {
+                return [
+                    'meta' => array_merge($meta, ['not_found' => true, 'query' => $employeeName]),
+                    'events' => [],
+                ];
+            }
+            if (count($matches) > 1) {
+                return [
+                    'meta' => array_merge($meta, [
+                        'ambiguous' => array_map(static fn (User $u): array => [
+                            'id' => (int) $u->id,
+                            'name' => (string) $u->name,
+                        ], $matches),
+                    ]),
+                    'events' => [],
+                ];
+            }
+            $assignee = $matches[0];
+        } else {
+            $assignee = $user;
+        }
+
+        $meta['employee_name'] = (string) $assignee->name;
+        $meta['employee_id'] = (int) $assignee->id;
+
+        $events = $this->calendarCollector
+            ->collect($user, $dateFrom, $dateTo, 'all', null, (int) $assignee->id)
+            ->sortBy(fn (array $row) => Carbon::parse((string) $row['starts_at'])->timestamp)
+            ->values()
+            ->all();
+
+        return [
+            'meta' => $meta,
+            'events' => $events,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return list<array<string, mixed>>
+     */
+    public function searchFunnelDeals(User $user, array $filters): array
+    {
+        $limit = min(50, max(1, (int) ($filters['limit'] ?? 25)));
+        $funnelName = $this->nullableString($filters['funnel_name'] ?? null);
+        $stageName = $this->nullableString($filters['stage_name'] ?? null);
+        $assigneeName = $this->nullableString($filters['assignee_name'] ?? null);
+        $search = $this->nullableString($filters['search'] ?? $filters['text'] ?? null);
+        $scope = in_array($filters['scope'] ?? 'all', ['all', 'mine', 'department'], true)
+            ? (string) ($filters['scope'] ?? 'all')
+            : 'all';
+
+        $funnels = Funnel::query()
+            ->where('company_id', TenantCompany::id())
+            ->where('is_active', true)
+            ->when($funnelName !== null, fn (Builder $q) => $q->where('name', 'like', "%{$funnelName}%"))
+            ->orderBy('position')
+            ->get(['id', 'name']);
+
+        if ($funnels->isEmpty()) {
+            return [];
+        }
+
+        $assigneeId = null;
+        if ($assigneeName !== null) {
+            $matches = $this->access->resolveEmployeesByName($user, $assigneeName, 1);
+            $assigneeId = isset($matches[0]) ? (int) $matches[0]->id : null;
+        }
+
+        $boardFilters = new FunnelBoardFilters(
+            scope: $scope,
+            assigneeId: $assigneeId,
+            search: $search,
+        );
+
+        $stageIds = [];
+        if ($stageName !== null) {
+            $stageIds = FunnelStage::query()
+                ->whereIn('funnel_id', $funnels->pluck('id'))
+                ->where('name', 'like', "%{$stageName}%")
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        $results = [];
+
+        foreach ($funnels as $funnel) {
+            $query = $this->funnelBoard->boardChatsQuery($user, (int) $funnel->id, $boardFilters);
+            if ($stageIds !== []) {
+                $query->whereIn('funnel_stage_id', $stageIds);
+            }
+
+            foreach ($query->limit($limit)->get() as $chat) {
+                $stage = $chat->funnel_stage_id
+                    ? FunnelStage::query()->find($chat->funnel_stage_id, ['id', 'name'])
+                    : null;
+                $card = $this->funnelBoard->serializeCard($chat);
+                $card['funnel_id'] = (int) $funnel->id;
+                $card['funnel_name'] = (string) $funnel->name;
+                $card['stage_name'] = $stage?->name ?? 'Без этапа';
+                $results[] = $card;
+                if (count($results) >= $limit) {
+                    break 2;
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return list<array<string, mixed>>
+     */
+    public function searchDepartmentPosts(User $user, array $filters): array
+    {
+        $limit = min(40, max(1, (int) ($filters['limit'] ?? 20)));
+        $assigneeName = $this->nullableString($filters['assignee_name'] ?? null);
+        $departmentName = $this->nullableString($filters['department_name'] ?? null);
+        $status = $this->nullableString($filters['status'] ?? null);
+        $text = $this->nullableString($filters['text'] ?? $filters['search'] ?? null);
+
+        $query = DepartmentPost::query()
+            ->with([
+                'department:id,name',
+                'author:id,name',
+                'assignees:id,name',
+            ]);
+
+        if ($user->hasRole('administrator')) {
+            if ($departmentName !== null) {
+                $query->whereHas('department', fn (Builder $q) => $q->where('name', 'like', "%{$departmentName}%"));
+            }
+        } else {
+            $deptIds = $user->departmentIds();
+            if ($deptIds === []) {
+                return [];
+            }
+            $query->whereIn('department_id', $deptIds);
+            if ($departmentName !== null) {
+                $query->whereHas('department', fn (Builder $q) => $q
+                    ->whereIn('id', $deptIds)
+                    ->where('name', 'like', "%{$departmentName}%"));
+            }
+        }
+
+        if ($assigneeName !== null) {
+            $matches = $this->access->resolveEmployeesByName($user, $assigneeName);
+            if ($matches === []) {
+                return [];
+            }
+            $ids = array_map(static fn (User $u): int => (int) $u->id, $matches);
+            $query->where(function (Builder $q) use ($ids): void {
+                $q->whereIn('author_id', $ids)
+                    ->orWhereHas('assignees', fn (Builder $a) => $a->whereIn('users.id', $ids));
+            });
+        }
+
+        if ($status !== null && in_array($status, DepartmentPost::STATUSES, true)) {
+            $query->where('status', $status);
+        }
+
+        if ($text !== null) {
+            $query->where(function (Builder $q) use ($text): void {
+                $q->where('title', 'like', "%{$text}%")
+                    ->orWhere('body', 'like', "%{$text}%");
+            });
+        }
+
+        return $query
+            ->orderByRaw('due_at IS NULL')
+            ->orderBy('due_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->map(static fn (DepartmentPost $post): array => [
+                'id' => (int) $post->id,
+                'title' => (string) $post->title,
+                'status' => (string) $post->status,
+                'due_at' => $post->due_at?->toIso8601String(),
+                'department_name' => $post->department?->name,
+                'author_name' => $post->author?->name,
+                'assignees' => $post->assignees
+                    ->map(static fn (User $u): array => ['id' => (int) $u->id, 'name' => (string) $u->name])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return list<array{id: int, name: string, email: string|null}>
+     */
+    public function searchEmployees(User $user, array $filters): array
+    {
+        if (filter_var($filters['list_department'] ?? false, FILTER_VALIDATE_BOOL)) {
+            return $this->access->listDepartmentColleagues(
+                $user,
+                $this->nullableString($filters['department_name'] ?? null),
+            );
+        }
+
+        $name = $this->nullableString($filters['name'] ?? $filters['text'] ?? null);
+        if ($name === null) {
+            return [];
+        }
+
+        return array_map(static fn (User $u): array => [
+            'id' => (int) $u->id,
+            'name' => (string) $u->name,
+            'email' => $u->email,
+        ], $this->access->resolveEmployeesByName($user, $name));
     }
 
     /**
