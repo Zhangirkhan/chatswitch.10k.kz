@@ -1,12 +1,22 @@
+import path from 'path';
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            '@': path.resolve('resources/js'),
+        },
+    },
     plugins: [
         laravel({
-            input: 'resources/js/app.ts',
+            input: [
+                'resources/js/app.ts',
+                'resources/js/Pages/AiChat/Index.vue',
+                'resources/js/Pages/Landing/Home.vue',
+            ],
             refresh: true,
         }),
         vue({
@@ -47,7 +57,7 @@ export default defineConfig({
                         urlPattern: /^https:\/\/fonts\.(bunny|gstatic|googleapis)\.com\/.*/i,
                         handler: 'CacheFirst',
                         options: {
-                            cacheName: 'chatswitch-fonts',
+                            cacheName: 'accel-fonts',
                             expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
                             cacheableResponse: { statuses: [0, 200] },
                         },
@@ -57,7 +67,7 @@ export default defineConfig({
                         urlPattern: /\/storage\/.*\.(png|jpg|jpeg|gif|webp|svg)/i,
                         handler: 'StaleWhileRevalidate',
                         options: {
-                            cacheName: 'chatswitch-media',
+                            cacheName: 'accel-media',
                             expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
                         },
                     },
@@ -66,7 +76,7 @@ export default defineConfig({
                         urlPattern: /\/icons\/.*\.png$/i,
                         handler: 'CacheFirst',
                         options: {
-                            cacheName: 'chatswitch-icons',
+                            cacheName: 'accel-icons',
                             expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 },
                         },
                     },
@@ -74,8 +84,8 @@ export default defineConfig({
             },
 
             manifest: {
-                name: 'ChatSwitch',
-                short_name: 'ChatSwitch',
+                name: 'Accel',
+                short_name: 'Accel',
                 description: 'Multi-WhatsApp Management — чаты, задачи, аналитика',
                 start_url: '/chats',
                 scope: '/',
