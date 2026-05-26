@@ -105,7 +105,7 @@ export const wallpapers: Wallpaper[] = [
     },
 ];
 
-const STORAGE_KEY = 'chatswitch.wallpaper';
+const STORAGE_KEY = 'accel.wallpaper';
 
 export function getStoredWallpaperId(): string {
     if (typeof window === 'undefined') return 'default';

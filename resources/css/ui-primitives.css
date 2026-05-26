@@ -609,8 +609,9 @@
 
     .ui-filter-panel {
         display: grid;
-        grid-template-columns: 1fr;
-        gap: var(--primitive-gap-md);
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.75rem 1rem;
+        align-items: end;
         padding: var(--primitive-gap-lg);
         border-radius: var(--primitive-radius-lg);
         border: 1px solid var(--ui-border);
@@ -618,13 +619,64 @@
         box-shadow: var(--ui-shadow-soft);
     }
 
+    @media (min-width: 640px) {
+        .ui-filter-panel {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
     @media (min-width: 1024px) {
-        .ui-filter-panel--users {
-            grid-template-columns: minmax(220px, 1fr) 180px 220px 160px auto;
+        .ui-filter-panel {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
         }
-        .ui-filter-panel--departments {
-            grid-template-columns: minmax(200px, 1fr) 160px 160px 160px auto;
+    }
+
+    .ui-filter-panel--compact {
+        max-width: 32rem;
+    }
+
+    @media (min-width: 640px) {
+        .ui-filter-panel--compact:not(:has(.ui-filter-field--wide)) {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
         }
+
+        .ui-filter-panel--compact:not(:has(.ui-filter-field--wide)) .ui-filter-panel__actions {
+            grid-column: auto;
+            padding-top: 0;
+        }
+    }
+
+    .ui-filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+
+    .ui-filter-field--wide {
+        grid-column: 1 / -1;
+    }
+
+    .ui-filter-field--inline {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.625rem;
+    }
+
+    .ui-filter-field__label {
+        font-size: 0.8125rem;
+        line-height: 1.35;
+        color: var(--ui-text-secondary);
+    }
+
+    .ui-filter-panel__actions {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 0.5rem;
+        padding-top: 0.125rem;
     }
 
     .ui-input,
@@ -1035,6 +1087,12 @@
         background: var(--wa-chroma-critical-bg);
         border-color: color-mix(in srgb, var(--wa-chroma-critical-fg) 28%, var(--ui-border));
         white-space: pre-line;
+    }
+
+    .ui-alert--info {
+        color: var(--ui-text);
+        background: color-mix(in srgb, var(--wa-accent) 10%, var(--ui-surface));
+        border-color: color-mix(in srgb, var(--wa-accent) 35%, var(--ui-border));
     }
 
     .settings-input-error,

@@ -450,6 +450,19 @@ body {
     transition: background-color 0.25s ease, color 0.25s ease;
 }
 
+/* Лендинг и другие публичные страницы — прокрутка документа (CRM держит overflow на body) */
+html.page-scrollable,
+html.page-scrollable body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+}
+
+html.page-scrollable {
+    scroll-behavior: smooth;
+}
+
 /* Scrollbar (WhatsApp Web style) */
 .wa-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -539,6 +552,12 @@ button:focus,
 input:focus,
 textarea:focus {
     outline: none;
+}
+
+.ai-workspace__composer-input:focus,
+.ai-workspace__composer-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 /*

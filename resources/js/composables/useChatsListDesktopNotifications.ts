@@ -1,8 +1,9 @@
 import { scheduleUnreadChatsPropsReload } from '@/composables/useUnreadFavicon';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { onMounted, onUnmounted } from 'vue';
+import { chatsListChannel } from '@/utils/tenantChannels';
 
-const SETTINGS_KEY = 'chatswitch.settings.notifications.enabled';
+const SETTINGS_KEY = 'accel.settings.notifications.enabled';
 
 function readNotificationsEnabled(): boolean {
     if (typeof window === 'undefined') return false;
@@ -32,7 +33,7 @@ function shouldShowWhenNotInForeground(): boolean {
 
 function defaultAppIconUrl(): string {
     if (typeof window === 'undefined') return '';
-    return new URL('/images/chatswitch-notification.svg', window.location.origin).href;
+    return new URL('/images/accel-notification.svg', window.location.origin).href;
 }
 
 function isLikelyHttpUrl(value: string): boolean {
@@ -103,7 +104,7 @@ export function useChatsListDesktopNotifications(
             body: d.body,
             contactImageUrl: d.icon,
             is_muted: d.is_muted,
-            tag: `chatswitch-msg-${d.chat_id}`,
+            tag: `accel-msg-${d.chat_id}`,
             renotify: true,
             skipVisibilityCheck: true,
         });
@@ -115,8 +116,8 @@ export function useChatsListDesktopNotifications(
         scheduleUnreadChatsPropsReload();
         const tag =
             e.kind === 'call_incoming'
-                ? `chatswitch-call-${e.chat_id}`
-                : `chatswitch-assign-${e.chat_id}`;
+                ? `accel-call-${e.chat_id}`
+                : `accel-assign-${e.chat_id}`;
         fireNotification({
             chat_id: e.chat_id,
             title: e.title,
@@ -183,7 +184,8 @@ export function useChatsListDesktopNotifications(
                 /* ignore */
             }
 
-            const ch = Echo.private(`chats.list.${uid}`) as {
+            const tenantId = Number(usePage().props.tenantCompanyId || 0);
+            const ch = Echo.private(chatsListChannel(tenantId, uid)) as {
                 listen: (ev: string, cb: (e: unknown) => void) => void;
                 stopListening?: (ev: string, cb: (e: unknown) => void) => void;
             };

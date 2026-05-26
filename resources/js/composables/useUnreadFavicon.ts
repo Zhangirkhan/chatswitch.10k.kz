@@ -1,7 +1,7 @@
 import { router } from '@inertiajs/vue3';
 import { onUnmounted, toValue, watch, type MaybeRefOrGetter } from 'vue';
 
-const FAVICON_LINK_ID = 'chatswitch-unread-favicon';
+const FAVICON_LINK_ID = 'accel-unread-favicon';
 const BUBBLE = '#24A15E';
 const TEXT = '#FFFFFF';
 const LOGICAL = 128;

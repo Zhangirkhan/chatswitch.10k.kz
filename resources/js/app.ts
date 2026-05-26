@@ -23,12 +23,23 @@ initChatBackground();
 installKeyboardShortcuts();
 useConnectionStatus();
 
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, DefineComponent, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+const PAGE_SCROLLABLE_PREFIXES = ['Landing/'];
+
+function syncPageScroll(component: string): void {
+    const scrollable = PAGE_SCROLLABLE_PREFIXES.some((prefix) => component.startsWith(prefix));
+    document.documentElement.classList.toggle('page-scrollable', scrollable);
+}
+
+router.on('navigate', (event) => {
+    syncPageScroll(event.detail.page.component);
+});
 
 /** После деплоя браузер может держать старый entry и 404 на чанке страницы — Vite кидает vite:preloadError. */
 /** 419: сессия/CSRF истекли — полная перезагрузка даёт новые cookie и meta. */
@@ -46,7 +57,7 @@ document.addEventListener(
 
 window.addEventListener('vite:preloadError', (event: Event) => {
     event.preventDefault();
-    const key = 'chatswitch.vite_preload_reload_at';
+    const key = 'accel.vite_preload_reload_at';
     const now = Date.now();
     const last = Number(sessionStorage.getItem(key) || '0');
     if (now - last > 4000) {
@@ -63,6 +74,8 @@ createInertiaApp({
             import.meta.glob<DefineComponent>('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
+        syncPageScroll(props.initialPage.component);
+
         createApp({ render: () => h(App, props) })
             .use(plugin)
             .use(ZiggyVue)

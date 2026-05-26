@@ -1,5 +1,7 @@
 import type { Ref } from 'vue';
 import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import { funnelBoardChannel } from '@/utils/tenantChannels';
 
 export type FunnelBoardCard = {
     id: number;
@@ -54,7 +56,8 @@ export function useFunnelBoardRealtime(options: {
         const Echo = (window as Window & { Echo?: { leave: (name: string) => void } }).Echo;
         if (Echo && funnelId != null) {
             try {
-                Echo.leave(`funnel-board.${funnelId}`);
+                const tenantId = Number(usePage().props.tenantCompanyId || 0);
+                Echo.leave(funnelBoardChannel(tenantId, funnelId));
             } catch {
                 /* ignore */
             }
@@ -163,7 +166,8 @@ export function useFunnelBoardRealtime(options: {
             return;
         }
 
-        echoChannel = Echo.private(`funnel-board.${funnelId}`);
+        const tenantId = Number(usePage().props.tenantCompanyId || 0);
+        echoChannel = Echo.private(funnelBoardChannel(tenantId, funnelId));
         echoChannel?.listen('.card.updated', onRemoteUpdate);
     }
 

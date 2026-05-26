@@ -2,7 +2,7 @@ import { ref, watch } from 'vue';
 
 export type Theme = 'light' | 'dark';
 
-const STORAGE_KEY = 'chatswitch.theme';
+const STORAGE_KEY = 'accel.theme';
 
 function getInitialTheme(): Theme {
     if (typeof window === 'undefined') return 'dark';

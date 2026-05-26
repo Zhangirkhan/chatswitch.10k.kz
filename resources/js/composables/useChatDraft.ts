@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue';
 
-const STORAGE_KEY_PREFIX = 'chatswitch.draft.';
+const STORAGE_KEY_PREFIX = 'accel.draft.';
 
 export function useChatDraft(chatId: () => number | undefined) {
     const text = ref<string>('');

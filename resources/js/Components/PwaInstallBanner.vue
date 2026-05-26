@@ -7,7 +7,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
  * После принятия или отклонения скрывается и не показывается снова (localStorage).
  */
 
-const STORAGE_KEY = 'chatswitch:pwa-install-dismissed';
+const STORAGE_KEY = 'accel:pwa-install-dismissed';
 
 const visible = ref(false);
 const installing = ref(false);
@@ -57,10 +57,10 @@ onBeforeUnmount(() => {
     <Transition name="pwa-slide">
         <div v-if="visible" class="pwa-banner" role="alert" aria-live="polite">
             <div class="pwa-banner-icon">
-                <img src="/icons/icon-192.png" alt="ChatSwitch" width="40" height="40" />
+                <img src="/icons/icon-192.png" alt="Accel" width="40" height="40" />
             </div>
             <div class="pwa-banner-text">
-                <div class="pwa-banner-title">Установить ChatSwitch</div>
+                <div class="pwa-banner-title">Установить Accel</div>
                 <div class="pwa-banner-sub">Быстрый доступ с главного экрана</div>
             </div>
             <button

@@ -9,9 +9,9 @@
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="ChatSwitch">
+        <meta name="apple-mobile-web-app-title" content="Accel">
         <meta name="theme-color" content="#25d366">
-        <meta name="application-name" content="ChatSwitch">
+        <meta name="application-name" content="Accel">
         <link rel="manifest" href="/build/manifest.webmanifest">
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
@@ -22,7 +22,7 @@
         <script>
             (function() {
                 try {
-                    var t = localStorage.getItem('chatswitch.theme');
+                    var t = localStorage.getItem('accel.theme');
                     if (t !== 'light' && t !== 'dark') {
                         t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
                     }

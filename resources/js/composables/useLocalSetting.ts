@@ -1,6 +1,6 @@
 import { ref, watch, type Ref } from 'vue';
 
-const STORAGE_PREFIX = 'chatswitch.settings.';
+const STORAGE_PREFIX = 'accel.settings.';
 
 /**
  * A reactive ref backed by localStorage. Great for purely-client-side

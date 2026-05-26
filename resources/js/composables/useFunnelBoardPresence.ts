@@ -1,5 +1,7 @@
 import type { Ref } from 'vue';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import { funnelBoardPresenceChannel } from '@/utils/tenantChannels';
 
 export type FunnelBoardViewer = {
     id: number;
@@ -21,7 +23,8 @@ export function useFunnelBoardPresence(funnelId: Ref<number | null>): {
         const Echo = (window as Window & { Echo?: { leave: (name: string) => void } }).Echo;
         if (Echo && id != null) {
             try {
-                Echo.leave(`funnel-board-presence.${id}`);
+                const tenantId = Number(usePage().props.tenantCompanyId || 0);
+                Echo.leave(funnelBoardPresenceChannel(tenantId, id));
             } catch {
                 /* ignore */
             }
@@ -41,7 +44,8 @@ export function useFunnelBoardPresence(funnelId: Ref<number | null>): {
             return;
         }
 
-        presenceChannel = Echo.join(`funnel-board-presence.${id}`) as typeof presenceChannel;
+        const tenantId = Number(usePage().props.tenantCompanyId || 0);
+        presenceChannel = Echo.join(funnelBoardPresenceChannel(tenantId, id)) as typeof presenceChannel;
         presenceChannel?.here((users) => {
             viewers.value = users.filter((u) => u?.id != null);
         });

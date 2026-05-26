@@ -290,4 +290,21 @@ export type PageProps<
     selectedConversationId?: number | null;
     /** Суммарно непрочитанных сообщений внутреннего чата (HandleInertiaRequests). */
     teamChatUnreadCount?: number;
+    modules?: {
+        calendar?: boolean;
+        analytics?: boolean;
+        tasks?: boolean;
+        /** Посты-задачи по отделам в «Организация» (вкладка «Задачи»). */
+        org_tasks?: boolean;
+        funnels?: boolean;
+        products?: boolean;
+        services?: boolean;
+        knowledge?: boolean;
+        ai_quality?: boolean;
+    };
+    recaptcha?: {
+        enabled: boolean;
+        siteKey: string | null;
+        version: 'v2' | 'v3';
+    };
 };

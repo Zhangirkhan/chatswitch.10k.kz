@@ -16,7 +16,7 @@ export type ShortcutAction =
     | 'archive-chat'
     | 'toggle-emoji';
 
-const SHORTCUT_EVENT = 'chatswitch:shortcut';
+const SHORTCUT_EVENT = 'accel:shortcut';
 
 export function dispatchShortcut(action: ShortcutAction): void {
     window.dispatchEvent(new CustomEvent(SHORTCUT_EVENT, { detail: action }));
