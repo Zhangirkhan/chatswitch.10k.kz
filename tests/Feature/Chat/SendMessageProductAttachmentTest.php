@@ -33,7 +33,7 @@ final class SendMessageProductAttachmentTest extends TestCase
         Bus::fake([SendOutboundMessageJob::class]);
         Storage::fake('public');
 
-        $company = Company::create(['name' => 'Test Co']);
+        $company = $this->createTenantCompany(['name' => 'Test Co']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $user->assignRole('administrator');
 
@@ -69,7 +69,7 @@ final class SendMessageProductAttachmentTest extends TestCase
 
     public function test_cannot_attach_product_from_other_company(): void
     {
-        $company = Company::create(['name' => 'Main']);
+        $company = $this->createTenantCompany(['name' => 'Main']);
         $other = Company::create(['name' => 'Other']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $user->assignRole('administrator');
@@ -97,7 +97,7 @@ final class SendMessageProductAttachmentTest extends TestCase
 
     public function test_products_endpoint_lists_company_catalog(): void
     {
-        $company = Company::create(['name' => 'Main']);
+        $company = $this->createTenantCompany(['name' => 'Main']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $user->assignRole('administrator');
 
