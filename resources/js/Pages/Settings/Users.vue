@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiFilterField from '@/Components/Ui/UiFilterField.vue';
+import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -49,6 +51,9 @@ const filters = ref<UserFilters>({
     status: props.filters.status || '',
 });
 const showForm = ref(false);
+const formError = ref('');
+const saving = ref(false);
+const editingHasPin = ref(false);
 const editingId = ref<number | null>(null);
 const userDeleteDialogOpen = ref(false);
 const userDeleteTarget = ref<User | null>(null);
@@ -58,6 +63,7 @@ const form = ref({
     email: '',
     phone: '',
     password: '',
+    pin: '',
     role: 'employee',
     company_id: null as number | null,
     department_ids: [] as number[],
@@ -182,11 +188,14 @@ function resetFilters(): void {
 
 function openAdd() {
     editingId.value = null;
+    editingHasPin.value = false;
+    formError.value = '';
     form.value = {
         name: '',
         email: '',
         phone: '',
         password: '',
+        pin: '',
         role: 'employee',
         company_id: props.companies[0]?.id ?? null,
         department_ids: [],
@@ -198,15 +207,18 @@ function openAdd() {
 
 function openEdit(user: User) {
     editingId.value = user.id;
+    editingHasPin.value = Boolean((user as User & { has_pin?: boolean }).has_pin);
+    formError.value = '';
     const primaryPhone = (user.phone || user.phones?.[0] || '').trim();
     const deptIds = user.department_ids && user.department_ids.length
         ? [...user.department_ids]
         : (user.department_id != null ? [user.department_id] : []);
     form.value = {
         name: user.name,
-        email: user.email,
+        email: user.email ?? '',
         phone: primaryPhone,
         password: '',
+        pin: '',
         role: user.roles?.[0] || 'employee',
         company_id: user.company_id ?? null,
         department_ids: deptIds,
@@ -253,6 +265,10 @@ function sessionStatusColor(status: string): string {
     return '#ef4444';
 }
 
+function userHasPin(user: User): boolean {
+    return Boolean((user as User & { has_pin?: boolean }).has_pin);
+}
+
 function userPrimaryPhone(user: User): string {
     const p = (user.phone || user.phones?.[0] || '').trim();
     return p !== '' ? p : '—';
@@ -262,9 +278,11 @@ function buildPayload(): Record<string, unknown> {
     const deptIds = [...new Set(form.value.department_ids.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0))];
 
     const phoneTrim = form.value.phone.trim();
+    const pinTrim = form.value.pin.trim();
+    const emailTrim = form.value.email.trim();
     const payload: Record<string, unknown> = {
         name: form.value.name.trim(),
-        email: form.value.email.trim(),
+        email: emailTrim !== '' ? emailTrim : null,
         phone: phoneTrim !== '' ? phoneTrim : null,
         phones: phoneTrim !== '' ? [phoneTrim] : [],
         role: form.value.role,
@@ -275,11 +293,17 @@ function buildPayload(): Record<string, unknown> {
 
     if (editingId.value) {
         payload.is_active = form.value.is_active;
+        payload.pin = pinTrim;
         if (form.value.password.trim()) {
             payload.password = form.value.password;
         }
     } else {
-        payload.password = form.value.password;
+        if (form.value.password.trim()) {
+            payload.password = form.value.password;
+        }
+        if (pinTrim !== '') {
+            payload.pin = pinTrim;
+        }
     }
 
     return payload;
@@ -297,11 +321,23 @@ function validationMessage(err: unknown): string {
 }
 
 async function save() {
-    if (!form.value.name.trim() || !form.value.email.trim()) return;
-    if (!editingId.value && !form.value.password.trim()) {
-        showToast({ message: 'Укажите пароль для нового пользователя', duration: 4000 });
+    formError.value = '';
+
+    if (!form.value.name.trim()) {
+        formError.value = 'Укажите имя пользователя';
         return;
     }
+
+    if (!editingId.value) {
+        const hasPassword = form.value.password.trim() !== '';
+        const hasPin = form.value.pin.trim() !== '';
+        if (!hasPassword && !hasPin) {
+            formError.value = 'Укажите пароль или PIN — без них сотрудник не сможет войти';
+            return;
+        }
+    }
+
+    saving.value = true;
     try {
         const payload = buildPayload();
         if (editingId.value) {
@@ -314,7 +350,11 @@ async function save() {
         showForm.value = false;
         await router.reload({ only: ['users'] });
     } catch (err: unknown) {
-        showToast({ message: validationMessage(err), duration: 6000 });
+        const message = validationMessage(err);
+        formError.value = message;
+        showToast({ message, duration: 6000 });
+    } finally {
+        saving.value = false;
     }
 }
 
@@ -367,34 +407,44 @@ const userDeleteDescription = computed(() => {
                 Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
             </p>
 
-            <div class="ui-filter-panel ui-filter-panel--users">
-                <input
-                    v-model="filters.search"
-                    type="search"
-                    class="settings-input"
-                    placeholder="Поиск по имени, email, телефону, отделу, роли"
-                />
-                <select v-model="filters.role" class="settings-input">
-                    <option value="">Все роли</option>
-                    <option v-for="role in availableRoles" :key="role" :value="role">
-                        {{ roleLabels[role] || role }}
-                    </option>
-                </select>
-                <select v-model="filters.department_id" class="settings-input">
-                    <option :value="null">Все отделы</option>
-                    <option v-for="node in departmentTree" :key="node.dept.id" :value="node.dept.id">
-                        {{ `${'— '.repeat(node.depth)}${node.dept.name}` }}
-                    </option>
-                </select>
-                <select v-model="filters.status" class="settings-input">
-                    <option value="">Любой статус</option>
-                    <option value="active">Активные</option>
-                    <option value="inactive">Отключённые</option>
-                </select>
-                <button type="button" class="ui-btn ui-btn--secondary" @click="resetFilters">
-                    Сбросить
-                </button>
-            </div>
+            <UiFilterPanel as="div">
+                <UiFilterField wide>
+                    <input
+                        v-model="filters.search"
+                        type="search"
+                        class="settings-input"
+                        placeholder="Поиск по имени, email, телефону, отделу, роли"
+                    />
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="filters.role" class="settings-input">
+                        <option value="">Все роли</option>
+                        <option v-for="role in availableRoles" :key="role" :value="role">
+                            {{ roleLabels[role] || role }}
+                        </option>
+                    </select>
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="filters.department_id" class="settings-input">
+                        <option :value="null">Все отделы</option>
+                        <option v-for="node in departmentTree" :key="node.dept.id" :value="node.dept.id">
+                            {{ `${'— '.repeat(node.depth)}${node.dept.name}` }}
+                        </option>
+                    </select>
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="filters.status" class="settings-input">
+                        <option value="">Любой статус</option>
+                        <option value="active">Активные</option>
+                        <option value="inactive">Отключённые</option>
+                    </select>
+                </UiFilterField>
+                <template #actions>
+                    <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="resetFilters">
+                        Сбросить
+                    </button>
+                </template>
+            </UiFilterPanel>
 
             <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
                 <span>Показано {{ props.users.from || 0 }}–{{ props.users.to || 0 }} из {{ props.users.total }}</span>
@@ -441,7 +491,7 @@ const userDeleteDescription = computed(() => {
                                     Удалить
                                 </button>
                             </td>
-                            <td class="px-5 py-3 text-[var(--ui-text-secondary)]">{{ user.email }}</td>
+                            <td class="px-5 py-3 text-[var(--ui-text-secondary)]">{{ user.email || '—' }}</td>
                             <td class="px-5 py-3 text-[var(--ui-text-secondary)] text-xs font-mono">{{ userPrimaryPhone(user) }}</td>
                             <td class="px-5 py-3">
                                 <span
@@ -496,6 +546,13 @@ const userDeleteDescription = computed(() => {
                                     ></span>
                                     <span class="text-xs text-[var(--ui-text-secondary)]">
                                         {{ user.is_active ? 'Активен' : 'Отключён' }}
+                                    </span>
+                                    <span
+                                        v-if="userHasPin(user)"
+                                        class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                        :style="{ background: 'color-mix(in srgb, var(--ui-accent) 18%, transparent)', color: 'var(--ui-accent)' }"
+                                    >
+                                        PIN
                                     </span>
                                 </span>
                             </td>
@@ -558,14 +615,31 @@ const userDeleteDescription = computed(() => {
                     </div>
 
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
+                        <p
+                            v-if="formError"
+                            class="rounded-lg border px-3 py-2 text-sm"
+                            :style="{
+                                borderColor: 'color-mix(in srgb, #ef4444 40%, transparent)',
+                                background: 'color-mix(in srgb, #ef4444 12%, transparent)',
+                                color: '#fca5a5',
+                            }"
+                            role="alert"
+                        >
+                            {{ formError }}
+                        </p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="sm:col-span-2">
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Имя</label>
                                 <input v-model="form.name" type="text" class="settings-input" autocomplete="name" />
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Email</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
+                                    Email <span class="text-[var(--ui-text-muted)]">необязательно</span>
+                                </label>
                                 <input v-model="form.email" type="email" class="settings-input" autocomplete="email" />
+                                <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
+                                    Без email вход только по PIN. Email можно добавить позже.
+                                </p>
                             </div>
                             <div>
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Телефон</label>
@@ -579,9 +653,34 @@ const userDeleteDescription = computed(() => {
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
-                                    Пароль {{ editingId ? '(оставьте пустым, если не меняете)' : '' }}
+                                    Пароль
+                                    <span v-if="!editingId" class="text-[var(--ui-text-muted)]">или PIN ниже</span>
+                                    <span v-else class="text-[var(--ui-text-muted)]">(оставьте пустым, если не меняете)</span>
                                 </label>
                                 <input v-model="form.password" type="password" class="settings-input" autocomplete="new-password" />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
+                                    PIN для быстрого входа
+                                </label>
+                                <input
+                                    v-model="form.pin"
+                                    type="password"
+                                    inputmode="numeric"
+                                    pattern="[0-9]*"
+                                    maxlength="6"
+                                    class="settings-input font-mono tracking-widest"
+                                    placeholder="4–6 цифр"
+                                    autocomplete="off"
+                                />
+                                <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
+                                    <template v-if="editingId && editingHasPin">
+                                        PIN установлен. Введите новый или оставьте пустым, чтобы отключить вход по PIN.
+                                    </template>
+                                    <template v-else>
+                                        Необязательно. Сотрудник сможет войти на вкладке «PIN» без email и пароля.
+                                    </template>
+                                </p>
                             </div>
                             <div>
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Роль</label>
@@ -686,11 +785,12 @@ const userDeleteDescription = computed(() => {
                         </button>
                         <button
                             type="button"
-                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95"
+                            class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
                             :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                            :disabled="saving"
                             @click="save"
                         >
-                            Сохранить
+                            {{ saving ? 'Сохранение…' : 'Сохранить' }}
                         </button>
                     </div>
                 </div>

@@ -51,7 +51,7 @@ async function onAction(id: number, handler: () => void | Promise<void>) {
     position: fixed;
     left: 72px;
     bottom: 16px;
-    z-index: 200;
+    z-index: 2500;
     max-width: calc(100vw - 88px);
     display: flex;
     justify-content: flex-start;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\User;
 
 use App\Models\User;
+use App\Support\TenantCompany;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,6 +16,14 @@ final class UpdateUserRequest extends FormRequest
         return $this->user()?->hasRole('administrator') === true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $email = $this->input('email');
+        if (is_string($email) && trim($email) === '') {
+            $this->merge(['email' => null]);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -23,7 +32,14 @@ final class UpdateUserRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')
+                    ->where('company_id', TenantCompany::id())
+                    ->ignore($user->id),
+            ],
             'phone' => ['nullable', 'string', 'max:40'],
             'phones' => ['nullable', 'array'],
             'phones.*' => ['nullable', 'string', 'max:40'],
@@ -36,6 +52,7 @@ final class UpdateUserRequest extends FormRequest
             'is_active' => ['boolean'],
             'whatsapp_session_ids' => ['nullable', 'array'],
             'whatsapp_session_ids.*' => ['integer', 'exists:whatsapp_sessions,id'],
+            'pin' => ['nullable', 'string', 'regex:/^\d{4,6}$/'],
         ];
     }
 }

@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\Department;
 use App\Models\TeamConversation;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 final class TeamDepartmentChatSyncService
@@ -15,15 +16,35 @@ final class TeamDepartmentChatSyncService
     {
         $companyId = $this->inferCompanyIdForDepartment($department);
 
-        return TeamConversation::query()->firstOrCreate(
-            [
+        $conversation = TeamConversation::query()
+            ->withoutGlobalScope('tenant')
+            ->where('department_id', $department->id)
+            ->where('type', TeamConversation::TYPE_DEPARTMENT)
+            ->first();
+
+        if ($conversation !== null) {
+            $this->refreshDepartmentConversationCompanyId($conversation, $department);
+
+            return $conversation;
+        }
+
+        try {
+            return TeamConversation::query()->withoutGlobalScope('tenant')->create([
                 'department_id' => $department->id,
                 'type' => TeamConversation::TYPE_DEPARTMENT,
-            ],
-            [
                 'company_id' => $companyId,
-            ],
-        );
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            $conversation = TeamConversation::query()
+                ->withoutGlobalScope('tenant')
+                ->where('department_id', $department->id)
+                ->where('type', TeamConversation::TYPE_DEPARTMENT)
+                ->firstOrFail();
+
+            $this->refreshDepartmentConversationCompanyId($conversation, $department);
+
+            return $conversation;
+        }
     }
 
     public function syncAllMembers(Department $department): void
@@ -95,6 +116,7 @@ final class TeamDepartmentChatSyncService
     public function onDepartmentMemberDetached(Department $department, int $userId): void
     {
         $conversation = TeamConversation::query()
+            ->withoutGlobalScope('tenant')
             ->where('department_id', $department->id)
             ->where('type', TeamConversation::TYPE_DEPARTMENT)
             ->first();

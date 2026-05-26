@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\User;
 
+use App\Support\TenantCompany;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class StoreUserRequest extends FormRequest
 {
@@ -13,16 +15,39 @@ final class StoreUserRequest extends FormRequest
         return $this->user()?->hasRole('administrator') === true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $email = $this->input('email');
+        if (is_string($email) && trim($email) === '') {
+            $this->merge(['email' => null]);
+        }
+
+        $password = $this->input('password');
+        if (is_string($password) && trim($password) === '') {
+            $this->merge(['password' => null]);
+        }
+
+        $pin = $this->input('pin');
+        if (is_string($pin) && trim($pin) === '') {
+            $this->merge(['pin' => null]);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->where('company_id', TenantCompany::id()),
+            ],
             'phone' => ['nullable', 'string', 'max:40'],
             'phones' => ['nullable', 'array'],
             'phones.*' => ['nullable', 'string', 'max:40'],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['nullable', 'string', 'min:6', 'required_without:pin'],
             'role' => ['required', 'string', 'in:administrator,manager,employee'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
@@ -30,6 +55,7 @@ final class StoreUserRequest extends FormRequest
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'whatsapp_session_ids' => ['nullable', 'array'],
             'whatsapp_session_ids.*' => ['integer', 'exists:whatsapp_sessions,id'],
+            'pin' => ['nullable', 'string', 'regex:/^\d{4,6}$/', 'required_without:password'],
         ];
     }
 }

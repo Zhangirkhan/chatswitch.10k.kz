@@ -11,15 +11,22 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Support\PhoneFormatter;
+use App\Services\Auth\UserPinService;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class UserManagementController extends Controller
 {
+    public function __construct(
+        private readonly UserPinService $userPins,
+    ) {}
+
     public function index(Request $request): Response
     {
         $search = trim((string) $request->input('search', ''));
@@ -108,21 +115,35 @@ final class UserManagementController extends Controller
     public function store(StoreUserRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $phonesList[0] ?? null,
-            'phones' => $phonesList !== [] ? $phonesList : null,
-            'company_id' => TenantCompany::id(),
-            'password' => $validated['password'],
-            'is_active' => true,
-        ]);
+        $user = DB::transaction(function () use ($validated): User {
+            $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
+            $plainPassword = is_string($validated['password'] ?? null) && $validated['password'] !== ''
+                ? $validated['password']
+                : Str::password(32);
 
-        $user->assignRole($validated['role']);
-        $user->syncDepartments($this->extractDepartmentIds($validated));
-        $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'] ?? null,
+                'phone' => $phonesList[0] ?? null,
+                'phones' => $phonesList !== [] ? $phonesList : null,
+                'company_id' => TenantCompany::id(),
+                'password' => $plainPassword,
+                'is_active' => true,
+            ]);
+
+            $user->assignRole($validated['role']);
+            $user->syncDepartments($this->extractDepartmentIds($validated));
+            $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
+
+            if (array_key_exists('pin', $validated)) {
+                $rawPin = is_string($validated['pin'] ?? null) ? trim($validated['pin']) : '';
+                $this->userPins->setPin($user, $rawPin !== '' ? $rawPin : null);
+            }
+
+            return $user;
+        });
+
         $user->load(['roles', 'department', 'departments', 'whatsappSessions']);
 
         return response()->json(['success' => true, 'user' => $this->transformUser($user)]);
@@ -131,29 +152,37 @@ final class UserManagementController extends Controller
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
         $validated = $request->validated();
-        $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
 
-        $user->update([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $phonesList[0] ?? null,
-            'phones' => $phonesList !== [] ? $phonesList : null,
-            'company_id' => TenantCompany::id(),
-            'is_active' => $validated['is_active'] ?? $user->is_active,
-        ]);
+        DB::transaction(function () use ($validated, $user): void {
+            $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
 
-        if (! empty($validated['password'])) {
-            $user->update(['password' => $validated['password']]);
-            $user->revokeAllPersonalAccessTokens();
-        }
+            $user->update([
+                'name' => $validated['name'],
+                'email' => array_key_exists('email', $validated) ? $validated['email'] : $user->email,
+                'phone' => $phonesList[0] ?? null,
+                'phones' => $phonesList !== [] ? $phonesList : null,
+                'company_id' => TenantCompany::id(),
+                'is_active' => $validated['is_active'] ?? $user->is_active,
+            ]);
 
-        if (array_key_exists('is_active', $validated) && $validated['is_active'] === false) {
-            $user->revokeAllPersonalAccessTokens();
-        }
+            if (! empty($validated['password'])) {
+                $user->update(['password' => $validated['password']]);
+                $user->revokeAllPersonalAccessTokens();
+            }
 
-        $user->syncRoles([$validated['role']]);
-        $user->syncDepartments($this->extractDepartmentIds($validated));
-        $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
+            if (array_key_exists('is_active', $validated) && $validated['is_active'] === false) {
+                $user->revokeAllPersonalAccessTokens();
+            }
+
+            $user->syncRoles([$validated['role']]);
+            $user->syncDepartments($this->extractDepartmentIds($validated));
+            $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
+
+            if (array_key_exists('pin', $validated)) {
+                $rawPin = is_string($validated['pin'] ?? null) ? trim($validated['pin']) : '';
+                $this->userPins->setPin($user, $rawPin !== '' ? $rawPin : null);
+            }
+        });
 
         $user->load(['roles', 'department', 'departments', 'whatsappSessions']);
 
@@ -224,6 +253,7 @@ final class UserManagementController extends Controller
                 'status' => $s->status,
             ])->values()->all(),
             'whatsapp_session_ids' => $user->whatsappSessions->pluck('id')->values()->all(),
+            'has_pin' => $user->pin_hash !== null,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
