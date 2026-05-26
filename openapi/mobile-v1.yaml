@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: ChatSwitch API
+  title: Accel API
   version: "1.0.0"
   description: |
     ## Мобильный REST API (`/api/v1/...`)
