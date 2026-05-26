@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Pivots\TeamConversationUser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class TeamConversation extends Model
 {
+    use BelongsToTenant;
+
     public const TYPE_DIRECT = 'direct';
 
     public const TYPE_DEPARTMENT = 'department';

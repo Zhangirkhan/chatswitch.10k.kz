@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Support\PhoneFormatter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class WhatsappSession extends Model
 {
-    use HasFactory;
+    use BelongsToTenant, HasFactory;
 
     /** Пользователь хочет, чтобы подключение жило; watchdog будет поднимать его автоматически. */
     public const DESIRED_ACTIVE = 'active';
@@ -21,6 +22,7 @@ final class WhatsappSession extends Model
     public const DESIRED_LOGGED_OUT = 'logged_out';
 
     protected $fillable = [
+        'company_id',
         'session_name',
         'phone_number',
         'display_name',

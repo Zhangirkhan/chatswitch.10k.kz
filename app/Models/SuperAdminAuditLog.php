@@ -4,35 +4,37 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-final class KnowledgeRule extends Model
+final class SuperAdminAuditLog extends Model
 {
-    use BelongsToTenant;
+    public $timestamps = false;
 
     protected $fillable = [
         'company_id',
-        'title',
-        'type',
-        'content',
-        'priority',
-        'is_active',
-        'include_in_prompt',
+        'actor_user_id',
+        'action',
+        'subject_type',
+        'subject_id',
+        'meta',
     ];
 
     protected function casts(): array
     {
         return [
-            'priority' => 'integer',
-            'is_active' => 'boolean',
-            'include_in_prompt' => 'boolean',
+            'meta' => 'array',
+            'created_at' => 'datetime',
         ];
     }
 
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_user_id');
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Pivots\DepartmentUser;
 use App\Models\Pivots\TeamConversationUser;
 use App\Support\PhoneFormatter;
@@ -18,7 +19,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 final class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use BelongsToTenant, HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     protected $fillable = [
         'name',
@@ -26,13 +27,16 @@ final class User extends Authenticatable
         'phones',
         'email',
         'password',
+        'pin_hash',
         'department_id',
         'company_id',
         'is_active',
+        'is_super_admin',
     ];
 
     protected $hidden = [
         'password',
+        'pin_hash',
         'remember_token',
     ];
 
@@ -41,7 +45,9 @@ final class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin_hash' => 'hashed',
             'is_active' => 'boolean',
+            'is_super_admin' => 'boolean',
             'phones' => 'array',
         ];
     }

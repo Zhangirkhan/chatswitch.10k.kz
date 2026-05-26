@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\Contact;
+use Database\Factories\Concerns\UsesTenantCompany;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 final class ContactFactory extends Factory
 {
+    use UsesTenantCompany;
+
     protected $model = Contact::class;
 
     public function definition(): array
@@ -19,7 +22,8 @@ final class ContactFactory extends Factory
         $digits = '77'.fake()->numerify('#########');
 
         return [
-            'whatsapp_id' => $digits,
+            'company_id' => $this->tenantCompanyId(),
+            'whatsapp_id' => $digits.'@c.us',
             'phone_number' => $digits,
             'name' => fake()->name(),
             'push_name' => fake()->firstName(),

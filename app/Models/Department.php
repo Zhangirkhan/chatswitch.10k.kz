@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Pivots\DepartmentUser;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,9 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Department extends Model
 {
-    use HasFactory;
+    use BelongsToTenant, HasFactory;
 
     protected $fillable = [
+        'company_id',
         'name',
         'description',
         'parent_id',

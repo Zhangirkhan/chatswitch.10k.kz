@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-final class KnowledgeRule extends Model
+final class BillingReminderLog extends Model
 {
-    use BelongsToTenant;
+    public const KIND_TRIAL_ENDING = 'trial_ending';
+
+    public const KIND_PERIOD_RENEWAL = 'period_renewal';
 
     protected $fillable = [
         'company_id',
-        'title',
-        'type',
-        'content',
-        'priority',
-        'is_active',
-        'include_in_prompt',
+        'kind',
+        'due_on',
+        'days_before',
+        'recipient',
+        'sent_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'priority' => 'integer',
-            'is_active' => 'boolean',
-            'include_in_prompt' => 'boolean',
+            'due_on' => 'date',
+            'days_before' => 'integer',
+            'sent_at' => 'datetime',
         ];
     }
 

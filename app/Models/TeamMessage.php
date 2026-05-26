@@ -40,6 +40,7 @@ final class TeamMessage extends Model
         'client_message_id',
         'mentioned_user_ids',
         'forwarded_from_team_message_id',
+        'forwarded_from_message_id',
         'forward_source_title',
         'forward_quote_sender_name',
         'forward_quote_body',
@@ -78,6 +79,11 @@ final class TeamMessage extends Model
     public function forwardedFrom(): BelongsTo
     {
         return $this->belongsTo(self::class, 'forwarded_from_team_message_id');
+    }
+
+    public function forwardedFromWhatsapp(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'forwarded_from_message_id');
     }
 
     /** @return HasMany<TeamMessageMention, $this> */
