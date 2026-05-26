@@ -16,12 +16,12 @@ final class RegistrationTest extends TestCase
 
     public function test_registration_routes_are_not_exposed(): void
     {
-        $this->get('/register')->assertNotFound();
+        $this->get('/register')->assertRedirect(route('login'));
         $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertNotFound();
+        ])->assertStatus(405);
     }
 }
