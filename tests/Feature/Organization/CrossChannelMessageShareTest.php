@@ -36,7 +36,7 @@ final class CrossChannelMessageShareTest extends TestCase
     {
         Queue::fake();
 
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $user = User::factory()->create(['company_id' => $company->id, 'name' => 'Оператор']);
         $peer = User::factory()->create(['company_id' => $company->id, 'name' => 'Коллега']);
         $user->assignRole('administrator');
@@ -84,7 +84,7 @@ final class CrossChannelMessageShareTest extends TestCase
 
     public function test_share_whatsapp_message_to_team_conversation(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
         $alice->assignRole('administrator');

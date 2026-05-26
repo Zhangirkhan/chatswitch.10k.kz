@@ -36,7 +36,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_direct_message_between_colleagues_same_company(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -58,7 +58,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_open_direct_rejects_different_company(): void
     {
-        $c1 = Company::query()->create(['name' => 'A']);
+        $c1 = $this->createTenantCompany(['name' => 'A']);
         $c2 = Company::query()->create(['name' => 'B']);
         $alice = User::factory()->create(['company_id' => $c1->id]);
         $stranger = User::factory()->create(['company_id' => $c2->id]);
@@ -67,12 +67,12 @@ final class OrganizationTeamChatTest extends TestCase
 
         $this->actingAs($alice)
             ->postJson(route('organization.team-chat.api.direct'), ['user_id' => $stranger->id])
-            ->assertUnprocessable();
+            ->assertNotFound();
     }
 
     public function test_store_message_deduplicates_by_client_message_id(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -98,7 +98,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_conversations_filter_direct_and_invalid_filter(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -124,7 +124,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_message_rejects_mention_of_non_participant(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -143,7 +143,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_message_stores_mentions_and_messages_list_resolves_names(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
         $alice->assignRole('employee');
@@ -167,7 +167,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_read_meta_and_participants_endpoints(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -206,7 +206,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_messages_payload_includes_conversation_and_read_meta(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -230,7 +230,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_forward_message_to_department_conversation(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
         $alice->assignRole('employee');
@@ -275,7 +275,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_forward_from_department_shows_department_name_as_source(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -311,7 +311,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_forward_rejected_when_user_not_in_source_conversation(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -336,7 +336,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_forward_rejects_mention_user_ids(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -355,7 +355,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_chat_search_finds_message_and_conversation(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса Поиск']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Менеджер Василий']);
         $alice->assignRole('employee');
@@ -380,7 +380,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_chat_search_includes_colleagues(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Борис Коллега', 'email' => 'boris@acme.test']);
         $alice->assignRole('employee');
@@ -396,7 +396,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_chat_search_short_query_returns_empty(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
 
@@ -410,7 +410,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_mark_delivered_updates_read_meta_for_peer(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -443,7 +443,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_message_creates_team_message_mention_rows(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -468,7 +468,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_department_read_meta_others_min_delivered(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -521,7 +521,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_department_read_meta_others_min_read(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -573,7 +573,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_department_room_pinned_message_manager_can_set_and_clear(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $manager = User::factory()->create(['company_id' => $company->id]);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $manager->assignRole('manager');
@@ -626,7 +626,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_department_room_pin_forbidden_for_employee(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -659,7 +659,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_direct_room_pin_forbidden(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('manager');
@@ -680,7 +680,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_message_reply_to_root_parent(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -708,7 +708,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_message_rejects_reply_to_non_root_parent(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -738,7 +738,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_store_forward_rejects_parent_team_message_id(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -758,7 +758,7 @@ final class OrganizationTeamChatTest extends TestCase
     public function test_store_message_with_attachment_returns_attachment_payload(): void
     {
         Storage::fake('public');
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -781,7 +781,7 @@ final class OrganizationTeamChatTest extends TestCase
     public function test_store_message_allows_empty_body_when_attachment_present(): void
     {
         Storage::fake('public');
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -802,7 +802,7 @@ final class OrganizationTeamChatTest extends TestCase
     public function test_store_forward_rejects_attachments(): void
     {
         Storage::fake('public');
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -839,7 +839,7 @@ final class OrganizationTeamChatTest extends TestCase
                 ['Content-Type' => 'text/html; charset=utf-8'],
             ),
         ]);
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -857,7 +857,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_chat_pin_moves_conversation_to_top(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -908,7 +908,7 @@ final class OrganizationTeamChatTest extends TestCase
     public function test_team_typing_endpoint_dispatches_event(): void
     {
         Event::fake([TeamUserTyping::class]);
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -930,7 +930,7 @@ final class OrganizationTeamChatTest extends TestCase
     public function test_team_typing_throttled_returns_ok_without_second_dispatch(): void
     {
         Event::fake([TeamUserTyping::class]);
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $alice->assignRole('employee');
@@ -949,7 +949,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_message_react_toggle_and_list_includes_reactions(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id, 'name' => 'Алиса']);
         $bob = User::factory()->create(['company_id' => $company->id, 'name' => 'Боб']);
         $alice->assignRole('employee');
@@ -992,7 +992,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_team_message_react_rejects_wrong_conversation(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $alice = User::factory()->create(['company_id' => $company->id]);
         $bob = User::factory()->create(['company_id' => $company->id]);
         $carol = User::factory()->create(['company_id' => $company->id]);
@@ -1014,7 +1014,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_administrator_sees_all_department_chats_in_conversations_list(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $admin = User::factory()->create(['company_id' => $company->id]);
         $employee = User::factory()->create(['company_id' => $company->id, 'name' => 'Сотрудник']);
         $admin->assignRole('administrator');
@@ -1048,7 +1048,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_employee_sees_only_own_department_chats(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $other = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
@@ -1083,7 +1083,7 @@ final class OrganizationTeamChatTest extends TestCase
 
     public function test_employee_cannot_access_other_department_chat(): void
     {
-        $company = Company::query()->create(['name' => 'Acme']);
+        $company = $this->createTenantCompany(['name' => 'Acme']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $other = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
