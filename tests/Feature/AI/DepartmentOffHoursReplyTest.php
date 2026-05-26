@@ -35,7 +35,7 @@ final class DepartmentOffHoursReplyTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-17 20:00:00', 'Asia/Almaty')); // Saturday evening
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $manager->assignRole('manager');
 
@@ -90,7 +90,7 @@ final class DepartmentOffHoursReplyTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-05-17 20:00:00', 'Asia/Almaty'));
         config()->set('services.openai.api_key', 'test-key');
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $manager->assignRole('manager');
 
@@ -168,7 +168,7 @@ final class DepartmentOffHoursReplyTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-05-17 21:00:00', 'Asia/Almaty'));
         Queue::fake();
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $manager->assignRole('manager');
 

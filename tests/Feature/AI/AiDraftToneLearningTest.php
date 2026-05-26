@@ -105,7 +105,7 @@ final class AiDraftToneLearningTest extends TestCase
     {
         Bus::fake([AnalyzeEmployeeToneProfileJob::class, AnalyzeCompanyToneProfileJob::class]);
 
-        $company = Company::create(['name' => 'Co']);
+        $company = $this->createTenantCompany(['name' => 'Co']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();

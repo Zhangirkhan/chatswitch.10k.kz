@@ -18,6 +18,7 @@ use App\Services\AI\ChatDepartmentClassifierService;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Support\DepartmentWorkSchedule;
+use App\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -98,7 +99,7 @@ final class ChatDepartmentRoutingTest extends TestCase
                 ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company', 'slug' => 'company-auto-reply']);
         $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $manager->assignRole('manager');
 
@@ -143,14 +144,15 @@ final class ChatDepartmentRoutingTest extends TestCase
         $this->assertNotNull($outbound);
         $this->assertStringContainsString('Здравствуйте', (string) $outbound->body);
         $this->assertStringContainsString('помочь', mb_strtolower((string) $outbound->body));
+        $this->assertStringNotContainsString('*'.$manager->name.'*', (string) $outbound->body);
     }
 
     public function test_inbound_job_routes_department_before_ai(): void
     {
         Queue::fake();
 
+        $company = $this->createTenantCompany(['name' => 'Co']);
         $department = Department::query()->create(['name' => 'Продажи', 'is_active' => true]);
-        $company = Company::create(['name' => 'Co']);
         $funnel = Funnel::query()->create([
             'company_id' => $company->id,
             'name' => 'Продажи',
@@ -249,7 +251,7 @@ final class ChatDepartmentRoutingTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-17 20:00:00', 'Asia/Almaty'));
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $manager = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
         $manager->assignRole('manager');
 

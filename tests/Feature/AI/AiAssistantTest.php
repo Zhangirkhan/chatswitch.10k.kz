@@ -59,7 +59,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_uses_only_enabled_knowledge_from_chat_company(): void
     {
-        $company = Company::create(['name' => 'Main company']);
+        $company = $this->createTenantCompany(['name' => 'Main company']);
         $otherCompany = Company::create(['name' => 'Other company']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
@@ -122,7 +122,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_includes_full_chat_history(): void
     {
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -155,7 +155,7 @@ final class AiAssistantTest extends TestCase
     {
         Cache::flush();
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -200,7 +200,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_excludes_previous_ai_replies_from_history(): void
     {
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -242,7 +242,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_includes_recent_ai_replies_only_for_continuity(): void
     {
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -272,13 +272,18 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_includes_recent_manual_responder_style_examples(): void
     {
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $responder = User::factory()->create(['company_id' => $company->id, 'name' => 'Serik']);
         $otherUser = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
             'company_id' => $company->id,
             'whatsapp_session_id' => $session->id,
+        ]);
+        ChatAssignment::query()->create([
+            'chat_id' => $chat->id,
+            'user_id' => $responder->id,
+            'assigned_by' => $responder->id,
         ]);
 
         Message::create([
@@ -325,7 +330,7 @@ final class AiAssistantTest extends TestCase
 
     public function test_prompt_builder_uses_company_tone_until_employee_profile_is_collected(): void
     {
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $responder = User::factory()->create(['company_id' => $company->id, 'name' => 'New manager']);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -372,7 +377,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -412,7 +417,7 @@ final class AiAssistantTest extends TestCase
     {
         Bus::fake();
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         /** @var User $employee */
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
@@ -439,7 +444,7 @@ final class AiAssistantTest extends TestCase
     {
         Bus::fake();
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         /** @var User $employee */
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
@@ -471,7 +476,7 @@ final class AiAssistantTest extends TestCase
     {
         Bus::fake([AnalyzeCompanyToneProfileJob::class, AnalyzeEmployeeToneProfileJob::class]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $berik = User::factory()->create(['name' => 'Берик', 'company_id' => $company->id]);
         $serik = User::factory()->create(['name' => 'Серик', 'company_id' => $company->id]);
         /** @var User $admin */
@@ -512,7 +517,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
@@ -568,7 +573,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
@@ -626,7 +631,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
@@ -689,9 +694,9 @@ final class AiAssistantTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-05-13 10:00:00', 'Asia/Almaty'));
         config()->set('app.timezone', 'Asia/Almaty');
-        SystemSetting::setValue(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, '30');
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
+        SystemSetting::setValue(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, '30');
         $employee = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $contact = Contact::create(['whatsapp_id' => '77010000000@c.us', 'name' => 'Айжан', 'phone_number' => '77010000000']);
@@ -730,7 +735,7 @@ final class AiAssistantTest extends TestCase
         config()->set('app.timezone', 'Asia/Almaty');
         SystemSetting::setValue(AppointmentReminderSettings::LEAD_TIME_MINUTES_KEY, '60');
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $contact = Contact::create(['whatsapp_id' => '77010000001@c.us', 'name' => 'Айжан', 'phone_number' => '77010000001']);
@@ -787,7 +792,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
@@ -842,7 +847,7 @@ final class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
@@ -892,7 +897,7 @@ final class AiAssistantTest extends TestCase
     {
         Bus::fake([SendOutboundMessageJob::class]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([

@@ -38,7 +38,7 @@ final class AiDraftModeTest extends TestCase
             ]),
         ]);
 
-        $company = Company::create(['name' => 'Company']);
+        $company = $this->createTenantCompany(['name' => 'Company']);
         $employee = User::factory()->create(['company_id' => $company->id]);
         $employee->assignRole('employee');
         $session = WhatsappSession::factory()->create();
