@@ -11,7 +11,7 @@ import { Head, Link } from '@inertiajs/vue3';
             <div class="app-page__scroll">
                 <div class="app-page__content max-w-3xl space-y-6">
                     <section class="ui-settings-section">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--ui-accent)]">ChatSwitch</p>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--ui-accent)]">Accel</p>
                         <h1 class="mt-1 text-xl font-semibold text-[var(--ui-text)]">Добро пожаловать</h1>
                         <p class="mt-2 text-sm text-[var(--ui-text-secondary)]">
                             Вы вошли в систему. Перейдите в чаты, настройки или другие разделы из бокового меню.

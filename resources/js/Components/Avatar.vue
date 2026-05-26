@@ -14,6 +14,9 @@ const props = withDefaults(
         fallbackInitials?: boolean;
         variant?: 'neutral' | 'staff' | 'group';
         size?: number;
+        /** Цвет обводки (например, WhatsApp-номер в списке чатов). */
+        ringColor?: string | null;
+        title?: string | null;
     }>(),
     {
         avatarUrl: null,
@@ -22,6 +25,8 @@ const props = withDefaults(
         fallbackInitials: false,
         variant: 'neutral',
         size: 49,
+        ringColor: null,
+        title: null,
     },
 );
 
@@ -47,10 +52,19 @@ const displayInitials = computed(() => {
     return value.slice(0, 2);
 });
 
-const style = computed(() => ({
-    width: `${props.size}px`,
-    height: `${props.size}px`,
-}));
+const style = computed(() => {
+    const base: Record<string, string> = {
+        width: `${props.size}px`,
+        height: `${props.size}px`,
+    };
+    const ring = (props.ringColor ?? '').trim();
+    if (ring) {
+        const width = props.size <= 32 ? 1.5 : 2;
+        base.boxShadow = `0 0 0 ${width}px ${ring}`;
+    }
+
+    return base;
+});
 
 const initialsStyle = computed(() => {
     const px = Math.round(Math.max(7, props.size * 0.38));
@@ -70,7 +84,7 @@ function onError() {
         class="avatar"
         :class="`avatar--${variant}`"
         :style="style"
-        :title="name || undefined"
+        :title="title || name || undefined"
     >
         <img
             v-if="showImage"

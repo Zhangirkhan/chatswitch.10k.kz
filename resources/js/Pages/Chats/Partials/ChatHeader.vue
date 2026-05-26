@@ -2032,6 +2032,7 @@ async function saveFunnelModal() {
                         Этап воронки
                     </button>
                     <button
+                        v-if="page.props.modules?.org_tasks"
                         class="menu-item"
                         type="button"
                         :disabled="quickTaskLoading"

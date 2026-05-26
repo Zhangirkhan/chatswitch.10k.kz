@@ -3,8 +3,14 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
+import Avatar from '@/Components/Avatar.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { WhatsappSession } from '@/types';
+import {
+    WHATSAPP_SESSION_RING_PALETTE,
+    normalizeHexColor,
+    whatsappSessionRingColor,
+} from '@/utils/whatsappSessionColor';
 
 type SessionStatus = WhatsappSession['status'];
 
@@ -44,6 +50,17 @@ const message = ref<string | null>(null);
 let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const hasSessions = computed(() => localSessions.value.length > 0);
+const hasMultipleSessions = computed(() => localSessions.value.length > 1);
+
+const editedRingPreviewColor = computed(() => {
+    const normalized = normalizeHexColor(editedDisplayColor.value);
+    if (normalized) {
+        return normalized;
+    }
+    const editing = localSessions.value.find((s) => s.id === editingSessionId.value);
+
+    return editing ? whatsappSessionRingColor(editing) : WHATSAPP_SESSION_RING_PALETTE[0];
+});
 
 watch(
     () => props.sessions,
@@ -368,10 +385,25 @@ async function verify(session: WhatsappSession): Promise<void> {
     }
 }
 
+function sessionRingColor(session: WhatsappSession): string {
+    return whatsappSessionRingColor(session) ?? WHATSAPP_SESSION_RING_PALETTE[0];
+}
+
 function startEdit(session: WhatsappSession): void {
     editingSessionId.value = session.id;
     editedDisplayName.value = session.display_name || '';
-    editedDisplayColor.value = session.display_color || '';
+    editedDisplayColor.value = session.display_color || sessionRingColor(session);
+}
+
+function cancelEdit(): void {
+    if (busySessionId.value !== null) {
+        return;
+    }
+    editingSessionId.value = null;
+}
+
+function pickPaletteColor(hex: string): void {
+    editedDisplayColor.value = hex;
 }
 
 async function saveDisplayName(session: WhatsappSession): Promise<void> {
@@ -407,7 +439,10 @@ function reloadPage(): void {
 <template>
     <Head title="Подключения WhatsApp" />
 
-    <SettingsLayout title="Подключения WhatsApp" subtitle="Номера, QR-коды и состояние whatsapp-service">
+    <SettingsLayout
+        title="Подключения WhatsApp"
+        subtitle="Номера, QR-коды и цвета обводки в списке «Чаты»"
+    >
         <template #actions>
             <button
                 type="button"
@@ -452,7 +487,19 @@ function reloadPage(): void {
                 </button>
             </div>
 
-            <div v-else class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <template v-else>
+            <div
+                v-if="hasMultipleSessions"
+                class="ui-alert ui-alert--info text-sm leading-relaxed"
+            >
+                <strong class="font-medium text-[var(--ui-text)]">Несколько номеров — как отличить в «Чатах»</strong>
+                <p class="mt-1 text-[var(--ui-text-secondary)]">
+                    У каждого подключения свой цвет. В списке диалогов слева у фото клиента рисуется кольцо этого цвета —
+                    сразу видно, с какого WhatsApp-номера переписка. Настройте цвет в карточке номера ниже.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <div
                     v-for="session in localSessions"
                     :key="session.id"
@@ -460,58 +507,121 @@ function reloadPage(): void {
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <div v-if="editingSessionId === session.id" class="flex gap-2 items-center">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="text-left font-medium text-[var(--ui-text)] truncate max-w-full">
+                                    {{ sessionLabel(session) }}
+                                </div>
+                                <span class="inline-flex items-center gap-2 text-xs text-[var(--ui-text-secondary)] whitespace-nowrap sm:hidden">
+                                    <span class="w-2 h-2 rounded-full" :class="statusClasses[session.status]"></span>
+                                    {{ statusLabels[session.status] }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-[var(--ui-text-secondary)] truncate mt-0.5">
+                                {{ session.session_name }}
+                            </p>
+                        </div>
+
+                        <span class="hidden sm:inline-flex items-center gap-2 text-xs text-[var(--ui-text-secondary)] whitespace-nowrap">
+                            <span class="w-2 h-2 rounded-full" :class="statusClasses[session.status]"></span>
+                            {{ statusLabels[session.status] }}
+                        </span>
+                    </div>
+
+                    <div
+                        class="session-color-block rounded-xl border p-3 space-y-3"
+                        :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface)' }"
+                    >
+                        <div class="flex items-start gap-3">
+                            <Avatar
+                                :name="sessionLabel(session)"
+                                :size="44"
+                                :ring-color="editingSessionId === session.id ? editedRingPreviewColor : sessionRingColor(session)"
+                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-[var(--ui-text)]">
+                                    {{ hasMultipleSessions ? 'Цвет в списке «Чаты»' : 'Цвет для списка «Чаты»' }}
+                                </p>
+                                <p class="text-xs text-[var(--ui-text-secondary)] mt-0.5 leading-relaxed">
+                                    <template v-if="hasMultipleSessions">
+                                        Диалоги с этого номера — у аватарки клиента кольцо выбранного цвета (как на превью слева).
+                                    </template>
+                                    <template v-else>
+                                        Когда подключите второй номер, у каждого будет свой цвет — диалоги не перепутаете.
+                                        Сейчас можно задать цвет заранее.
+                                    </template>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div v-if="editingSessionId === session.id" class="space-y-3 pt-1 border-t" :style="{ borderColor: 'var(--ui-border)' }">
+                            <div>
+                                <label class="block text-xs font-medium text-[var(--ui-text-secondary)] mb-1">
+                                    Название в системе
+                                </label>
                                 <input
                                     v-model="editedDisplayName"
                                     type="text"
-                                    class="settings-input"
+                                    class="settings-input w-full"
                                     maxlength="100"
+                                    placeholder="Например: WhatsApp продаж"
                                     @keyup.enter="saveDisplayName(session)"
                                 />
-                                <input
-                                    :value="editedDisplayColor || '#01b964'"
-                                    type="color"
-                                    class="h-[38px] w-[42px] rounded-md border"
-                                    :style="{ borderColor: 'var(--ui-border)', background: 'transparent' }"
-                                    title="Цвет бейджа"
-                                    @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
-                                    @change="saveDisplayName(session)"
-                                />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-[var(--ui-text-secondary)] mb-1">
+                                    Цвет кольца у аватарки
+                                </label>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <input
+                                        :value="editedDisplayColor || '#01b964'"
+                                        type="color"
+                                        class="session-color-input"
+                                        aria-label="Выбрать цвет кольца"
+                                        @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
+                                    />
+                                    <span class="text-xs text-[var(--ui-text-secondary)]">или быстрый выбор:</span>
+                                    <div class="flex flex-wrap gap-1.5" role="group" aria-label="Готовые цвета">
+                                        <button
+                                            v-for="hex in WHATSAPP_SESSION_RING_PALETTE"
+                                            :key="hex"
+                                            type="button"
+                                            class="session-color-swatch"
+                                            :class="{ 'session-color-swatch--active': editedRingPreviewColor === hex }"
+                                            :style="{ background: hex }"
+                                            :title="hex"
+                                            :aria-label="`Цвет ${hex}`"
+                                            @click="pickPaletteColor(hex)"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
                                 <button
                                     type="button"
                                     class="ui-btn ui-btn--primary ui-btn--sm"
                                     :disabled="busySessionId === session.id"
                                     @click="saveDisplayName(session)"
                                 >
-                                    OK
+                                    {{ busySessionId === session.id ? 'Сохранение…' : 'Сохранить' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="ui-btn ui-btn--secondary ui-btn--sm"
+                                    :disabled="busySessionId === session.id"
+                                    @click="cancelEdit"
+                                >
+                                    Отмена
                                 </button>
                             </div>
-                            <div v-else>
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <div class="text-left font-medium text-[var(--ui-text)] truncate max-w-full">
-                                        {{ sessionLabel(session) }}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)] shrink-0"
-                                        title="Редактировать (название и цвет)"
-                                        @click="startEdit(session)"
-                                    >
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                    </button>
-                                </div>
-                                <p class="text-xs text-[var(--ui-text-secondary)] truncate">
-                                    {{ session.session_name }}
-                                </p>
-                            </div>
                         </div>
-
-                        <span class="inline-flex items-center gap-2 text-xs text-[var(--ui-text-secondary)] whitespace-nowrap">
-                            <span class="w-2 h-2 rounded-full" :class="statusClasses[session.status]"></span>
-                            {{ statusLabels[session.status] }}
-                        </span>
+                        <button
+                            v-else
+                            type="button"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
+                            @click="startEdit(session)"
+                        >
+                            Изменить название и цвет
+                        </button>
                     </div>
 
                     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -626,6 +736,7 @@ function reloadPage(): void {
             >
                 Обновить данные страницы
             </button>
+            </template>
         </div>
     </SettingsLayout>
 
@@ -640,4 +751,34 @@ function reloadPage(): void {
         @confirm="confirmConnAction"
     />
 </template>
+
+<style scoped>
+.session-color-input {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0.15rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--ui-border);
+    background: transparent;
+    cursor: pointer;
+}
+
+.session-color-swatch {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.session-color-swatch:hover {
+    transform: scale(1.08);
+}
+
+.session-color-swatch--active {
+    border-color: var(--ui-text);
+    box-shadow: 0 0 0 2px var(--ui-surface), 0 0 0 3px var(--ui-text-secondary);
+}
+</style>
 

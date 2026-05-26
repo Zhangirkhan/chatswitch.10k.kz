@@ -133,7 +133,6 @@ const profileItems: ProfileItem[] = [
     { kind: 'profile', id: 'account', label: 'Аккаунт', description: 'Пароль, безопасность, удаление', icon: 'lock' },
     { kind: 'profile', id: 'chats', label: 'Чаты', description: 'Тема, обои, настройки чата', icon: 'chat' },
     { kind: 'profile', id: 'notifications', label: 'Уведомления', description: 'Сообщения, группы, звуки', icon: 'bell' },
-    { kind: 'profile', id: 'modules', label: 'Модули', description: 'Включение и отключение функционала компании', icon: 'modules', adminOnly: true },
     { kind: 'profile', id: 'shortcuts', label: 'Сочетания клавиш', description: 'Быстрые действия', icon: 'keyboard' },
 ];
 

@@ -5,7 +5,6 @@ import ProfileSection from './Partials/ProfileSection.vue';
 import AccountSection from './Partials/AccountSection.vue';
 import ChatsSection from './Partials/ChatsSection.vue';
 import NotificationsSection from './Partials/NotificationsSection.vue';
-import ModulesSection from './Partials/ModulesSection.vue';
 import ShortcutsModal from './Partials/ShortcutsModal.vue';
 import SettingsEmpty from './Partials/SettingsEmpty.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
@@ -21,11 +20,10 @@ type Section =
     | 'account'
     | 'chats'
     | 'notifications'
-    | 'modules'
     | 'shortcuts';
 
 const VALID_SECTIONS: readonly Section[] = [
-    'profile', 'account', 'chats', 'notifications', 'modules', 'shortcuts',
+    'profile', 'account', 'chats', 'notifications', 'shortcuts',
 ] as const;
 
 const page = usePage();
@@ -60,7 +58,6 @@ function closeShortcuts() {
                     <AccountSection v-else-if="activeSection === 'account'" />
                     <ChatsSection v-else-if="activeSection === 'chats'" />
                     <NotificationsSection v-else-if="activeSection === 'notifications'" />
-                    <ModulesSection v-else-if="activeSection === 'modules'" />
                 </aside>
             </template>
             <template v-else>

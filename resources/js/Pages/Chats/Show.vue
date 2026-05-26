@@ -6,11 +6,11 @@ import ChatInput from './Partials/ChatInput.vue';
 import OrchestratorApprovalBanner, { type PendingOrchestratorApproval } from './Partials/OrchestratorApprovalBanner.vue';
 import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
-import ForwardMessageModal from './Partials/ForwardMessageModal.vue';
+import ShareMessageModal, { type ShareModalSource } from '@/Components/ShareMessageModal.vue';
 import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, MessageReaction, Paginated } from '@/types';
@@ -263,9 +263,28 @@ const contactPanelResizing = computed(() => contactPanelResize.isResizing.value)
 const aiPanelResizing = computed(() => aiPanelResize.isResizing.value);
 
 const replyTo = ref<Message | null>(null);
-const forwardOpen = ref(false);
-const forwardMessage = ref<Message | null>(null);
-const forwardMessageIds = ref<number[] | null>(null);
+const shareOpen = ref(false);
+const shareMessage = ref<Message | null>(null);
+const shareMessageIds = ref<number[] | null>(null);
+
+const shareSource = computed((): ShareModalSource | null => {
+    if (!shareOpen.value) return null;
+    if (shareMessageIds.value && shareMessageIds.value.length > 0) {
+        return {
+            kind: 'whatsapp',
+            messageIds: shareMessageIds.value,
+            whatsappSessionId: forwardWhatsappSessionId.value,
+        };
+    }
+    if (shareMessage.value) {
+        return {
+            kind: 'whatsapp',
+            message: shareMessage.value,
+            whatsappSessionId: forwardWhatsappSessionId.value,
+        };
+    }
+    return null;
+});
 
 const selectionMode = ref(false);
 const selectedMessageIds = ref<Set<number>>(new Set());
@@ -280,23 +299,23 @@ function clearReply() {
 }
 
 function openForward(msg: Message) {
-    if (forwardWhatsappSessionId.value == null) {
-        showToast({
-            message: 'У чата нет сессии WhatsApp (или она снята). Пересылка недоступна.',
-        });
-        return;
-    }
-    forwardMessage.value = msg;
-    forwardMessageIds.value = null;
-    forwardOpen.value = true;
+    shareMessage.value = msg;
+    shareMessageIds.value = null;
+    shareOpen.value = true;
     contactInfoOpen.value = false;
     messageInfoOpen.value = false;
 }
 
-function closeForward() {
-    forwardOpen.value = false;
-    forwardMessage.value = null;
-    forwardMessageIds.value = null;
+function closeShare() {
+    shareOpen.value = false;
+    shareMessage.value = null;
+    shareMessageIds.value = null;
+}
+
+function onShareSent(payload: { tab: 'clients' | 'colleagues'; count: number }): void {
+    const label = payload.tab === 'clients' ? 'клиентам' : 'сотрудникам';
+    showToast({ message: `Отправлено ${label}: ${payload.count}`, type: 'info' });
+    clearSelection();
 }
 
 function toggleSelectMessage(id: number) {
@@ -316,15 +335,9 @@ function clearSelection() {
 function openForwardSelected() {
     const ids = Array.from(selectedMessageIds.value);
     if (ids.length === 0) return;
-    if (forwardWhatsappSessionId.value == null) {
-        showToast({
-            message: 'У чата нет сессии WhatsApp (или она снята). Пересылка недоступна.',
-        });
-        return;
-    }
-    forwardMessage.value = null;
-    forwardMessageIds.value = ids;
-    forwardOpen.value = true;
+    shareMessage.value = null;
+    shareMessageIds.value = ids;
+    shareOpen.value = true;
     contactInfoOpen.value = false;
     messageInfoOpen.value = false;
 }
@@ -556,7 +569,8 @@ let echoChannel: any = null;
 function setupEcho() {
     if (!(window as any).Echo) return;
 
-    echoChannel = (window as any).Echo.private(`chat.${props.chat.id}`);
+    const tenantId = Number((usePage() as any).props.tenantCompanyId || 0);
+    echoChannel = (window as any).Echo.private(`t.${tenantId}.chat.${props.chat.id}`);
 
     echoChannel.listen('.message.received', (e: any) => {
         const msg = e.message as Message | undefined;
@@ -893,13 +907,11 @@ function cleanupEcho() {
                 />
             </template>
 
-            <ForwardMessageModal
-                v-if="forwardOpen && forwardWhatsappSessionId !== null"
-                :open="forwardOpen"
-                :message="forwardMessage || undefined"
-                :message-ids="forwardMessageIds || undefined"
-                :whatsapp-session-id="forwardWhatsappSessionId"
-                @close="closeForward"
+            <ShareMessageModal
+                :open="shareOpen"
+                :source="shareSource"
+                @close="closeShare"
+                @sent="onShareSent"
             />
 
         </div>

@@ -4,6 +4,8 @@ import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiFilterField from '@/Components/Ui/UiFilterField.vue';
+import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import type { Department } from '@/types';
 import { useToastStore } from '@/stores/toast';
@@ -621,40 +623,47 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 остаётся независимым.
             </p>
 
-            <div
-                class="ui-filter-panel ui-filter-panel--departments"
-            >
-                <input
-                    v-model="departmentSearch"
-                    type="search"
-                    class="settings-input"
-                    placeholder="Поиск по отделу, описанию, сотруднику, воронке"
-                />
-                <select v-model="departmentStatusFilter" class="settings-input">
-                    <option value="all">Любой статус</option>
-                    <option value="active">Активные</option>
-                    <option value="inactive">Неактивные</option>
-                </select>
-                <select v-model="departmentTypeFilter" class="settings-input">
-                    <option value="all">Все уровни</option>
-                    <option value="root">Только корневые</option>
-                    <option value="nested">Только подотделы</option>
-                </select>
-                <select v-model="departmentMembersFilter" class="settings-input">
-                    <option value="all">Любой состав</option>
-                    <option value="with_users">Есть сотрудники</option>
-                    <option value="empty">Без сотрудников</option>
-                </select>
-                <button
-                    type="button"
-                    class="px-4 py-2 text-sm rounded-lg transition hover:brightness-95 disabled:opacity-50"
-                    :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
-                    :disabled="!hasDepartmentFilters"
-                    @click="resetDepartmentFilters"
-                >
-                    Сбросить
-                </button>
-            </div>
+            <UiFilterPanel as="div">
+                <UiFilterField wide>
+                    <input
+                        v-model="departmentSearch"
+                        type="search"
+                        class="settings-input"
+                        placeholder="Поиск по отделу, описанию, сотруднику, воронке"
+                    />
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="departmentStatusFilter" class="settings-input">
+                        <option value="all">Любой статус</option>
+                        <option value="active">Активные</option>
+                        <option value="inactive">Неактивные</option>
+                    </select>
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="departmentTypeFilter" class="settings-input">
+                        <option value="all">Все уровни</option>
+                        <option value="root">Только корневые</option>
+                        <option value="nested">Только подотделы</option>
+                    </select>
+                </UiFilterField>
+                <UiFilterField>
+                    <select v-model="departmentMembersFilter" class="settings-input">
+                        <option value="all">Любой состав</option>
+                        <option value="with_users">Есть сотрудники</option>
+                        <option value="empty">Без сотрудников</option>
+                    </select>
+                </UiFilterField>
+                <template #actions>
+                    <button
+                        type="button"
+                        class="ui-btn ui-btn--secondary ui-btn--sm"
+                        :disabled="!hasDepartmentFilters"
+                        @click="resetDepartmentFilters"
+                    >
+                        Сбросить
+                    </button>
+                </template>
+            </UiFilterPanel>
 
             <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
                 <span>Показано {{ visibleDepartmentTree.length }} из {{ localDepartments.length }}</span>

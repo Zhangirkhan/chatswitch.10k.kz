@@ -23,10 +23,10 @@ const isAdmin = computed(() => roles.value.includes('administrator'));
             :style="{ background: 'var(--wa-empty-bg)', borderBottomColor: 'var(--wa-accent)' }"
         >
             <div class="text-center px-8">
-                <h1 class="text-[var(--wa-text)] text-[32px] font-light mb-4">ChatSwitch для Веба</h1>
+                <h1 class="text-[var(--wa-text)] text-[32px] font-light mb-4">Accel для Веба</h1>
                 <p class="text-[var(--wa-text-secondary)] text-sm max-w-[560px] mx-auto leading-relaxed">
                     Отправляйте и получайте сообщения без необходимости держать телефон в сети.
-                    Используйте ChatSwitch на нескольких WhatsApp-номерах из одного окна.
+                    Используйте Accel на нескольких WhatsApp-номерах из одного окна.
                 </p>
 
                 <div v-if="isAdmin" class="mt-8 flex items-center justify-center">

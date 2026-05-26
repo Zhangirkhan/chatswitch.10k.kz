@@ -23,7 +23,7 @@ const buildYear = computed(() => new Date().getFullYear());
                 </div>
             </a>
 
-            <a href="mailto:support@chatswitch.kz" class="help-item">
+            <a href="mailto:support@accel.kz" class="help-item">
                 <div class="help-icon">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 0v10a2 2 0 002 2h14a2 2 0 002-2V8m-18 0a2 2 0 012-2h14a2 2 0 012 2" />
@@ -31,7 +31,7 @@ const buildYear = computed(() => new Date().getFullYear());
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="text-[15px] text-[var(--wa-text)]">Связаться с нами</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)]">support@chatswitch.kz</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)]">support@accel.kz</div>
                 </div>
             </a>
 
@@ -60,7 +60,7 @@ const buildYear = computed(() => new Date().getFullYear());
             </a>
 
             <div class="px-6 py-6 text-xs text-[var(--wa-text-secondary)] text-center">
-                ChatSwitch · версия {{ appVersion }}
+                Accel · версия {{ appVersion }}
                 <br />
                 © {{ buildYear }} Все права защищены.
             </div>

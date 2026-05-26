@@ -47,7 +47,7 @@ const translationError = ref(false);
 const translationVisible = ref(false);
 
 const TRANSLATION_CACHE_KEY = (msgId: number, lang: string) =>
-    `chatswitch.translation.${msgId}.${lang}`;
+    `accel.translation.${msgId}.${lang}`;
 
 function getCachedTranslation(msgId: number, lang: string): string | null {
     try { return localStorage.getItem(TRANSLATION_CACHE_KEY(msgId, lang)); } catch { return null; }

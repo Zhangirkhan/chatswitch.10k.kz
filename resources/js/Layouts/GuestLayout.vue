@@ -19,7 +19,7 @@ import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
                         </svg>
                     </div>
                     <div>
-                        <h1 class="text-xl font-normal text-[var(--wa-text)]">ChatSwitch</h1>
+                        <h1 class="text-xl font-normal text-[var(--wa-text)]">Accel</h1>
                         <p class="text-xs text-[var(--wa-text-secondary)]">Multi-WhatsApp Management</p>
                     </div>
                 </div>
@@ -31,7 +31,7 @@ import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
         </div>
 
         <div class="text-center py-4 text-xs text-[var(--wa-text-secondary)]">
-            ChatSwitch &copy; {{ new Date().getFullYear() }}
+            Accel &copy; {{ new Date().getFullYear() }}
         </div>
 
         <ConnectionLostOverlay />

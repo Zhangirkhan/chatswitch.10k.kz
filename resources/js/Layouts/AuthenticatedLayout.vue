@@ -5,14 +5,17 @@ import Avatar from '@/Components/Avatar.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
 import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
 import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
+import ImpersonationBanner from '@/Components/ImpersonationBanner.vue';
 import PwaInstallBanner from '@/Components/PwaInstallBanner.vue';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
 import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
+import { whatsappStatusChannel as buildWhatsappStatusChannel } from '@/utils/tenantChannels';
 
 const page = usePage<any>();
+const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
 const user = computed(() => page.props.auth.user);
 const userId = computed(() => (typeof user.value?.id === 'number' ? user.value.id : null));
 
@@ -105,7 +108,7 @@ onMounted(() => {
     if (Echo) {
         if (canSubscribeToWhatsappStatus.value) {
             try {
-                whatsappStatusChannel = Echo.private('whatsapp-status');
+                whatsappStatusChannel = Echo.private(buildWhatsappStatusChannel(tenantCompanyId.value));
                 whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
             } catch {
                 whatsappStatusChannel = null;
@@ -120,7 +123,7 @@ onMounted(() => {
                 clearInterval(iv);
                 if (canSubscribeToWhatsappStatus.value) {
                     try {
-                        whatsappStatusChannel = (window as any).Echo.private('whatsapp-status');
+                        whatsappStatusChannel = (window as any).Echo.private(buildWhatsappStatusChannel(tenantCompanyId.value));
                         whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
                     } catch {
                         whatsappStatusChannel = null;
@@ -144,7 +147,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="h-screen w-screen flex bg-[var(--wa-page-bg)] text-[var(--wa-text)] overflow-hidden">
+    <ImpersonationBanner />
+    <div
+        class="h-screen w-screen flex bg-[var(--wa-page-bg)] text-[var(--wa-text)] overflow-hidden"
+        :class="{ 'has-impersonation-banner': Boolean(page.props.impersonation) }"
+    >
         <aside
             class="w-[60px] shrink-0 flex flex-col items-center py-3 border-r"
             :style="{ background: 'var(--wa-rail-bg)', borderColor: 'var(--wa-sidebar-divider)' }"
@@ -362,5 +369,10 @@ onUnmounted(() => {
 }
 .wa-session-chip-dot.is-offline {
     background: #ef4444;
+}
+
+.has-impersonation-banner {
+    padding-top: 2.25rem;
+    box-sizing: border-box;
 }
 </style>

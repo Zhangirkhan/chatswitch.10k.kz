@@ -18,7 +18,11 @@ const props = defineProps<{
     settings: Record<string, string>;
 }>();
 
-const form = ref<Record<string, string>>({ ...props.settings });
+const form = ref<Record<string, string>>(
+    Object.fromEntries(
+        Object.entries(props.settings).filter(([key]) => !key.startsWith('module_')),
+    ),
+);
 const isSaving = ref(false);
 const saved = ref(false);
 const quickReactionKey = 'chat.quick_reaction_emojis';
@@ -34,49 +38,6 @@ const settingsConfig = [
         key: 'analytics.sla_first_response_seconds',
         label: 'SLA первого ответа (секунды), для аналитики диалогов',
         type: 'number',
-    },
-];
-
-const modulesConfig: { key: string; label: string; description: string }[] = [
-    {
-        key: 'module_tasks',
-        label: 'Задачи и отделы',
-        description: 'Раздел «Организация»: отделы, задачи, комментарии и архив.',
-    },
-    {
-        key: 'module_calendar',
-        label: 'Календарь записей',
-        description: 'Позволяет сотрудникам создавать записи с повторениями (час, день, месяц).',
-    },
-    {
-        key: 'module_analytics',
-        label: 'Аналитика диалогов',
-        description: 'Раздел «Аналитика» в левой панели и страница /analytics/dialogs.',
-    },
-    {
-        key: 'module_funnels',
-        label: 'Воронки продаж',
-        description: 'Этапы и статусы сделок, аналитика воронок.',
-    },
-    {
-        key: 'module_products',
-        label: 'Товары',
-        description: 'Каталог товаров в базе знаний для AI.',
-    },
-    {
-        key: 'module_services',
-        label: 'Услуги',
-        description: 'Услуги, цены и условия в базе знаний для AI.',
-    },
-    {
-        key: 'module_knowledge',
-        label: 'База знаний',
-        description: 'Правила и инструкции для ответов AI.',
-    },
-    {
-        key: 'module_ai_quality',
-        label: 'AI и качество',
-        description: 'Журнал ошибок AI и оценки сгенерированных ответов.',
     },
 ];
 
@@ -122,14 +83,6 @@ function normalizeQuickReactions(values: unknown[]): string[] {
     }
 
     return normalized.slice(0, 5);
-}
-
-function moduleEnabled(key: string): boolean {
-    return (form.value[key] ?? 'on') !== 'off';
-}
-
-function toggleModule(key: string): void {
-    form.value[key] = moduleEnabled(key) ? 'off' : 'on';
 }
 
 function remindersEnabled(): boolean {
@@ -322,34 +275,6 @@ async function save() {
                 </div>
             </div>
 
-            <!-- Модули -->
-            <div
-                class="ui-settings-section ui-settings-section--narrow"
-            >
-                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Модули</h2>
-                <div class="space-y-3">
-                    <div
-                        v-for="mod in modulesConfig"
-                        :key="mod.key"
-                        class="module-row"
-                        :class="{ 'module-row-on': moduleEnabled(mod.key) }"
-                    >
-                        <div class="module-info">
-                            <span class="module-label">{{ mod.label }}</span>
-                            <span class="module-desc">{{ mod.description }}</span>
-                        </div>
-                        <button
-                            type="button"
-                            class="toggle-btn"
-                            :class="{ 'toggle-btn-on': moduleEnabled(mod.key) }"
-                            @click="toggleModule(mod.key)"
-                            :title="moduleEnabled(mod.key) ? 'Выключить' : 'Включить'"
-                        >
-                            <span class="toggle-thumb"></span>
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             <EntityMemoryPanel
                 v-if="tenantCompanyId"
@@ -393,36 +318,6 @@ async function save() {
     outline: none;
     border-color: var(--ui-accent);
     background: var(--ui-surface-muted);
-}
-
-/* Modules */
-.module-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--ui-border);
-    background: var(--ui-bg);
-    transition: border-color 0.2s;
-}
-.module-row-on {
-    border-color: var(--ui-accent);
-}
-.module-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-}
-.module-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--ui-text);
-}
-.module-desc {
-    font-size: 0.75rem;
-    color: var(--ui-text-secondary);
 }
 
 /* Toggle switch */

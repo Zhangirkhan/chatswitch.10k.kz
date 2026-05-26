@@ -951,13 +951,13 @@ function cancelRecording() {
 function onEmojiShortcut() {
     toggleEmoji();
 }
-window.addEventListener('chatswitch:toggle-emoji', onEmojiShortcut);
+window.addEventListener('accel:toggle-emoji', onEmojiShortcut);
 
 onBeforeUnmount(() => {
     if (recording.value) cancelRecording();
     clearPendingAttachments();
     unlockBodyScroll();
-    window.removeEventListener('chatswitch:toggle-emoji', onEmojiShortcut);
+    window.removeEventListener('accel:toggle-emoji', onEmojiShortcut);
 });
 
 // ===== Attachment preview composer =====

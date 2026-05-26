@@ -97,7 +97,7 @@ function cycleDisappearing(current: 'off' | '24h' | '7d' | '90d'): 'off' | '24h'
             />
             <SettingRow
                 title="Блокировка приложения"
-                subtitle="Для разблокировки ChatSwitch требуется ввести пароль"
+                subtitle="Для разблокировки Accel требуется ввести пароль"
                 @click="appLock = !appLock"
             >
                 <template #trailing>
@@ -115,7 +115,7 @@ function cycleDisappearing(current: 'off' | '24h' | '7d' | '90d'): 'off' | '24h'
             <SettingToggle
                 v-model="blockUnknown"
                 title="Блокировать сообщения от неизвестных аккаунтов"
-                description="Для защиты вашего аккаунта и улучшения работы устройства ChatSwitch будет блокировать сообщения от неизвестных аккаунтов, если их количество превысит определённый порог."
+                description="Для защиты вашего аккаунта и улучшения работы устройства Accel будет блокировать сообщения от неизвестных аккаунтов, если их количество превысит определённый порог."
                 help-link="#"
             />
 

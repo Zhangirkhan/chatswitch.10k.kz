@@ -15,7 +15,12 @@ const unread = computed<number>(() => {
     return listOwnership.value === 'mine' ? mine : all;
 });
 const orgOpen = computed<number>(() => Number(page.props.orgOpenTasksCount || 0));
+const teamChatUnread = computed<number>(() => Number(page.props.teamChatUnreadCount || 0));
 const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?? true));
+const orgTasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.org_tasks ?? false));
+const organizationHref = computed(() =>
+    orgTasksEnabled.value ? route('organization.index') : route('organization.team-chat.index'),
+);
 </script>
 
 <template>
@@ -39,7 +44,7 @@ const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?
         </Link>
         <Link
             v-if="tasksEnabled"
-            :href="route('organization.index')"
+            :href="organizationHref"
             class="ui-pill-nav__item"
             :class="{ 'is-active': active === 'organization' }"
         >
@@ -48,10 +53,15 @@ const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?
             </svg>
             <span class="truncate">Организация</span>
             <span
-                v-if="orgOpen > 0"
+                v-if="orgTasksEnabled && orgOpen > 0"
                 class="ui-tab-badge ui-tab-badge--warn"
                 :title="`Активных задач: ${orgOpen}`"
             >{{ orgOpen > 99 ? '99+' : orgOpen }}</span>
+            <span
+                v-else-if="!orgTasksEnabled && teamChatUnread > 0"
+                class="ui-tab-badge ui-tab-badge--team"
+                :title="`Непрочитанных в чате: ${teamChatUnread}`"
+            >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
         </Link>
     </UiPillNav>
 </template>

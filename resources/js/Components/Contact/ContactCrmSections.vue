@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
+
+const page = usePage();
+const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
 
 export type ContactCrmPayload = {
     deal: {
@@ -169,7 +173,11 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
             </ul>
         </div>
 
-        <div v-if="crm.open_tasks.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
+        <div
+            v-if="orgTasksEnabled && crm.open_tasks.length"
+            class="rounded-xl border p-3"
+            :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
+        >
             <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Открытые задачи</div>
             <ul class="space-y-2 text-sm">
                 <li v-for="task in crm.open_tasks" :key="task.id">

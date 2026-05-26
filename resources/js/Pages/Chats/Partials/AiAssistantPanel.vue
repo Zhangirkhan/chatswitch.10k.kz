@@ -88,7 +88,7 @@ let autoDraftTimer: number | null = null;
  * чтобы при повторном открытии панели не терять контекст «думаем над клиентом».
  * Чужой чат не должен видеть нашу подсказку — поэтому ключ привязан к id чата.
  */
-const storageKey = computed(() => `chatswitch:ai-assistant:${props.chatId}`);
+const storageKey = computed(() => `accel:ai-assistant:${props.chatId}`);
 
 function loadFromStorage(): void {
     try {

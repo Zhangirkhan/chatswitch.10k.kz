@@ -93,7 +93,7 @@ const archivedListHref = computed(() => {
     return s ? `${base}?${s}` : base;
 });
 
-const SEGMENT_KEY = 'chatswitch.chats.segment';
+const SEGMENT_KEY = 'accel.chats.segment';
 const searchQuery = ref(props.search || '');
 const searchFocused = ref(false);
 
@@ -208,7 +208,8 @@ function setupListEcho(): void {
     if (!Echo || !uid) return;
 
     try {
-        listEchoChannel = Echo.private(`chats.list.${uid}`);
+        const tenantId = Number(page.props.tenantCompanyId || 0);
+        listEchoChannel = Echo.private(`t.${tenantId}.chats.list.${uid}`);
 
         listEchoChannel.listen('.message.received', (e: any) => {
             const msg = e.message;
@@ -245,8 +246,8 @@ const headerMenuOpen = ref(false);
 const showNewChat = ref(false);
 
 // Dismissible info banners (remembered per-browser so they don't come back on reload)
-const NOTIF_BANNER_KEY = 'chatswitch.banner.notifications';
-const PROMO_BANNER_KEY = 'chatswitch.banner.promo';
+const NOTIF_BANNER_KEY = 'accel.banner.notifications';
+const PROMO_BANNER_KEY = 'accel.banner.promo';
 /** Баннер запроса разрешений на уведомления */
 const SHOW_NOTIFICATIONS_MUTED_BANNER = true;
 /** Пока скрыт промо-баннер (Facebook / Instagram) */
@@ -325,7 +326,7 @@ onMounted(async () => {
     document.addEventListener('visibilitychange', onVisibility);
     onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility));
 
-    const syncGroupsKey = 'chatswitch:sync-groups-session';
+    const syncGroupsKey = 'accel:sync-groups-session';
     if (!sessionStorage.getItem(syncGroupsKey)) {
         try {
             await axios.post(route('chats.sync-groups'));
@@ -360,7 +361,7 @@ async function enableNotifications() {
     const result = await Notification.requestPermission();
     if (result === 'granted') {
         // Включаем флаг в localStorage (тот же ключ, что читает useChatsListDesktopNotifications)
-        try { localStorage.setItem('chatswitch.settings.notifications.enabled', 'true'); } catch { /**/ }
+        try { localStorage.setItem('accel.settings.notifications.enabled', 'true'); } catch { /**/ }
         dismissNotifBanner();
     }
 }
@@ -497,7 +498,7 @@ const offNewChat = onShortcut('new-chat', () => {
 });
 const offNewGroup = onShortcut('new-group', () => {
     showNewChat.value = true;
-    window.dispatchEvent(new CustomEvent('chatswitch:new-chat-mode', { detail: 'group' }));
+    window.dispatchEvent(new CustomEvent('accel:new-chat-mode', { detail: 'group' }));
 });
 let removeListStart: (() => void) | undefined;
 let removeListFinish: (() => void) | undefined;
@@ -530,7 +531,7 @@ onBeforeUnmount(() => {
         <!-- Panel header -->
         <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
             <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
-                ChatSwitch
+                Accel
             </h1>
             <div class="flex items-center gap-1">
                 <button
@@ -772,7 +773,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="ui-chip ui-chip--danger shrink-0"
                         :class="{ 'is-active': listFilter === 'attention' }"
-                        title="AI: нужен менеджер, ошибка, низкая уверенность; клиент ждёт ответа 10+ мин; непрочитанные"
+                        title="AI: нужен менеджер, ошибка, низкая уверенность; непрочитанные"
                         @click="setAttentionFilter"
                     >
                         Внимание

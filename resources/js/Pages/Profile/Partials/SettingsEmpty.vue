@@ -15,7 +15,7 @@
                     <path d="M95 51c0-.55.45-1 1-1h4c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1h-4c-.55 0-1-.45-1-1v-6z" fill="#fff"/>
                 </svg>
                 <h3 class="text-[17px] text-[var(--wa-text)] mb-2">
-                    ChatSwitch работает в браузере
+                    Accel работает в браузере
                 </h3>
                 <p class="text-xs text-[var(--wa-text-secondary)] mb-4 leading-relaxed">
                     Все ваши чаты синхронизируются автоматически. Держите вкладку открытой для получения сообщений.

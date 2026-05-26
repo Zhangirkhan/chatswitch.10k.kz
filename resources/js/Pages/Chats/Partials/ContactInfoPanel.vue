@@ -78,6 +78,7 @@ const emit = defineEmits<{
 }>();
 
 const page = usePage<any>();
+const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
 
 function contactChatHref(chatId: number): string {
     return appendChatListOwnership(route('chats.show', chatId), page.props.listOwnership as string | undefined);
@@ -1068,6 +1069,7 @@ async function saveContactName() {
                             {{ quickActionLoading === 'manager' ? 'Передаём…' : 'Передать менеджеру' }}
                         </button>
                         <button
+                            v-if="orgTasksEnabled"
                             type="button"
                             class="quick-action-btn quick-action-btn-primary"
                             :disabled="quickActionLoading !== null"

@@ -11,6 +11,8 @@ import { useToastStore } from '@/stores/toast';
 import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
+import { whatsappSessionRingColor } from '@/utils/whatsappSessionColor';
+import type { WhatsappSession } from '@/types';
 
 const { show: showToast } = useToastStore();
 
@@ -20,6 +22,18 @@ const props = defineProps<{
 }>();
 
 const page = usePage<PageProps>();
+
+const hasMultipleWhatsappSessions = computed(
+    () => ((page.props.whatsappSessions as WhatsappSession[] | undefined)?.length ?? 0) > 1,
+);
+
+const sessionRingColor = computed(() => {
+    if (!hasMultipleWhatsappSessions.value) {
+        return null;
+    }
+
+    return whatsappSessionRingColor(props.chat.whatsapp_session);
+});
 
 const chatShowHref = computed(() =>
     appendChatListOwnership(route('chats.show', props.chat.id), page.props.listOwnership as string | undefined),
@@ -329,13 +343,6 @@ const muteSubtitle = computed<string>(() => {
     return `Уведомления выключены до ${time} ${date}`;
 });
 
-function getSessionLabel(chat: Chat): string {
-    if (!chat.whatsapp_session) return '';
-    return chat.whatsapp_session.display_name?.trim()
-        || formatPhone(chat.whatsapp_session.phone_number)
-        || '';
-}
-
 function sessionTooltip(chat: Chat): string {
     const s = chat.whatsapp_session;
     if (!s) return '';
@@ -344,23 +351,9 @@ function sessionTooltip(chat: Chat): string {
     return [label, num].filter(Boolean).join(' · ');
 }
 
-function sessionBadgeStyle(chat: Chat): Record<string, string> {
-    const c = chat.whatsapp_session?.display_color || '';
-    const color = c.trim();
-    if (!color) {
-        return { background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' };
-    }
-    // Use rgba background for widest browser support (avoid 8-digit hex).
-    const m = /^#?([0-9a-f]{6})$/i.exec(color);
-    if (m) {
-        const hex = m[1]!;
-        const r = parseInt(hex.slice(0, 2), 16);
-        const g = parseInt(hex.slice(2, 4), 16);
-        const b = parseInt(hex.slice(4, 6), 16);
-        return { background: `rgba(${r}, ${g}, ${b}, 0.13)`, color: `#${hex}` };
-    }
-    return { background: 'rgba(37, 211, 102, 0.16)', color };
-}
+const avatarTitle = computed(
+    () => sessionTooltip(props.chat) || displayName.value || undefined,
+);
 </script>
 
 <template>
@@ -371,12 +364,23 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
         preserve-state
         @contextmenu="openMenu"
     >
-        <Avatar
-            :avatar-url="chat.contact?.profile_picture_url"
-            :name="displayName"
-            :is-group="chat.is_group"
-            :size="49"
-        />
+        <div class="chat-list-avatar-stack shrink-0">
+            <Avatar
+                :avatar-url="chat.contact?.profile_picture_url"
+                :name="displayName"
+                :is-group="chat.is_group"
+                :size="49"
+                :ring-color="sessionRingColor"
+                :title="avatarTitle"
+            />
+            <span
+                v-if="showAiPill"
+                class="chat-list-ai-mark"
+                title="AI-ассистент включён"
+            >
+                AI
+            </span>
+        </div>
 
         <div class="flex-1 min-w-0 border-b border-[var(--wa-divider)] group-hover:border-transparent pb-3 -mb-3 pt-0.5">
             <div class="flex items-center justify-between">
@@ -405,30 +409,15 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
                         class="text-sm text-[var(--wa-text-secondary)] truncate min-w-0"
                     />
                     <div
-                        v-if="getSessionLabel(chat) || showAssigneePill || showAiPill || showAttentionPill"
+                        v-if="showAssigneePill || showAttentionPill"
                         class="flex max-w-full min-w-0 flex-col items-start gap-1"
                     >
-                        <span
-                            v-if="getSessionLabel(chat)"
-                            class="max-w-full truncate text-[10px] px-1.5 py-0 rounded font-medium"
-                            :style="sessionBadgeStyle(chat)"
-                            :title="sessionTooltip(chat)"
-                        >
-                            {{ getSessionLabel(chat) }}
-                        </span>
                         <span
                             v-if="showAssigneePill"
                             class="min-w-0 max-w-full text-[10px] px-1.5 py-0.5 rounded font-medium assignee-pill assignee-pill-expanded leading-snug"
                             :title="assigneePillTitle"
                         >
                             {{ assigneePillLabel }}
-                        </span>
-                        <span
-                            v-if="showAiPill"
-                            class="text-[10px] px-1.5 py-0.5 rounded font-semibold ai-pill leading-none"
-                            title="AI-ассистент включён в этом чате"
-                        >
-                            AI
                         </span>
                         <span
                             v-if="showAttentionPill"
@@ -612,11 +601,33 @@ function sessionBadgeStyle(chat: Chat): Record<string, string> {
     overflow-wrap: anywhere;
     word-break: break-word;
 }
-.ai-pill {
-    background: var(--wa-chroma-violet-bg-18);
-    color: var(--wa-chroma-violet-fg);
-    border: 1px solid var(--wa-chroma-violet-border-38);
+.chat-list-avatar-stack {
+    position: relative;
+    width: 49px;
+    height: 49px;
+    flex-shrink: 0;
+}
+
+.chat-list-ai-mark {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.125rem;
+    height: 1.125rem;
+    padding: 0 0.25rem;
+    border-radius: 999px;
+    font-size: 0.5rem;
+    font-weight: 700;
+    line-height: 1;
     letter-spacing: 0.04em;
+    color: var(--wa-chroma-violet-fg);
+    background: var(--icon-cutout, var(--wa-panel));
+    border: 1px solid var(--wa-chroma-violet-border-38);
+    pointer-events: none;
 }
 
 .bottom-meta {
