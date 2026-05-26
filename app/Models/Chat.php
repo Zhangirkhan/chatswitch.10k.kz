@@ -149,6 +149,19 @@ final class Chat extends Model
         return $this->hasMany(ChatAssignment::class);
     }
 
+    /**
+     * Есть ли на чате вручную назначенный активный сотрудник.
+     * Пока назначений нет, AI отвечает от имени компании без личной подписи.
+     */
+    public function hasManualAssignees(): bool
+    {
+        if ($this->relationLoaded('assignments')) {
+            return $this->assignments->isNotEmpty();
+        }
+
+        return $this->assignments()->exists();
+    }
+
     public function assignedUsers(): HasMany
     {
         return $this->hasMany(ChatAssignment::class);

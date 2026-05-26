@@ -20,6 +20,7 @@ use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\Funnel\FunnelStageTransitionGuard;
+use App\Services\AI\AiResponderResolver;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\TeamChatService;
 use App\Services\TeamDepartmentChatSyncService;
@@ -37,6 +38,7 @@ final class AiFunnelActionExecutor
         private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
         private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
+        private readonly AiResponderResolver $responderResolver,
     ) {}
 
     /**
@@ -207,6 +209,7 @@ final class AiFunnelActionExecutor
                     'mode' => 'orchestrator',
                     'trigger_message_id' => $trigger->id,
                     'orchestrator_action_id' => $action->id,
+                    'reply_as_company' => $this->responderResolver->replyAsCompany($chat),
                 ],
             ],
         ])->message;

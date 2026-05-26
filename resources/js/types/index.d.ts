@@ -78,6 +78,7 @@ export interface Chat {
     whatsapp_session_id: number | null;
     contact_id: number | null;
     company_id?: number | null;
+    company?: { id: number; name: string } | null;
     chat_name: string | null;
     is_group: boolean;
     last_message_text: string | null;

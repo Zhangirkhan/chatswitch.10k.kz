@@ -16,6 +16,13 @@ use Illuminate\Support\Collection;
  */
 final class AiResponderResolver
 {
+    public function replyAsCompany(Chat $chat): bool
+    {
+        $chat->loadMissing('assignments.user');
+
+        return ! $chat->hasManualAssignees();
+    }
+
     public function forChat(Chat $chat, ?FunnelAiScenario $scenario = null): ?User
     {
         $chat->loadMissing(['aiResponder', 'assignments.user', 'departments']);

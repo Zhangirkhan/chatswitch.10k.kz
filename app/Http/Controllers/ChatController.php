@@ -167,6 +167,7 @@ final class ChatController extends Controller
 
         $chat->load([
             'contact',
+            'company:id,name',
             'whatsappSession',
             'assignments.user',
             'departments',

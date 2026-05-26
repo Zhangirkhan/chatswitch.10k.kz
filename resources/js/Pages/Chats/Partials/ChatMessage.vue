@@ -338,6 +338,17 @@ const operatorDisplayName = computed(() => {
     return n !== '' ? n : '?';
 });
 
+const aiBadgeLabel = computed(() => {
+    const meta = props.message.metadata as { ai?: { reply_as_company?: boolean } } | null | undefined;
+    const replyAsCompany = meta?.ai?.reply_as_company === true
+        || ((props.chat?.assignments?.length ?? 0) === 0);
+    if (replyAsCompany) {
+        const companyName = (props.chat?.company?.name || page.props.auth?.user?.company?.name || 'Компания').trim();
+        return `${companyName !== '' ? companyName : 'Компания'} (AI)`;
+    }
+    return `${operatorDisplayName.value} (AI)`;
+});
+
 const operatorInitial = computed(() => {
     const n = operatorDisplayName.value;
     return n.charAt(0).toUpperCase();
@@ -1324,7 +1335,7 @@ onBeforeUnmount(() => {
                     {{ groupSenderLabel }}
                 </span>
                 <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
-                    {{ operatorDisplayName }} (AI)
+                    {{ aiBadgeLabel }}
                 </span>
                 <div class="wa-contact-card-main">
                     <div class="wa-contact-avatar">
@@ -1388,7 +1399,7 @@ onBeforeUnmount(() => {
                     {{ groupSenderLabel }}
                 </span>
                 <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
-                    {{ operatorDisplayName }} (AI)
+                    {{ aiBadgeLabel }}
                 </span>
                 <div
                     v-if="showAiDecision && aiDecision"

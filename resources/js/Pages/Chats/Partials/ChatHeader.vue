@@ -491,7 +491,9 @@ async function patchAiSettings(payload: Record<string, unknown>): Promise<void> 
     await axios.patch(route('chats.ai.update', props.chat.id), {
         ai_enabled: aiEnabled.value,
         ai_mode: aiMode.value,
-        ai_responder_user_id: props.chat.ai_responder_user_id || selectedUserIds.value[0] || null,
+        ai_responder_user_id: selectedUserIds.value.length > 0
+            ? (props.chat.ai_responder_user_id || selectedUserIds.value[0] || null)
+            : null,
         company_id: props.chat.company_id || page.props.auth?.user?.company_id || null,
         ...payload,
     });

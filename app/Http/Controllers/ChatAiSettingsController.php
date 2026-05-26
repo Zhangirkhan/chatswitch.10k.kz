@@ -59,10 +59,12 @@ final class ChatAiSettingsController extends Controller
             }
         }
 
+        $chat->loadMissing('assignments.user');
+
         $chat->forceFill([
             'ai_enabled' => $aiEnabled,
             'ai_mode' => (string) ($validated['ai_mode'] ?? $chat->ai_mode ?? 'auto'),
-            'ai_responder_user_id' => $responder?->id,
+            'ai_responder_user_id' => $chat->hasManualAssignees() ? $responder?->id : null,
             'company_id' => $companyId,
         ])->save();
 
@@ -131,7 +133,8 @@ final class ChatAiSettingsController extends Controller
             return $actor;
         }
 
-        return $chat->assignments()->with('user')->first()?->user;
+        return $chat->assignments()->with('user')->first()?->user
+            ?? $this->responderResolver->forChat($chat, $chat->funnel?->aiScenario);
     }
 
     private function resolveCompanyId(): int

@@ -113,6 +113,7 @@ final class GenerateAiReplyJob implements ShouldQueue
                         'generated' => true,
                         'mode' => 'auto',
                         'trigger_message_id' => $trigger->id,
+                        'reply_as_company' => $responderResolver->replyAsCompany($chat),
                     ],
                     ...($generated['metadata'] ?? []),
                 ],

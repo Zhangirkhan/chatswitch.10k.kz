@@ -9,6 +9,7 @@ use App\Models\CompanyToneProfile;
 use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\OperatorSignature;
@@ -36,6 +37,7 @@ final class PromptBuilder
         private readonly EntityMemoryService $entityMemories,
         private readonly PromptCompressionCache $compressionCache,
         private readonly WhatsappAiTypingService $whatsappTyping,
+        private readonly LocalePromptAugmenter $localeAugmenter,
     ) {}
 
     /**
@@ -43,18 +45,23 @@ final class PromptBuilder
      */
     public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null): array
     {
+        $chat->loadMissing(['assignments.user', 'company:id,name']);
         $companyId ??= $chat->company_id ?? $responder->company_id;
+        $replyAsCompany = ! $chat->hasManualAssignees();
         $question = trim($clientQuestion) !== ''
             ? trim($clientQuestion)
             : 'Ответь на последнее сообщение клиента.';
-        $system = $this->systemPrompt($chat, $responder, $companyId, $question);
-        $context = $this->conversationContext($chat);
+        $system = $this->systemPrompt($chat, $responder, $companyId, $question, $replyAsCompany);
+        $context = $this->conversationContext($chat, $replyAsCompany);
         $continuity = $this->aiContinuityContext($chat);
+
+        $localeMessages = $this->localeAugmenter->augmentAsMessages($question, $chat, $companyId);
 
         $messages = [
             ['role' => 'system', 'content' => $system],
             ['role' => 'system', 'content' => $context],
             ['role' => 'system', 'content' => $continuity],
+            ...$localeMessages,
             ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"],
         ];
 
@@ -64,21 +71,35 @@ final class PromptBuilder
         ];
     }
 
-    private function systemPrompt(Chat $chat, User $responder, ?int $companyId, string $clientQuestion): string
-    {
+    private function systemPrompt(
+        Chat $chat,
+        User $responder,
+        ?int $companyId,
+        string $clientQuestion,
+        bool $replyAsCompany,
+    ): string {
         $knowledgeBlock = $companyId !== null
             ? $this->knowledgeBlock($chat, $companyId, $clientQuestion)
             : 'База знаний компании не выбрана.';
         $toneBlock = $companyId !== null
-            ? $this->toneBlock($responder, $companyId)
+            ? ($replyAsCompany ? $this->companyToneBlock($companyId) : $this->toneBlock($responder, $companyId))
             : 'Профиль тона сотрудника недоступен.';
         $calendarBlock = $this->calendarContext->buildContextBlock($responder);
-        $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder);
+        $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder, $replyAsCompany);
         $memoryBlock = $this->entityMemoryBlock($chat, $responder);
+        $companyName = trim((string) ($chat->company?->name ?? '')) ?: 'компании';
         $responderName = trim($responder->name) !== '' ? $responder->name : 'сотрудник';
 
+        $personaLine = $replyAsCompany
+            ? "Ты — AI-ассистент поддержки в Accel. Ты формируешь ответ клиенту от имени компании «{$companyName}». На чат пока не назначен конкретный сотрудник: не называй своё имя, не представляйся личностью и не ссылайся на конкретного менеджера — пиши от лица компании («мы», «у нас»)."
+            : "Ты — AI-ассистент поддержки в Accel. Ты формируешь ответ клиенту от имени сотрудника «{$responderName}».";
+
+        $companyRules = $replyAsCompany
+            ? "\n18. Не используй формулировки «меня зовут», «я [имя]», не подписывайся именем сотрудника.\n19. Если нужно передать вопрос человеку — скажи нейтрально, что уточним и вернёмся с ответом, без указания кого именно."
+            : '';
+
         return <<<PROMPT
-Ты — AI-ассистент поддержки в Accel. Ты формируешь ответ клиенту от имени сотрудника "{$responderName}".
+{$personaLine}
 
 Правила:
 1. Отвечай только на основании базы знаний, истории чата и профиля тона.
@@ -95,6 +116,9 @@ final class PromptBuilder
 12. Не повторяй уже сказанные клиенту цену, размеры, условия и наличие без необходимости. Если клиент уточнил деталь или подтвердил выбор — коротко подтверди следующий шаг.
 13. Блок "последние AI-ответы" используй только чтобы не повторяться и продолжать диалог. Не используй его как источник фактов: факты бери из базы знаний и ручной истории.
 14. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
+15. Язык и тон ответа — по блоку «Языковой профиль» ниже: подстраивайся под клиента, по умолчанию вежливо и умеренно формально.
+16. Казахский пиши казахской кириллицей (ә, ө, ү, ұ, қ, ң, ғ, һ, і). Смешивай русский и казахский только если клиент сам так пишет.
+17. Не исправляй грамматику клиента. Не используй карикатурный сленг, если клиент пишет официально.{$companyRules}
 {$this->productAttachments->promptInstruction()}
 
 {$knowledgeBlock}
@@ -183,13 +207,18 @@ PROMPT;
         return "Личный профиль тона сотрудника ещё не собран. Временно используй общий стиль компании ({$source}):\n{$summary}\nТипичные формулировки компании: {$phrases}";
     }
 
-    private function styleExamplesBlock(Chat $chat, User $responder): string
+    private function styleExamplesBlock(Chat $chat, User $responder, bool $replyAsCompany = false): string
     {
-        $examples = Message::query()
+        $query = Message::query()
             ->where('chat_id', $chat->id)
             ->where('direction', 'outbound')
-            ->where('sent_by_user_id', $responder->id)
-            ->whereNotNull('body')
+            ->whereNotNull('body');
+
+        if (! $replyAsCompany) {
+            $query->where('sent_by_user_id', $responder->id);
+        }
+
+        $examples = $query
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->limit(self::STYLE_EXAMPLES_LIMIT)
@@ -201,17 +230,21 @@ PROMPT;
             ->values();
 
         if ($examples->isEmpty()) {
-            return 'Живые примеры последних ручных сообщений сотрудника в этом чате: нет.';
+            return $replyAsCompany
+                ? 'Живые примеры исходящих сообщений компании в этом чате: нет.'
+                : 'Живые примеры последних ручных сообщений сотрудника в этом чате: нет.';
         }
 
         $lines = $examples
             ->map(fn (string $body): string => '- '.Str::limit($body, 220, '...'))
             ->implode("\n");
 
-        return "Живые примеры последних ручных сообщений сотрудника в этом чате. Это главный источник стиля и формулировок:\n{$lines}";
+        return $replyAsCompany
+            ? "Живые примеры исходящих сообщений в этом чате (стиль компании, без имён сотрудников):\n{$lines}"
+            : "Живые примеры последних ручных сообщений сотрудника в этом чате. Это главный источник стиля и формулировок:\n{$lines}";
     }
 
-    private function conversationContext(Chat $chat): string
+    private function conversationContext(Chat $chat, bool $replyAsCompany = false): string
     {
         $messages = $this->recentMessages($chat);
         if ($messages->isEmpty()) {
@@ -220,7 +253,7 @@ PROMPT;
 
         $lines = ['Полная история чата от первого сообщения к последнему:'];
         foreach ($messages as $message) {
-            $lines[] = $this->formatMessage($message);
+            $lines[] = $this->formatMessage($message, $replyAsCompany);
         }
 
         $fullContext = implode("\n", $lines);
@@ -289,7 +322,7 @@ PROMPT;
             ->values();
     }
 
-    private function formatMessage(Message $message): string
+    private function formatMessage(Message $message, bool $replyAsCompany = false): string
     {
         $body = trim((string) $message->body);
         if ($message->direction === 'outbound') {
@@ -302,6 +335,10 @@ PROMPT;
         $time = optional($message->message_timestamp)->format('Y-m-d H:i') ?? '';
 
         if ($message->direction === 'outbound') {
+            if ($replyAsCompany) {
+                return "[{$time}] Компания: {$body}";
+            }
+
             $name = $message->sentByUser?->name ?: 'Сотрудник';
 
             return "[{$time}] Сотрудник {$name}: {$body}";

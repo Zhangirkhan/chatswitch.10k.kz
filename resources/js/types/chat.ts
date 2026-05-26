@@ -64,6 +64,7 @@ export interface Chat {
     company_id?: number | null;
     contact_id: number | null;
     contact?: Contact | null;
+    company?: { id: number; name: string } | null;
     whatsapp_session?: WhatsappSession;
     assignments?: ChatAssignment[];
     departments?: Department[];
