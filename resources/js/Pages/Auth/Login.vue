@@ -1,12 +1,16 @@
 <script setup lang="ts">
+import AuthRecaptcha from '@/Components/Recaptcha/AuthRecaptcha.vue';
+import PinLoginPad from '@/Components/Auth/PinLoginPad.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import { useRecaptcha } from '@/composables/useRecaptcha';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
-defineProps<{
+const props = defineProps<{
     canResetPassword?: boolean;
     status?: string;
+    pinLoginAvailable?: boolean;
 }>();
 
 const page = usePage();
@@ -15,17 +19,89 @@ const flashError = computed(() => {
     return flash?.error ?? null;
 });
 
+const isSuperAdminHost = computed(
+    () => (page.props as { isSuperAdminHost?: boolean }).isSuperAdminHost === true,
+);
+
+const loginMode = ref<'email' | 'pin'>('email');
+
+const loginAction = computed(() => {
+    if (isSuperAdminHost.value) {
+        return route('super.login.attempt');
+    }
+
+    const slug = (page.props as { tenantSlug?: string | null }).tenantSlug;
+    if (!slug) {
+        throw new Error('Не удалось определить поддомен тенанта для входа.');
+    }
+
+    return route('login', { tenant: slug });
+});
+
+const pinLoginAction = computed(() => {
+    const slug = (page.props as { tenantSlug?: string | null }).tenantSlug;
+    if (!slug) {
+        throw new Error('Не удалось определить поддомен тенанта для входа.');
+    }
+
+    return route('login.pin', { tenant: slug });
+});
+
+const { enabled: recaptchaEnabled } = useRecaptcha();
+const recaptchaRef = ref<InstanceType<typeof AuthRecaptcha> | null>(null);
+
 const form = useForm({
     email: '',
     password: '',
     remember: false,
+    recaptcha_token: '',
 });
 
-const submit = () => {
-    form.post(route('login'), {
-        onFinish: () => form.reset('password'),
+const pinForm = useForm({
+    pin: '',
+    remember: false,
+});
+
+const submit = async () => {
+    if (recaptchaEnabled.value) {
+        try {
+            form.recaptcha_token = (await recaptchaRef.value?.resolveToken('login')) ?? '';
+        } catch {
+            form.setError('recaptcha_token', 'Не удалось загрузить reCAPTCHA. Обновите страницу.');
+            return;
+        }
+
+        if (!form.recaptcha_token) {
+            form.setError('recaptcha_token', 'Подтвердите, что вы не робот.');
+            return;
+        }
+    }
+
+    form.post(loginAction.value, {
+        onFinish: () => {
+            form.reset('password');
+            recaptchaRef.value?.reset();
+        },
     });
 };
+
+function submitPin(): void {
+    if (pinForm.pin.length < 4) {
+        return;
+    }
+
+    pinForm.post(pinLoginAction.value, {
+        onFinish: () => {
+            pinForm.reset('pin');
+        },
+    });
+}
+
+function switchMode(mode: 'email' | 'pin'): void {
+    loginMode.value = mode;
+    form.clearErrors();
+    pinForm.clearErrors();
+}
 </script>
 
 <template>
@@ -40,7 +116,37 @@ const submit = () => {
             {{ flashError }}
         </div>
 
-        <form @submit.prevent="submit" class="space-y-5">
+        <div
+            v-if="props.pinLoginAvailable && !isSuperAdminHost"
+            class="mb-5 grid grid-cols-2 gap-1 rounded-lg p-1"
+            :style="{ background: 'var(--wa-panel-input)' }"
+            role="tablist"
+        >
+            <button
+                type="button"
+                class="rounded-md py-2 text-sm font-medium transition"
+                :class="loginMode === 'email' ? 'text-[var(--wa-text)]' : 'text-[var(--wa-text-secondary)]'"
+                :style="loginMode === 'email' ? { background: 'var(--wa-accent)', color: '#fff' } : undefined"
+                role="tab"
+                :aria-selected="loginMode === 'email'"
+                @click="switchMode('email')"
+            >
+                Email
+            </button>
+            <button
+                type="button"
+                class="rounded-md py-2 text-sm font-medium transition"
+                :class="loginMode === 'pin' ? 'text-[var(--wa-text)]' : 'text-[var(--wa-text-secondary)]'"
+                :style="loginMode === 'pin' ? { background: 'var(--wa-accent)', color: '#fff' } : undefined"
+                role="tab"
+                :aria-selected="loginMode === 'pin'"
+                @click="switchMode('pin')"
+            >
+                PIN
+            </button>
+        </div>
+
+        <form v-if="loginMode === 'email' || isSuperAdminHost || !props.pinLoginAvailable" class="space-y-5" @submit.prevent="submit">
             <div>
                 <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">Электронная почта</label>
                 <input
@@ -54,9 +160,9 @@ const submit = () => {
                     :style="{
                         background: 'var(--wa-panel-input)',
                         color: 'var(--wa-text)',
-                        borderColor: 'var(--wa-border)'
+                        borderColor: 'var(--wa-border)',
                     }"
-                    placeholder="admin@chatswitch.10k.kz"
+                    placeholder="admin@accel.kz"
                 />
                 <p v-if="form.errors.email" class="mt-1 text-xs text-red-400">{{ form.errors.email }}</p>
             </div>
@@ -73,7 +179,7 @@ const submit = () => {
                     :style="{
                         background: 'var(--wa-panel-input)',
                         color: 'var(--wa-text)',
-                        borderColor: 'var(--wa-border)'
+                        borderColor: 'var(--wa-border)',
                     }"
                     placeholder="Введите пароль"
                 />
@@ -87,6 +193,11 @@ const submit = () => {
                 </label>
             </div>
 
+            <AuthRecaptcha ref="recaptchaRef" />
+            <p v-if="form.errors.recaptcha_token" class="text-xs text-red-400 text-center">
+                {{ form.errors.recaptcha_token }}
+            </p>
+
             <button
                 type="submit"
                 :disabled="form.processing"
@@ -97,5 +208,19 @@ const submit = () => {
                 <span v-else>Войти</span>
             </button>
         </form>
+
+        <div v-else class="space-y-4">
+            <PinLoginPad
+                v-model="pinForm.pin"
+                :disabled="pinForm.processing"
+                :error="pinForm.errors.pin"
+                @submit="submitPin"
+            />
+
+            <label class="flex items-center justify-center gap-2 cursor-pointer">
+                <UiCheckbox v-model="pinForm.remember" size="sm" />
+                <span class="text-sm text-[var(--wa-text-secondary)]">Запомнить</span>
+            </label>
+        </div>
     </GuestLayout>
 </template>

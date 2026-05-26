@@ -1,21 +1,44 @@
 <script setup lang="ts">
+import AuthRecaptcha from '@/Components/Recaptcha/AuthRecaptcha.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import { useRecaptcha } from '@/composables/useRecaptcha';
 import { Head, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 defineProps<{
     status?: string;
 }>();
 
+const { enabled: recaptchaEnabled } = useRecaptcha();
+const recaptchaRef = ref<InstanceType<typeof AuthRecaptcha> | null>(null);
+
 const form = useForm({
     email: '',
+    recaptcha_token: '',
 });
 
-const submit = () => {
-    form.post(route('password.email'));
+const submit = async () => {
+    if (recaptchaEnabled.value) {
+        try {
+            form.recaptcha_token = (await recaptchaRef.value?.resolveToken('forgot_password')) ?? '';
+        } catch {
+            form.setError('recaptcha_token', 'Не удалось загрузить reCAPTCHA. Обновите страницу.');
+            return;
+        }
+
+        if (!form.recaptcha_token) {
+            form.setError('recaptcha_token', 'Подтвердите, что вы не робот.');
+            return;
+        }
+    }
+
+    form.post(route('password.email'), {
+        onFinish: () => recaptchaRef.value?.reset(),
+    });
 };
 </script>
 
@@ -51,6 +74,11 @@ const submit = () => {
                 />
 
                 <InputError class="mt-2" :message="form.errors.email" />
+            </div>
+
+            <div class="mt-4">
+                <AuthRecaptcha ref="recaptchaRef" />
+                <InputError class="mt-2" :message="form.errors.recaptcha_token" />
             </div>
 
             <div class="mt-4 flex items-center justify-end">
