@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Models\User;
+use App\Services\AI\Locale\KazakhstanLocaleProfile;
+use App\Services\AI\Locale\LocalePromptAugmenter;
 use RuntimeException;
 
 final class AiWorkspaceService
@@ -14,6 +16,7 @@ final class AiWorkspaceService
         private readonly AiWorkspaceSearchService $search,
         private readonly AiWorkspaceVisualizationService $visualizations,
         private readonly AiWorkspaceContextBuilder $contextBuilder,
+        private readonly LocalePromptAugmenter $localeAugmenter,
     ) {}
 
     /**
@@ -40,7 +43,10 @@ final class AiWorkspaceService
             throw new RuntimeException('Введите запрос.');
         }
 
-        $parsed = $this->parseQuery($message, $history);
+        $localeAugment = $this->localeAugmenter->augment($message);
+        $localeProfile = $localeAugment['profile'];
+
+        $parsed = $this->parseQuery($message, $history, $localeProfile);
         $intent = (string) ($parsed['intent'] ?? 'answer');
 
         $contactFilters = is_array($parsed['contact_filters'] ?? null) ? $parsed['contact_filters'] : [];
@@ -86,7 +92,7 @@ final class AiWorkspaceService
         $ranAnySearch = $runContacts || $runMedia || $runMessages || $runCalendar || $runFunnel || $runTasks || $runEmployees;
 
         if ($dataContext !== '') {
-            $reply = $this->synthesizeReply($message, $history, $dataContext, $draftReply);
+            $reply = $this->synthesizeReply($message, $history, $dataContext, $draftReply, $localeProfile);
         } elseif ($ranAnySearch) {
             $reply = $this->buildResultReply($draftReply, $intent, $contacts, $media, $runContacts, $runMedia);
         } else {
@@ -132,8 +138,13 @@ final class AiWorkspaceService
     /**
      * @param  list<array{role: string, content: string}>  $history
      */
-    private function synthesizeReply(string $message, array $history, string $dataContext, string $draftReply): string
-    {
+    private function synthesizeReply(
+        string $message,
+        array $history,
+        string $dataContext,
+        string $draftReply,
+        KazakhstanLocaleProfile $localeProfile,
+    ): string {
         $historyMessages = [];
         foreach (array_slice($history, -8) as $turn) {
             if (! is_array($turn)) {
@@ -150,11 +161,14 @@ final class AiWorkspaceService
             ];
         }
 
+        $languageRule = $this->localeAugmenter->workspaceLanguageInstruction($localeProfile);
+
         $messages = [
             [
                 'role' => 'system',
-                'content' => <<<'PROMPT'
-Ты — ассистент Accel. Отвечай на русском языке кратко и по делу (2–6 предложений или список).
+                'content' => <<<PROMPT
+Ты — ассистент Accel. Отвечай кратко и по делу (2–6 предложений или список).
+{$languageRule}
 Используй ТОЛЬКО данные из блока «Данные из системы». Не выдумывай записи, сделки и сообщения.
 Если доступ запрещён — объясни это вежливо.
 Если данных нет — скажи прямо и предложи уточнить запрос.
@@ -178,7 +192,7 @@ PROMPT,
      * @param  list<array{role: string, content: string}>  $history
      * @return array<string, mixed>
      */
-    private function parseQuery(string $message, array $history): array
+    private function parseQuery(string $message, array $history, KazakhstanLocaleProfile $localeProfile): array
     {
         $historyMessages = [];
         foreach (array_slice($history, -12) as $turn) {
@@ -196,11 +210,14 @@ PROMPT,
             ];
         }
 
+        $languageRule = $this->localeAugmenter->workspaceLanguageInstruction($localeProfile);
+
         $messages = [
             [
                 'role' => 'system',
-                'content' => <<<'PROMPT'
+                'content' => <<<PROMPT
 Ты — ассистент CRM Accel. Пользователь формулирует запрос на русском или казахском.
+Черновик reply в JSON пиши на том же языке, что запрос: {$languageRule}
 Верни JSON:
 {
   "intent": "search_contacts|search_media|search_messages|search_funnel|search_calendar|search_tasks|search_employees|search_both|answer",

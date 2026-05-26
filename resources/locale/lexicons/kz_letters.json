@@ -1,0 +1,13 @@
+{
+  "kk_cyrillic": ["ә", "ө", "ү", "ұ", "қ", "ң", "ғ", "һ", "і", "Ә", "Ө", "Ү", "Ұ", "Қ", "Ң", "Ғ", "Һ", "І"],
+  "kk_latin_hints": ["a", "o", "u", "q", "ng", "gh", "h", "i"],
+  "translit_kk_words": [
+    "salam", "salem", "qalay", "qalaysyn", "qalaysiz", "zhaksy", "zhaksymyn", "rahmet", "keshir",
+    "bolady", "bolmaydy", "kerek", "emes", "iya", "joq", "bar", "oshy", "osinda", "kazir", "erteng",
+    "dostym", "brat", "apa", "aga", "zhiber", "zhiberem", "kel", "kelu", "kelisinbe", "kelipsinbe"
+  ],
+  "translit_ru_words": [
+    "privet", "poka", "spasibo", "pozhaluysta", "mozhete", "pomogite", "dokument", "skiny", "skin",
+    "norm", "che", "kratko", "horosho", "ponyal", "ponyala"
+  ]
+}

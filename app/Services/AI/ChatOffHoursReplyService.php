@@ -67,6 +67,7 @@ final class ChatOffHoursReplyService
                     'mode' => 'off_hours',
                     'trigger_message_id' => $trigger->id,
                     'department_id' => $department->id,
+                    'reply_as_company' => $this->responderResolver->replyAsCompany($chat),
                 ],
             ],
         ])->message;

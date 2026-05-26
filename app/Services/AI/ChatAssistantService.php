@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
@@ -33,6 +34,7 @@ final class ChatAssistantService
         private readonly OperatorCalendarContextBuilder $operatorCalendarContext,
         private readonly PromptBuilder $promptBuilder,
         private readonly ProductMessageAttachmentService $productAttachments,
+        private readonly LocalePromptAugmenter $localeAugmenter,
     ) {}
 
     /**
@@ -45,16 +47,29 @@ final class ChatAssistantService
      */
     public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): array
     {
+        $clientText = $this->latestClientMessageText($chat);
+        $localeContextText = $clientText !== '' ? $clientText : $userPrompt;
+        $localeAugment = $this->localeAugmenter->augment(
+            $localeContextText,
+            $chat,
+            $chat->company_id ?? $operator->company_id,
+        );
+        $localeLabel = $localeAugment['profile']->dominantLabel();
+
         $knowledgePrompt = $this->promptBuilder->build(
             $chat,
             $operator,
             $userPrompt !== '' ? $userPrompt : 'Подготовь черновик ответа клиенту.',
         );
         $messages = [
-            ['role' => 'system', 'content' => $this->buildSystemPrompt($chat, $operator)],
+            ['role' => 'system', 'content' => $this->buildSystemPrompt($chat, $operator, $localeLabel)],
             ...$knowledgePrompt['messages'],
             ['role' => 'system', 'content' => $this->buildConversationContext($chat)],
             ['role' => 'system', 'content' => $this->operatorCalendarContext->buildContextBlock($operator)],
+            ...array_map(
+                static fn (string $block): array => ['role' => 'system', 'content' => $block],
+                $localeAugment['blocks'],
+            ),
             ...$this->normalizeAssistantHistory($assistantHistory),
             ['role' => 'user', 'content' => $this->normalizeUserPrompt($userPrompt)],
         ];
@@ -75,7 +90,7 @@ final class ChatAssistantService
         ];
     }
 
-    private function buildSystemPrompt(Chat $chat, User $operator): string
+    private function buildSystemPrompt(Chat $chat, User $operator, string $clientLanguageLabel = 'не определён'): string
     {
         $contactName = $this->contactDisplay($chat);
         $operatorName = trim($operator->name) !== '' ? $operator->name : 'оператор';
@@ -92,6 +107,8 @@ final class ChatAssistantService
 5. Отвечать оператору по-русски, кратко и по делу. Если оператор просит
    "сформулируй ответ клиенту" — давай готовый текст ответа в кавычках или
    отдельным блоком, а ниже короткое пояснение, почему такая формулировка.
+   Черновик для клиента пиши на языке клиента (сейчас: {$clientLanguageLabel}), не на русском,
+   если клиент пишет на казахском или смешанно.
 6. Помни: оператор сейчас — {$operatorName}. Клиент — {$contactName}.
 7. Не выдавай служебную «шапку» оператора (вида "*Имя (Роль)*\n...") — операторы
    не пишут её сами, её добавляет система автоматически.
@@ -243,5 +260,18 @@ PROMPT;
         }
 
         return Str::limit($prompt, 4000, '…');
+    }
+
+    private function latestClientMessageText(Chat $chat): string
+    {
+        $body = Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'inbound')
+            ->whereNotNull('body')
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->value('body');
+
+        return trim((string) $body);
     }
 }

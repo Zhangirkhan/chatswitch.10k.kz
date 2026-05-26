@@ -1,0 +1,25 @@
+{"id":"formal_ru_1","input":"Здравствуйте, можете помочь?","expected_dominant":"ru","expected_formality":"formal","expect_mixed_reply":false}
+{"id":"formal_ru_2","input":"Помогите составить договор","expected_dominant":"ru","expected_formality":"formal","expect_mixed_reply":false}
+{"id":"casual_kk_1","input":"салам брат калайсын","expected_dominant":"kk","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"casual_kk_2","input":"қазір жібересіз бе?","expected_dominant":"kk","expected_formality":"neutral","expect_mixed_reply":false}
+{"id":"mixed_1","input":"скинь документти","expected_dominant":"mixed","expected_formality":"casual","expect_mixed_reply":true}
+{"id":"mixed_2","input":"осы тема норм","expected_dominant":"mixed","expected_formality":"casual","expect_mixed_reply":true}
+{"id":"mixed_3","input":"доставка барма астанаға","expected_dominant":"mixed","expected_formality":"casual","expect_mixed_reply":true}
+{"id":"translit_1","input":"privet brat kalaysyn","expected_dominant":"translit_mixed","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"translit_2","input":"zhiberemen dep edim","expected_dominant":"translit_mixed","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"translit_3","input":"iya brat baram","expected_dominant":"translit_mixed","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"ru_casual_1","input":"че там с заказом","expected_dominant":"ru","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"ru_casual_2","input":"привет есть скидка?","expected_dominant":"ru","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"kk_formal_1","input":"Сәлеметсіз бе, жазу керек","expected_dominant":"kk","expected_formality":"formal","expect_mixed_reply":false}
+{"id":"kk_formal_2","input":"қайырлы күн, кеңес керек","expected_dominant":"kk","expected_formality":"formal","expect_mixed_reply":false}
+{"id":"short_1","input":"ок","expected_dominant":"unknown","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"short_2","input":"ия","expected_dominant":"kk","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"short_3","input":"да","expected_dominant":"ru","expected_formality":"neutral","expect_mixed_reply":false}
+{"id":"neutral_ru_1","input":"Сколько стоит доставка?","expected_dominant":"ru","expected_formality":"neutral","expect_mixed_reply":false}
+{"id":"neutral_kk_1","input":"бағасы қанша?","expected_dominant":"kk","expected_formality":"neutral","expect_mixed_reply":false}
+{"id":"mixed_4","input":"брат ертен келесинбе","expected_dominant":"mixed","expected_formality":"casual","expect_mixed_reply":true}
+{"id":"en_mix_1","input":"urgent нужен ответ","expected_dominant":"mixed","expected_formality":"neutral","expect_mixed_reply":true}
+{"id":"ru_neutral_2","input":"можно на завтра запись?","expected_dominant":"ru","expected_formality":"neutral","expect_mixed_reply":false}
+{"id":"kk_casual_3","input":"келесіңбе ертең?","expected_dominant":"kk","expected_formality":"casual","expect_mixed_reply":false}
+{"id":"mixed_5","input":"норм беру","expected_dominant":"mixed","expected_formality":"casual","expect_mixed_reply":true}
+{"id":"formal_ru_3","input":"отправьте счёт на оплату","expected_dominant":"ru","expected_formality":"formal","expect_mixed_reply":false}

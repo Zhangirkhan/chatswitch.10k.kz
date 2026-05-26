@@ -82,6 +82,12 @@ Schedule::command('knowledge:index-embeddings')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('locale:index-embeddings')
+    ->dailyAt('04:45')
+    ->when(fn (): bool => (bool) config('locale_assistant.enabled', true))
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // БЗ: еженедельный эвристический аудит каталога (без LLM) — сводка в лог.
 Schedule::command('knowledge:catalog-audit')
     ->weeklyOn(0, '3:05')

@@ -9,6 +9,8 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\AI\Locale\KazakhstanLocaleDetector;
+use App\Services\AI\Locale\LocaleReplyGuard;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
@@ -29,6 +31,8 @@ final class AiReplyGenerator
         private readonly AppointmentBookingService $bookingService,
         private readonly AppointmentReminderSettings $appointmentReminderSettings,
         private readonly ProductMessageAttachmentService $productAttachments,
+        private readonly KazakhstanLocaleDetector $localeDetector,
+        private readonly LocaleReplyGuard $localeReplyGuard,
     ) {}
 
     /**
@@ -46,8 +50,10 @@ final class AiReplyGenerator
         }
 
         $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id);
+        $localeProfile = $this->localeDetector->detect($clientQuestion);
         $reply = trim($this->openAi->chat($built['messages'], 0.35, 700));
         $reply = $this->sanitizeReply($reply);
+        $reply = $this->localeReplyGuard->apply($reply, $localeProfile);
         $reply = $this->normalizeCurrency($reply);
         $parsed = $this->productAttachments->stripAttachMarker($reply);
         $reply = $parsed['reply'];
