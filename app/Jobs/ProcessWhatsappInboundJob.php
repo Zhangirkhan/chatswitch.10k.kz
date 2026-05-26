@@ -40,8 +40,7 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
         TenantContext $tenantContext,
-    ): void
-    {
+    ): void {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $session = WhatsappSession::query()
             ->withoutGlobalScope('tenant')
@@ -59,8 +58,11 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
             $tenantContext->setCompany($company);
         }
 
-        $message = DB::transaction(function () use ($chatService, $session): Message {
+        $chatId = 0;
+
+        $message = DB::transaction(function () use ($chatService, $session, &$chatId): Message {
             $chat = $chatService->findOrCreateChat($this->data, $session);
+            $chatId = (int) $chat->id;
             $message = $chatService->storeInboundMessage($chat, $session, $this->data);
             $message->load([
                 'media',
@@ -71,10 +73,18 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
                 'quotedMessage.media:id,message_id,mime_type,filename',
             ]);
 
-            broadcast(new NewMessageReceived($message, $chat->id));
-
             return $message;
         });
+
+        try {
+            broadcast(new NewMessageReceived($message, $chatId));
+        } catch (\Throwable $e) {
+            Log::warning('[whatsapp-inbound] broadcast failed, message kept in DB', [
+                'chat_id' => $chatId,
+                'message_id' => $message->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $message->loadMissing('chat');
 
