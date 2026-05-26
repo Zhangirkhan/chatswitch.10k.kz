@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\Department;
 use App\Models\TeamConversation;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
@@ -32,7 +33,7 @@ final class TeamDepartmentChatSyncService
             return TeamConversation::query()->withoutGlobalScope('tenant')->create([
                 'department_id' => $department->id,
                 'type' => TeamConversation::TYPE_DEPARTMENT,
-                'company_id' => $companyId,
+                'company_id' => $companyId ?? app(TenantContext::class)->companyIdOrNull(),
             ]);
         } catch (UniqueConstraintViolationException) {
             $conversation = TeamConversation::query()
@@ -130,8 +131,10 @@ final class TeamDepartmentChatSyncService
 
     private function refreshDepartmentConversationCompanyId(TeamConversation $conversation, Department $department): void
     {
-        $companyId = $this->inferCompanyIdForDepartment($department);
-        if ($companyId !== $conversation->company_id) {
+        $companyId = $this->inferCompanyIdForDepartment($department)
+            ?? app(TenantContext::class)->companyIdOrNull();
+
+        if ($companyId !== null && $companyId !== $conversation->company_id) {
             $conversation->forceFill(['company_id' => $companyId])->save();
         }
     }
