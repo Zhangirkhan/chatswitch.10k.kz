@@ -17,6 +17,7 @@ final class DepartmentPostSanitizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['accel.organization_department_tasks' => true]);
         foreach (['administrator', 'manager', 'employee'] as $r) {
             Role::findOrCreate($r);
         }

@@ -34,5 +34,9 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="FUNNEL_ENFORCE_SETTINGS_READINESS" value="false"/>
+        <env name="TENANCY_ROOT_DOMAIN" value="accel.kz"/>
+        <env name="TENANCY_FALLBACK_SLUG" value="demo"/>
+        <env name="SUPER_ADMIN_EMAIL" value="super@test.local"/>
+        <env name="RECAPTCHA_ENABLED" value="false"/>
     </php>
 </phpunit>

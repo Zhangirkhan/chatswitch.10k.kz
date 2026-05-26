@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -49,6 +50,22 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post('/logout');
 
         $this->assertGuest();
-        $response->assertRedirect('/');
+        $response->assertRedirect(route('login', ['tenant' => config('tenancy.fallback_slug', 'demo')], absolute: false));
+    }
+
+    public function test_authenticated_super_admin_is_redirected_from_login_to_dashboard(): void
+    {
+        $user = User::factory()->create([
+            'is_super_admin' => true,
+            'company_id' => null,
+        ]);
+
+        $adminHost = config('tenancy.admin_subdomain', 'app').'.'.config('tenancy.root_domain', 'accel.kz');
+        $this->withServerVariables(['HTTP_HOST' => $adminHost]);
+        URL::forceRootUrl('https://'.$adminHost);
+
+        $response = $this->actingAs($user)->get('https://'.$adminHost.'/login');
+
+        $response->assertRedirect(route('super.dashboard', absolute: false));
     }
 }
