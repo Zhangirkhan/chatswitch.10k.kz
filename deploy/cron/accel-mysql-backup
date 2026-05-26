@@ -1,0 +1,6 @@
+# Accel — ежедневный бэкап MySQL (chatswitch)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# 03:15 по времени сервера (APP_TIMEZONE=Asia/Almaty)
+15 3 * * * root /var/www/accel.kz/deploy/scripts/backup-mysql.sh >> /var/www/accel/shared/storage/logs/mysql-backup.log 2>&1
