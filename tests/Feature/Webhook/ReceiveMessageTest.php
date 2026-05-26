@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Webhook;
 
+use App\Jobs\AnalyzeChatFunnelJob;
+use App\Jobs\GenerateAiReplyJob;
 use App\Jobs\ProcessWhatsappInboundJob;
+use App\Jobs\RunAiFunnelOrchestratorJob;
 use App\Models\Chat;
 use App\Models\WhatsappSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,6 +93,14 @@ final class ReceiveMessageTest extends TestCase
     {
         $session = WhatsappSession::factory()->create(['session_name' => 'default']);
 
+        Bus::fake([
+            GenerateAiReplyJob::class,
+            RunAiFunnelOrchestratorJob::class,
+            AnalyzeChatFunnelJob::class,
+        ]);
+
+        config(['funnel.department_routing.enabled' => false]);
+
         $data = [
             'session' => 'default',
             'chatId' => '77771234567@c.us',
@@ -103,7 +114,8 @@ final class ReceiveMessageTest extends TestCase
             'messageId' => 'wa-msg-1',
         ];
 
-        (new ProcessWhatsappInboundJob($data))->handle(app(\App\Services\ChatService::class));
+        $job = new ProcessWhatsappInboundJob($data);
+        $this->app->call([$job, 'handle']);
 
         $chat = Chat::where('whatsapp_chat_id', '77771234567@c.us')
             ->where('whatsapp_session_id', $session->id)
