@@ -8,6 +8,13 @@ export type MessageStyleColors = {
     textOut: string;
     accent: string;
     tailShadow: string;
+    /** Фон блока цитаты; если не задан — считается от цвета пузыря. */
+    quoteBgIn?: string;
+    quoteBgOut?: string;
+    quoteAuthorIn?: string;
+    quoteAuthorOut?: string;
+    quoteTextIn?: string;
+    quoteTextOut?: string;
 };
 
 export interface MessageStylePreset {
@@ -74,22 +81,34 @@ export const messageStylePresets: MessageStylePreset[] = [
     {
         id: 'graphite',
         label: 'Графит',
-        description: 'Тёмные исходящие в светлой теме, белые — в тёмной',
+        description: 'Как в Telegram: #F1F1F1 / #2C2C2C',
         light: {
-            in: '#E9E9E9',
-            out: '#3F3F3F',
-            textIn: '#111111',
+            in: '#F1F1F1',
+            out: '#2C2C2C',
+            textIn: '#000000',
             textOut: '#FFFFFF',
-            accent: '#5A5A5A',
-            tailShadow: 'rgba(0, 0, 0, 0.18)',
+            accent: '#D1103A',
+            tailShadow: 'rgba(0, 0, 0, 0.15)',
+            quoteBgIn: '#E4E4E4',
+            quoteBgOut: '#3D3D3D',
+            quoteAuthorIn: '#D1103A',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: '#000000',
+            quoteTextOut: '#FFFFFF',
         },
         dark: {
-            in: '#333333',
+            in: '#2C2C2C',
             out: '#FFFFFF',
-            textIn: '#D6D6D6',
-            textOut: '#111111',
-            accent: '#B8B8B8',
-            tailShadow: 'rgba(0, 0, 0, 0.2)',
+            textIn: '#FFFFFF',
+            textOut: '#000000',
+            accent: '#FFFFFF',
+            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            quoteBgIn: '#3D3D3D',
+            quoteBgOut: '#E4E4E4',
+            quoteAuthorIn: '#FFFFFF',
+            quoteAuthorOut: '#000000',
+            quoteTextIn: '#FFFFFF',
+            quoteTextOut: '#000000',
         },
     },
     {
@@ -245,14 +264,20 @@ function quoteBodyColor(textColor: string): string {
 function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void {
     root.style.setProperty(
         '--wa-bubble-quote-author-in',
-        quoteAuthorColor(colors.in, colors.textIn, colors.accent),
+        colors.quoteAuthorIn ?? quoteAuthorColor(colors.in, colors.textIn, colors.accent),
     );
     root.style.setProperty(
         '--wa-bubble-quote-author-out',
-        quoteAuthorColor(colors.out, colors.textOut, colors.accent),
+        colors.quoteAuthorOut ?? quoteAuthorColor(colors.out, colors.textOut, colors.accent),
     );
-    root.style.setProperty('--wa-bubble-quote-text-in', quoteBodyColor(colors.textIn));
-    root.style.setProperty('--wa-bubble-quote-text-out', quoteBodyColor(colors.textOut));
+    root.style.setProperty(
+        '--wa-bubble-quote-text-in',
+        colors.quoteTextIn ?? quoteBodyColor(colors.textIn),
+    );
+    root.style.setProperty(
+        '--wa-bubble-quote-text-out',
+        colors.quoteTextOut ?? quoteBodyColor(colors.textOut),
+    );
 }
 
 function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
@@ -310,8 +335,14 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
     root.style.setProperty('--wa-bubble-text', colors.textIn);
     root.style.setProperty('--wa-bubble-tail-shadow', colors.tailShadow);
     root.style.setProperty('--wa-message-accent', colors.accent);
-    root.style.setProperty('--wa-bubble-quote-bg-in', quoteBg(colors.in, theme, 'in'));
-    root.style.setProperty('--wa-bubble-quote-bg-out', quoteBg(colors.out, theme, 'out'));
+    root.style.setProperty(
+        '--wa-bubble-quote-bg-in',
+        colors.quoteBgIn ?? quoteBg(colors.in, theme, 'in'),
+    );
+    root.style.setProperty(
+        '--wa-bubble-quote-bg-out',
+        colors.quoteBgOut ?? quoteBg(colors.out, theme, 'out'),
+    );
     applyQuoteTextVars(colors, root);
 }
 
