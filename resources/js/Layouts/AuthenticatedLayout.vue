@@ -35,6 +35,8 @@ const unreadChatsCount = computed<number>(() => {
     return liveUnread.count.value;
 });
 
+const calendarBadgeCount = computed<number>(() => Number(page.props.calendarBadgeCount || 0));
+
 // Синхронизируем синглтон когда Inertia обновляет пропы (навигация, reload)
 watch(
     () => page.props.unreadChatsCount as number | undefined,
@@ -222,7 +224,7 @@ onUnmounted(() => {
                 <Link
                     v-if="route().has('calendar.index') && page.props.modules?.calendar"
                     :href="route('calendar.index')"
-                    class="wa-rail-btn"
+                    class="wa-rail-btn relative"
                     :class="{ active: route().current('calendar.*') }"
                     title="Календарь"
                     aria-label="Календарь"
@@ -234,6 +236,14 @@ onUnmounted(() => {
                         <line x1="8" y1="2" x2="8" y2="6" stroke-linecap="round"/>
                         <line x1="3" y1="10" x2="21" y2="10" stroke-linecap="round"/>
                     </svg>
+                    <span
+                        v-if="calendarBadgeCount > 0"
+                        class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center px-1 leading-none"
+                        :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
+                        :title="`Записей сегодня: ${calendarBadgeCount}`"
+                    >
+                        {{ calendarBadgeCount > 99 ? '99+' : calendarBadgeCount }}
+                    </span>
                 </Link>
 
                 <Link

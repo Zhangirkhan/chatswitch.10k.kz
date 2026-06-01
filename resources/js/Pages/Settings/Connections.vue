@@ -36,6 +36,14 @@ type StatusResponse = {
 const props = defineProps<{
     sessions: WhatsappSession[];
     whatsappServiceReachable: boolean;
+    sessionLimits: {
+        global_max: number;
+        global_count: number;
+        tenant_max: number;
+        tenant_count: number;
+        remaining: number;
+        can_create: boolean;
+    };
 }>();
 
 const localSessions = ref<WhatsappSession[]>([...props.sessions]);
@@ -51,6 +59,10 @@ let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const hasSessions = computed(() => localSessions.value.length > 0);
 const hasMultipleSessions = computed(() => localSessions.value.length > 1);
+const canCreateSession = computed(() => props.sessionLimits.can_create && props.whatsappServiceReachable);
+const sessionLimitLabel = computed(
+    () => `${props.sessionLimits.tenant_count} / ${props.sessionLimits.tenant_max}`,
+);
 
 const editedRingPreviewColor = computed(() => {
     const normalized = normalizeHexColor(editedDisplayColor.value);
@@ -272,6 +284,11 @@ async function createSession(): Promise<void> {
         return;
     }
 
+    if (!props.sessionLimits.can_create) {
+        message.value = `Достигнут лимит сервера: ${props.sessionLimits.tenant_max} подключений для компании (${props.sessionLimits.global_count} / ${props.sessionLimits.global_max} на платформе).`;
+        return;
+    }
+
     isCreating.value = true;
     message.value = null;
 
@@ -447,7 +464,7 @@ function reloadPage(): void {
             <button
                 type="button"
                 class="ui-btn ui-btn--primary"
-                :disabled="isCreating || !whatsappServiceReachable"
+                :disabled="isCreating || !canCreateSession"
                 @click="createSession"
             >
                 {{ isCreating ? 'Создание...' : '+ Добавить подключение' }}
@@ -455,6 +472,14 @@ function reloadPage(): void {
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
+            <div class="ui-panel px-4 py-3 text-sm text-ui-text-secondary">
+                Подключений: <span class="font-semibold text-ui-text">{{ sessionLimitLabel }}</span>
+                <span class="mx-2 text-ui-text-muted">·</span>
+                На сервере: {{ sessionLimits.global_count }} / {{ sessionLimits.global_max }} (все компании)
+                <p v-if="!sessionLimits.can_create" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Лимит исчерпан — ограничение только по RAM/CPU сервера, не по тарифу.
+                </p>
+            </div>
             <div
                 v-if="!whatsappServiceReachable"
                 class="ui-alert ui-alert--warn"

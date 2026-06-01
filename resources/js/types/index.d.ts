@@ -84,6 +84,8 @@ export interface Chat {
     last_message_text: string | null;
     last_message_at: string | null;
     last_message_direction?: 'inbound' | 'outbound' | null;
+    /** Последнее сообщение — автоответ AI (вкладки «Клиенты» / «Сотрудники»). */
+    last_message_is_ai?: boolean;
     latest_message?: ChatLastMessagePreview | null;
     unread_count: number;
     is_archived: boolean;
@@ -185,6 +187,15 @@ export interface MessageMetadata {
     [key: string]: unknown;
 }
 
+export interface MessageTranscript {
+    kind: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'skipped';
+    text?: string | null;
+    error_message?: string | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+}
+
 export interface Message {
     id: number;
     chat_id: number;
@@ -206,6 +217,7 @@ export interface Message {
     message_timestamp: string | null;
     created_at: string | null;
     media: MessageMedia[];
+    transcript?: MessageTranscript | null;
     sent_by_user: { id: number; name: string } | null;
     whatsapp_session: { id: number; phone_number: string | null; display_name: string | null } | null;
     reactions?: MessageReaction[];

@@ -7,14 +7,16 @@ namespace App\Http\Middleware;
 use App\Models\Chat;
 use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
+use App\Models\TenantSignupRequest;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\Calendar\CalendarMenuBadgeService;
 use App\Services\Security\RecaptchaVerifier;
+use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\TeamDepartmentChatSyncService;
 use App\Support\OrganizationDepartmentTasks;
 use App\Support\QuickReactions;
 use App\Support\TenantCompany;
-use App\Models\TenantSignupRequest;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -62,7 +64,7 @@ final class HandleInertiaRequests extends Middleware
             'tenantCompanyId' => fn () => app(TenantContext::class)->companyIdOrNull() ?? TenantCompany::id(),
             'tenantSlug' => fn () => app(TenantContext::class)->slug(),
             'isSuperAdminHost' => fn () => app(TenantContext::class)->isAdminHost($request->getHost()),
-            'impersonation' => fn () => $request->session()->get(\App\Services\SuperAdmin\TenantImpersonationService::SESSION_KEY),
+            'impersonation' => fn () => $request->session()->get(TenantImpersonationService::SESSION_KEY),
             'auth' => [
                 'user' => $user ? array_merge(
                     $user->toArray(),
@@ -83,6 +85,7 @@ final class HandleInertiaRequests extends Middleware
             'unreadChatsCountMine' => fn () => $user ? $this->unreadChatsCountMine($user) : 0,
             'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
             'teamChatUnreadCount' => fn () => $user ? $this->teamChatUnreadTotal($user) : 0,
+            'calendarBadgeCount' => fn () => $user ? app(CalendarMenuBadgeService::class)->countFor($user) : 0,
             'whatsappSessions' => fn () => (
                 $user && ! app(TenantContext::class)->isAdminHost($request->getHost())
             ) ? $this->whatsappSessionsForUser($user) : [],
