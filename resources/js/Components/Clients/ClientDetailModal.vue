@@ -125,18 +125,18 @@ function sectionByKey(key: string) {
     <teleport to="body">
         <div
             v-if="client"
-            class="fixed inset-0 z-[450] overflow-y-auto px-3 py-4 sm:px-4 sm:py-6"
+            class="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-6"
             :style="{ background: 'rgba(0,0,0,.45)' }"
             @click.self="emit('close')"
         >
-            <div class="mx-auto flex min-h-[calc(100%-1rem)] max-w-[960px] items-center justify-center">
-                <div
-                    class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col rounded-2xl border overflow-hidden"
-                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
-                    role="dialog"
-                    aria-modal="true"
-                    :aria-label="`Профиль клиента ${displayName}`"
-                >
+            <div
+                class="client-detail-modal flex w-full max-w-[960px] flex-col rounded-2xl border overflow-hidden"
+                :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                role="dialog"
+                aria-modal="true"
+                :aria-label="`Профиль клиента ${displayName}`"
+                @click.stop
+            >
                     <header class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
                         <div class="flex min-w-0 items-center gap-3">
                             <UserAvatar :name="displayName" :src="client.profile_picture_url" :size="40" />
@@ -157,9 +157,8 @@ function sectionByKey(key: string) {
                         </button>
                     </header>
 
-                    <div class="min-h-0 flex-1 overflow-hidden">
-                        <div class="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[1fr_300px]">
-                            <div class="min-h-0 overflow-y-auto p-4 space-y-3">
+                    <div class="client-detail-modal__body min-h-0 flex flex-1 overflow-hidden">
+                        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
                                 <div v-if="profileLoading" class="py-10 text-center text-sm opacity-70">Загружаем профиль…</div>
                                 <div v-else-if="profileError" class="rounded-lg border px-4 py-3 text-sm" :style="{ borderColor: 'var(--ui-border)' }">{{ profileError }}</div>
                                 <template v-else-if="profile">
@@ -205,21 +204,23 @@ function sectionByKey(key: string) {
                                         :fields="sectionByKey('tasks_notes')!.fields"
                                     />
                                 </template>
-                            </div>
-
-                            <aside class="hidden lg:flex min-h-0 flex-col border-l overflow-hidden" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
-                                <div class="shrink-0 px-4 py-3 text-xs font-medium uppercase tracking-wide opacity-70">AI-сводка</div>
-                                <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-                                    <AiWorkspaceClientSummary
-                                        :summary="summary"
-                                        :loading="summaryLoading"
-                                        variant="chat"
-                                        :expanded="true"
-                                        hide-open-chat
-                                    />
-                                </div>
-                            </aside>
                         </div>
+
+                        <aside
+                            class="client-detail-modal__aside hidden min-h-0 w-[300px] shrink-0 border-l lg:flex lg:flex-col"
+                            :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }"
+                        >
+                            <div class="shrink-0 px-4 py-3 text-xs font-medium uppercase tracking-wide opacity-70">AI-сводка</div>
+                            <div class="client-detail-modal__aside-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
+                                <AiWorkspaceClientSummary
+                                    :summary="summary"
+                                    :loading="summaryLoading"
+                                    variant="chat"
+                                    :expanded="true"
+                                    hide-open-chat
+                                />
+                            </div>
+                        </aside>
                     </div>
 
                     <footer class="shrink-0 flex flex-wrap items-center gap-2 border-t px-4 py-3" :style="{ borderColor: 'var(--ui-border)' }">
@@ -251,13 +252,25 @@ function sectionByKey(key: string) {
                             Закрыть
                         </button>
                     </footer>
-                </div>
             </div>
         </div>
     </teleport>
 </template>
 
 <style scoped>
+.client-detail-modal {
+    height: min(90dvh, calc(100dvh - 2rem));
+    max-height: min(90dvh, calc(100dvh - 2rem));
+}
+
+.client-detail-modal__body {
+    flex-basis: 0;
+}
+
+.client-detail-modal__aside-scroll {
+    flex-basis: 0;
+}
+
 :deep(.ai-workspace-summary) {
     --sem-who: #8b5cf6;
     --sem-context: #f59e0b;
