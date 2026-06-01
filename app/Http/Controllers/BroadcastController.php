@@ -36,10 +36,14 @@ final class BroadcastController extends Controller
         $rateLimit = $defaultSessionId !== null
             ? $rateLimiter->snapshot((int) $defaultSessionId)
             : [
-                'max_per_hour' => BroadcastSendRateLimiter::MAX_MESSAGES_PER_HOUR,
+                'max_per_day' => BroadcastSendRateLimiter::MAX_MESSAGES_PER_DAY,
                 'delay_seconds' => $rateLimiter->delayBetweenMessages(),
+                'delay_seconds_min' => $rateLimiter->minDelayBetweenMessages(),
+                'delay_seconds_max' => $rateLimiter->maxDelayBetweenMessages(),
+                'sent_last_day' => 0,
+                'remaining' => BroadcastSendRateLimiter::MAX_MESSAGES_PER_DAY,
+                'max_per_hour' => BroadcastSendRateLimiter::MAX_MESSAGES_PER_DAY,
                 'sent_last_hour' => 0,
-                'remaining' => BroadcastSendRateLimiter::MAX_MESSAGES_PER_HOUR,
             ];
 
         return Inertia::render('Broadcasts/Index', [

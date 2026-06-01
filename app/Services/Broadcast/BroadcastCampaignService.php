@@ -206,7 +206,7 @@ final class BroadcastCampaignService
                 $scheduledAt = null;
                 if ($isReady) {
                     $scheduledAt = $scheduleAt->copy();
-                    $scheduleAt = $scheduleAt->addSeconds($delaySeconds);
+                    $scheduleAt = $scheduleAt->addSeconds($this->rateLimiter->randomDelayBetweenMessages());
                 }
 
                 $item = BroadcastCampaignItem::query()->create([
@@ -223,7 +223,7 @@ final class BroadcastCampaignService
                 ]);
 
                 if ($isReady && $scheduledAt !== null) {
-                    SendBroadcastCampaignItemJob::dispatch($item->id)->delay($scheduledAt);
+                    SendBroadcastCampaignItemJob::dispatch($item->id, (int) $session->company_id)->delay($scheduledAt);
                 } else {
                     $campaign->increment('skipped_count');
                 }

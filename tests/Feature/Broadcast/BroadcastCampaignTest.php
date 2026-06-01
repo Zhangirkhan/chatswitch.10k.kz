@@ -125,7 +125,7 @@ final class BroadcastCampaignTest extends TestCase
         $preview->assertJsonPath('rows.0.contact_name', 'Нургалиев Жангирхан');
     }
 
-    public function test_rejects_broadcast_when_hourly_quota_exceeded(): void
+    public function test_rejects_broadcast_when_daily_quota_exceeded(): void
     {
         Queue::fake();
 
@@ -142,7 +142,7 @@ final class BroadcastCampaignTest extends TestCase
             'whatsapp_chat_id' => '77001234567@c.us',
         ]);
 
-        for ($i = 0; $i < BroadcastSendRateLimiter::MAX_MESSAGES_PER_HOUR; $i++) {
+        for ($i = 0; $i < BroadcastSendRateLimiter::MAX_MESSAGES_PER_DAY; $i++) {
             Message::create([
                 'chat_id' => $chat->id,
                 'whatsapp_session_id' => $session->id,

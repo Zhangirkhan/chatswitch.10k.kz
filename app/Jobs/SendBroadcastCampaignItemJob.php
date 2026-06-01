@@ -30,6 +30,7 @@ final class SendBroadcastCampaignItemJob implements ShouldQueue
 
     public function __construct(
         public readonly int $itemId,
+        public readonly ?int $tenantCompanyId = null,
     ) {}
 
     public function viaQueue(): string
@@ -42,11 +43,20 @@ final class SendBroadcastCampaignItemJob implements ShouldQueue
         BroadcastCampaignService $campaignService,
         BroadcastSendRateLimiter $rateLimiter,
     ): void {
+        $claimed = BroadcastCampaignItem::query()
+            ->whereKey($this->itemId)
+            ->where('status', BroadcastCampaignItem::STATUS_PENDING)
+            ->update(['status' => BroadcastCampaignItem::STATUS_PROCESSING]);
+
+        if ($claimed !== 1) {
+            return;
+        }
+
         $item = BroadcastCampaignItem::query()
             ->with(['campaign.whatsappSession', 'campaign.sender'])
             ->find($this->itemId);
 
-        if ($item === null || $item->status !== BroadcastCampaignItem::STATUS_PENDING) {
+        if ($item === null) {
             return;
         }
 
@@ -71,7 +81,7 @@ final class SendBroadcastCampaignItemJob implements ShouldQueue
 
         $sessionId = (int) $campaign->whatsapp_session_id;
         if (! $rateLimiter->canSendNow($sessionId)) {
-            $this->release($rateLimiter->delayBetweenMessages());
+            $this->release($rateLimiter->randomDelayBetweenMessages());
 
             return;
         }
