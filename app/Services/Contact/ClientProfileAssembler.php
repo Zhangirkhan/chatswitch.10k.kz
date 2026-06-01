@@ -10,6 +10,7 @@ use App\Models\EntityMemory;
 use App\Models\User;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\ClientProfileFieldHelper;
+use App\Support\ContactFieldCatalog;
 use App\Support\TenantCompany;
 
 final class ClientProfileAssembler
@@ -18,6 +19,7 @@ final class ClientProfileAssembler
         private readonly ContactCardAssembler $cardAssembler,
         private readonly ContactBucketResolver $buckets,
         private readonly EntityMemoryService $entityMemory,
+        private readonly ContactProfileFieldFilter $fieldFilter,
     ) {}
 
     /**
@@ -46,7 +48,7 @@ final class ClientProfileAssembler
         $contactIds = $this->buckets->bucketIds($contact);
         $memory = $this->resolveMemory($contactIds, $contact->id);
 
-        return [
+        return $this->fieldFilter->apply($contact, [
             'contact_id' => $contact->id,
             'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
             'sections' => [
@@ -58,7 +60,7 @@ final class ClientProfileAssembler
                 $this->tasksNotesSection($crm, $memory['content']),
             ],
             'memory' => $memory,
-        ];
+        ]);
     }
 
     /**
@@ -364,9 +366,12 @@ final class ClientProfileAssembler
     /**
      * @return array{label: string, value: string, source: string}
      */
-    private function field(string $label, string $value, string $source): array
+    private function field(string $label, string $value, string $source, ?string $code = null): array
     {
+        $code ??= ContactFieldCatalog::labelToCodeMap()[$label] ?? null;
+
         return [
+            'code' => $code,
             'label' => $label,
             'value' => $value,
             'source' => $source,

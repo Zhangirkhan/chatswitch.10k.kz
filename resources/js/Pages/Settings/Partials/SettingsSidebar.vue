@@ -90,6 +90,13 @@ const adminItems: AdminItem[] = [
     },
     {
         kind: 'admin',
+        label: 'Поля контактов',
+        description: 'Видимость и свои поля CRM',
+        icon: 'clients',
+        routeName: 'settings.contact-fields',
+    },
+    {
+        kind: 'admin',
         label: 'Товары',
         description: 'Каталог товаров',
         icon: 'products',

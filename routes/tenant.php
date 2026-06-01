@@ -19,6 +19,7 @@ use App\Http\Controllers\ChatFollowUpProposalController;
 use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContactFieldDefinitionController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EntityMemoryController;
@@ -99,6 +100,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/chats/contacts', [ChatController::class, 'contacts'])->name('chats.contacts');
         Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
         Route::patch('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
+        Route::patch('/contacts/{contact}/fields', [ContactController::class, 'updateFields'])->name('contacts.fields.update');
         Route::get('/contacts/{contact}/card', [ContactController::class, 'card'])->name('contacts.card');
         Route::post('/contacts/upsert', [ContactController::class, 'upsert'])->name('contacts.upsert');
         Route::post('/chats/start', [ChatController::class, 'start'])->name('chats.start');
@@ -317,6 +319,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/promotions/{promotion}', [PromotionController::class, 'update'])->name('settings.promotions.update');
         Route::put('/promotions-settings', [PromotionController::class, 'updateSettings'])->name('settings.promotions.settings');
         Route::delete('/promotions/{promotion}', [PromotionController::class, 'destroy'])->name('settings.promotions.destroy');
+
+        Route::get('/contact-fields', [ContactFieldDefinitionController::class, 'index'])->name('settings.contact-fields');
+        Route::get('/contact-fields/list', [ContactFieldDefinitionController::class, 'list'])->name('settings.contact-fields.list');
+        Route::post('/contact-fields', [ContactFieldDefinitionController::class, 'store'])->name('settings.contact-fields.store');
+        Route::put('/contact-fields/visibility', [ContactFieldDefinitionController::class, 'syncVisibility'])->name('settings.contact-fields.visibility');
+        Route::delete('/contact-fields/{fieldDefinition}', [ContactFieldDefinitionController::class, 'destroy'])->name('settings.contact-fields.destroy');
 
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');

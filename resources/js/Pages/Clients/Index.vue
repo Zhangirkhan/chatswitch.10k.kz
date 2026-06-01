@@ -40,6 +40,7 @@ const props = defineProps<{
     companies: PaginationPayload<CompanyItem>;
     companyOptions: CompanyOption[];
     canManageCompanies: boolean;
+    canManageContactFields: boolean;
 }>();
 
 const { show: showToast } = useToastStore();
@@ -345,7 +346,12 @@ const companyDeleteDescription = computed(() => {
             </div>
         </div>
 
-        <ClientDetailModal :client="openedClient" @close="closeClient" @saved="onClientSaved" />
+        <ClientDetailModal
+            :client="openedClient"
+            :can-manage-contact-fields="canManageContactFields"
+            @close="closeClient"
+            @saved="onClientSaved"
+        />
 
         <teleport to="body">
             <div v-if="openedCompanyId !== null" class="fixed inset-0 z-[460] overflow-y-auto px-4 py-4 sm:py-8" :style="{ background: 'rgba(0,0,0,.45)' }" @click.self="closeCompany">

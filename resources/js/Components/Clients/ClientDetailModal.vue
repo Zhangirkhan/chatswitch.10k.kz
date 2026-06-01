@@ -6,6 +6,9 @@ import ClientFinancePlaceholder from '@/Components/Clients/ClientFinancePlacehol
 import ClientProfileSection from '@/Components/Clients/ClientProfileSection.vue';
 import type { ClientListItem, ClientProfile } from '@/Components/Clients/clientProfileTypes';
 import { mergeSummaryIntoProfile } from '@/Components/Clients/clientProfileMerge';
+import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
+import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
+import type { ClientProfileField } from '@/Components/Clients/clientProfileTypes';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -31,6 +34,7 @@ function invalidateDetailCache(contactId: number): void {
 
 const props = defineProps<{
     client: ClientListItem | null;
+    canManageContactFields?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -47,6 +51,8 @@ const summaryLoading = ref(false);
 const profileError = ref<string | null>(null);
 const editingName = ref('');
 const saving = ref(false);
+const fieldPickerOpen = ref(false);
+const addFieldOpen = ref(false);
 
 const displayName = computed(() => {
     if (!props.client) {
@@ -159,6 +165,34 @@ async function loadSummary(contactId: number, cacheKey: string): Promise<void> {
     }
 }
 
+async function saveCustomField(field: ClientProfileField, value: unknown): Promise<void> {
+    if (!props.client?.id || !field.definition_id) {
+        return;
+    }
+
+    const cacheKey = detailCacheKey(props.client.id, props.client.primary_chat_id);
+
+    try {
+        const { data } = await axios.patch(route('contacts.fields.update', props.client.id), {
+            fields: [{ field_id: field.definition_id, value }],
+        });
+        const nextProfile = data.profile as ClientProfile;
+        profile.value = nextProfile;
+        profileCache.set(cacheKey, nextProfile);
+    } catch {
+        showToast({ message: 'Не удалось сохранить поле', duration: 3500 });
+    }
+}
+
+function onFieldsUpdated(): void {
+    if (!props.client?.id) {
+        return;
+    }
+    invalidateDetailCache(props.client.id);
+    const cacheKey = detailCacheKey(props.client.id, props.client.primary_chat_id);
+    void loadProfile(props.client.id, cacheKey);
+}
+
 async function saveName(): Promise<void> {
     if (!props.client || saving.value) {
         return;
@@ -217,9 +251,31 @@ function sectionByKey(key: string) {
                                 {{ client.stage.name }}
                             </span>
                         </div>
-                        <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" aria-label="Закрыть" @click="emit('close')">
-                            ✕
-                        </button>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <template v-if="canManageContactFields">
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-2.5 py-1.5 text-xs"
+                                    :style="{ background: 'var(--ui-surface)' }"
+                                    title="Выбор полей"
+                                    @click="fieldPickerOpen = true"
+                                >
+                                    Поля
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-2.5 py-1.5 text-xs"
+                                    :style="{ background: 'var(--ui-surface)' }"
+                                    title="Добавить поле"
+                                    @click="addFieldOpen = true"
+                                >
+                                    + Поле
+                                </button>
+                            </template>
+                            <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" aria-label="Закрыть" @click="emit('close')">
+                                ✕
+                            </button>
+                        </div>
                     </header>
 
                     <div class="client-detail-modal__body min-h-0 flex flex-1 overflow-hidden">
@@ -232,12 +288,16 @@ function sectionByKey(key: string) {
                                         :title="sectionByKey('basic')!.title"
                                         :semantic="sectionByKey('basic')!.semantic"
                                         :fields="sectionByKey('basic')!.fields"
+                                        :editable="canManageContactFields"
+                                        @save-field="saveCustomField"
                                     />
                                     <ClientProfileSection
                                         v-if="sectionByKey('contacts')"
                                         :title="sectionByKey('contacts')!.title"
                                         :semantic="sectionByKey('contacts')!.semantic"
                                         :fields="sectionByKey('contacts')!.fields"
+                                        :editable="canManageContactFields"
+                                        @save-field="saveCustomField"
                                     />
                                     <ClientProfileSection
                                         v-if="sectionByKey('finance')"
@@ -253,6 +313,8 @@ function sectionByKey(key: string) {
                                         :title="sectionByKey('b2b')!.title"
                                         :semantic="sectionByKey('b2b')!.semantic"
                                         :fields="sectionByKey('b2b')!.fields"
+                                        :editable="canManageContactFields"
+                                        @save-field="saveCustomField"
                                     />
                                     <ClientProfileSection
                                         v-if="sectionByKey('history')"
@@ -267,6 +329,8 @@ function sectionByKey(key: string) {
                                         :title="sectionByKey('tasks_notes')!.title"
                                         :semantic="sectionByKey('tasks_notes')!.semantic"
                                         :fields="sectionByKey('tasks_notes')!.fields"
+                                        :editable="canManageContactFields"
+                                        @save-field="saveCustomField"
                                     />
                                 </template>
                         </div>
@@ -319,6 +383,17 @@ function sectionByKey(key: string) {
                     </footer>
             </div>
         </div>
+
+        <ContactFieldPickerModal
+            :open="fieldPickerOpen"
+            @close="fieldPickerOpen = false"
+            @updated="onFieldsUpdated"
+        />
+        <ContactAddFieldModal
+            :open="addFieldOpen"
+            @close="addFieldOpen = false"
+            @created="onFieldsUpdated"
+        />
     </teleport>
 </template>
 

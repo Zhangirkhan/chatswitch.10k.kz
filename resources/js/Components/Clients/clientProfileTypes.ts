@@ -1,7 +1,12 @@
 export type ClientProfileField = {
+    code?: string | null;
+    definition_id?: number;
     label: string;
     value: string;
-    source: 'crm' | 'memory' | 'chat' | 'ai';
+    source: 'crm' | 'memory' | 'chat' | 'ai' | 'custom';
+    type?: string;
+    editable?: boolean;
+    options?: { choices?: string[] } | null;
 };
 
 export type ClientProfileActivityItem = {
@@ -36,6 +41,15 @@ export type ClientProfile = {
         memory_contact_id: number | null;
     };
     ai_enriched?: boolean;
+    field_definitions?: Array<{
+        id: number;
+        code: string;
+        label: string;
+        type: string;
+        section: string;
+        is_visible: boolean;
+        options?: { choices?: string[] } | null;
+    }>;
 };
 
 export type ClientListItem = {

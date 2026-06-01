@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\User;
 use App\Services\AI\AiWorkspaceClientSummaryService;
+use App\Services\Contact\ContactFieldValueService;
 use App\Services\Contact\ClientProfileAiService;
 use App\Services\Contact\ClientProfileAssembler;
 use App\Services\Contact\ContactBucketResolver;
@@ -31,6 +32,7 @@ final class ContactController extends Controller
         private readonly ContactBucketResolver $contactBucketResolver,
         private readonly ClientProfileAssembler $clientProfileAssembler,
         private readonly ClientProfileAiService $clientProfileAiService,
+        private readonly ContactFieldValueService $contactFieldValues,
     ) {}
 
     public function settingsIndex(Request $request): RedirectResponse
@@ -168,6 +170,7 @@ final class ContactController extends Controller
                 : $this->emptyPagination(),
             'companyOptions' => $companyOptions,
             'canManageCompanies' => $user->hasRole('administrator'),
+            'canManageContactFields' => $user->hasRole('administrator'),
         ]);
     }
 
@@ -415,6 +418,24 @@ final class ContactController extends Controller
             ->update(['chat_name' => $newChatName]);
 
         return response()->json(['success' => true, 'contact' => $contact]);
+    }
+
+    public function updateFields(Request $request, Contact $contact): JsonResponse
+    {
+        $this->authorize('update', $contact);
+        abort_unless($request->user()?->hasRole('administrator'), 403);
+
+        $data = $request->validate([
+            'fields' => ['required', 'array'],
+            'fields.*.field_id' => ['required', 'integer'],
+            'fields.*.value' => ['nullable'],
+        ]);
+
+        $this->contactFieldValues->upsertForContact($contact, $data['fields']);
+
+        $profile = $this->clientProfileAssembler->build($request->user(), $contact);
+
+        return response()->json(['profile' => $profile]);
     }
 
     public function syncCompanies(Request $request, Contact $contact): JsonResponse
