@@ -621,9 +621,8 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <div class="ai-workspace__topbar-actions">
+                    <div v-if="hasResults" class="ai-workspace__topbar-actions">
                         <button
-                            v-if="hasResults"
                             type="button"
                             class="ai-workspace__results-toggle"
                             :class="{ 'is-active': resultsOpen }"
@@ -633,17 +632,6 @@ onMounted(() => {
                             <span class="ai-workspace__results-badge">
                                 {{ resultsCount }}
                             </span>
-                        </button>
-                        <button
-                            type="button"
-                            class="ai-workspace__icon-btn"
-                            title="Новый чат"
-                            aria-label="Новый чат"
-                            @click="startNewChat"
-                        >
-                            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                            </svg>
                         </button>
                     </div>
                 </header>
