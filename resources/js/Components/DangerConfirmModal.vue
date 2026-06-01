@@ -64,7 +64,7 @@ const confirmButtonClass = computed(() =>
                     </h3>
                     <button
                         type="button"
-                        class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] disabled:opacity-40"
+                        class="danger-confirm-close w-9 h-9 shrink-0 rounded-full flex items-center justify-center disabled:opacity-40"
                         aria-label="Закрыть"
                         :disabled="busy"
                         @click="emit('close')"
@@ -103,3 +103,15 @@ const confirmButtonClass = computed(() =>
         </div>
     </Teleport>
 </template>
+
+<style scoped>
+.danger-confirm-close {
+    color: var(--wa-danger);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.danger-confirm-close:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--wa-danger) 10%, var(--wa-panel-hover));
+    color: color-mix(in srgb, var(--wa-danger) 86%, var(--wa-text));
+}
+</style>

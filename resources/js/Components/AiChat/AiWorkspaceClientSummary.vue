@@ -233,8 +233,12 @@ function sectionSemantic(title: string): SectionSemantic {
                                 <path stroke-linecap="round" d="M12 12a4 4 0 100-8 4 4 0 000 8z" />
                                 <path stroke-linecap="round" d="M5 20a7 7 0 0114 0" />
                             </svg>
-                            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                                <path stroke-linecap="round" d="M12 3l2.4 4.8 5.4.8-3.9 3.8.9 5.3L12 15.8 7.2 17.7l.9-5.3L4.2 8.6l5.4-.8L12 3z" />
+                            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85">
+                                <polygon
+                                    points="12 3.4 14.65 8.77 20.58 9.63 16.29 13.81 17.3 19.72 12 16.93 6.7 19.72 7.71 13.81 3.42 9.63 9.35 8.77 12 3.4"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
                             </svg>
                         </span>
                         <div class="summary-profile__content min-w-0">
@@ -295,9 +299,9 @@ function sectionSemantic(title: string): SectionSemantic {
     --sem-who: #9b8fb8;
     --sem-who-bg: color-mix(in srgb, var(--sem-who) 14%, var(--wa-panel));
     --sem-who-border: color-mix(in srgb, var(--sem-who) 28%, var(--wa-border));
-    --sem-prefs: #7a92b0;
-    --sem-prefs-bg: color-mix(in srgb, var(--sem-prefs) 14%, var(--wa-panel));
-    --sem-prefs-border: color-mix(in srgb, var(--sem-prefs) 28%, var(--wa-border));
+    --sem-prefs: #d4a72c;
+    --sem-prefs-bg: color-mix(in srgb, var(--sem-prefs) 15%, var(--wa-panel));
+    --sem-prefs-border: color-mix(in srgb, var(--sem-prefs) 34%, var(--wa-border));
     --sem-context: #b8945f;
     --sem-context-bg: color-mix(in srgb, var(--sem-context) 15%, var(--wa-panel));
     --sem-context-border: color-mix(in srgb, var(--sem-context) 30%, var(--wa-border));
@@ -642,6 +646,11 @@ function sectionSemantic(title: string): SectionSemantic {
 .summary-profile__item--preferences .summary-profile__icon {
     color: var(--sem-prefs);
     background: color-mix(in srgb, var(--sem-prefs) 18%, var(--wa-panel));
+}
+
+.summary-profile__item--preferences .summary-profile__icon svg {
+    width: 1.0625rem;
+    height: 1.0625rem;
 }
 
 .summary-profile__content {

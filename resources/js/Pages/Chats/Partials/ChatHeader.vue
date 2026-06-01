@@ -3014,6 +3014,20 @@ async function saveFunnelModal() {
         transform 0.15s ease;
 }
 
+.header-ai-assistant-btn.ui-status-badge--idle {
+    color: #ffffff;
+    background: var(--wa-ai-enabled, #01b964);
+    border-color: color-mix(in srgb, var(--wa-ai-enabled, #01b964) 72%, #000 28%);
+    box-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--wa-ai-enabled, #01b964) 82%, #000),
+        0 1px 1px 0 rgba(0, 0, 0, 0.22);
+}
+
+.header-ai-assistant-btn.ui-status-badge--idle:hover:not(:disabled) {
+    background: var(--wa-ai-enabled-hover, #08d878);
+    border-color: color-mix(in srgb, var(--wa-ai-enabled-hover, #08d878) 72%, #000 28%);
+}
+
 .header-ai-assistant-btn__icon {
     width: 1.05rem;
     height: 1.05rem;
