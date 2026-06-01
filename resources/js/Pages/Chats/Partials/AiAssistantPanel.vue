@@ -509,10 +509,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             class="shrink-0 border-b"
             :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-sidebar-divider)' }"
         >
-            <div class="min-h-[60px] py-2 px-4 flex items-center gap-3">
+            <div class="min-h-[60px] py-1.5 px-4 flex items-center gap-3">
                 <button
                     type="button"
-                    class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                    class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
                     title="Закрыть"
                     @click="emit('close')"
                 >
@@ -520,8 +520,8 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
-                <div class="flex-1 min-w-0">
-                    <h2 class="text-base leading-tight truncate" :style="{ color: 'var(--wa-text)' }">
+                <div class="flex-1 min-w-0 leading-tight">
+                    <h2 class="text-base leading-tight truncate font-normal" :style="{ color: 'var(--wa-text)' }">
                         AI-ассистент
                     </h2>
                     <p
