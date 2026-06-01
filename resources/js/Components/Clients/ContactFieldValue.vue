@@ -149,7 +149,7 @@ function fileUrl(): string | null {
                     </a>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <label class="cursor-pointer rounded-lg px-3 py-1.5 text-xs" :style="{ background: 'var(--ui-surface-muted)' }">
+                    <label class="ui-btn ui-btn--secondary ui-btn--sm cursor-pointer">
                         {{ uploading ? 'Загрузка…' : 'Загрузить' }}
                         <input
                             type="file"
@@ -162,8 +162,7 @@ function fileUrl(): string | null {
                     <button
                         v-if="previewUrl || fileUrl()"
                         type="button"
-                        class="rounded-lg px-3 py-1.5 text-xs"
-                        :style="{ background: 'var(--ui-surface-muted)' }"
+                        class="ui-btn ui-btn--ghost ui-btn--sm"
                         @click="emit('clear', field)"
                     >
                         Удалить
@@ -173,8 +172,7 @@ function fileUrl(): string | null {
 
             <select
                 v-else-if="fieldType === 'boolean'"
-                class="w-full rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                :style="{ background: 'var(--ui-surface-muted)' }"
+                class="ui-select ui-field-control"
                 :value="booleanDraft()"
                 @change="onBooleanChange"
             >
@@ -185,8 +183,7 @@ function fileUrl(): string | null {
 
             <select
                 v-else-if="fieldType === 'list' && field.options?.choices?.length"
-                class="w-full rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                :style="{ background: 'var(--ui-surface-muted)' }"
+                class="ui-select ui-field-control"
                 :value="textDraft()"
                 @change="onBlur"
             >
@@ -197,15 +194,13 @@ function fileUrl(): string | null {
             <div v-else-if="fieldType === 'money'" class="flex gap-2">
                 <input
                     type="text"
-                    class="min-w-0 flex-1 rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                    :style="{ background: 'var(--ui-surface-muted)' }"
+                    class="ui-input ui-field-control min-w-0 flex-1"
                     :value="moneyDraft().amount"
                     placeholder="Сумма"
                     @blur="onMoneyBlur(($event.target as HTMLInputElement).value, moneyDraft().currency)"
                 />
                 <select
-                    class="rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                    :style="{ background: 'var(--ui-surface-muted)' }"
+                    class="ui-select ui-field-control max-w-[7rem]"
                     :value="moneyDraft().currency"
                     @change="onMoneyBlur(moneyDraft().amount, ($event.target as HTMLSelectElement).value)"
                 >
@@ -216,8 +211,7 @@ function fileUrl(): string | null {
             <textarea
                 v-else-if="fieldType === 'text' || fieldType === 'address'"
                 rows="2"
-                class="w-full rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                :style="{ background: 'var(--ui-surface-muted)' }"
+                class="ui-input ui-field-control"
                 :value="textDraft()"
                 @blur="onBlur"
             />
@@ -225,11 +219,23 @@ function fileUrl(): string | null {
             <input
                 v-else
                 :type="fieldType === 'number' ? 'number' : fieldType === 'date' ? 'date' : fieldType === 'datetime' ? 'datetime-local' : fieldType === 'link' ? 'url' : 'text'"
-                class="w-full rounded-lg border-0 px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
-                :style="{ background: 'var(--ui-surface-muted)' }"
+                class="ui-input ui-field-control"
                 :value="textDraft()"
                 @blur="onBlur"
             />
         </template>
     </div>
 </template>
+
+<style scoped>
+.ui-field-control {
+    min-height: 34px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+}
+
+textarea.ui-field-control {
+    min-height: 4.5rem;
+    resize: vertical;
+}
+</style>
