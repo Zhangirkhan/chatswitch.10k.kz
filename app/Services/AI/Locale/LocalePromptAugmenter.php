@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\AI\Locale;
 
 use App\Models\Chat;
-use App\Models\Message;
 use Illuminate\Support\Facades\Cache;
 
 final class LocalePromptAugmenter
@@ -32,8 +31,8 @@ final class LocalePromptAugmenter
             ];
         }
 
-        $context = $chat !== null ? $this->recentClientContext($chat) : null;
-        $profile = $this->detector->detect($userText, $context);
+        // Язык ответа — только по текущему сообщению клиента, не по истории чата.
+        $profile = $this->detector->detect($userText);
         $blocks = [];
 
         $basePrompt = $this->loadSystemPrompt();
@@ -106,20 +105,4 @@ final class LocalePromptAugmenter
         });
     }
 
-    private function recentClientContext(Chat $chat): string
-    {
-        $messages = Message::query()
-            ->where('chat_id', $chat->id)
-            ->where('direction', 'inbound')
-            ->whereNotNull('body')
-            ->orderByDesc('message_timestamp')
-            ->orderByDesc('id')
-            ->limit(3)
-            ->pluck('body')
-            ->filter(fn (mixed $body): bool => trim((string) $body) !== '')
-            ->map(fn (mixed $body): string => trim((string) $body))
-            ->values();
-
-        return $messages->implode("\n");
-    }
 }

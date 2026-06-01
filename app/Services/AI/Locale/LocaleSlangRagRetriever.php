@@ -59,7 +59,7 @@ final class LocaleSlangRagRetriever
         }
 
         try {
-            $queryVector = $this->embeddings->embed($query);
+            $queryVector = $this->embeddings->embed($query, new \App\Services\AI\AiUsageOptions('rag_embed', $companyId));
         } catch (Throwable $e) {
             Log::warning('[locale-rag] embedding failed', ['error' => $e->getMessage()]);
 

@@ -10,16 +10,12 @@ final class KazakhstanLocaleDetector
         private readonly LocaleLexiconLoader $lexicons,
     ) {}
 
-    public function detect(string $text, ?string $chatContext = null): KazakhstanLocaleProfile
+    public function detect(string $text): KazakhstanLocaleProfile
     {
         $text = trim($text);
         if ($text === '') {
             return $this->neutralProfile();
         }
-
-        $combined = $chatContext !== null && trim($chatContext) !== ''
-            ? trim($text)."\n".trim($chatContext)
-            : $text;
 
         $lower = mb_strtolower($text);
         $tokens = $this->tokenize($lower);
@@ -31,9 +27,9 @@ final class KazakhstanLocaleDetector
         $formalHits = $this->countLexiconHits($lower, $tokens, $this->lexicons->words('formal_markers', 'formal'));
         $casualHits = $this->countLexiconHits($lower, $tokens, $this->lexicons->words('formal_markers', 'casual'));
 
-        $kkLetters = $this->countKkCyrillicLetters($combined);
-        $cyrillicRatio = $this->cyrillicRatio($combined);
-        $latinRatio = $this->latinRatio($combined);
+        $kkLetters = $this->countKkCyrillicLetters($text);
+        $cyrillicRatio = $this->cyrillicRatio($text);
+        $latinRatio = $this->latinRatio($text);
 
         $script = 'mixed';
         if ($cyrillicRatio >= 0.6) {
@@ -61,6 +57,10 @@ final class KazakhstanLocaleDetector
         } elseif ($ruPct >= $dominantThreshold && $kkPct < $mixedThreshold) {
             $dominant = KazakhstanLocaleProfile::DOMINANT_RU;
         } elseif ($kkPct >= $dominantThreshold && $ruPct < $mixedThreshold) {
+            $dominant = KazakhstanLocaleProfile::DOMINANT_KK;
+        } elseif ($ruPct >= $dominantThreshold && $ruPct > $kkPct) {
+            $dominant = KazakhstanLocaleProfile::DOMINANT_RU;
+        } elseif ($kkPct >= $dominantThreshold && $kkPct > $ruPct) {
             $dominant = KazakhstanLocaleProfile::DOMINANT_KK;
         } elseif ($ruPct >= $mixedThreshold && $kkPct >= $mixedThreshold) {
             $dominant = KazakhstanLocaleProfile::DOMINANT_MIXED;

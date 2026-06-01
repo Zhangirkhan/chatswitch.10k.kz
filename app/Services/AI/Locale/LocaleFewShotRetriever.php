@@ -80,7 +80,7 @@ final class LocaleFewShotRetriever
         }
 
         try {
-            $queryVector = $this->embeddings->embed($userText);
+            $queryVector = $this->embeddings->embed($userText, new \App\Services\AI\AiUsageOptions('rag_embed', $companyId));
         } catch (Throwable $e) {
             Log::warning('[locale-few-shot] embedding failed', ['error' => $e->getMessage()]);
 

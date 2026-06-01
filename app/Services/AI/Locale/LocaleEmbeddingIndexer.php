@@ -31,10 +31,13 @@ final class LocaleEmbeddingIndexer
             });
         }
 
-        $query->chunkById(50, function ($examples) use (&$stats): void {
+        $query->chunkById(50, function ($examples) use (&$stats, $companyId): void {
             foreach ($examples as $example) {
                 try {
-                    $vector = $this->embeddings->embed((string) $example->user_text);
+                    $vector = $this->embeddings->embed(
+                        (string) $example->user_text,
+                        new \App\Services\AI\AiUsageOptions('background', $example->company_id ?? $companyId),
+                    );
                     if ($vector === []) {
                         $stats['skipped']++;
 
@@ -71,7 +74,7 @@ final class LocaleEmbeddingIndexer
             });
         }
 
-        $query->chunkById(50, function ($chunks) use (&$stats): void {
+        $query->chunkById(50, function ($chunks) use (&$stats, $companyId): void {
             foreach ($chunks as $chunk) {
                 try {
                     $text = trim((string) $chunk->phrase);
@@ -80,7 +83,10 @@ final class LocaleEmbeddingIndexer
 
                         continue;
                     }
-                    $vector = $this->embeddings->embed($text);
+                    $vector = $this->embeddings->embed(
+                        $text,
+                        new \App\Services\AI\AiUsageOptions('background', $chunk->company_id ?? $companyId),
+                    );
                     if ($vector === []) {
                         $stats['skipped']++;
 
