@@ -2914,7 +2914,8 @@ async function saveFunnelModal() {
 }
 
 .header-ai-group-on {
-    background: color-mix(in srgb, #8b5cf6 8%, var(--wa-panel) 92%);
+    background: color-mix(in srgb, var(--wa-ai-enabled, #01b964) 12%, var(--wa-panel) 88%);
+    border-color: color-mix(in srgb, var(--wa-ai-enabled, #01b964) 46%, var(--wa-control-rim));
 }
 
 .header-quick-task-btn {
@@ -2964,11 +2965,19 @@ async function saveFunnelModal() {
 }
 
 .header-ai-toggle-on {
-    color: var(--wa-text);
+    color: #ffffff;
+    background: var(--wa-ai-enabled, #01b964);
+    box-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--wa-ai-enabled, #01b964) 82%, #000),
+        0 1px 1px 0 rgba(0, 0, 0, 0.18);
 }
 
 .header-ai-toggle:hover:not(:disabled) {
     background: color-mix(in srgb, var(--wa-panel-hover) 78%, transparent);
+}
+
+.header-ai-toggle-on:hover:not(:disabled) {
+    background: var(--wa-ai-enabled-hover, #08d878);
 }
 
 .header-ai-toggle:disabled {
@@ -2993,6 +3002,11 @@ async function saveFunnelModal() {
 .ai-state-dot-on {
     background: var(--wa-green);
     box-shadow: 0 0 0 3px var(--wa-chroma-success-ring-18);
+}
+
+.header-ai-toggle-on .ai-state-dot-on {
+    background: #ffffff;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #ffffff 24%, transparent);
 }
 
 .header-ai-assistant-btn {

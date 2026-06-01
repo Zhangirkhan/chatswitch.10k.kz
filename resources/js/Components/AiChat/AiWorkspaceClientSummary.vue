@@ -645,12 +645,13 @@ function sectionSemantic(title: string): SectionSemantic {
 
 .summary-profile__item--preferences .summary-profile__icon {
     color: var(--sem-prefs);
-    background: color-mix(in srgb, var(--sem-prefs) 18%, var(--wa-panel));
+    background: color-mix(in srgb, var(--sem-prefs) 24%, var(--wa-panel));
 }
 
 .summary-profile__item--preferences .summary-profile__icon svg {
     width: 1.0625rem;
     height: 1.0625rem;
+    filter: drop-shadow(0 1px 0 color-mix(in srgb, #fff 45%, transparent));
 }
 
 .summary-profile__content {
