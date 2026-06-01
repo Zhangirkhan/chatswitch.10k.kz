@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Support\ChatUrl;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -756,7 +757,7 @@ final class DialogAnalyticsService
 
         return [
             'data' => array_map(function (array $row): array {
-                $row['open_url'] = route('chats.show', ['chat' => $row['chat_id']]);
+                $row['open_url'] = ChatUrl::show((int) $row['chat_id']);
 
                 return $row;
             }, $slice),

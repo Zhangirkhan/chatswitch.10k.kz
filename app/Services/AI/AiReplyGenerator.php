@@ -16,6 +16,7 @@ use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\ClientMessageHeuristics;
+use App\Support\MessageInboundText;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -40,7 +41,9 @@ final class AiReplyGenerator
      */
     public function generate(Chat $chat, User $responder, ?Message $triggerMessage, ?AiResponseLog $log = null): array
     {
-        $clientQuestion = trim((string) ($triggerMessage?->body ?? ''));
+        $clientQuestion = $triggerMessage !== null
+            ? trim(MessageInboundText::forMessage($triggerMessage))
+            : '';
 
         if ($triggerMessage !== null) {
             $appointment = $this->appointmentIntent->detect($chat, $responder, $triggerMessage);
@@ -51,7 +54,12 @@ final class AiReplyGenerator
 
         $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id);
         $localeProfile = $this->localeDetector->detect($clientQuestion);
-        $reply = trim($this->openAi->chat($built['messages'], 0.35, 700));
+        $reply = trim($this->openAi->chat(
+            $built['messages'],
+            0.35,
+            700,
+            new AiUsageOptions('ai_reply', $chat->company_id ?? $responder->company_id),
+        ));
         $reply = $this->sanitizeReply($reply);
         $reply = $this->localeReplyGuard->apply($reply, $localeProfile);
         $reply = $this->normalizeCurrency($reply);
@@ -223,7 +231,7 @@ final class AiReplyGenerator
 
     private function normalizeGreetingReply(Chat $chat, Message $trigger, string $reply): string
     {
-        $triggerBody = trim((string) $trigger->body);
+        $triggerBody = trim(MessageInboundText::forMessage($trigger));
         if (! ClientMessageHeuristics::usedGreeting($triggerBody)) {
             return $reply;
         }

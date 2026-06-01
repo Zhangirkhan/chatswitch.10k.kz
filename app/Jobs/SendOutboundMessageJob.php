@@ -80,7 +80,7 @@ final class SendOutboundMessageJob implements ShouldQueue
             if ($this->isRetryableTransportError($reason) && $this->attempts() < $this->tries) {
                 try {
                     // Best-effort warm-up when puppeteer frame was detached or client is reconnecting.
-                    $whatsapp->initializeSession($sessionName);
+                    $whatsapp->initializeSession($sessionName, (int) $session->company_id);
                 } catch (\Throwable) {
                     // Ignore: retry path below is the actual recovery mechanism.
                 }

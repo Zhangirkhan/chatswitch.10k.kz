@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -74,7 +75,12 @@ final class ChatAssistantService
             ['role' => 'user', 'content' => $this->normalizeUserPrompt($userPrompt)],
         ];
 
-        $reply = trim($this->openAi->chat($messages, 0.45, 900));
+        $reply = trim($this->openAi->chat(
+            $messages,
+            0.45,
+            900,
+            new AiUsageOptions('operator_assistant', $chat->company_id ?? $operator->company_id),
+        ));
         $parsed = $this->productAttachments->stripAttachMarker($reply);
         $product = null;
         if ($parsed['product_id'] !== null) {
@@ -193,10 +199,10 @@ PROMPT;
 
     private function normalizeBody(Message $message): string
     {
-        $body = (string) ($message->body ?? '');
-
-        if ($message->direction === 'outbound') {
-            $body = OperatorSignature::strip($body);
+        if ($message->direction === 'inbound') {
+            $body = trim(MessageInboundText::forMessage($message, voicePrefixWhenFromTranscript: true));
+        } else {
+            $body = OperatorSignature::strip(trim((string) ($message->body ?? '')));
         }
 
         if ($body === '') {
