@@ -4,6 +4,11 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import ContactCardSkeleton from '@/Components/Contact/ContactCardSkeleton.vue';
 import ContactCrmSections, { type ContactCrmPayload } from '@/Components/Contact/ContactCrmSections.vue';
+import ClientProfileSectionsBlock from '@/Components/Clients/ClientProfileSectionsBlock.vue';
+import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
+import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
+import { useContactFieldActions } from '@/composables/useContactFieldActions';
+import { useContactProfile } from '@/composables/useContactProfile';
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { Chat, Message } from '@/types';
@@ -79,6 +84,63 @@ const emit = defineEmits<{
 
 const page = usePage<any>();
 const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
+const isAdmin = computed(() => (page.props.auth?.user?.roles || []).includes('administrator'));
+
+const {
+    profile: contactProfile,
+    profileLoading: contactProfileLoading,
+    profileError: contactProfileError,
+    loadProfile: loadContactProfile,
+    primeFromCache: primeContactProfileCache,
+} = useContactProfile();
+
+const displayContactProfile = computed(() => contactProfile.value);
+
+const fieldPickerOpen = ref(false);
+const addFieldOpen = ref(false);
+
+const contactFieldActions = useContactFieldActions({
+    contactId: () => props.chat.contact_id,
+    chatId: () => props.chat.id,
+    onProfileUpdated: (next) => {
+        contactProfile.value = next;
+    },
+    onPhotoUpdated: (url) => {
+        if (props.chat.contact) {
+            props.chat.contact.profile_picture_url = url;
+        }
+    },
+});
+
+watch(
+    () => props.chat.contact_id,
+    (contactId) => {
+        if (!contactId) {
+            contactProfile.value = null;
+            return;
+        }
+        primeContactProfileCache(contactId, props.chat.id);
+        if (!contactProfile.value) {
+            void loadContactProfile(contactId, props.chat.id);
+        }
+    },
+    { immediate: true },
+);
+
+function onContactFieldsUpdated(): void {
+    if (!props.chat.contact_id) {
+        return;
+    }
+    contactFieldActions.onFieldsConfigUpdated();
+    void loadContactProfile(props.chat.contact_id, props.chat.id, { force: true });
+}
+
+const clientsFullProfileUrl = computed(() => {
+    if (!props.chat.contact_id || !route().has('clients.index')) {
+        return null;
+    }
+    return route('clients.index', { contact: props.chat.contact_id });
+});
 
 function contactChatHref(chatId: number): string {
     return appendChatListOwnership(route('chats.show', chatId), page.props.listOwnership as string | undefined);
@@ -986,6 +1048,54 @@ async function saveContactName() {
                             :current-chat-id="chat.id"
                         />
 
+                        <div v-if="chat.contact_id" class="mt-4 border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
+                            <div class="mb-2 flex items-center justify-between gap-2">
+                                <span class="text-xs font-medium uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">
+                                    CRM-поля
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <Link
+                                        v-if="clientsFullProfileUrl"
+                                        :href="clientsFullProfileUrl"
+                                        class="text-[11px] underline"
+                                        :style="{ color: 'var(--wa-accent)' }"
+                                    >
+                                        Полный профиль
+                                    </Link>
+                                    <template v-if="isAdmin">
+                                        <button
+                                            type="button"
+                                            class="rounded px-2 py-0.5 text-[11px]"
+                                            :style="{ background: 'var(--wa-panel-2)' }"
+                                            @click="fieldPickerOpen = true"
+                                        >
+                                            Поля
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="flex h-6 w-6 items-center justify-center rounded text-sm leading-none"
+                                            :style="{ background: 'var(--wa-panel-2)' }"
+                                            aria-label="Добавить поле"
+                                            @click="addFieldOpen = true"
+                                        >
+                                            +
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <ClientProfileSectionsBlock
+                                :profile="displayContactProfile"
+                                :loading="contactProfileLoading"
+                                :error="contactProfileError"
+                                :editable="isAdmin"
+                                compact
+                                :contact-name="contactCard?.identity?.display_name"
+                                @save-field="(f, v) => contactFieldActions.saveField(f, v)"
+                                @upload-field="(f, file) => contactFieldActions.uploadField(f, file)"
+                                @clear-field="(f) => contactFieldActions.clearField(f)"
+                            />
+                        </div>
+
                         <EntityMemoryPanel
                             v-if="chat.contact_id"
                             subject-type="contact"
@@ -1318,6 +1428,9 @@ async function saveContactName() {
             </div>
         </div>
     </teleport>
+
+    <ContactFieldPickerModal :open="fieldPickerOpen" @close="fieldPickerOpen = false" @updated="onContactFieldsUpdated" />
+    <ContactAddFieldModal :open="addFieldOpen" @close="addFieldOpen = false" @created="onContactFieldsUpdated" />
 </template>
 
 <style scoped>

@@ -3,6 +3,9 @@ export type ClientProfileField = {
     definition_id?: number;
     label: string;
     value: string;
+    raw_value?: string | Record<string, unknown> | null;
+    preview_url?: string | null;
+    value_json?: Record<string, unknown> | null;
     source: 'crm' | 'memory' | 'chat' | 'ai' | 'custom';
     type?: string;
     editable?: boolean;

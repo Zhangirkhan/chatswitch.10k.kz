@@ -101,6 +101,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
         Route::patch('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
         Route::patch('/contacts/{contact}/fields', [ContactController::class, 'updateFields'])->name('contacts.fields.update');
+        Route::post('/contacts/{contact}/fields/{fieldDefinition}/upload', [ContactController::class, 'uploadFieldFile'])
+            ->name('contacts.fields.upload');
         Route::get('/contacts/{contact}/card', [ContactController::class, 'card'])->name('contacts.card');
         Route::post('/contacts/upsert', [ContactController::class, 'upsert'])->name('contacts.upsert');
         Route::post('/chats/start', [ChatController::class, 'start'])->name('chats.start');

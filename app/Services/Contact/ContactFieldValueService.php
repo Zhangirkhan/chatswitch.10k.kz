@@ -7,9 +7,12 @@ namespace App\Services\Contact;
 use App\Models\Contact;
 use App\Models\ContactFieldDefinition;
 use App\Models\ContactFieldValue;
+use App\Support\ContactFieldCatalog;
 use App\Support\ContactFieldType;
 use App\Support\TenantCompany;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 final class ContactFieldValueService
@@ -32,6 +35,22 @@ final class ContactFieldValueService
     }
 
     /**
+     * @return array<int, ContactFieldValue>
+     */
+    public function valuesByDefinitionCode(Contact $contact): array
+    {
+        $map = [];
+        foreach ($this->loadValues($contact) as $value) {
+            $code = $value->definition?->code;
+            if ($code !== null && $code !== '') {
+                $map[$code] = $value;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * @return list<ContactFieldValue>
      */
     public function loadValues(Contact $contact): array
@@ -41,6 +60,32 @@ final class ContactFieldValueService
             ->with('definition')
             ->get()
             ->all();
+    }
+
+    /**
+     * @return list<array{label: string, value: string}>
+     */
+    public function contextLines(Contact $contact): array
+    {
+        $lines = [];
+        foreach ($this->loadValues($contact) as $value) {
+            $definition = $value->definition;
+            if ($definition === null) {
+                continue;
+            }
+
+            $display = $this->displayValue($definition, $value);
+            if ($display === '') {
+                continue;
+            }
+
+            $lines[] = [
+                'label' => $definition->label,
+                'value' => $display,
+            ];
+        }
+
+        return $lines;
     }
 
     /**
@@ -63,7 +108,7 @@ final class ContactFieldValueService
                     ->whereKey($fieldId)
                     ->first();
 
-                if ($definition === null || $definition->is_system) {
+                if ($definition === null || ! $this->canPersistDefinition($definition)) {
                     continue;
                 }
 
@@ -74,6 +119,11 @@ final class ContactFieldValueService
                         ->where('contact_id', $contact->id)
                         ->where('field_definition_id', $definition->id)
                         ->delete();
+
+                    if ($definition->code === 'photo') {
+                        $contact->profile_picture_url = null;
+                        $contact->saveQuietly();
+                    }
 
                     continue;
                 }
@@ -93,10 +143,76 @@ final class ContactFieldValueService
         });
     }
 
+    /**
+     * @return array{profile_picture_url: string|null, value_json: array<string, mixed>}
+     */
+    public function uploadForDefinition(
+        Contact $contact,
+        ContactFieldDefinition $definition,
+        UploadedFile $file,
+    ): array {
+        if (! in_array($definition->type, [ContactFieldType::PHOTO, ContactFieldType::FILE], true)) {
+            throw ValidationException::withMessages(['file' => 'Поле не поддерживает загрузку файлов.']);
+        }
+
+        if (! $this->canPersistDefinition($definition)) {
+            throw ValidationException::withMessages(['file' => 'Поле недоступно для редактирования.']);
+        }
+
+        $companyId = TenantCompany::id();
+        $directory = "contact-fields/{$companyId}/{$contact->id}";
+        $path = $file->store($directory, 'public');
+        $url = Storage::disk('public')->url($path);
+
+        $payload = [
+            'path' => $path,
+            'url' => $url,
+            'original_name' => $file->getClientOriginalName(),
+            'mime' => (string) ($file->getMimeType() ?: 'application/octet-stream'),
+            'size' => $file->getSize(),
+        ];
+
+        ContactFieldValue::query()->updateOrCreate(
+            [
+                'contact_id' => $contact->id,
+                'field_definition_id' => $definition->id,
+            ],
+            [
+                'company_id' => $companyId,
+                'value_text' => null,
+                'value_json' => $payload,
+            ],
+        );
+
+        if ($definition->type === ContactFieldType::PHOTO) {
+            $contact->profile_picture_url = $url;
+            $contact->saveQuietly();
+        }
+
+        return [
+            'profile_picture_url' => $contact->profile_picture_url,
+            'value_json' => $payload,
+        ];
+    }
+
+    public function canPersistDefinition(ContactFieldDefinition $definition): bool
+    {
+        if (! $definition->is_system) {
+            return true;
+        }
+
+        return in_array($definition->code, ContactFieldCatalog::editableSystemCodes(), true);
+    }
+
     public function displayValue(ContactFieldDefinition $definition, ?ContactFieldValue $value): string
     {
         if ($value === null) {
             return '';
+        }
+
+        if (in_array($definition->type, [ContactFieldType::PHOTO, ContactFieldType::FILE], true)
+            && is_array($value->value_json)) {
+            return trim((string) ($value->value_json['original_name'] ?? $value->value_json['url'] ?? ''));
         }
 
         if ($definition->type === ContactFieldType::MONEY && is_array($value->value_json)) {
@@ -113,6 +229,28 @@ final class ContactFieldValueService
         }
 
         return trim((string) ($value->value_text ?? ''));
+    }
+
+    /**
+     * @return array{preview_url: string|null, raw_value: string, value_json: array<string, mixed>|null}
+     */
+    public function fileMeta(ContactFieldDefinition $definition, ?ContactFieldValue $value): array
+    {
+        if ($value === null || ! is_array($value->value_json)) {
+            return [
+                'preview_url' => null,
+                'raw_value' => '',
+                'value_json' => null,
+            ];
+        }
+
+        $url = trim((string) ($value->value_json['url'] ?? ''));
+
+        return [
+            'preview_url' => $url !== '' ? $url : null,
+            'raw_value' => trim((string) ($value->value_json['original_name'] ?? $url)),
+            'value_json' => $value->value_json,
+        ];
     }
 
     /**

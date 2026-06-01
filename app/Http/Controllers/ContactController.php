@@ -435,7 +435,48 @@ final class ContactController extends Controller
 
         $profile = $this->clientProfileAssembler->build($request->user(), $contact);
 
-        return response()->json(['profile' => $profile]);
+        return response()->json([
+            'profile' => $profile,
+            'contact' => [
+                'id' => $contact->id,
+                'profile_picture_url' => $contact->fresh()?->profile_picture_url,
+            ],
+        ]);
+    }
+
+    public function uploadFieldFile(Request $request, Contact $contact, int $fieldDefinition): JsonResponse
+    {
+        $this->authorize('update', $contact);
+        abort_unless($request->user()?->hasRole('administrator'), 403);
+
+        $definition = \App\Models\ContactFieldDefinition::query()
+            ->where('company_id', TenantCompany::id())
+            ->whereKey($fieldDefinition)
+            ->firstOrFail();
+
+        $rules = $definition->type === \App\Support\ContactFieldType::PHOTO
+            ? ['file' => ['required', 'file', 'image', 'max:5120']]
+            : ['file' => ['required', 'file', 'max:10240']];
+
+        $data = $request->validate($rules);
+
+        $upload = $this->contactFieldValues->uploadForDefinition(
+            $contact,
+            $definition,
+            $data['file'],
+        );
+
+        $contact->refresh();
+        $profile = $this->clientProfileAssembler->build($request->user(), $contact);
+
+        return response()->json([
+            'profile' => $profile,
+            'upload' => $upload,
+            'contact' => [
+                'id' => $contact->id,
+                'profile_picture_url' => $contact->profile_picture_url,
+            ],
+        ]);
     }
 
     public function syncCompanies(Request $request, Contact $contact): JsonResponse

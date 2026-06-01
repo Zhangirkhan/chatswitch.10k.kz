@@ -22,6 +22,7 @@ final class ContactFieldCatalog
     {
         return [
             ['code' => 'name', 'label' => 'Имя', 'type' => ContactFieldType::STRING, 'section' => 'basic', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 10],
+            ['code' => 'photo', 'label' => 'Фотография', 'type' => ContactFieldType::PHOTO, 'section' => 'basic', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 15],
             ['code' => 'contact_id', 'label' => 'ID контакта', 'type' => ContactFieldType::NUMBER, 'section' => 'basic', 'group' => 'hidden', 'is_system' => true, 'is_visible' => false, 'sort_order' => 910],
             ['code' => 'funnel_stage', 'label' => 'Этап воронки', 'type' => ContactFieldType::STRING, 'section' => 'basic', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 20],
             ['code' => 'funnel', 'label' => 'Воронка', 'type' => ContactFieldType::STRING, 'section' => 'basic', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 21],
@@ -72,5 +73,13 @@ final class ContactFieldCatalog
             'additional' => 'Дополнительно',
             'hidden' => 'Скрытые поля',
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function editableSystemCodes(): array
+    {
+        return ['email', 'website', 'photo'];
     }
 }

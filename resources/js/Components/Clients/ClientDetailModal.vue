@@ -1,36 +1,19 @@
 <script setup lang="ts">
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
-import ClientActivityTimeline from '@/Components/Clients/ClientActivityTimeline.vue';
-import ClientFinancePlaceholder from '@/Components/Clients/ClientFinancePlaceholder.vue';
-import ClientProfileSection from '@/Components/Clients/ClientProfileSection.vue';
-import type { ClientListItem, ClientProfile } from '@/Components/Clients/clientProfileTypes';
-import { mergeSummaryIntoProfile } from '@/Components/Clients/clientProfileMerge';
-import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
+import ClientProfileSectionsBlock from '@/Components/Clients/ClientProfileSectionsBlock.vue';
 import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
-import type { ClientProfileField } from '@/Components/Clients/clientProfileTypes';
+import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
+import type { ClientListItem, ClientProfile, ClientProfileField } from '@/Components/Clients/clientProfileTypes';
+import { mergeSummaryIntoProfile } from '@/Components/Clients/clientProfileMerge';
 import UserAvatar from '@/Components/UserAvatar.vue';
+import { useContactFieldActions } from '@/composables/useContactFieldActions';
+import { setContactProfileCache, useContactProfile } from '@/composables/useContactProfile';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import { formatPhone } from '@/utils/phone';
 import { useToastStore } from '@/stores/toast';
-
-const profileCache = new Map<string, ClientProfile>();
-const summaryCache = new Map<string, ClientSummary>();
-
-function detailCacheKey(contactId: number, chatId: number | null | undefined): string {
-    return `${contactId}:${chatId ?? 'none'}`;
-}
-
-function invalidateDetailCache(contactId: number): void {
-    for (const key of [...profileCache.keys()]) {
-        if (key.startsWith(`${contactId}:`)) {
-            profileCache.delete(key);
-            summaryCache.delete(key);
-        }
-    }
-}
 
 const props = defineProps<{
     client: ClientListItem | null;
@@ -40,15 +23,23 @@ const props = defineProps<{
 const emit = defineEmits<{
     close: [];
     saved: [clientId: number, name: string | null];
+    photoUpdated: [clientId: number, url: string | null];
 }>();
 
 const { show: showToast } = useToastStore();
+const {
+    profile,
+    summary,
+    profileLoading,
+    summaryLoading,
+    profileError,
+    loadProfile,
+    enrichProfileInBackground,
+    loadSummary,
+    primeFromCache,
+    invalidateContactProfileCache,
+} = useContactProfile();
 
-const profile = ref<ClientProfile | null>(null);
-const summary = ref<ClientSummary | null>(null);
-const profileLoading = ref(false);
-const summaryLoading = ref(false);
-const profileError = ref<string | null>(null);
 const editingName = ref('');
 const saving = ref(false);
 const fieldPickerOpen = ref(false);
@@ -77,6 +68,22 @@ const chatUrl = computed(() => {
     return route('chats.show', chatId);
 });
 
+const fieldActions = useContactFieldActions({
+    contactId: () => props.client?.id,
+    chatId: () => props.client?.primary_chat_id,
+    onProfileUpdated: (nextProfile: ClientProfile) => {
+        profile.value = nextProfile;
+        if (props.client) {
+            setContactProfileCache(props.client.id, props.client.primary_chat_id, nextProfile);
+        }
+    },
+    onPhotoUpdated: (url: string | null) => {
+        if (props.client) {
+            emit('photoUpdated', props.client.id, url);
+        }
+    },
+});
+
 watch(
     () => props.client?.id,
     (contactId) => {
@@ -88,110 +95,25 @@ watch(
         }
 
         editingName.value = (props.client?.name || '').trim();
-        const cacheKey = detailCacheKey(contactId, props.client?.primary_chat_id);
+        const chatId = props.client?.primary_chat_id;
+        primeFromCache(contactId, chatId);
 
-        const cachedProfile = profileCache.get(cacheKey);
-        if (cachedProfile) {
-            profile.value = cachedProfile;
-            profileLoading.value = false;
-            if (!cachedProfile.ai_enriched) {
-                void enrichProfileInBackground(contactId, cacheKey);
-            }
-        } else {
-            profile.value = null;
-            void loadProfile(contactId, cacheKey);
+        if (profile.value && !profile.value.ai_enriched) {
+            void enrichProfileInBackground(contactId, chatId);
+        } else if (!profile.value) {
+            void loadProfile(contactId, chatId).then((loaded) => {
+                if (loaded && !loaded.ai_enriched) {
+                    void enrichProfileInBackground(contactId, chatId);
+                }
+            });
         }
 
-        const cachedSummary = summaryCache.get(cacheKey);
-        if (cachedSummary) {
-            summary.value = cachedSummary;
-            summaryLoading.value = false;
-        } else {
-            summary.value = null;
-            void loadSummary(contactId, cacheKey);
+        if (!summary.value) {
+            void loadSummary(contactId, chatId);
         }
     },
     { immediate: true },
 );
-
-function profileRequestParams(): Record<string, number> {
-    return props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
-}
-
-async function loadProfile(contactId: number, cacheKey: string): Promise<void> {
-    profileLoading.value = true;
-    profileError.value = null;
-    try {
-        const { data } = await axios.get(route('clients.profile', contactId), {
-            params: profileRequestParams(),
-        });
-        const nextProfile = data.profile as ClientProfile;
-        profile.value = nextProfile;
-        profileCache.set(cacheKey, nextProfile);
-        void enrichProfileInBackground(contactId, cacheKey);
-    } catch (e: any) {
-        profile.value = null;
-        profileError.value = e?.response?.data?.message || 'Не удалось загрузить профиль';
-    } finally {
-        profileLoading.value = false;
-    }
-}
-
-async function enrichProfileInBackground(contactId: number, cacheKey: string): Promise<void> {
-    try {
-        const { data } = await axios.get(route('clients.profile', contactId), {
-            params: { ...profileRequestParams(), with_ai: 1 },
-        });
-        const enriched = data.profile as ClientProfile;
-        profile.value = enriched;
-        profileCache.set(cacheKey, enriched);
-    } catch {
-        // CRM-профиль уже показан — тихо игнорируем сбой AI-дополнения
-    }
-}
-
-async function loadSummary(contactId: number, cacheKey: string): Promise<void> {
-    summaryLoading.value = true;
-    try {
-        const params = props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
-        const { data } = await axios.get(route('clients.summary', contactId), { params });
-        const nextSummary = data.client_summary as ClientSummary;
-        summary.value = nextSummary;
-        summaryCache.set(cacheKey, nextSummary);
-    } catch {
-        summary.value = null;
-    } finally {
-        summaryLoading.value = false;
-    }
-}
-
-async function saveCustomField(field: ClientProfileField, value: unknown): Promise<void> {
-    if (!props.client?.id || !field.definition_id) {
-        return;
-    }
-
-    const cacheKey = detailCacheKey(props.client.id, props.client.primary_chat_id);
-
-    try {
-        const { data } = await axios.patch(route('contacts.fields.update', props.client.id), {
-            fields: [{ field_id: field.definition_id, value }],
-        });
-        const nextProfile = data.profile as ClientProfile;
-        profile.value = nextProfile;
-        profileCache.set(cacheKey, nextProfile);
-    } catch {
-        showToast({ message: 'Не удалось сохранить поле', duration: 3500 });
-    }
-}
-
-function onFieldsUpdated(): void {
-    if (!props.client?.id) {
-        return;
-    }
-    invalidateDetailCache(props.client.id);
-    const cacheKey = detailCacheKey(props.client.id, props.client.primary_chat_id);
-    void loadProfile(props.client.id, cacheKey);
-}
 
 async function saveName(): Promise<void> {
     if (!props.client || saving.value) {
@@ -202,21 +124,38 @@ async function saveName(): Promise<void> {
         const name = editingName.value.trim();
         const { data } = await axios.patch(route('contacts.update', props.client.id), { name });
         if (data?.success) {
-            invalidateDetailCache(props.client.id);
+            invalidateContactProfileCache(props.client.id);
             emit('saved', props.client.id, name !== '' ? name : null);
             showToast({ message: 'Имя клиента обновлено' });
             return;
         }
         showToast({ message: data?.error || 'Не удалось обновить имя' });
-    } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось обновить имя' });
+    } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } } };
+        showToast({ message: err.response?.data?.message || 'Не удалось обновить имя' });
     } finally {
         saving.value = false;
     }
 }
 
-function sectionByKey(key: string) {
-    return displayProfile.value?.sections.find((section) => section.key === key) ?? null;
+function onFieldsUpdated(): void {
+    if (!props.client?.id) {
+        return;
+    }
+    fieldActions.onFieldsConfigUpdated();
+    void loadProfile(props.client.id, props.client.primary_chat_id, { force: true });
+}
+
+function saveCustomField(field: ClientProfileField, value: unknown): void {
+    void fieldActions.saveField(field, value);
+}
+
+function uploadCustomField(field: ClientProfileField, file: File): void {
+    void fieldActions.uploadField(field, file);
+}
+
+function clearCustomField(field: ClientProfileField): void {
+    void fieldActions.clearField(field);
 }
 </script>
 
@@ -264,12 +203,13 @@ function sectionByKey(key: string) {
                                 </button>
                                 <button
                                     type="button"
-                                    class="rounded-lg px-2.5 py-1.5 text-xs"
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg text-base leading-none"
                                     :style="{ background: 'var(--ui-surface)' }"
+                                    aria-label="Добавить поле"
                                     title="Добавить поле"
                                     @click="addFieldOpen = true"
                                 >
-                                    + Поле
+                                    +
                                 </button>
                             </template>
                             <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" aria-label="Закрыть" @click="emit('close')">
@@ -279,60 +219,17 @@ function sectionByKey(key: string) {
                     </header>
 
                     <div class="client-detail-modal__body min-h-0 flex flex-1 overflow-hidden">
-                        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
-                                <div v-if="profileLoading" class="py-10 text-center text-sm opacity-70">Загружаем профиль…</div>
-                                <div v-else-if="profileError" class="rounded-lg border px-4 py-3 text-sm" :style="{ borderColor: 'var(--ui-border)' }">{{ profileError }}</div>
-                                <template v-else-if="displayProfile">
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('basic')"
-                                        :title="sectionByKey('basic')!.title"
-                                        :semantic="sectionByKey('basic')!.semantic"
-                                        :fields="sectionByKey('basic')!.fields"
-                                        :editable="canManageContactFields"
-                                        @save-field="saveCustomField"
-                                    />
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('contacts')"
-                                        :title="sectionByKey('contacts')!.title"
-                                        :semantic="sectionByKey('contacts')!.semantic"
-                                        :fields="sectionByKey('contacts')!.fields"
-                                        :editable="canManageContactFields"
-                                        @save-field="saveCustomField"
-                                    />
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('finance')"
-                                        :title="sectionByKey('finance')!.title"
-                                        :semantic="sectionByKey('finance')!.semantic"
-                                        :fields="[]"
-                                        :default-open="true"
-                                    >
-                                        <ClientFinancePlaceholder :message="sectionByKey('finance')!.message" />
-                                    </ClientProfileSection>
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('b2b')"
-                                        :title="sectionByKey('b2b')!.title"
-                                        :semantic="sectionByKey('b2b')!.semantic"
-                                        :fields="sectionByKey('b2b')!.fields"
-                                        :editable="canManageContactFields"
-                                        @save-field="saveCustomField"
-                                    />
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('history')"
-                                        :title="sectionByKey('history')!.title"
-                                        :semantic="sectionByKey('history')!.semantic"
-                                        :fields="sectionByKey('history')!.fields"
-                                    >
-                                        <ClientActivityTimeline :items="sectionByKey('history')!.activity || []" />
-                                    </ClientProfileSection>
-                                    <ClientProfileSection
-                                        v-if="sectionByKey('tasks_notes')"
-                                        :title="sectionByKey('tasks_notes')!.title"
-                                        :semantic="sectionByKey('tasks_notes')!.semantic"
-                                        :fields="sectionByKey('tasks_notes')!.fields"
-                                        :editable="canManageContactFields"
-                                        @save-field="saveCustomField"
-                                    />
-                                </template>
+                        <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                            <ClientProfileSectionsBlock
+                                :profile="displayProfile"
+                                :loading="profileLoading"
+                                :error="profileError"
+                                :editable="canManageContactFields"
+                                :contact-name="displayName"
+                                @save-field="saveCustomField"
+                                @upload-field="uploadCustomField"
+                                @clear-field="clearCustomField"
+                            />
                         </div>
 
                         <aside
@@ -411,14 +308,9 @@ function sectionByKey(key: string) {
     flex-basis: 0;
 }
 
-:deep(.ai-client-summary) {
-    --sem-who: #8b5cf6;
-    --sem-prefs: #7c9fd4;
-    --sem-context: #f59e0b;
-    --sem-agreements: #22c55e;
-    --wa-panel: var(--ui-surface);
-    --wa-border: var(--ui-border);
-    --wa-text: var(--ui-text);
-    --wa-text-secondary: var(--ui-text-secondary);
+@media (max-width: 1023px) {
+    .client-detail-modal__aside {
+        display: none;
+    }
 }
 </style>

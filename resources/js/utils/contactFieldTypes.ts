@@ -7,6 +7,7 @@ export type ContactFieldTypeId =
     | 'address'
     | 'link'
     | 'file'
+    | 'photo'
     | 'money'
     | 'boolean'
     | 'number';
@@ -32,15 +33,18 @@ export type ContactFieldTypeOption = {
 };
 
 export const ADDABLE_FIELD_TYPES: ContactFieldTypeOption[] = [
+    { id: 'photo', label: 'Фотография', description: 'Фото контакта с возможностью загрузки' },
     { id: 'list', label: 'Список', description: 'Выбор одного или нескольких значений из списка' },
     { id: 'datetime', label: 'Дата/время', description: 'Дата и время с календарём' },
     { id: 'date', label: 'Дата', description: 'Дата с календарём' },
     { id: 'address', label: 'Адрес', description: 'Хранение адресной информации' },
     { id: 'link', label: 'Ссылка', description: 'Ссылки на веб-страницы' },
-    { id: 'file', label: 'Файл', description: 'Изображения и документы (URL)' },
+    { id: 'file', label: 'Файл', description: 'Изображения и документы' },
     { id: 'money', label: 'Деньги', description: 'Сумма с валютой' },
     { id: 'boolean', label: 'Да/Нет', description: 'Быстрый ответ да или нет' },
     { id: 'number', label: 'Число', description: 'Числовые данные' },
     { id: 'string', label: 'Строка', description: 'Короткая текстовая строка' },
     { id: 'text', label: 'Текст', description: 'Многострочный текст' },
 ];
+
+export const MONEY_CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;

@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\User;
 use App\Services\AI\AiUsageOptions;
 use App\Services\AI\OpenAiChatService;
+use App\Services\Contact\ContactFieldValueService;
 use App\Support\ClientProfileFieldHelper;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -17,6 +18,7 @@ final class ClientProfileAiService
     public function __construct(
         private readonly ContactCardAssembler $cardAssembler,
         private readonly OpenAiChatService $openAi,
+        private readonly ContactFieldValueService $fieldValues,
     ) {}
 
     /**
@@ -36,7 +38,7 @@ final class ClientProfileAiService
             ->all();
 
         $snippets = $this->cardAssembler->recentMessageSnippets($chatIds, 4);
-        $aiFields = $this->synthesizeFields($card, $memoryContent, $snippets, $user->company_id);
+        $aiFields = $this->synthesizeFields($card, $memoryContent, $snippets, $contact, $user->company_id);
 
         if ($aiFields === []) {
             return $profile;
@@ -74,9 +76,10 @@ final class ClientProfileAiService
         array $card,
         string $memoryContent,
         array $snippets,
+        Contact $contact,
         ?int $companyId,
     ): array {
-        $context = $this->buildContextBlock($card, $memoryContent, $snippets);
+        $context = $this->buildContextBlock($card, $memoryContent, $snippets, $contact);
 
         if (trim($context) === '') {
             return [];
@@ -132,7 +135,7 @@ PROMPT,
      * @param  array<string, mixed>  $card
      * @param  list<array{direction: string, body: string|null, at: string|null}>  $snippets
      */
-    private function buildContextBlock(array $card, string $memoryContent, array $snippets): string
+    private function buildContextBlock(array $card, string $memoryContent, array $snippets, Contact $contact): string
     {
         $identity = is_array($card['identity'] ?? null) ? $card['identity'] : [];
         $crm = is_array($card['crm'] ?? null) ? $card['crm'] : [];
@@ -140,6 +143,10 @@ PROMPT,
 
         $lines[] = 'Имя: '.($identity['display_name'] ?? '—');
         $lines[] = 'Телефон: '.($identity['phone_number'] ?? '—');
+
+        foreach ($this->fieldValues->contextLines($contact) as $row) {
+            $lines[] = $row['label'].': '.$row['value'];
+        }
 
         foreach ($crm['companies'] ?? [] as $company) {
             if (! is_array($company)) {

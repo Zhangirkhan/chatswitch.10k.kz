@@ -141,11 +141,13 @@ function onFieldCreated(): void {
                 </div>
                 <button
                     type="button"
-                    class="rounded-lg px-3 py-2 text-sm"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg text-base leading-none"
                     :style="{ background: 'var(--ui-surface-muted)' }"
+                    aria-label="Добавить поле"
+                    title="Добавить поле"
                     @click="addFieldOpen = true"
                 >
-                    + Добавить поле
+                    +
                 </button>
                 <span class="rounded-full px-3 py-1 text-xs" :style="{ background: 'var(--ui-surface-muted)' }">Контакт</span>
             </div>

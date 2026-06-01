@@ -6,7 +6,7 @@ import UserAvatar from '@/Components/UserAvatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { formatPhone } from '@/utils/phone';
 import { useToastStore } from '@/stores/toast';
 
@@ -113,6 +113,24 @@ function visitClients(overrides: Record<string, string | number | undefined>): v
 
 function openClient(c: ClientListItem): void {
     openedContactId.value = c.id;
+}
+
+onMounted(() => {
+    const params = new URLSearchParams(window.location.search);
+    const contactParam = params.get('contact');
+    if (contactParam) {
+        const id = Number(contactParam);
+        if (!Number.isNaN(id) && id > 0) {
+            openedContactId.value = id;
+        }
+    }
+});
+
+function onPhotoUpdated(clientId: number, url: string | null): void {
+    const row = clients.value.find((c) => c.id === clientId);
+    if (row) {
+        row.profile_picture_url = url;
+    }
 }
 
 function closeClient(): void {
@@ -351,6 +369,7 @@ const companyDeleteDescription = computed(() => {
             :can-manage-contact-fields="canManageContactFields"
             @close="closeClient"
             @saved="onClientSaved"
+            @photo-updated="onPhotoUpdated"
         />
 
         <teleport to="body">

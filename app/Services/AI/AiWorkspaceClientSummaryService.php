@@ -11,6 +11,7 @@ use App\Models\EntityMemory;
 use App\Models\User;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
+use App\Services\Contact\ContactFieldValueService;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\TenantCompany;
 use Illuminate\Support\Facades\Cache;
@@ -23,6 +24,7 @@ final class AiWorkspaceClientSummaryService
         private readonly ContactCardAssembler $cardAssembler,
         private readonly ContactBucketResolver $bucketResolver,
         private readonly EntityMemoryService $entityMemory,
+        private readonly ContactFieldValueService $fieldValues,
         private readonly OpenAiChatService $openAi,
     ) {}
 
@@ -67,6 +69,7 @@ final class AiWorkspaceClientSummaryService
             $card,
             $memoryPayload['content'],
             $snippets,
+            $contact,
             $user->company_id,
         );
 
@@ -202,13 +205,14 @@ final class AiWorkspaceClientSummaryService
         array $card,
         string $memoryContent,
         array $snippets,
+        Contact $contact,
         ?int $companyId,
     ): array {
         $identity = is_array($card['identity'] ?? null) ? $card['identity'] : [];
         $activity = is_array($card['activity'] ?? null) ? $card['activity'] : [];
         $crm = is_array($card['crm'] ?? null) ? $card['crm'] : [];
 
-        $context = $this->buildContextBlock($identity, $activity, $crm, $memoryContent, $snippets);
+        $context = $this->buildContextBlock($identity, $activity, $crm, $memoryContent, $snippets, $contact);
 
         if (trim($context) === '') {
             return $this->fallbackAiPayload('Недостаточно данных о клиенте.');
@@ -274,11 +278,16 @@ PROMPT,
         array $crm,
         string $memoryContent,
         array $snippets,
+        Contact $contact,
     ): string {
         $lines = [];
 
         $lines[] = 'Имя: '.($identity['display_name'] ?? '—');
         $lines[] = 'Телефон: '.($identity['phone_number'] ?? '—');
+
+        foreach ($this->fieldValues->contextLines($contact) as $row) {
+            $lines[] = $row['label'].': '.$row['value'];
+        }
         if (! empty($identity['possible_names'])) {
             $lines[] = 'Варианты имён: '.implode(', ', array_slice((array) $identity['possible_names'], 0, 8));
         }

@@ -22,6 +22,8 @@ final class ContactFieldType
 
     public const FILE = 'file';
 
+    public const PHOTO = 'photo';
+
     public const MONEY = 'money';
 
     public const BOOLEAN = 'boolean';
@@ -42,6 +44,7 @@ final class ContactFieldType
             self::ADDRESS,
             self::LINK,
             self::FILE,
+            self::PHOTO,
             self::MONEY,
             self::BOOLEAN,
             self::NUMBER,
@@ -62,6 +65,7 @@ final class ContactFieldType
             self::ADDRESS => 'Адрес',
             self::LINK => 'Ссылка',
             self::FILE => 'Файл',
+            self::PHOTO => 'Фотография',
             self::MONEY => 'Деньги',
             self::BOOLEAN => 'Да/Нет',
             self::NUMBER => 'Число',
@@ -80,6 +84,7 @@ final class ContactFieldType
             self::ADDRESS => 'Хранение адресной информации',
             self::LINK => 'Ссылки на веб-страницы',
             self::FILE => 'Изображения и документы',
+            self::PHOTO => 'Фото контакта (WhatsApp или загрузка)',
             self::MONEY => 'Денежные значения с валютой',
             self::BOOLEAN => 'Ответ «да» или «нет»',
             self::NUMBER => 'Числовые данные для отчётов',
