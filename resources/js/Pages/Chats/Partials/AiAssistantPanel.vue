@@ -1046,8 +1046,8 @@ watch(() => [props.contactId, props.chatId] as const, () => {
     margin: 0 1rem 0.625rem;
     padding: 7px 10px 7px 7px;
     border-radius: 12px;
-    border: 1px solid var(--wa-border);
-    background: var(--wa-panel-header);
+    border: 1px solid color-mix(in srgb, #8b5cf6 28%, var(--wa-border));
+    background: color-mix(in srgb, #8b5cf6 10%, var(--wa-panel-header));
     color: var(--wa-text);
     text-align: left;
     cursor: pointer;
@@ -1055,8 +1055,8 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 }
 
 .ai-summary-chip:hover {
-    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel-header));
-    border-color: color-mix(in srgb, var(--wa-text-secondary) 35%, var(--wa-border));
+    background: color-mix(in srgb, #8b5cf6 16%, var(--wa-panel-header));
+    border-color: color-mix(in srgb, #8b5cf6 40%, var(--wa-border));
 }
 
 .ai-summary-chip__text {
@@ -1092,9 +1092,9 @@ watch(() => [props.contactId, props.chatId] as const, () => {
     letter-spacing: 0.03em;
     padding: 2px 6px;
     border-radius: 6px;
-    border: 1px solid var(--wa-control-rim);
-    color: var(--wa-text-secondary);
-    background: var(--wa-control-surface);
+    border: 1px solid color-mix(in srgb, #d97706 35%, var(--wa-border));
+    color: #d4a054;
+    background: color-mix(in srgb, #d97706 12%, var(--wa-panel));
 }
 
 .ai-summary-chip__expand {

@@ -124,17 +124,26 @@ function onPickContact(event: Event): void {
                 v-if="summary.crm.deal?.funnel?.name || summary.crm.deal?.stage?.name || summary.crm.upcoming_events_count || summary.crm.open_tasks_count"
                 class="ai-client-summary__chips"
             >
-                <span v-if="summary.crm.deal?.funnel?.name">{{ summary.crm.deal.funnel.name }}</span>
-                <span v-if="summary.crm.deal?.stage?.name">{{ summary.crm.deal.stage.name }}</span>
-                <span v-if="summary.crm.upcoming_events_count">Записей: {{ summary.crm.upcoming_events_count }}</span>
-                <span v-if="summary.crm.open_tasks_count">Задач: {{ summary.crm.open_tasks_count }}</span>
+                <span v-if="summary.crm.deal?.funnel?.name" class="ai-client-summary__chip ai-client-summary__chip--violet">
+                    {{ summary.crm.deal.funnel.name }}
+                </span>
+                <span v-if="summary.crm.deal?.stage?.name" class="ai-client-summary__chip ai-client-summary__chip--amber">
+                    {{ summary.crm.deal.stage.name }}
+                </span>
+                <span v-if="summary.crm.upcoming_events_count" class="ai-client-summary__chip ai-client-summary__chip--sky">
+                    Записей: {{ summary.crm.upcoming_events_count }}
+                </span>
+                <span v-if="summary.crm.open_tasks_count" class="ai-client-summary__chip ai-client-summary__chip--rose">
+                    Задач: {{ summary.crm.open_tasks_count }}
+                </span>
             </div>
 
             <div class="ai-client-summary__sections">
                 <article
-                    v-for="section in summary.ai.sections"
+                    v-for="(section, index) in summary.ai.sections"
                     :key="section.title"
                     class="ai-client-summary__section"
+                    :class="`ai-client-summary__section--tone-${(index % 5) + 1}`"
                 >
                     <h3>{{ section.title }}</h3>
                     <p>{{ section.body }}</p>
@@ -155,18 +164,36 @@ function onPickContact(event: Event): void {
 
 <style scoped>
 .ai-client-summary {
+    --summary-violet-bg: var(--wa-chroma-violet-bg-18, color-mix(in srgb, #8b5cf6 14%, var(--wa-panel)));
+    --summary-violet-fg: var(--wa-chroma-violet-fg, #a78bfa);
+    --summary-violet-border: var(--wa-chroma-violet-border-38, color-mix(in srgb, #8b5cf6 32%, var(--wa-border)));
+    --summary-amber-bg: var(--wa-chroma-amber-bg-12, color-mix(in srgb, #d97706 12%, var(--wa-panel)));
+    --summary-amber-fg: #d4a054;
+    --summary-amber-border: var(--wa-chroma-amber-border-45, color-mix(in srgb, #d97706 38%, var(--wa-border)));
+    --summary-sky-bg: color-mix(in srgb, #5b8def 13%, var(--wa-panel));
+    --summary-sky-fg: #8eb0e8;
+    --summary-sky-border: color-mix(in srgb, #5b8def 34%, var(--wa-border));
+    --summary-rose-bg: color-mix(in srgb, #c97b8e 12%, var(--wa-panel));
+    --summary-rose-fg: #d4a0ad;
+    --summary-rose-border: color-mix(in srgb, #c97b8e 32%, var(--wa-border));
+    --summary-teal-bg: color-mix(in srgb, #5aaeb8 12%, var(--wa-panel));
+    --summary-teal-fg: #7ec4cc;
+    --summary-teal-border: color-mix(in srgb, #5aaeb8 32%, var(--wa-border));
+
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
     max-height: min(42vh, 22rem);
     border-bottom: 1px solid var(--wa-sidebar-divider);
-    background: var(--wa-panel);
+    background:
+        radial-gradient(ellipse 120% 80% at 0% 0%, color-mix(in srgb, #8b5cf6 7%, transparent) 0%, transparent 55%),
+        radial-gradient(ellipse 90% 70% at 100% 100%, color-mix(in srgb, #d97706 6%, transparent) 0%, transparent 50%),
+        var(--wa-panel);
     color: var(--wa-text);
 }
 
 .ai-client-summary--chat {
     max-height: min(36vh, 19rem);
-    background: var(--wa-panel);
 }
 
 .ai-client-summary--expanded {
@@ -198,7 +225,7 @@ function onPickContact(event: Event): void {
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--wa-text-secondary);
+    color: var(--summary-violet-fg);
 }
 
 .ai-client-summary__badge {
@@ -214,19 +241,21 @@ function onPickContact(event: Event): void {
 }
 
 .ai-client-summary__badge--high {
-    color: var(--wa-chroma-accent-fg, var(--wa-accent));
-    background: var(--wa-chroma-accent-bg-12, color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel)));
-    border-color: var(--wa-chroma-accent-border-45, color-mix(in srgb, var(--wa-accent) 30%, var(--wa-border)));
+    color: var(--summary-sky-fg);
+    background: var(--summary-sky-bg);
+    border-color: var(--summary-sky-border);
 }
 
 .ai-client-summary__badge--medium {
-    color: var(--wa-chroma-yellow-fg, #ca8a04);
-    background: var(--wa-chroma-yellow-bg, color-mix(in srgb, #eab308 12%, var(--wa-panel)));
-    border-color: color-mix(in srgb, var(--wa-chroma-yellow-fg, #ca8a04) 28%, var(--wa-border));
+    color: var(--summary-amber-fg);
+    background: var(--summary-amber-bg);
+    border-color: var(--summary-amber-border);
 }
 
 .ai-client-summary__badge--low {
-    opacity: 0.9;
+    color: color-mix(in srgb, var(--wa-text-secondary) 90%, var(--summary-rose-fg));
+    background: var(--summary-rose-bg);
+    border-color: var(--summary-rose-border);
 }
 
 .ai-client-summary__loading,
@@ -247,8 +276,8 @@ function onPickContact(event: Event): void {
     width: 0.875rem;
     height: 0.875rem;
     border-radius: 50%;
-    border: 2px solid color-mix(in srgb, var(--wa-text-secondary) 25%, transparent);
-    border-top-color: var(--wa-text-secondary);
+    border: 2px solid color-mix(in srgb, var(--summary-violet-fg) 25%, transparent);
+    border-top-color: var(--summary-violet-fg);
     animation: ai-summary-spin 0.7s linear infinite;
 }
 
@@ -263,8 +292,8 @@ function onPickContact(event: Event): void {
     padding: 12px;
     margin-bottom: 12px;
     border-radius: 12px;
-    background: var(--wa-panel-header);
-    border: 1px solid var(--wa-border);
+    background: var(--summary-violet-bg);
+    border: 1px solid var(--summary-violet-border);
 }
 
 .ai-client-summary__identity {
@@ -306,9 +335,9 @@ function onPickContact(event: Event): void {
     line-height: 1.5;
     font-weight: 500;
     color: var(--wa-text);
-    background: color-mix(in srgb, var(--wa-text) 3%, var(--wa-panel-header));
-    border: 1px solid var(--wa-border);
-    border-left: 3px solid color-mix(in srgb, var(--wa-text-secondary) 35%, var(--wa-border));
+    background: var(--summary-sky-bg);
+    border: 1px solid var(--summary-sky-border);
+    border-left: 3px solid var(--summary-sky-fg);
 }
 
 .ai-client-summary__chips {
@@ -318,14 +347,36 @@ function onPickContact(event: Event): void {
     margin-bottom: 14px;
 }
 
-.ai-client-summary__chips span {
+.ai-client-summary__chip {
     font-size: 0.6875rem;
     font-weight: 500;
     padding: 4px 10px;
     border-radius: 8px;
-    background: var(--wa-control-surface);
-    color: var(--wa-text-secondary);
-    border: 1px solid var(--wa-control-rim);
+    border: 1px solid transparent;
+}
+
+.ai-client-summary__chip--violet {
+    background: var(--summary-violet-bg);
+    color: var(--summary-violet-fg);
+    border-color: var(--summary-violet-border);
+}
+
+.ai-client-summary__chip--amber {
+    background: var(--summary-amber-bg);
+    color: var(--summary-amber-fg);
+    border-color: var(--summary-amber-border);
+}
+
+.ai-client-summary__chip--sky {
+    background: var(--summary-sky-bg);
+    color: var(--summary-sky-fg);
+    border-color: var(--summary-sky-border);
+}
+
+.ai-client-summary__chip--rose {
+    background: var(--summary-rose-bg);
+    color: var(--summary-rose-fg);
+    border-color: var(--summary-rose-border);
 }
 
 .ai-client-summary__sections {
@@ -335,10 +386,60 @@ function onPickContact(event: Event): void {
 }
 
 .ai-client-summary__section {
-    padding: 10px 12px;
+    padding: 10px 12px 10px 11px;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--wa-bg) 25%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-border) 90%, transparent);
+    border: 1px solid transparent;
+    border-left-width: 3px;
+}
+
+.ai-client-summary__section--tone-1 {
+    background: var(--summary-violet-bg);
+    border-color: var(--summary-violet-border);
+    border-left-color: var(--summary-violet-fg);
+}
+
+.ai-client-summary__section--tone-1 h3 {
+    color: var(--summary-violet-fg);
+}
+
+.ai-client-summary__section--tone-2 {
+    background: var(--summary-sky-bg);
+    border-color: var(--summary-sky-border);
+    border-left-color: var(--summary-sky-fg);
+}
+
+.ai-client-summary__section--tone-2 h3 {
+    color: var(--summary-sky-fg);
+}
+
+.ai-client-summary__section--tone-3 {
+    background: var(--summary-amber-bg);
+    border-color: var(--summary-amber-border);
+    border-left-color: var(--summary-amber-fg);
+}
+
+.ai-client-summary__section--tone-3 h3 {
+    color: var(--summary-amber-fg);
+}
+
+.ai-client-summary__section--tone-4 {
+    background: var(--summary-rose-bg);
+    border-color: var(--summary-rose-border);
+    border-left-color: var(--summary-rose-fg);
+}
+
+.ai-client-summary__section--tone-4 h3 {
+    color: var(--summary-rose-fg);
+}
+
+.ai-client-summary__section--tone-5 {
+    background: var(--summary-teal-bg);
+    border-color: var(--summary-teal-border);
+    border-left-color: var(--summary-teal-fg);
+}
+
+.ai-client-summary__section--tone-5 h3 {
+    color: var(--summary-teal-fg);
 }
 
 .ai-client-summary__section h3 {
@@ -347,7 +448,6 @@ function onPickContact(event: Event): void {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: color-mix(in srgb, var(--wa-text-secondary) 90%, transparent);
 }
 
 .ai-client-summary__section p {
