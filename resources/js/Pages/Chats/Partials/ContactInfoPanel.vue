@@ -1065,7 +1065,7 @@ async function saveContactName() {
                                     <template v-if="isAdmin">
                                         <button
                                             type="button"
-                                            class="rounded px-2 py-0.5 text-[11px]"
+                                            class="inline-flex h-6 items-center justify-center rounded px-2 text-[11px]"
                                             :style="{ background: 'var(--wa-panel-2)' }"
                                             @click="fieldPickerOpen = true"
                                         >

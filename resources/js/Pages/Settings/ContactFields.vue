@@ -66,7 +66,7 @@ function onFieldCreated(): void {
             <div class="flex flex-wrap gap-2">
                 <button
                     type="button"
-                    class="rounded-lg px-4 py-2 text-sm font-medium"
+                    class="inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium"
                     :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     @click="pickerOpen = true"
                 >

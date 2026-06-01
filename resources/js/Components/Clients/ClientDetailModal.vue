@@ -194,7 +194,7 @@ function clearCustomField(field: ClientProfileField): void {
                             <template v-if="canManageContactFields">
                                 <button
                                     type="button"
-                                    class="rounded-lg px-2.5 py-1.5 text-xs"
+                                    class="inline-flex h-8 items-center justify-center rounded-lg px-2.5 text-xs"
                                     :style="{ background: 'var(--ui-surface)' }"
                                     title="Выбор полей"
                                     @click="fieldPickerOpen = true"
