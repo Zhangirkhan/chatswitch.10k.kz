@@ -72,8 +72,28 @@ function sectionLayout(body: string): 'inline' | 'half' | 'full' {
     return 'full';
 }
 
-function sectionTone(index: number): number {
-    return (index % 4) + 1;
+type SectionSemantic = 'who' | 'preferences' | 'context' | 'agreements' | 'deal' | 'neutral';
+
+function sectionSemantic(title: string): SectionSemantic {
+    const t = title.toLowerCase();
+
+    if (/кто|профил|клиент|identity|who/.test(t)) {
+        return 'who';
+    }
+    if (/предпочт|preferen|вкус|стиль/.test(t)) {
+        return 'preferences';
+    }
+    if (/контекст|локац|context|location|ситуац/.test(t)) {
+        return 'context';
+    }
+    if (/договор|согласован|agreement|обещан|обязатель/.test(t)) {
+        return 'agreements';
+    }
+    if (/сделк|этап|следующ|шаг|deal|stage|next|воронк/.test(t)) {
+        return 'deal';
+    }
+
+    return 'neutral';
 }
 </script>
 
@@ -149,16 +169,16 @@ function sectionTone(index: number): number {
                 v-if="summary.crm.deal?.funnel?.name || summary.crm.deal?.stage?.name || summary.crm.upcoming_events_count || summary.crm.open_tasks_count"
                 class="ai-client-summary__chips"
             >
-                <span v-if="summary.crm.deal?.funnel?.name" class="ai-client-summary__chip">
+                <span v-if="summary.crm.deal?.funnel?.name" class="ai-client-summary__chip ai-client-summary__chip--who">
                     {{ summary.crm.deal.funnel.name }}
                 </span>
-                <span v-if="summary.crm.deal?.stage?.name" class="ai-client-summary__chip">
+                <span v-if="summary.crm.deal?.stage?.name" class="ai-client-summary__chip ai-client-summary__chip--context">
                     {{ summary.crm.deal.stage.name }}
                 </span>
-                <span v-if="summary.crm.upcoming_events_count" class="ai-client-summary__chip">
+                <span v-if="summary.crm.upcoming_events_count" class="ai-client-summary__chip ai-client-summary__chip--prefs">
                     Записей: {{ summary.crm.upcoming_events_count }}
                 </span>
-                <span v-if="summary.crm.open_tasks_count" class="ai-client-summary__chip">
+                <span v-if="summary.crm.open_tasks_count" class="ai-client-summary__chip ai-client-summary__chip--agreements">
                     Задач: {{ summary.crm.open_tasks_count }}
                 </span>
             </div>
@@ -170,7 +190,7 @@ function sectionTone(index: number): number {
                     class="ai-client-summary__section"
                     :class="[
                         `ai-client-summary__section--${sectionLayout(section.body)}`,
-                        `ai-client-summary__section--tone-${sectionTone(index)}`,
+                        `ai-client-summary__section--semantic-${sectionSemantic(section.title)}`,
                     ]"
                 >
                     <h3>{{ section.title }}</h3>
@@ -192,10 +212,21 @@ function sectionTone(index: number): number {
 
 <style scoped>
 .ai-client-summary {
-    --summary-label-1: #9aa3b2;
-    --summary-label-2: #a89f94;
-    --summary-label-3: #8f9dab;
-    --summary-label-4: #a3949e;
+    --sem-who: #9b8fb8;
+    --sem-who-bg: color-mix(in srgb, var(--sem-who) 9%, var(--wa-panel));
+    --sem-who-border: color-mix(in srgb, var(--sem-who) 28%, var(--wa-border));
+    --sem-prefs: #7a92b0;
+    --sem-prefs-bg: color-mix(in srgb, var(--sem-prefs) 9%, var(--wa-panel));
+    --sem-prefs-border: color-mix(in srgb, var(--sem-prefs) 28%, var(--wa-border));
+    --sem-context: #b8945f;
+    --sem-context-bg: color-mix(in srgb, var(--sem-context) 10%, var(--wa-panel));
+    --sem-context-border: color-mix(in srgb, var(--sem-context) 30%, var(--wa-border));
+    --sem-agreements: #6fa384;
+    --sem-agreements-bg: color-mix(in srgb, var(--sem-agreements) 10%, var(--wa-panel));
+    --sem-agreements-border: color-mix(in srgb, var(--sem-agreements) 30%, var(--wa-border));
+    --sem-deal: #8890b5;
+    --sem-deal-bg: color-mix(in srgb, var(--sem-deal) 9%, var(--wa-panel));
+    --sem-deal-border: color-mix(in srgb, var(--sem-deal) 28%, var(--wa-border));
 
     display: flex;
     flex-direction: column;
@@ -430,10 +461,12 @@ function sectionTone(index: number): number {
 
 .ai-client-summary__headline {
     margin: 0 0 12px;
+    padding: 0 0 0 10px;
     font-size: 0.9375rem;
     line-height: 1.45;
     font-weight: 500;
     color: var(--wa-text);
+    border-left: 3px solid var(--sem-context);
 }
 
 .ai-client-summary__chips {
@@ -448,9 +481,32 @@ function sectionTone(index: number): number {
     font-weight: 500;
     padding: 3px 9px;
     border-radius: 999px;
-    color: var(--wa-text-secondary);
     border: 1px solid var(--wa-border);
     background: transparent;
+}
+
+.ai-client-summary__chip--who {
+    color: var(--sem-who);
+    border-color: var(--sem-who-border);
+    background: var(--sem-who-bg);
+}
+
+.ai-client-summary__chip--prefs {
+    color: var(--sem-prefs);
+    border-color: var(--sem-prefs-border);
+    background: var(--sem-prefs-bg);
+}
+
+.ai-client-summary__chip--context {
+    color: var(--sem-context);
+    border-color: var(--sem-context-border);
+    background: var(--sem-context-bg);
+}
+
+.ai-client-summary__chip--agreements {
+    color: var(--sem-agreements);
+    border-color: var(--sem-agreements-border);
+    background: var(--sem-agreements-bg);
 }
 
 .ai-client-summary__mosaic {
@@ -465,28 +521,38 @@ function sectionTone(index: number): number {
     min-width: 0;
 }
 
+.ai-client-summary__section--inline,
+.ai-client-summary__section--half,
+.ai-client-summary__section--full {
+    border-left-style: solid;
+}
+
 .ai-client-summary__section--inline {
     flex: 0 1 auto;
     max-width: calc(50% - 5px);
-    padding: 7px 10px;
+    padding: 7px 10px 7px 9px;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--wa-text) 3.5%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-border) 85%, transparent);
+    border-width: 1px 1px 1px 3px;
+    border-style: solid;
 }
 
 .ai-client-summary__section--half {
     flex: 1 1 calc(50% - 6px);
     min-width: min(100%, 9.5rem);
-    padding: 8px 10px 9px;
+    padding: 8px 10px 9px 9px;
     border-radius: 10px;
-    background: color-mix(in srgb, var(--wa-text) 2.5%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-border) 75%, transparent);
+    border-width: 1px 1px 1px 3px;
+    border-style: solid;
 }
 
 .ai-client-summary__section--full {
     flex: 1 1 100%;
-    padding: 2px 0 10px;
+    padding: 6px 0 10px 9px;
+    border-radius: 0;
+    border-top: none;
+    border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--wa-border) 70%, transparent);
+    border-left-width: 3px;
 }
 
 .ai-client-summary__section--full:last-child {
@@ -494,10 +560,69 @@ function sectionTone(index: number): number {
     padding-bottom: 0;
 }
 
-.ai-client-summary__section--tone-1 h3 { color: var(--summary-label-1); }
-.ai-client-summary__section--tone-2 h3 { color: var(--summary-label-2); }
-.ai-client-summary__section--tone-3 h3 { color: var(--summary-label-3); }
-.ai-client-summary__section--tone-4 h3 { color: var(--summary-label-4); }
+.ai-client-summary__section--semantic-who {
+    border-color: var(--sem-who-border) var(--sem-who-border) var(--sem-who-border) var(--sem-who);
+    background: var(--sem-who-bg);
+}
+
+.ai-client-summary__section--semantic-who h3 {
+    color: var(--sem-who);
+}
+
+.ai-client-summary__section--semantic-preferences {
+    border-color: var(--sem-prefs-border) var(--sem-prefs-border) var(--sem-prefs-border) var(--sem-prefs);
+    background: var(--sem-prefs-bg);
+}
+
+.ai-client-summary__section--semantic-preferences h3 {
+    color: var(--sem-prefs);
+}
+
+.ai-client-summary__section--semantic-context {
+    border-color: var(--sem-context-border) var(--sem-context-border) var(--sem-context-border) var(--sem-context);
+    background: var(--sem-context-bg);
+}
+
+.ai-client-summary__section--semantic-context h3 {
+    color: var(--sem-context);
+}
+
+.ai-client-summary__section--semantic-agreements {
+    border-color: var(--sem-agreements-border) var(--sem-agreements-border) var(--sem-agreements-border) var(--sem-agreements);
+    background: var(--sem-agreements-bg);
+}
+
+.ai-client-summary__section--semantic-agreements h3 {
+    color: var(--sem-agreements);
+}
+
+.ai-client-summary__section--semantic-deal {
+    border-color: var(--sem-deal-border) var(--sem-deal-border) var(--sem-deal-border) var(--sem-deal);
+    background: var(--sem-deal-bg);
+}
+
+.ai-client-summary__section--semantic-deal h3 {
+    color: var(--sem-deal);
+}
+
+.ai-client-summary__section--semantic-neutral {
+    border-color: color-mix(in srgb, var(--wa-border) 85%, transparent);
+    border-left-color: color-mix(in srgb, var(--wa-text-secondary) 35%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-text) 3%, var(--wa-panel));
+}
+
+.ai-client-summary__section--semantic-neutral h3 {
+    color: var(--wa-text-secondary);
+}
+
+.ai-client-summary__section--full.ai-client-summary__section--semantic-who,
+.ai-client-summary__section--full.ai-client-summary__section--semantic-preferences,
+.ai-client-summary__section--full.ai-client-summary__section--semantic-context,
+.ai-client-summary__section--full.ai-client-summary__section--semantic-agreements,
+.ai-client-summary__section--full.ai-client-summary__section--semantic-deal,
+.ai-client-summary__section--full.ai-client-summary__section--semantic-neutral {
+    border-bottom-color: color-mix(in srgb, var(--wa-border) 55%, transparent);
+}
 
 .ai-client-summary__section h3 {
     margin: 0 0 3px;
