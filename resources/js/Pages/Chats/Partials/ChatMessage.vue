@@ -1500,7 +1500,7 @@ onBeforeUnmount(() => {
                 v-if="hasQuoted"
                 type="button"
                 class="mb-1 w-full text-left rounded-md px-2 py-1 border-l-4"
-                :style="{ background: 'rgba(0,0,0,0.06)', borderColor: 'var(--wa-accent)' }"
+                :style="{ background: 'var(--wa-bubble-quote-bg, rgba(0,0,0,0.06))', borderColor: 'var(--wa-accent)' }"
                 @click.stop="jumpToQuoted"
                 title="Перейти к сообщению"
             >

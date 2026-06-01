@@ -3,6 +3,7 @@ import '../css/wa-chat-composer.css';
 import './bootstrap';
 import { initTheme } from './composables/useTheme';
 import { initChatBackground } from './composables/useChatBackground';
+import { initChatBubbles } from './composables/useChatBubbles';
 import { installKeyboardShortcuts } from './composables/useKeyboardShortcuts';
 import { useConnectionStatus } from './composables/useConnectionStatus';
 import { registerSW } from 'virtual:pwa-register';
@@ -19,6 +20,7 @@ registerSW({
 });
 
 initTheme();
+initChatBubbles();
 initChatBackground();
 installKeyboardShortcuts();
 useConnectionStatus();

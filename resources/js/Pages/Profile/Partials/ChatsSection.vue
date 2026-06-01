@@ -3,24 +3,33 @@ import SectionHeader from './SectionHeader.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import { useTheme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
+import { useChatBubbles } from '@/composables/useChatBubbles';
 import {
     useTranslationLang,
     TRANSLATION_LANG_OPTIONS,
     type TranslationLang,
 } from '@/composables/useTranslationLang';
 import { wallpaperPreview } from '@/config/wallpapers';
+import { bubblePresetPreview } from '@/config/chatBubbles';
 import { computed, ref } from 'vue';
 
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
+const { presets: bubblePresets, currentBubblePresetId, setBubblePreset, getCurrent: getCurrentBubbles } = useChatBubbles();
 const { lang: translateLang } = useTranslationLang();
 
 const wallpaperLabel = computed(() => getCurrent().label);
+const bubblePresetLabel = computed(() => getCurrentBubbles().label);
 const wallpaperPickerOpen = ref(false);
+const bubblePickerOpen = ref(false);
 const isDarkTheme = computed(() => theme.value === 'dark');
 
 function pickWallpaper(id: string) {
     setWallpaper(id);
+}
+
+function pickBubblePreset(id: string) {
+    setBubblePreset(id);
 }
 
 function previewStyle(id: string): string {
@@ -96,6 +105,36 @@ function isDefaultLang(value: TranslationLang): boolean {
                         <div class="flex-1 min-w-0">
                             <div class="text-[15px] text-[var(--wa-text)] truncate">{{ wallpaperLabel }}</div>
                             <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Нажмите, чтобы выбрать фон</div>
+                        </div>
+                        <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="chats-settings__field">
+                    <span class="ui-settings-field-label">Пузыри сообщений</span>
+                    <p class="ui-settings-block-hint !mt-0 !mb-2">
+                        Цвет входящих и исходящих сообщений отдельно от фона чата.
+                    </p>
+                    <button
+                        type="button"
+                        class="ui-settings-pick-card"
+                        @click="bubblePickerOpen = true"
+                    >
+                        <div class="ui-settings-pick-card__preview chats-settings__bubble-preview" aria-hidden="true">
+                            <span
+                                class="chats-settings__bubble-sample chats-settings__bubble-sample--in"
+                                :style="{ background: bubblePresetPreview(getCurrentBubbles(), theme).in }"
+                            />
+                            <span
+                                class="chats-settings__bubble-sample chats-settings__bubble-sample--out"
+                                :style="{ background: bubblePresetPreview(getCurrentBubbles(), theme).out }"
+                            />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[15px] text-[var(--wa-text)] truncate">{{ bubblePresetLabel }}</div>
+                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Стиль пузырьков в ленте</div>
                         </div>
                         <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -191,6 +230,49 @@ function isDefaultLang(value: TranslationLang): boolean {
                 </button>
             </template>
         </UiModal>
+
+        <UiModal
+            :open="bubblePickerOpen"
+            title="Стиль пузырьков"
+            subtitle="Входящие и исходящие — для вашего устройства"
+            max-width="lg"
+            body-class="p-6"
+            @close="bubblePickerOpen = false"
+        >
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                    v-for="preset in bubblePresets"
+                    :key="preset.id"
+                    type="button"
+                    class="chats-settings__bubble-option group text-left focus:outline-none"
+                    :class="{ 'is-active': currentBubblePresetId === preset.id }"
+                    @click="pickBubblePreset(preset.id)"
+                >
+                    <div class="chats-settings__bubble-option-preview">
+                        <span
+                            class="chats-settings__bubble-sample chats-settings__bubble-sample--in"
+                            :style="{ background: bubblePresetPreview(preset, theme).in }"
+                        />
+                        <span
+                            class="chats-settings__bubble-sample chats-settings__bubble-sample--out"
+                            :style="{ background: bubblePresetPreview(preset, theme).out }"
+                        />
+                    </div>
+                    <div class="mt-2 font-medium text-sm text-[var(--wa-text)]">{{ preset.label }}</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">{{ preset.description }}</div>
+                </button>
+            </div>
+
+            <template #footer>
+                <button
+                    type="button"
+                    class="ui-btn ui-btn--primary"
+                    @click="bubblePickerOpen = false"
+                >
+                    Готово
+                </button>
+            </template>
+        </UiModal>
     </div>
 </template>
 
@@ -208,5 +290,69 @@ function isDefaultLang(value: TranslationLang): boolean {
 
 .chats-settings__field + .chats-settings__field {
     margin-top: 16px;
+}
+
+.chats-settings__bubble-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px;
+    background: var(--wa-panel-header);
+}
+
+.chats-settings__bubble-sample {
+    display: block;
+    height: 10px;
+    border-radius: 6px;
+    box-shadow: 0 1px 0.5px var(--wa-bubble-tail-shadow, rgba(0, 0, 0, 0.12));
+}
+
+.chats-settings__bubble-sample--in {
+    width: 70%;
+    align-self: flex-start;
+}
+
+.chats-settings__bubble-sample--out {
+    width: 58%;
+}
+
+.chats-settings__bubble-option {
+    padding: 12px;
+    border-radius: var(--primitive-radius-md);
+    border: 2px solid var(--wa-control-rim);
+    background: var(--wa-panel-header);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chats-settings__bubble-option:hover {
+    border-color: var(--wa-control-rim-hover);
+}
+
+.chats-settings__bubble-option.is-active {
+    border-color: var(--wa-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wa-accent) 35%, transparent);
+}
+
+.chats-settings__bubble-option-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border-radius: var(--primitive-radius-sm);
+    background: color-mix(in srgb, var(--wa-bg) 40%, var(--wa-panel));
+}
+
+.chats-settings__bubble-option-preview .chats-settings__bubble-sample {
+    height: 14px;
+}
+
+.chats-settings__bubble-option-preview .chats-settings__bubble-sample--in {
+    width: 75%;
+}
+
+.chats-settings__bubble-option-preview .chats-settings__bubble-sample--out {
+    width: 55%;
 }
 </style>

@@ -122,10 +122,11 @@
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 22%, var(--wa-chroma-blend));
 
     /* Message bubbles */
-    --wa-bubble-in: color-mix(in srgb, #ffffff 6%, var(--wa-bg));       /* incoming messages */
-    --wa-bubble-out: color-mix(in srgb, var(--brand-accent) 42%, #003b32 58%);      /* outgoing messages */
-    --wa-bubble-text: #e9edef;
+    --wa-bubble-in: #202C33;
+    --wa-bubble-out: #005C4B;
+    --wa-bubble-text: #E9EDEF;
     --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.26);
+    --wa-bubble-quote-bg: color-mix(in srgb, #fff 8%, var(--wa-bubble-in));
 
     /* Indicators */
     --wa-unread: var(--brand-accent);
@@ -341,9 +342,10 @@
 
     /* Message bubbles */
     --wa-bubble-in: #FFFFFF;
-    --wa-bubble-out: color-mix(in srgb, var(--brand-accent) 18%, #dcf8c6 82%);
+    --wa-bubble-out: #D9FDD3;
     --wa-bubble-text: #111B21;
     --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
+    --wa-bubble-quote-bg: color-mix(in srgb, #000 6%, var(--wa-bubble-in));
 
     /* Indicators */
     --wa-unread: var(--brand-accent);          /* brand green badge */
