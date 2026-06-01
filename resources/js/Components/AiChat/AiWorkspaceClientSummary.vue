@@ -26,6 +26,14 @@ const props = withDefaults(
     },
 );
 
+type SectionSemantic = 'who' | 'preferences' | 'context' | 'agreements' | 'deal' | 'neutral';
+
+type EnrichedSection = {
+    title: string;
+    body: string;
+    semantic: SectionSemantic;
+};
+
 const emptyMessage = computed(() => {
     if (props.emptyHint) {
         return props.emptyHint;
@@ -51,28 +59,46 @@ const confidenceLabel = computed(() => {
     return 'Мало данных';
 });
 
+const enrichedSections = computed((): EnrichedSection[] => {
+    if (!props.summary) {
+        return [];
+    }
+
+    return props.summary.ai.sections.map((section) => ({
+        title: section.title,
+        body: section.body,
+        semantic: sectionSemantic(section.title),
+    }));
+});
+
+const profileSections = computed(() =>
+    enrichedSections.value.filter((section) => section.semantic === 'who' || section.semantic === 'preferences'),
+);
+
+const activitySections = computed(() =>
+    enrichedSections.value.filter((section) => section.semantic !== 'who' && section.semantic !== 'preferences'),
+);
+
+const hasCrmTags = computed(() => {
+    const crm = props.summary?.crm;
+    if (!crm) {
+        return false;
+    }
+
+    return Boolean(
+        crm.deal?.funnel?.name
+            || crm.deal?.stage?.name
+            || crm.upcoming_events_count
+            || crm.open_tasks_count,
+    );
+});
+
 function onPickContact(event: Event): void {
     const value = Number((event.target as HTMLSelectElement).value);
     if (value > 0) {
         emit('selectContact', value);
     }
 }
-
-function sectionLayout(body: string): 'inline' | 'half' | 'full' {
-    const text = body.trim();
-    if (text.length === 0 || /^нет данных\.?$/i.test(text)) {
-        return 'inline';
-    }
-    if (text.length <= 48) {
-        return 'inline';
-    }
-    if (text.length <= 130) {
-        return 'half';
-    }
-    return 'full';
-}
-
-type SectionSemantic = 'who' | 'preferences' | 'context' | 'agreements' | 'deal' | 'neutral';
 
 function sectionSemantic(title: string): SectionSemantic {
     const t = title.toLowerCase();
@@ -105,17 +131,6 @@ function sectionSemantic(title: string): SectionSemantic {
             { 'ai-client-summary--expanded': expanded },
         ]"
     >
-        <header class="ai-client-summary__head">
-            <h2 class="ai-client-summary__title">Сводка клиента</h2>
-            <span
-                v-if="summary && !loading"
-                class="ai-client-summary__badge"
-                :class="`ai-client-summary__badge--${summary.ai.confidence}`"
-            >
-                {{ confidenceLabel }}
-            </span>
-        </header>
-
         <div v-if="loading" class="ai-client-summary__loading" role="status" aria-live="polite">
             <div class="ai-client-summary__loading-visual" aria-hidden="true">
                 <span class="ai-client-summary__loading-ring ai-client-summary__loading-ring--outer" />
@@ -135,18 +150,27 @@ function sectionSemantic(title: string): SectionSemantic {
         </div>
 
         <div v-else class="ai-client-summary__body wa-scrollbar">
-            <div class="ai-client-summary__identity">
+            <div class="summary-hero">
                 <UserAvatar
+                    class="summary-hero__avatar"
                     :name="summary.identity.display_name"
                     :src="summary.identity.avatar"
-                    :size="34"
+                    :size="48"
                 />
-                <div class="min-w-0">
-                    <div class="ai-client-summary__name">{{ summary.identity.display_name }}</div>
-                    <p v-if="summary.identity.phone" class="ai-client-summary__meta">
+                <div class="summary-hero__main min-w-0">
+                    <div class="summary-hero__title-row">
+                        <h2 class="summary-hero__name">{{ summary.identity.display_name }}</h2>
+                        <span
+                            class="summary-hero__status"
+                            :class="`summary-hero__status--${summary.ai.confidence}`"
+                        >
+                            {{ confidenceLabel }}
+                        </span>
+                    </div>
+                    <p v-if="summary.identity.phone" class="summary-hero__meta">
                         {{ formatPhone(summary.identity.phone) || summary.identity.phone }}
                     </p>
-                    <p v-if="summary.identity.companies.length" class="ai-client-summary__meta truncate">
+                    <p v-if="summary.identity.companies.length" class="summary-hero__meta truncate">
                         {{ summary.identity.companies.join(', ') }}
                     </p>
                 </div>
@@ -163,40 +187,99 @@ function sectionSemantic(title: string): SectionSemantic {
                 </option>
             </select>
 
-            <p class="ai-client-summary__headline">{{ summary.ai.headline }}</p>
+            <p class="summary-insight">{{ summary.ai.headline }}</p>
 
-            <div
-                v-if="summary.crm.deal?.funnel?.name || summary.crm.deal?.stage?.name || summary.crm.upcoming_events_count || summary.crm.open_tasks_count"
-                class="ai-client-summary__chips"
-            >
-                <span v-if="summary.crm.deal?.funnel?.name" class="ai-client-summary__chip ai-client-summary__chip--who">
-                    {{ summary.crm.deal.funnel.name }}
-                </span>
-                <span v-if="summary.crm.deal?.stage?.name" class="ai-client-summary__chip ai-client-summary__chip--context">
-                    {{ summary.crm.deal.stage.name }}
-                </span>
-                <span v-if="summary.crm.upcoming_events_count" class="ai-client-summary__chip ai-client-summary__chip--prefs">
-                    Записей: {{ summary.crm.upcoming_events_count }}
-                </span>
-                <span v-if="summary.crm.open_tasks_count" class="ai-client-summary__chip ai-client-summary__chip--agreements">
-                    Задач: {{ summary.crm.open_tasks_count }}
-                </span>
-            </div>
+            <section v-if="hasCrmTags" class="summary-group">
+                <h3 class="summary-group__label">Воронка и CRM</h3>
+                <div class="summary-tags">
+                    <span
+                        v-if="summary.crm.deal?.funnel?.name"
+                        class="summary-tag summary-tag--who"
+                    >
+                        [ {{ summary.crm.deal.funnel.name }} ]
+                    </span>
+                    <span
+                        v-if="summary.crm.deal?.stage?.name"
+                        class="summary-tag summary-tag--context"
+                    >
+                        [ {{ summary.crm.deal.stage.name }} ]
+                    </span>
+                    <span
+                        v-if="summary.crm.upcoming_events_count"
+                        class="summary-tag summary-tag--prefs"
+                    >
+                        [ Записей: {{ summary.crm.upcoming_events_count }} ]
+                    </span>
+                    <span
+                        v-if="summary.crm.open_tasks_count"
+                        class="summary-tag summary-tag--agreements"
+                    >
+                        [ Задач: {{ summary.crm.open_tasks_count }} ]
+                    </span>
+                </div>
+            </section>
 
-            <div class="ai-client-summary__mosaic">
-                <article
-                    v-for="(section, index) in summary.ai.sections"
-                    :key="section.title"
-                    class="ai-client-summary__section"
-                    :class="[
-                        `ai-client-summary__section--${sectionLayout(section.body)}`,
-                        `ai-client-summary__section--semantic-${sectionSemantic(section.title)}`,
-                    ]"
-                >
-                    <h3>{{ section.title }}</h3>
-                    <p>{{ section.body }}</p>
-                </article>
-            </div>
+            <section v-if="profileSections.length" class="summary-group">
+                <h3 class="summary-group__label">Профиль клиента</h3>
+                <div class="summary-card">
+                    <div
+                        v-for="(section, index) in profileSections"
+                        :key="section.title"
+                        class="summary-row"
+                        :class="[
+                            `summary-row--${section.semantic}`,
+                            { 'summary-row--last': index === profileSections.length - 1 },
+                        ]"
+                    >
+                        <span class="summary-row__icon" aria-hidden="true">
+                            <svg v-if="section.semantic === 'who'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" d="M12 12a4 4 0 100-8 4 4 0 000 8z" />
+                                <path stroke-linecap="round" d="M5 20a7 7 0 0114 0" />
+                            </svg>
+                            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" d="M12 3l2.4 4.8 5.4.8-3.9 3.8.9 5.3L12 15.8 7.2 17.7l.9-5.3L4.2 8.6l5.4-.8L12 3z" />
+                            </svg>
+                        </span>
+                        <div class="summary-row__content min-w-0">
+                            <span class="summary-row__label">{{ section.title }}</span>
+                            <p class="summary-row__value">{{ section.body }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section v-if="activitySections.length" class="summary-group">
+                <h3 class="summary-group__label">Контекст и договорённости</h3>
+                <div class="summary-activity">
+                    <article
+                        v-for="section in activitySections"
+                        :key="section.title"
+                        class="summary-activity__item"
+                        :class="`summary-activity__item--${section.semantic}`"
+                    >
+                        <span class="summary-activity__icon" aria-hidden="true">
+                            <svg v-if="section.semantic === 'context'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" d="M12 11.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                                <path stroke-linecap="round" d="M5.5 10.5c1.2-3 4.3-5 6.5-5s5.3 2 6.5 5c-1.2 3-4.3 9-6.5 9s-5.3-6-6.5-9z" />
+                            </svg>
+                            <svg v-else-if="section.semantic === 'agreements'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <svg v-else-if="section.semantic === 'deal'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path stroke-linecap="round" d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <circle cx="12" cy="12" r="8" />
+                                <path stroke-linecap="round" d="M12 8v4l2.5 2.5" />
+                            </svg>
+                        </span>
+                        <div class="summary-activity__content min-w-0">
+                            <h4 class="summary-activity__title">{{ section.title }}</h4>
+                            <p class="summary-activity__text">{{ section.body }}</p>
+                        </div>
+                    </article>
+                </div>
+            </section>
 
             <div v-if="!hideOpenChat && summary.primary_chat_id" class="ai-client-summary__actions">
                 <Link
@@ -252,45 +335,6 @@ function sectionSemantic(title: string): SectionSemantic {
 .ai-client-summary--expanded .ai-client-summary__empty {
     flex: 1;
     min-height: 0;
-}
-
-.ai-client-summary__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 14px 16px 10px;
-    flex-shrink: 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--wa-sidebar-divider) 70%, transparent);
-}
-
-.ai-client-summary__title {
-    margin: 0;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--wa-text-secondary);
-}
-
-.ai-client-summary__badge {
-    font-size: 0.625rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 3px 8px;
-    border-radius: 6px;
-    border: 1px solid var(--wa-border);
-    color: var(--wa-text-secondary);
-    background: transparent;
-}
-
-.ai-client-summary__badge--high,
-.ai-client-summary__badge--medium,
-.ai-client-summary__badge--low {
-    color: var(--wa-text-secondary);
-    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel));
-    border-color: var(--wa-border);
 }
 
 .ai-client-summary__loading,
@@ -422,28 +466,52 @@ function sectionSemantic(title: string): SectionSemantic {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 10px 16px 16px;
+    padding: 14px 16px 16px;
 }
 
-.ai-client-summary__identity {
+.summary-hero {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 12px;
     margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--wa-border) 80%, transparent);
 }
 
-.ai-client-summary__name {
-    font-size: 1rem;
-    font-weight: 600;
+.summary-hero__avatar {
+    flex-shrink: 0;
+}
+
+.summary-hero__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-bottom: 4px;
+}
+
+.summary-hero__name {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 650;
     line-height: 1.25;
     color: var(--wa-text);
 }
 
-.ai-client-summary__meta {
-    margin: 3px 0 0;
+.summary-hero__status {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: var(--wa-text-secondary);
+    background: color-mix(in srgb, var(--wa-text) 5%, var(--wa-panel));
+    border: 1px solid var(--wa-border);
+}
+
+.summary-hero__meta {
+    margin: 2px 0 0;
     font-size: 0.75rem;
+    line-height: 1.35;
     color: var(--wa-text-secondary);
     font-variant-numeric: tabular-nums;
 }
@@ -459,175 +527,226 @@ function sectionSemantic(title: string): SectionSemantic {
     font-size: 0.8125rem;
 }
 
-.ai-client-summary__headline {
-    margin: 0 0 12px;
-    padding: 10px 12px;
-    font-size: 0.9375rem;
+.summary-insight {
+    margin: 0 0 16px;
+    padding: 11px 13px;
+    font-size: 0.875rem;
     line-height: 1.45;
     font-weight: 500;
     color: var(--wa-text);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--sem-context-bg);
     border: 1px solid var(--sem-context-border);
 }
 
-.ai-client-summary__chips {
+.summary-group + .summary-group {
+    margin-top: 16px;
+}
+
+.summary-group__label {
+    margin: 0 0 8px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--wa-text-secondary);
+}
+
+.summary-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 14px;
+    gap: 8px;
 }
 
-.ai-client-summary__chip {
+.summary-tag {
     font-size: 0.6875rem;
     font-weight: 500;
-    padding: 3px 9px;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border);
-    background: transparent;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    line-height: 1.2;
 }
 
-.ai-client-summary__chip--who {
+.summary-tag--who {
     color: var(--sem-who);
+    background: var(--sem-who-bg);
     border-color: var(--sem-who-border);
+}
+
+.summary-tag--prefs {
+    color: var(--sem-prefs);
+    background: var(--sem-prefs-bg);
+    border-color: var(--sem-prefs-border);
+}
+
+.summary-tag--context {
+    color: var(--sem-context);
+    background: var(--sem-context-bg);
+    border-color: var(--sem-context-border);
+}
+
+.summary-tag--agreements {
+    color: var(--sem-agreements);
+    background: var(--sem-agreements-bg);
+    border-color: var(--sem-agreements-border);
+}
+
+.summary-card {
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel));
+    border: 1px solid color-mix(in srgb, var(--wa-border) 90%, transparent);
+    overflow: hidden;
+}
+
+.summary-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--wa-border) 65%, transparent);
+}
+
+.summary-row--last {
+    border-bottom: none;
+}
+
+.summary-row__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 8px;
+}
+
+.summary-row__icon svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.summary-row--who .summary-row__icon {
+    color: var(--sem-who);
     background: var(--sem-who-bg);
 }
 
-.ai-client-summary__chip--prefs {
+.summary-row--preferences .summary-row__icon {
     color: var(--sem-prefs);
-    border-color: var(--sem-prefs-border);
     background: var(--sem-prefs-bg);
 }
 
-.ai-client-summary__chip--context {
-    color: var(--sem-context);
-    border-color: var(--sem-context-border);
-    background: var(--sem-context-bg);
-}
-
-.ai-client-summary__chip--agreements {
-    color: var(--sem-agreements);
-    border-color: var(--sem-agreements-border);
-    background: var(--sem-agreements-bg);
-}
-
-.ai-client-summary__mosaic {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 10px;
-    align-items: flex-start;
-    align-content: flex-start;
-}
-
-.ai-client-summary__section {
+.summary-row__content {
+    flex: 1;
     min-width: 0;
 }
 
-.ai-client-summary__section--inline {
-    flex: 0 1 auto;
-    max-width: calc(50% - 5px);
-    padding: 8px 10px;
-    border-radius: 10px;
+.summary-row__label {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--wa-text-secondary);
+}
+
+.summary-row__value {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--wa-text);
+}
+
+.summary-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.summary-activity__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
     border: 1px solid transparent;
 }
 
-.ai-client-summary__section--half {
-    flex: 1 1 calc(50% - 6px);
-    min-width: min(100%, 9.5rem);
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid transparent;
+.summary-activity__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
 }
 
-.ai-client-summary__section--full {
-    flex: 1 1 100%;
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid transparent;
+.summary-activity__icon svg {
+    width: 0.9375rem;
+    height: 0.9375rem;
 }
 
-.ai-client-summary__section--semantic-who {
-    background: var(--sem-who-bg);
-    border-color: var(--sem-who-border);
-}
-
-.ai-client-summary__section--semantic-who h3 {
-    color: var(--sem-who);
-}
-
-.ai-client-summary__section--semantic-preferences {
-    background: var(--sem-prefs-bg);
-    border-color: var(--sem-prefs-border);
-}
-
-.ai-client-summary__section--semantic-preferences h3 {
-    color: var(--sem-prefs);
-}
-
-.ai-client-summary__section--semantic-context {
+.summary-activity__item--context {
     background: var(--sem-context-bg);
     border-color: var(--sem-context-border);
 }
 
-.ai-client-summary__section--semantic-context h3 {
+.summary-activity__item--context .summary-activity__icon {
     color: var(--sem-context);
+    background: color-mix(in srgb, var(--sem-context) 18%, var(--wa-panel));
 }
 
-.ai-client-summary__section--semantic-agreements {
+.summary-activity__item--agreements {
     background: var(--sem-agreements-bg);
     border-color: var(--sem-agreements-border);
 }
 
-.ai-client-summary__section--semantic-agreements h3 {
+.summary-activity__item--agreements .summary-activity__icon {
     color: var(--sem-agreements);
+    background: color-mix(in srgb, var(--sem-agreements) 18%, var(--wa-panel));
 }
 
-.ai-client-summary__section--semantic-deal {
+.summary-activity__item--deal {
     background: var(--sem-deal-bg);
     border-color: var(--sem-deal-border);
 }
 
-.ai-client-summary__section--semantic-deal h3 {
+.summary-activity__item--deal .summary-activity__icon {
     color: var(--sem-deal);
+    background: color-mix(in srgb, var(--sem-deal) 18%, var(--wa-panel));
 }
 
-.ai-client-summary__section--semantic-neutral {
+.summary-activity__item--neutral {
     background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel));
     border-color: color-mix(in srgb, var(--wa-border) 85%, transparent);
 }
 
-.ai-client-summary__section--semantic-neutral h3 {
+.summary-activity__item--neutral .summary-activity__icon {
     color: var(--wa-text-secondary);
+    background: color-mix(in srgb, var(--wa-text) 6%, var(--wa-panel));
 }
 
-.ai-client-summary__section h3 {
+.summary-activity__title {
     margin: 0 0 3px;
     font-size: 0.625rem;
     font-weight: 600;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    color: var(--wa-text-secondary);
 }
 
-.ai-client-summary__section--inline h3 {
-    margin-bottom: 2px;
-}
-
-.ai-client-summary__section p {
+.summary-activity__text {
     margin: 0;
     font-size: 0.8125rem;
     line-height: 1.45;
-    color: color-mix(in srgb, var(--wa-text) 90%, var(--wa-text-secondary));
-}
-
-.ai-client-summary__section--inline p {
-    font-size: 0.75rem;
-    line-height: 1.35;
+    color: var(--wa-text);
 }
 
 .ai-client-summary__actions {
     display: flex;
     gap: 8px;
-    margin-top: 14px;
+    margin-top: 16px;
     padding-top: 12px;
     border-top: 1px solid var(--wa-sidebar-divider);
 }
