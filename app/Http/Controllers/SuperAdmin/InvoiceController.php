@@ -13,6 +13,7 @@ use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 final class InvoiceController extends Controller
@@ -75,26 +76,35 @@ final class InvoiceController extends Controller
             'paid_at' => ['nullable', 'date'],
         ]);
 
-        $previousStatus = $invoice->status;
-        $invoice->update($data);
+        DB::transaction(function () use ($request, $invoice, $data): void {
+            /** @var Invoice $locked */
+            $locked = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            $previousStatus = $locked->status;
 
-        if ($data['status'] === 'paid' && $invoice->paid_at === null) {
-            $invoice->update(['paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now()]);
-        }
-
-        $company = Company::query()->with('plan')->findOrFail($invoice->company_id);
-
-        if ($data['status'] === 'paid' && $previousStatus !== 'paid') {
-            $activation = $this->lifecycle->applyPaymentToSubscription($company, $invoice->amount_cents);
-            if ($activation !== null) {
-                $invoice->update(['subscription_id' => $activation['subscription']->id]);
+            if ($data['status'] === 'paid' && $previousStatus === 'paid') {
+                return;
             }
-        }
 
-        $this->audit->log($company, $request->user(), 'invoice.status_changed', $invoice, [
-            'from' => $previousStatus,
-            'to' => $data['status'],
-        ]);
+            $locked->update($data);
+
+            if ($data['status'] === 'paid' && $locked->paid_at === null) {
+                $locked->update(['paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now()]);
+            }
+
+            $company = Company::query()->with('plan')->findOrFail($locked->company_id);
+
+            if ($data['status'] === 'paid' && $previousStatus !== 'paid') {
+                $activation = $this->lifecycle->applyPaymentToSubscription($company, $locked->amount_cents);
+                if ($activation !== null) {
+                    $locked->update(['subscription_id' => $activation['subscription']->id]);
+                }
+            }
+
+            $this->audit->log($company, $request->user(), 'invoice.status_changed', $locked, [
+                'from' => $previousStatus,
+                'to' => $data['status'],
+            ]);
+        });
 
         return back()->with('success', 'Счёт обновлён.');
     }

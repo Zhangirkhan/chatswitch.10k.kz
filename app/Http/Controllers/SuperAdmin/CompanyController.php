@@ -18,6 +18,7 @@ use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\Tenancy\CompanyProvisioningService;
 use App\Services\WhatsappService;
+use App\Services\WhatsappSessionLimitService;
 use App\Support\PhoneFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ final class CompanyController extends Controller
         private readonly SuperAdminAuditLogger $audit,
         private readonly TenantImpersonationService $impersonation,
         private readonly CompanyUsersService $companyUsers,
+        private readonly WhatsappSessionLimitService $sessionLimits,
     ) {}
 
     public function index(Request $request): Response
@@ -185,7 +187,8 @@ final class CompanyController extends Controller
             'billingSummary' => $this->billingSummary->forCompany($company),
             'whatsappSessions' => $whatsappSessions,
             'whatsappServiceReachable' => $this->whatsapp->healthReachable(),
-            'whatsappMaxSessions' => (int) config('billing.default_max_whatsapp_sessions', 5),
+            'whatsappMaxSessions' => $this->sessionLimits->perTenantMax($company->id),
+            'whatsappSessionLimits' => $this->sessionLimits->payload($company->id),
             'auditLogs' => $auditLogs,
             'tenantUrl' => $company->tenantUrl('/login'),
             'canImpersonate' => $this->impersonation->canImpersonate($company),

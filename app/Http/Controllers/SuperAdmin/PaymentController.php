@@ -34,11 +34,20 @@ final class PaymentController extends Controller
         ]);
 
         $activation = DB::transaction(function () use ($request, $invoice, $data): ?array {
+            /** @var Invoice $locked */
+            $locked = Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status === 'paid') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'invoice' => 'Счёт уже оплачен.',
+                ]);
+            }
+
             $paidAt = isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now();
 
             $payment = Payment::query()->create([
-                'invoice_id' => $invoice->id,
-                'company_id' => $invoice->company_id,
+                'invoice_id' => $locked->id,
+                'company_id' => $locked->company_id,
                 'amount_cents' => $data['amount_cents'],
                 'method' => $data['method'],
                 'external_ref' => $data['external_ref'] ?? null,
@@ -46,12 +55,12 @@ final class PaymentController extends Controller
                 'recorded_by_user_id' => $request->user()?->id,
             ]);
 
-            $invoice->update([
+            $locked->update([
                 'status' => 'paid',
                 'paid_at' => $paidAt,
             ]);
 
-            $company = Company::query()->with('plan')->findOrFail($invoice->company_id);
+            $company = Company::query()->with('plan')->findOrFail($locked->company_id);
 
             $activation = $this->lifecycle->applyPaymentToSubscription(
                 $company,
@@ -59,10 +68,10 @@ final class PaymentController extends Controller
             );
 
             if ($activation !== null) {
-                $invoice->update(['subscription_id' => $activation['subscription']->id]);
+                $locked->update(['subscription_id' => $activation['subscription']->id]);
             }
 
-            $this->audit->log($company, $request->user(), 'invoice.payment_recorded', $invoice, [
+            $this->audit->log($company, $request->user(), 'invoice.payment_recorded', $locked, [
                 'payment_id' => $payment->id,
                 'amount_cents' => $data['amount_cents'],
                 'method' => $data['method'],
