@@ -82,7 +82,7 @@ final class FunnelAiSuggestionService
             ['role' => 'user', 'content' => $this->userPrompt($description)],
         ];
 
-        $raw = $this->openAi->chatJson($messages, 0.4, 900);
+        $raw = $this->openAi->chatJson($messages, 0.4, 900, new AiUsageOptions('background'));
 
         return $this->normalize($raw);
     }
@@ -114,7 +114,12 @@ final class FunnelAiSuggestionService
             ['role' => 'user', 'content' => $this->variantsUserPrompt($input)],
         ];
 
-        $raw = $this->openAi->chatJson($messages, 0.45, 1400);
+        $raw = $this->openAi->chatJson(
+            $messages,
+            0.45,
+            1400,
+            new AiUsageOptions('background', (int) ($input['company_id'] ?? 0) ?: null),
+        );
 
         return $this->normalizeVariants($raw);
     }

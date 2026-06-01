@@ -24,6 +24,7 @@ use App\Services\AI\AiResponderResolver;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\TeamChatService;
 use App\Services\TeamDepartmentChatSyncService;
+use App\Support\ChatUrl;
 use Carbon\Carbon;
 use Throwable;
 
@@ -444,7 +445,7 @@ final class AiFunnelActionExecutor
 
     private function managerTeamBody(Chat $chat, string $note): string
     {
-        $url = route('chats.show', $chat);
+        $url = ChatUrl::show($chat);
 
         return "AI-оркестратор просит проверить клиентский чат:\n{$note}\n\n{$url}";
     }

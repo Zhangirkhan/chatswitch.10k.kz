@@ -137,7 +137,7 @@ final class KnowledgeEmbeddingIndexer
         }
 
         try {
-            $vector = $this->embeddings->embed($contentText);
+            $vector = $this->embeddings->embed($contentText, new \App\Services\AI\AiUsageOptions('background', $companyId));
         } catch (Throwable $e) {
             Log::warning('[knowledge-rag] chunk embedding failed', [
                 'company_id' => $companyId,

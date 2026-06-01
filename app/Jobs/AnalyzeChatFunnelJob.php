@@ -29,6 +29,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
     public function __construct(
         public readonly int $chatId,
         public readonly int $triggerMessageId,
+        public readonly ?int $tenantCompanyId = null,
     ) {}
 
     public function handle(
@@ -88,9 +89,10 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
             $state->applyFromAi($chat, $classification, $this->triggerMessageId);
             if (FunnelAiScenario::query()
                 ->where('funnel_id', $classification->funnelId)
+                ->where('company_id', $chat->company_id)
                 ->where('enabled', true)
                 ->exists()) {
-                RunAiFunnelOrchestratorJob::dispatch($chat->id, $this->triggerMessageId)
+                RunAiFunnelOrchestratorJob::dispatch($chat->id, $this->triggerMessageId, $chat->company_id)
                     ->delay(now()->addSeconds(max(3, (int) config('funnel.orchestrator.debounce_seconds', 20))));
 
                 return;
@@ -110,7 +112,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
     private function dispatchFallbackReply(Chat $chat): void
     {
         if ($chat->ai_enabled) {
-            GenerateAiReplyJob::dispatch($chat->id, $this->triggerMessageId);
+            GenerateAiReplyJob::dispatch($chat->id, $this->triggerMessageId, $chat->company_id);
         }
     }
 

@@ -46,7 +46,7 @@ final class AiWorkspaceService
         $localeAugment = $this->localeAugmenter->augment($message);
         $localeProfile = $localeAugment['profile'];
 
-        $parsed = $this->parseQuery($message, $history, $localeProfile);
+        $parsed = $this->parseQuery($message, $history, $localeProfile, $user->company_id);
         $intent = (string) ($parsed['intent'] ?? 'answer');
 
         $contactFilters = is_array($parsed['contact_filters'] ?? null) ? $parsed['contact_filters'] : [];
@@ -92,7 +92,7 @@ final class AiWorkspaceService
         $ranAnySearch = $runContacts || $runMedia || $runMessages || $runCalendar || $runFunnel || $runTasks || $runEmployees;
 
         if ($dataContext !== '') {
-            $reply = $this->synthesizeReply($message, $history, $dataContext, $draftReply, $localeProfile);
+            $reply = $this->synthesizeReply($message, $history, $dataContext, $draftReply, $localeProfile, $user->company_id);
         } elseif ($ranAnySearch) {
             $reply = $this->buildResultReply($draftReply, $intent, $contacts, $media, $runContacts, $runMedia);
         } else {
@@ -144,6 +144,7 @@ final class AiWorkspaceService
         string $dataContext,
         string $draftReply,
         KazakhstanLocaleProfile $localeProfile,
+        ?int $companyId = null,
     ): string {
         $historyMessages = [];
         foreach (array_slice($history, -8) as $turn) {
@@ -185,14 +186,19 @@ PROMPT,
             ],
         ];
 
-        return trim($this->openAi->chat($messages, 0.25, 900));
+        return trim($this->openAi->chat(
+            $messages,
+            0.25,
+            900,
+            new AiUsageOptions('workspace_query', $companyId),
+        ));
     }
 
     /**
      * @param  list<array{role: string, content: string}>  $history
      * @return array<string, mixed>
      */
-    private function parseQuery(string $message, array $history, KazakhstanLocaleProfile $localeProfile): array
+    private function parseQuery(string $message, array $history, KazakhstanLocaleProfile $localeProfile, ?int $companyId = null): array
     {
         $historyMessages = [];
         foreach (array_slice($history, -12) as $turn) {
@@ -250,7 +256,12 @@ PROMPT,
             ['role' => 'user', 'content' => $message],
         ];
 
-        return $this->openAi->chatJson($messages, 0.2, 1600);
+        return $this->openAi->chatJson(
+            $messages,
+            0.2,
+            1600,
+            new AiUsageOptions('workspace_query', $companyId),
+        );
     }
 
     /**

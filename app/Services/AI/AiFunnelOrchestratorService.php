@@ -48,11 +48,44 @@ final class AiFunnelOrchestratorService
         $trigger = Message::query()->whereKey($triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $this->canRun($chat, $trigger)) {
+            Log::info('[ai-orchestrator] skipped run', [
+                'chat_id' => $chatId,
+                'trigger_message_id' => $triggerMessageId,
+                'chat_found' => $chat !== null,
+                'trigger_found' => $trigger !== null,
+                'can_run' => $chat !== null && $trigger !== null && $this->canRun($chat, $trigger),
+            ]);
+
             return;
         }
 
         $scenario = $chat->funnel?->aiScenario;
         if (! $scenario instanceof FunnelAiScenario || ! $scenario->enabled) {
+            Log::info('[ai-orchestrator] scenario disabled or missing', [
+                'chat_id' => $chatId,
+                'trigger_message_id' => $triggerMessageId,
+                'funnel_id' => $chat->funnel_id,
+                'chat_company_id' => $chat->company_id,
+            ]);
+
+            $this->dispatchFallbackReplyIfNeeded(
+                $chat,
+                $trigger,
+                new AiFunnelOrchestratorPlan(
+                    customerReply: null,
+                    targetFunnelStageId: null,
+                    appointment: null,
+                    assigneeUserId: null,
+                    managerNote: null,
+                    task: null,
+                    requiresManagerAttention: false,
+                    confidence: 0.0,
+                    reason: 'Сценарий воронки недоступен для компании чата.',
+                ),
+                AiOrchestratorRun::STATUS_COMPLETED,
+                [],
+            );
+
             return;
         }
 
@@ -79,6 +112,14 @@ final class AiFunnelOrchestratorService
             ])->save();
         }
 
+        if ($run->status === AiOrchestratorRun::STATUS_FAILED) {
+            return;
+        }
+
+        if ($run->status === AiOrchestratorRun::STATUS_RUNNING) {
+            return;
+        }
+
         $actor = $this->actor($chat, $scenario);
         if (! $actor instanceof User) {
             $this->finishSkipped($run, $chat, 'Нет сотрудника, от имени которого может работать AI-оркестратор.');
@@ -90,11 +131,20 @@ final class AiFunnelOrchestratorService
         $availableSlots = $this->availableSlots($candidateAssignees, (int) $scenario->booking_horizon_days);
 
         try {
-            $run->forceFill([
-                'status' => AiOrchestratorRun::STATUS_RUNNING,
-                'started_at' => now(),
-                'error' => null,
-            ])->save();
+            $claimed = AiOrchestratorRun::query()
+                ->whereKey($run->id)
+                ->whereIn('status', [AiOrchestratorRun::STATUS_PENDING])
+                ->update([
+                    'status' => AiOrchestratorRun::STATUS_RUNNING,
+                    'started_at' => now(),
+                    'error' => null,
+                ]);
+
+            if ($claimed !== 1) {
+                return;
+            }
+
+            $run->refresh();
 
             [$plan, $context] = $this->planner->plan($chat, $trigger, $actor, $scenario, $rule, $candidateAssignees, $availableSlots);
             $minConfidence = (float) config('funnel.orchestrator.min_confidence', 0.7);
@@ -559,7 +609,7 @@ final class AiFunnelOrchestratorService
 
         if ($status === AiOrchestratorRun::STATUS_NEEDS_MANAGER
             || ($status === AiOrchestratorRun::STATUS_COMPLETED && $plan->customerReply === null)) {
-            GenerateAiReplyJob::dispatch($chat->id, $trigger->id);
+            GenerateAiReplyJob::dispatch($chat->id, $trigger->id, $chat->company_id);
         }
     }
 

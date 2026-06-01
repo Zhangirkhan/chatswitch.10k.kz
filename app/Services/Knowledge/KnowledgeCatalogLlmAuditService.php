@@ -54,7 +54,7 @@ final class KnowledgeCatalogLlmAuditService
                     'role' => 'user',
                     'content' => "Проверь каталог компании:\n\n{$catalog}",
                 ],
-            ], 0.2, 1200);
+            ], 0.2, 1200, new \App\Services\AI\AiUsageOptions('background', $companyId));
 
             $findings = $this->normalizeFindings($decoded['findings'] ?? []);
             Cache::put($cacheKey, $findings, self::CACHE_TTL_SECONDS);

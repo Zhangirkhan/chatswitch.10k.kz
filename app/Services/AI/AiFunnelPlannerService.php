@@ -10,6 +10,7 @@ use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Models\User;
+use App\Support\MessageInboundText;
 
 final class AiFunnelPlannerService
 {
@@ -35,7 +36,7 @@ final class AiFunnelPlannerService
         $base = $this->promptBuilder->build(
             $chat,
             $responder,
-            trim((string) $trigger->body),
+            trim(MessageInboundText::forMessage($trigger)),
             $chat->company_id ?? $responder->company_id,
         );
 
@@ -50,6 +51,7 @@ final class AiFunnelPlannerService
             $messages,
             (float) config('funnel.orchestrator.temperature', 0.2),
             (int) config('funnel.orchestrator.max_tokens', 1200),
+            new AiUsageOptions('funnel_orchestrator', $chat->company_id ?? $responder->company_id),
         );
 
         return [AiFunnelOrchestratorPlan::fromArray($raw), $context];

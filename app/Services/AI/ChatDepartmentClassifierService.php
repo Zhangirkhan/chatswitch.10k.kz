@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Message;
 use App\Support\ClientMessageHeuristics;
 use App\Support\DepartmentIntentMatcher;
+use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -36,7 +37,7 @@ final class ChatDepartmentClassifierService
             );
         }
 
-        $body = OperatorSignature::strip(trim((string) $triggerMessage->body));
+        $body = OperatorSignature::strip(trim(MessageInboundText::forMessage($triggerMessage)));
 
         $keywordMatch = $this->intentMatcher->match($body, $catalog);
         if ($keywordMatch !== null) {
@@ -52,6 +53,7 @@ final class ChatDepartmentClassifierService
                 $this->messages($chat, $triggerMessage, $catalog),
                 (float) config('funnel.department_routing.temperature', 0.1),
                 (int) config('funnel.department_routing.max_tokens', 350),
+                new AiUsageOptions('dept_routing', $chat->company_id),
             );
         } catch (Throwable $e) {
             Log::warning('[department-routing] classification failed', [
@@ -170,8 +172,8 @@ final class ChatDepartmentClassifierService
     private function messages(Chat $chat, Message $triggerMessage, array $catalog): array
     {
         $catalogJson = json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $triggerBody = Str::limit(OperatorSignature::strip(trim((string) $triggerMessage->body)), 800, '…');
-        $greetingHint = ClientMessageHeuristics::isShortGreetingOnly((string) $triggerMessage->body)
+        $triggerBody = Str::limit(OperatorSignature::strip(trim(MessageInboundText::forMessage($triggerMessage))), 800, '…');
+        $greetingHint = ClientMessageHeuristics::isShortGreetingOnly(MessageInboundText::forMessage($triggerMessage))
             ? 'Клиент, скорее всего, только поздоровался — выбери отдел первичного приёма (продажи, консультации).'
             : 'Учти тему: бухгалтерия/оплата/счета → отдел бухгалтерии; HR/кадры → HR; замер/монтаж → замерщики; покупка/цены → продажи.';
 

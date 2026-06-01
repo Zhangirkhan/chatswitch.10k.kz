@@ -47,7 +47,7 @@ final class KnowledgeRagRetriever
         }
 
         try {
-            $queryVector = $this->embeddings->embed($query);
+            $queryVector = $this->embeddings->embed($query, new \App\Services\AI\AiUsageOptions('rag_embed', $companyId));
         } catch (Throwable $e) {
             Log::warning('[knowledge-rag] query embedding failed', [
                 'company_id' => $companyId,

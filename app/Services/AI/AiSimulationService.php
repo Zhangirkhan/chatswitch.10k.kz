@@ -25,6 +25,7 @@ final class AiSimulationService
             $this->simulationMessages($companyId, $message, $history),
             0.2,
             1200,
+            new AiUsageOptions('background', $companyId),
         );
 
         return $this->normalizeSimulation($raw);

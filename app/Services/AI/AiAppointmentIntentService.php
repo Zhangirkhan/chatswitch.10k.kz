@@ -8,6 +8,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\Service;
 use App\Models\User;
+use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use App\Support\ReminderLeadTimeParser;
 use Carbon\Carbon;
@@ -29,7 +30,9 @@ final class AiAppointmentIntentService
 
     public function shouldAnalyze(?Message $triggerMessage): bool
     {
-        $body = mb_strtolower(trim((string) ($triggerMessage?->body ?? '')));
+        $body = mb_strtolower(trim($triggerMessage !== null
+            ? MessageInboundText::forMessage($triggerMessage)
+            : ''));
         if ($body === '') {
             return false;
         }
@@ -55,7 +58,12 @@ final class AiAppointmentIntentService
         }
 
         try {
-            $data = $this->openAi->chatJson($this->messages($chat, $responder, $triggerMessage), 0.1, 700);
+            $data = $this->openAi->chatJson(
+                $this->messages($chat, $responder, $triggerMessage),
+                0.1,
+                700,
+                new AiUsageOptions('appointment_intent', $chat->company_id ?? $responder->company_id),
+            );
         } catch (Throwable $e) {
             Log::warning('[ai-booking] failed to detect appointment intent', [
                 'chat_id' => $chat->id,
@@ -125,7 +133,7 @@ PROMPT;
 
         return [
             ['role' => 'system', 'content' => $system],
-            ['role' => 'user', 'content' => "История переписки:\n{$history}\n\nПоследнее сообщение клиента:\n".trim((string) $triggerMessage->body)],
+            ['role' => 'user', 'content' => "История переписки:\n{$history}\n\nПоследнее сообщение клиента:\n".trim(MessageInboundText::forMessage($triggerMessage))],
         ];
     }
 
@@ -155,16 +163,25 @@ PROMPT;
     private function conversationHistory(Chat $chat): string
     {
         return $chat->messages()
-            ->with('sentByUser:id,name')
+            ->with(['sentByUser:id,name', 'transcript'])
             ->whereIn('direction', ['inbound', 'outbound'])
-            ->whereNotNull('body')
+            ->where(function ($query): void {
+                $query->whereNotNull('body')
+                    ->where('body', '!=', '')
+                    ->orWhereHas('transcript', static fn ($q) => $q
+                        ->where('status', 'completed')
+                        ->where('text', '!=', ''));
+            })
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->limit(self::HISTORY_LIMIT)
             ->get()
             ->reverse()
             ->map(function (Message $message): string {
-                $body = Str::limit(OperatorSignature::strip(trim((string) $message->body)), 500, '...');
+                $effectiveBody = $message->direction === 'inbound'
+                    ? MessageInboundText::forMessage($message)
+                    : trim((string) $message->body);
+                $body = Str::limit(OperatorSignature::strip($effectiveBody), 500, '...');
                 $time = optional($message->message_timestamp)->format('Y-m-d H:i') ?? '';
 
                 if ($message->direction === 'outbound') {
@@ -214,7 +231,7 @@ PROMPT;
         }
 
         $history = $this->conversationHistory($chat);
-        $parsed = $this->reminderLeadParser->parseFromText($history."\n".trim((string) $triggerMessage->body));
+        $parsed = $this->reminderLeadParser->parseFromText($history."\n".trim(MessageInboundText::forMessage($triggerMessage)));
         if ($parsed === null) {
             return $intent;
         }

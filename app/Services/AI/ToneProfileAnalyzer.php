@@ -36,7 +36,7 @@ final class ToneProfileAnalyzer
             );
         }
 
-        $parsed = $this->analyzeSamples($samples);
+        $parsed = $this->analyzeSamples($samples, $companyId);
 
         return EmployeeToneProfile::updateOrCreate(
             ['company_id' => $companyId, 'user_id' => $user->id],
@@ -65,7 +65,7 @@ final class ToneProfileAnalyzer
             );
         }
 
-        $parsed = $this->analyzeCompanySamples($samples);
+        $parsed = $this->analyzeCompanySamples($samples, $companyId);
 
         return CompanyToneProfile::updateOrCreate(
             ['company_id' => $companyId],
@@ -161,16 +161,16 @@ final class ToneProfileAnalyzer
      * @param  list<string>  $samples
      * @return array{summary: string, phrases: list<string>}
      */
-    private function analyzeSamples(array $samples): array
+    private function analyzeSamples(array $samples, int $companyId): array
     {
         $chunks = $this->chunkSamples($samples);
         if (count($chunks) === 1) {
-            return $this->analyzeChunk($chunks[0]);
+            return $this->analyzeChunk($chunks[0], $companyId);
         }
 
         $partials = [];
         foreach ($chunks as $chunk) {
-            $partials[] = $this->analyzeChunk($chunk);
+            $partials[] = $this->analyzeChunk($chunk, $companyId);
         }
 
         $summaryInput = collect($partials)
@@ -180,20 +180,20 @@ final class ToneProfileAnalyzer
         return $this->parseProfileJson($this->openAi->chat([
             ['role' => 'system', 'content' => 'Ты объединяешь частичные профили тона сотрудника поддержки. Верни только валидный JSON с summary и phrases.'],
             ['role' => 'user', 'content' => $summaryInput],
-        ], 0.2, 700));
+        ], 0.2, 700, new AiUsageOptions('background', $companyId)));
     }
 
     /**
      * @param  list<string>  $samples
      * @return array{summary: string, phrases: list<string>}
      */
-    private function analyzeChunk(array $samples): array
+    private function analyzeChunk(array $samples, int $companyId): array
     {
         $prompt = "Проанализируй стиль сотрудника по всем примерам сообщений ниже. Не сглаживай живой стиль до корпоративного шаблона: если сотрудник пишет коротко, сленгом, с ошибками или разговорными словами, прямо отрази это в summary и phrases. Верни JSON с полями summary (строка) и phrases (массив до 12 коротких дословных типичных формулировок). Не включай персональные данные.\n\nПримеры:\n- ".implode("\n- ", $samples);
         $raw = $this->openAi->chat([
             ['role' => 'system', 'content' => 'Ты анализируешь тон сообщений поддержки и возвращаешь только валидный JSON.'],
             ['role' => 'user', 'content' => $prompt],
-        ], 0.2, 700);
+        ], 0.2, 700, new AiUsageOptions('background', $companyId));
 
         return $this->parseProfileJson($raw);
     }
@@ -202,16 +202,16 @@ final class ToneProfileAnalyzer
      * @param  list<string>  $samples
      * @return array{summary: string, phrases: list<string>}
      */
-    private function analyzeCompanySamples(array $samples): array
+    private function analyzeCompanySamples(array $samples, int $companyId): array
     {
         $chunks = $this->chunkSamples($samples);
         if (count($chunks) === 1) {
-            return $this->analyzeCompanyChunk($chunks[0]);
+            return $this->analyzeCompanyChunk($chunks[0], $companyId);
         }
 
         $partials = [];
         foreach ($chunks as $chunk) {
-            $partials[] = $this->analyzeCompanyChunk($chunk);
+            $partials[] = $this->analyzeCompanyChunk($chunk, $companyId);
         }
 
         $summaryInput = collect($partials)
@@ -221,20 +221,20 @@ final class ToneProfileAnalyzer
         return $this->parseProfileJson($this->openAi->chat([
             ['role' => 'system', 'content' => 'Ты объединяешь частичные профили общего стиля компании. Верни только валидный JSON с summary и phrases.'],
             ['role' => 'user', 'content' => $summaryInput],
-        ], 0.2, 700));
+        ], 0.2, 700, new AiUsageOptions('background', $companyId)));
     }
 
     /**
      * @param  list<string>  $samples
      * @return array{summary: string, phrases: list<string>}
      */
-    private function analyzeCompanyChunk(array $samples): array
+    private function analyzeCompanyChunk(array $samples, int $companyId): array
     {
         $prompt = "Проанализируй общий стиль компании по ручным сообщениям разных сотрудников ниже. Найди повторяющиеся формулировки, уровень формальности, длину ответов, приветствия, обращение к клиенту и типичный тон. Не копируй персональные особенности одного сотрудника, выдели общий корпоративный стиль. Верни JSON с полями summary (строка) и phrases (массив до 12 коротких типичных формулировок). Не включай персональные данные.\n\nПримеры:\n- ".implode("\n- ", $samples);
         $raw = $this->openAi->chat([
             ['role' => 'system', 'content' => 'Ты анализируешь общий стиль поддержки компании и возвращаешь только валидный JSON.'],
             ['role' => 'user', 'content' => $prompt],
-        ], 0.2, 700);
+        ], 0.2, 700, new AiUsageOptions('background', $companyId));
 
         return $this->parseProfileJson($raw);
     }

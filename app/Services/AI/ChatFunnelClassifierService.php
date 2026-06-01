@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Services\Funnel\ChatFunnelCatalogBuilder;
+use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -31,6 +32,7 @@ final class ChatFunnelClassifierService
                 $this->messages($chat, $triggerMessage, $catalog),
                 (float) config('funnel.ai.temperature', 0.15),
                 (int) config('funnel.ai.max_tokens', 450),
+                new AiUsageOptions('funnel_classify', $chat->company_id),
             );
         } catch (Throwable $e) {
             Log::warning('[funnel-ai] classification failed', [
@@ -177,7 +179,7 @@ TXT;
 {$schema}
 PROMPT;
 
-        $triggerBody = Str::limit(OperatorSignature::strip(trim((string) $triggerMessage->body)), 800, '…');
+        $triggerBody = Str::limit(OperatorSignature::strip(trim(MessageInboundText::forMessage($triggerMessage))), 800, '…');
 
         return [
             ['role' => 'system', 'content' => $system],
@@ -188,16 +190,25 @@ PROMPT;
     private function conversationHistory(Chat $chat, int $limit): string
     {
         return $chat->messages()
-            ->with('sentByUser:id,name')
+            ->with(['sentByUser:id,name', 'transcript'])
             ->whereIn('direction', ['inbound', 'outbound'])
-            ->whereNotNull('body')
+            ->where(function ($query): void {
+                $query->whereNotNull('body')
+                    ->where('body', '!=', '')
+                    ->orWhereHas('transcript', static fn ($q) => $q
+                        ->where('status', 'completed')
+                        ->where('text', '!=', ''));
+            })
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->limit($limit)
             ->get()
             ->reverse()
             ->map(function (Message $message): string {
-                $body = Str::limit(OperatorSignature::strip(trim((string) $message->body)), 500, '…');
+                $effectiveBody = $message->direction === 'inbound'
+                    ? MessageInboundText::forMessage($message)
+                    : trim((string) $message->body);
+                $body = Str::limit(OperatorSignature::strip($effectiveBody), 500, '…');
                 $time = optional($message->message_timestamp)->format('Y-m-d H:i') ?? '';
 
                 if ($message->direction === 'outbound') {

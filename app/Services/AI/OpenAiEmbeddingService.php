@@ -9,12 +9,16 @@ use RuntimeException;
 
 final class OpenAiEmbeddingService
 {
+    public function __construct(
+        private readonly AiUsageRecorder $usageRecorder,
+    ) {}
+
     /**
      * @return list<float>
      */
-    public function embed(string $text): array
+    public function embed(string $text, ?AiUsageOptions $usage = null): array
     {
-        $vectors = $this->embedMany([$text]);
+        $vectors = $this->embedMany([$text], $usage);
 
         return $vectors[0] ?? [];
     }
@@ -23,7 +27,7 @@ final class OpenAiEmbeddingService
      * @param  list<string>  $texts
      * @return list<list<float>>
      */
-    public function embedMany(array $texts): array
+    public function embedMany(array $texts, ?AiUsageOptions $usage = null): array
     {
         $inputs = array_values(array_filter(array_map(
             static fn (string $text): string => trim($text),
@@ -46,12 +50,29 @@ final class OpenAiEmbeddingService
         $response = Http::withToken($apiKey)
             ->timeout($timeout)
             ->acceptJson()
+            ->retry(3, 1000, function (\Throwable $exception): bool {
+                if (! $exception instanceof \Illuminate\Http\Client\RequestException) {
+                    return false;
+                }
+
+                return $exception->response?->status() === 429;
+            })
             ->post("{$baseUrl}/embeddings", [
                 'model' => $model,
                 'input' => $inputs,
             ])
             ->throw()
             ->json();
+
+        if ($usage !== null) {
+            $usageData = is_array($response['usage'] ?? null) ? $response['usage'] : [];
+            $this->usageRecorder->recordEmbedding(
+                $usage->scenario,
+                $usage->companyId,
+                (string) ($response['model'] ?? $model),
+                (int) ($usageData['total_tokens'] ?? 0),
+            );
+        }
 
         $data = $response['data'] ?? null;
         if (! is_array($data)) {
