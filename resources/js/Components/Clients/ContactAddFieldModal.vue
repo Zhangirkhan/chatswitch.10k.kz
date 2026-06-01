@@ -154,13 +154,12 @@ async function createField(): Promise<void> {
             </label>
 
             <div class="flex justify-end gap-2 pt-2">
-                <button type="button" class="rounded-lg px-3 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)' }" @click="step = 'pick'">
+                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="step = 'pick'">
                     Назад
                 </button>
                 <button
                     type="submit"
-                    class="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary ui-btn--sm"
                     :disabled="saving"
                 >
                     Создать
