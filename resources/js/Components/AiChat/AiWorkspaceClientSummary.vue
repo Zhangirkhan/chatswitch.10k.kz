@@ -96,9 +96,18 @@ function sectionTone(index: number): number {
             </span>
         </header>
 
-        <div v-if="loading" class="ai-client-summary__loading">
-            <span class="ai-client-summary__spinner" aria-hidden="true"></span>
-            <span>Собираем профиль…</span>
+        <div v-if="loading" class="ai-client-summary__loading" role="status" aria-live="polite">
+            <div class="ai-client-summary__loading-visual" aria-hidden="true">
+                <span class="ai-client-summary__loading-ring ai-client-summary__loading-ring--outer" />
+                <span class="ai-client-summary__loading-ring ai-client-summary__loading-ring--inner" />
+                <span class="ai-client-summary__loading-core" />
+            </div>
+            <p class="ai-client-summary__loading-text">
+                Собираем профиль
+                <span class="ai-client-summary__loading-dots">
+                    <span>.</span><span>.</span><span>.</span>
+                </span>
+            </p>
         </div>
 
         <div v-else-if="!summary" class="ai-client-summary__empty">
@@ -255,25 +264,127 @@ function sectionTone(index: number): number {
 
 .ai-client-summary__loading,
 .ai-client-summary__empty {
-    padding: 16px;
     font-size: 0.8125rem;
     line-height: 1.5;
     color: var(--wa-text-secondary);
 }
 
-.ai-client-summary__loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.ai-client-summary__empty {
+    padding: 16px;
 }
 
-.ai-client-summary__spinner {
-    width: 0.875rem;
-    height: 0.875rem;
+.ai-client-summary__loading {
+    flex: 1;
+    min-height: 8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px 16px;
+    text-align: center;
+    animation: ai-summary-loading-in 0.45s ease both;
+}
+
+.ai-client-summary__loading-visual {
+    position: relative;
+    width: 2.75rem;
+    height: 2.75rem;
+}
+
+.ai-client-summary__loading-ring {
+    position: absolute;
+    inset: 0;
     border-radius: 50%;
-    border: 2px solid color-mix(in srgb, var(--wa-text-secondary) 22%, transparent);
-    border-top-color: var(--wa-text-secondary);
-    animation: ai-summary-spin 0.7s linear infinite;
+    border: 1px solid color-mix(in srgb, var(--wa-text-secondary) 28%, transparent);
+    opacity: 0;
+}
+
+.ai-client-summary__loading-ring--outer {
+    animation: ai-summary-pulse-ring 2.4s ease-out infinite;
+}
+
+.ai-client-summary__loading-ring--inner {
+    inset: 6px;
+    animation: ai-summary-pulse-ring 2.4s ease-out 0.9s infinite;
+}
+
+.ai-client-summary__loading-core {
+    position: absolute;
+    inset: 11px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--wa-text-secondary) 18%, transparent);
+    border-top-color: color-mix(in srgb, var(--wa-text-secondary) 72%, transparent);
+    animation: ai-summary-spin 0.85s linear infinite;
+}
+
+.ai-client-summary__loading-text {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: color-mix(in srgb, var(--wa-text) 78%, var(--wa-text-secondary));
+    animation: ai-summary-text-breathe 2.4s ease-in-out infinite;
+}
+
+.ai-client-summary__loading-dots span {
+    display: inline-block;
+    opacity: 0.25;
+    animation: ai-summary-dot 1.2s ease-in-out infinite;
+}
+
+.ai-client-summary__loading-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.ai-client-summary__loading-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes ai-summary-loading-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes ai-summary-pulse-ring {
+    0% {
+        opacity: 0.55;
+        transform: scale(0.72);
+    }
+    70% {
+        opacity: 0;
+        transform: scale(1.15);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1.15);
+    }
+}
+
+@keyframes ai-summary-text-breathe {
+    0%, 100% {
+        opacity: 0.72;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes ai-summary-dot {
+    0%, 60%, 100% {
+        opacity: 0.2;
+        transform: translateY(0);
+    }
+    30% {
+        opacity: 1;
+        transform: translateY(-2px);
+    }
 }
 
 .ai-client-summary__body {
