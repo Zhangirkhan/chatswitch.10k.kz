@@ -5,7 +5,20 @@ import { useTheme } from '@/composables/useTheme';
 
 const page = usePage<any>();
 const user = computed(() => page.props.auth?.user);
-const superAdminNav = computed(() => page.props.superAdminNav as { pending_signups?: number } | null);
+
+type SuperAdminNavProps = {
+    pending_signups?: number;
+    is_sandbox?: boolean;
+};
+
+type NavItem = {
+    href: string;
+    label: string;
+    match: string;
+    badge?: number;
+};
+
+const superAdminNav = computed(() => page.props.superAdminNav as SuperAdminNavProps | null);
 
 const flashSuccess = computed(() => {
     const flash = page.props.flash as { success?: string } | undefined;
@@ -35,8 +48,8 @@ const isSandboxSuperAdmin = computed(
         || superAdminNav.value?.is_sandbox === true,
 );
 
-const navItems = computed(() => {
-    const items = [
+const navItems = computed((): NavItem[] => {
+    const items: NavItem[] = [
         { href: '/dashboard', label: 'Дашборд', match: '/dashboard' },
         { href: '/companies', label: 'Компании', match: '/companies' },
         { href: '/invoices', label: 'Счета', match: '/invoices' },
