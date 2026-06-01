@@ -11,7 +11,6 @@ use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
-use App\Jobs\GenerateAiReplyJob;
 use App\Models\Message;
 use App\Support\AiSafeErrorMessage;
 use App\Models\Product;
