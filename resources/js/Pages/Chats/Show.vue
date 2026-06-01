@@ -4,6 +4,7 @@ import ChatHeader from './Partials/ChatHeader.vue';
 import ChatMessage from './Partials/ChatMessage.vue';
 import ChatInput from './Partials/ChatInput.vue';
 import OrchestratorApprovalBanner, { type PendingOrchestratorApproval } from './Partials/OrchestratorApprovalBanner.vue';
+import FollowUpProposalBanner, { type PendingFollowUpProposal } from './Partials/FollowUpProposalBanner.vue';
 import ContactInfoPanel from './Partials/ContactInfoPanel.vue';
 import MessageInfoPanel from './Partials/MessageInfoPanel.vue';
 import ShareMessageModal, { type ShareModalSource } from '@/Components/ShareMessageModal.vue';
@@ -91,6 +92,7 @@ const props = defineProps<{
         label: string;
     } | null;
     pendingOrchestratorApproval?: PendingOrchestratorApproval | null;
+    pendingFollowUpProposal?: PendingFollowUpProposal | null;
 }>();
 
 const { show: showToast } = useToastStore();
@@ -98,6 +100,7 @@ const { show: showToast } = useToastStore();
 const readinessBannerDismissed = ref(false);
 const funnelRealtime = ref<Partial<Chat>>({});
 const pendingApproval = ref<PendingOrchestratorApproval | null>(props.pendingOrchestratorApproval ?? null);
+const pendingFollowUp = ref<PendingFollowUpProposal | null>(props.pendingFollowUpProposal ?? null);
 
 watch(
     () => props.pendingOrchestratorApproval,
@@ -105,6 +108,17 @@ watch(
         pendingApproval.value = value ?? null;
     },
 );
+
+watch(
+    () => props.pendingFollowUpProposal,
+    (value) => {
+        pendingFollowUp.value = value ?? null;
+    },
+);
+
+function onFollowUpProposalCleared(): void {
+    pendingFollowUp.value = null;
+}
 
 function onOrchestratorApproved(payload: {
     ai_orchestrator_status: string | null;
@@ -628,7 +642,8 @@ function setupEcho() {
 
 function cleanupEcho() {
     if ((window as any).Echo && echoChannel) {
-        (window as any).Echo.leave(`chat.${props.chat.id}`);
+        const tenantId = Number((usePage() as any).props.tenantCompanyId || 0);
+        (window as any).Echo.leave(`t.${tenantId}.chat.${props.chat.id}`);
     }
 }
 
@@ -849,6 +864,14 @@ function cleanupEcho() {
                         :pending="pendingApproval"
                         @approved="onOrchestratorApproved"
                         @cleared="onOrchestratorApprovalCleared"
+                    />
+
+                    <FollowUpProposalBanner
+                        v-if="pendingFollowUp"
+                        :chat-id="chat.id"
+                        :pending="pendingFollowUp"
+                        @cleared="onFollowUpProposalCleared"
+                        @sent="onFollowUpProposalCleared"
                     />
 
                     <ChatInput

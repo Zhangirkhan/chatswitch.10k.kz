@@ -11,6 +11,7 @@ use App\Models\Chat;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
+use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
@@ -49,7 +50,7 @@ final class ProcessWhatsappCallRejectedJobTest extends TestCase
             'peerJid' => $peerJid,
             'fromMe' => false,
         ]);
-        $job->handle(app(ChatService::class));
+        $job->handle(app(ChatService::class), app(TenantContext::class));
 
         $message = $chat->messages()->latest('id')->first();
         $this->assertNotNull($message);
@@ -82,8 +83,8 @@ final class ProcessWhatsappCallRejectedJobTest extends TestCase
             'fromMe' => false,
         ];
 
-        (new ProcessWhatsappCallRejectedJob($payload))->handle(app(ChatService::class));
-        (new ProcessWhatsappCallRejectedJob($payload))->handle(app(ChatService::class));
+        (new ProcessWhatsappCallRejectedJob($payload))->handle(app(ChatService::class), app(TenantContext::class));
+        (new ProcessWhatsappCallRejectedJob($payload))->handle(app(ChatService::class), app(TenantContext::class));
 
         Bus::assertDispatchedTimes(SendOutboundMessageJob::class, 1);
     }

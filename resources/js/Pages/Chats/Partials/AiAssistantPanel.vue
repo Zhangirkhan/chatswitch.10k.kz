@@ -178,6 +178,27 @@ const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
     },
 ];
 
+async function generateFollowUpProposals(): Promise<void> {
+    try {
+        const res = await axios.post(route('chats.follow-up-proposals.generate', { chat: props.chatId }));
+        const count = Array.isArray(res.data?.proposal?.proposals) ? res.data.proposal.proposals.length : 0;
+        showToast({
+            message:
+                count > 0
+                    ? `Готово: ${count} вариант(ов) дожима — смотрите баннер над полем ввода.`
+                    : 'Варианты дожима подготовлены.',
+            duration: 4000,
+        });
+        window.location.reload();
+    } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } }; message?: string };
+        showToast({
+            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось сгенерировать варианты.',
+            duration: 4500,
+        });
+    }
+}
+
 async function send(prompt?: string): Promise<void> {
     const text = (prompt ?? draft.value).trim();
     if (sending.value || text === '') {
@@ -656,6 +677,14 @@ watch(() => props.chatId, () => {
                 </p>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <button
+                        type="button"
+                        class="ai-quick-chip"
+                        :disabled="sending"
+                        @click="generateFollowUpProposals"
+                    >
+                        Варианты дожима
+                    </button>
+                    <button
                         v-for="(action, idx) in QUICK_ACTIONS"
                         :key="idx"
                         type="button"
@@ -713,6 +742,14 @@ watch(() => props.chatId, () => {
                 v-if="!isEmpty"
                 class="flex flex-wrap gap-1.5 mb-2"
             >
+                <button
+                    type="button"
+                    class="ai-quick-chip ai-quick-chip-sm"
+                    :disabled="sending"
+                    @click="generateFollowUpProposals"
+                >
+                    Варианты дожима
+                </button>
                 <button
                     v-for="(action, idx) in QUICK_ACTIONS"
                     :key="idx"

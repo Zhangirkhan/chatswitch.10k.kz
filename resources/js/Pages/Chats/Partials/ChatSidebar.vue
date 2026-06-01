@@ -59,10 +59,33 @@ function chatsListQuery(overrides: Record<string, string | undefined> = {}): Rec
     if (listOwnership.value === 'mine') {
         q.ownership = 'mine';
     }
-    if (listFilter.value === 'attention') {
+    if (!Object.prototype.hasOwnProperty.call(overrides, 'filter') && listFilter.value === 'attention') {
         q.filter = 'attention';
     }
     return q;
+}
+
+const CHAT_LIST_RELOAD_PROPS = [
+    'chats',
+    'unreadChatsCount',
+    'unreadChatsCountMine',
+    'listOwnership',
+    'listFilter',
+    'attentionChatsTotal',
+    'mineChatsTotal',
+] as const;
+
+let chatListReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleChatListReload(): void {
+    if (chatListReloadTimer !== null) {
+        clearTimeout(chatListReloadTimer);
+    }
+    const delayMs = listFilter.value === 'attention' ? 5000 : 1200;
+    chatListReloadTimer = setTimeout(() => {
+        chatListReloadTimer = null;
+        router.reload({ only: [...CHAT_LIST_RELOAD_PROPS] });
+    }, delayMs);
 }
 
 const activeListHref = computed(() => {
@@ -127,11 +150,20 @@ function applyIncomingMessage(chatId: number, msg: {
     direction?: 'inbound' | 'outbound' | null;
     created_at?: string | null;
     message_timestamp?: string | null;
+    metadata?: { ai?: { generated?: boolean } } | null;
 }): void {
     const idx = localChats.value.findIndex((c) => c.id === chatId);
     if (idx < 0) {
-        // Неизвестный чат — подгрузим список
-        router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
+        // В режиме «Внимание» в списке только часть чатов — не перезагружаем страницу
+        // на каждое сообщение в остальные диалоги (иначе UI зависает в reload-loop).
+        if (listFilter.value === 'attention') {
+            if (msg.direction === 'inbound') {
+                liveUnread.increment();
+                scheduleChatListReload();
+            }
+            return;
+        }
+        scheduleChatListReload();
         return;
     }
 
@@ -139,6 +171,9 @@ function applyIncomingMessage(chatId: number, msg: {
     chat.last_message_text = msg.body ?? chat.last_message_text;
     chat.last_message_direction = (msg.direction as Chat['last_message_direction']) ?? chat.last_message_direction;
     chat.last_message_at = msg.message_timestamp ?? msg.created_at ?? chat.last_message_at;
+    chat.last_message_is_ai = msg.direction === 'outbound'
+        ? msg.metadata?.ai?.generated === true
+        : false;
 
     const isActiveChatId = props.selectedChatId === chatId;
 
@@ -222,10 +257,8 @@ function setupListEcho(): void {
             });
         });
 
-        listEchoChannel.listen('.chats.notify', (e: any) => {
-            if (!e?.chat_id) return;
-            // Для назначений/звонков перезагружаем список
-            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
+        listEchoChannel.listen('.chats.notify', () => {
+            scheduleChatListReload();
         });
     } catch {
         listEchoChannel = null;
@@ -236,7 +269,8 @@ function teardownListEcho(): void {
     if (listEchoChannel && (window as any).Echo) {
         const uid = user.value?.id;
         if (uid) {
-            try { (window as any).Echo.leave(`chats.list.${uid}`); } catch { /* ignore */ }
+            const tenantId = Number(page.props.tenantCompanyId || 0);
+            try { (window as any).Echo.leave(`t.${tenantId}.chats.list.${uid}`); } catch { /* ignore */ }
         }
     }
     listEchoChannel = null;
@@ -319,7 +353,7 @@ onMounted(async () => {
             return;
         }
         if (hiddenAt !== null && Date.now() - hiddenAt > 3000) {
-            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
+            scheduleChatListReload();
         }
         hiddenAt = null;
     };
@@ -331,7 +365,7 @@ onMounted(async () => {
         try {
             await axios.post(route('chats.sync-groups'));
             sessionStorage.setItem(syncGroupsKey, '1');
-            router.reload({ only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'] });
+            router.reload({ only: [...CHAT_LIST_RELOAD_PROPS] });
         } catch {
             // ignore (offline / service not ready)
         }
@@ -385,9 +419,9 @@ watch(searchQuery, (val) => {
 
 const ownershipFilteredChats = computed(() => localChats.value);
 
-/** Последнее сообщение от компании (оператор / AI) — чат в «Сотрудники». */
+/** Последнее сообщение от живого сотрудника — чат в «Сотрудники» (AI-ответы остаются в «Клиенты»). */
 function isStaffLastMessage(chat: Chat): boolean {
-    return chat.last_message_direction === 'outbound';
+    return chat.last_message_direction === 'outbound' && chat.last_message_is_ai !== true;
 }
 
 const filteredChats = computed(() => {
@@ -503,6 +537,10 @@ const offNewGroup = onShortcut('new-group', () => {
 let removeListStart: (() => void) | undefined;
 let removeListFinish: (() => void) | undefined;
 onBeforeUnmount(() => {
+    if (chatListReloadTimer !== null) {
+        clearTimeout(chatListReloadTimer);
+        chatListReloadTimer = null;
+    }
     teardownListEcho();
     offNextChat();
     offPrevChat();

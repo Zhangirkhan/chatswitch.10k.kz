@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onBeforeUnmount, nextTick } from 'vue';
+import { computed, reactive, ref, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { router, usePage } from '@inertiajs/vue3';
 import EmojiPicker from './EmojiPicker.vue';
@@ -304,6 +304,64 @@ const isVoiceMessageType = computed(
         normalizedMessageType.value === 'ptt' ||
         normalizedMessageType.value === 'voice' ||
         normalizedMessageType.value === 'audio',
+);
+
+const voiceTranscriptStatus = computed((): string | null => {
+    if (!isVoiceMessageType.value || props.message.direction !== 'inbound') {
+        return null;
+    }
+    const status = props.message.transcript?.status;
+    return status && status !== 'completed' ? status : null;
+});
+
+const voiceTranscriptStatusLabel = computed((): string | null => {
+    switch (voiceTranscriptStatus.value) {
+        case 'pending':
+            return 'Расшифровка в очереди…';
+        case 'processing':
+            return 'Расшифровка…';
+        case 'failed':
+            return 'Не удалось расшифровать';
+        case 'skipped':
+            return props.message.transcript?.error_message?.trim() || 'Расшифровка пропущена';
+        default:
+            return null;
+    }
+});
+
+/** Готовый текст расшифровки — показываем под плеером, свёрнуто по умолчанию. */
+const voiceTranscriptText = computed((): string | null => {
+    if (!isVoiceMessageType.value || props.message.direction !== 'inbound') {
+        return null;
+    }
+
+    const status = props.message.transcript?.status;
+    const fromTranscript = props.message.transcript?.text?.trim();
+    if (status === 'completed' && fromTranscript) {
+        return fromTranscript;
+    }
+
+    const body = props.message.body?.trim() ?? '';
+    if (status === 'completed' && body !== '' && !isOperatorSignatureOnlyBody.value) {
+        return body;
+    }
+
+    return null;
+});
+
+const showVoiceTranscriptCollapsible = computed(() => voiceTranscriptText.value !== null);
+
+const voiceTranscriptExpanded = ref(false);
+
+function toggleVoiceTranscript(): void {
+    voiceTranscriptExpanded.value = !voiceTranscriptExpanded.value;
+}
+
+watch(
+    () => props.message.id,
+    () => {
+        voiceTranscriptExpanded.value = false;
+    },
 );
 
 const VOICE_WAVE_BAR_COUNT = 34;
@@ -817,8 +875,22 @@ const showMessageBody = computed(() => {
         return false;
     }
 
+    if (showVoiceTranscriptCollapsible.value) {
+        if (showGroupSender.value && groupSenderLabel.value) {
+            return true;
+        }
+        if (isAiGenerated.value) {
+            return true;
+        }
+
+        return false;
+    }
+
     return true;
 });
+
+/** Текст body в основной области (расшифровка голосового — отдельно под плеером). */
+const showMainBodyText = computed(() => showMessageBody.value && !showVoiceTranscriptCollapsible.value);
 
 const wideProductBubble = computed(
     () => !!attachedProduct.value && !hasQuoted.value && !showVoiceFallback.value,
@@ -1247,10 +1319,71 @@ onBeforeUnmount(() => {
 
     <div v-else class="group mb-2 flex" :class="isOutbound ? 'justify-end' : 'justify-start'">
         <div
-            class="wa-msg-bubble relative w-fit min-w-0 text-[14.2px] leading-[19px]"
+            class="flex min-w-0 w-fit flex-col gap-1"
+            :class="[
+                isOutbound ? 'items-end' : 'items-start',
+                wideImageBubble ? 'max-w-[min(94%,36rem)]' : 'max-w-[72%]',
+            ]"
+        >
+            <div
+                v-if="showAiDecision && aiDecision"
+                class="ai-decision-strip w-full rounded-lg border px-2.5 py-2 text-[11px] leading-snug shadow-sm"
+                :style="{
+                    borderColor: 'color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border))',
+                    background: 'color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel-header))',
+                    color: 'var(--wa-text)',
+                }"
+                role="note"
+                aria-label="Подсказка AI для сотрудника"
+                @click.stop
+            >
+                <div class="flex items-center gap-1.5 mb-1">
+                    <span
+                        class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                        :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                    >
+                        AI
+                    </span>
+                    <span class="text-[10px] font-medium opacity-80">Клиент не видит</span>
+                    <span
+                        v-if="aiDecisionConfidenceLabel"
+                        class="ml-auto text-[10px] tabular-nums opacity-70"
+                    >
+                        {{ aiDecisionConfidenceLabel }}
+                    </span>
+                </div>
+                <p class="font-semibold text-[var(--wa-text)] m-0 text-[12px]">{{ aiDecision.label }}</p>
+                <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
+                <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
+                    <span
+                        v-for="(chip, chipIdx) in aiDecision.chips"
+                        :key="chipIdx"
+                        class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                    >
+                        {{ chip.label }}
+                    </span>
+                </div>
+                <button
+                    v-if="showAiDecisionPlanToggle"
+                    type="button"
+                    class="mt-2 text-[10px] font-medium hover:underline"
+                    :style="{ color: 'var(--wa-accent)' }"
+                    @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
+                >
+                    {{ aiDecisionPlanOpen ? 'Скрыть план AI' : 'Показать план AI' }}
+                </button>
+                <pre
+                    v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
+                    class="mt-2 max-h-48 overflow-auto rounded-md border px-2 py-1.5 text-[10px] leading-snug whitespace-pre-wrap break-words m-0"
+                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)', color: 'var(--wa-text-secondary)' }"
+                >{{ aiDecisionPlanJson }}</pre>
+            </div>
+
+            <div
+            class="wa-msg-bubble relative w-full min-w-0 text-[14.2px] leading-[19px]"
             :data-message-id="message.id"
             :class="[
-                wideImageBubble ? 'max-w-[min(94%,36rem)]' : 'max-w-[72%]',
                 fullBleedVisualBubble ? 'px-0 py-0' : 'px-2 py-1',
                 isOutbound ? 'wa-msg-bubble-out' : 'wa-msg-bubble-in',
                 selected ? 'wa-msg-selected' : '',
@@ -1386,6 +1519,13 @@ onBeforeUnmount(() => {
             />
 
             <p
+                v-if="voiceTranscriptStatusLabel"
+                class="wa-msg-text mb-0.5 text-[11px] italic opacity-75"
+            >
+                {{ voiceTranscriptStatusLabel }}
+            </p>
+
+            <p
                 v-if="showMessageBody"
                 class="wa-msg-text mb-0.5 whitespace-pre-wrap break-words"
                 :class="{ 'mt-1': attachedProduct }"
@@ -1401,56 +1541,19 @@ onBeforeUnmount(() => {
                 <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
                     {{ aiBadgeLabel }}
                 </span>
-                <div
-                    v-if="showAiDecision && aiDecision"
-                    class="ai-decision-card mb-1.5 rounded-lg border px-2.5 py-2 text-[11px] leading-snug"
-                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
-                >
-                    <p class="font-semibold text-[var(--wa-text)] m-0">{{ aiDecision.label }}</p>
-                    <p
-                        v-if="aiDecisionConfidenceLabel"
-                        class="mt-0.5 text-[10px] m-0"
-                        :style="{ color: 'var(--wa-text-secondary)' }"
-                    >
-                        Уверенность: {{ aiDecisionConfidenceLabel }}
-                    </p>
-                    <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
-                    <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
-                        <span
-                            v-for="(chip, chipIdx) in aiDecision.chips"
-                            :key="chipIdx"
-                            class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                <template v-if="showMainBodyText">
+                    <template v-for="(seg, i) in bodySegments" :key="i">
+                        <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>
+                        <button
+                            v-else
+                            type="button"
+                            class="wa-mention-link"
+                            @click.stop="openChatForMention(seg)"
+                            :title="`Открыть чат: ${seg.text}`"
                         >
-                            {{ chip.label }}
-                        </span>
-                    </div>
-                    <button
-                        v-if="showAiDecisionPlanToggle"
-                        type="button"
-                        class="mt-2 text-[10px] font-medium hover:underline"
-                        :style="{ color: 'var(--wa-accent)' }"
-                        @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
-                    >
-                        {{ aiDecisionPlanOpen ? 'Скрыть план AI' : 'Показать план AI' }}
-                    </button>
-                    <pre
-                        v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
-                        class="mt-2 max-h-48 overflow-auto rounded-md border px-2 py-1.5 text-[10px] leading-snug whitespace-pre-wrap break-words m-0"
-                        :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)', color: 'var(--wa-text-secondary)' }"
-                    >{{ aiDecisionPlanJson }}</pre>
-                </div>
-                <template v-for="(seg, i) in bodySegments" :key="i">
-                    <span v-if="seg.type === 'text'" v-html="renderSegmentHtml(seg.text)"></span>
-                    <button
-                        v-else
-                        type="button"
-                        class="wa-mention-link"
-                        @click.stop="openChatForMention(seg)"
-                        :title="`Открыть чат: ${seg.text}`"
-                    >
-                        {{ seg.text }}
-                    </button>
+                            {{ seg.text }}
+                        </button>
+                    </template>
                 </template>
             </p>
 
@@ -1687,6 +1790,40 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
                         </div>
+                        <div
+                            v-if="showVoiceTranscriptCollapsible"
+                            class="wa-voice-transcript border-t border-[color-mix(in_srgb,var(--wa-border)_55%,transparent)] pt-1.5 mt-1"
+                        >
+                            <button
+                                type="button"
+                                class="wa-voice-transcript-toggle flex w-full items-center gap-1 text-left text-[11px] font-medium opacity-80 hover:opacity-100"
+                                :style="{ color: 'var(--wa-accent)' }"
+                                :aria-expanded="voiceTranscriptExpanded"
+                                @click.stop="toggleVoiceTranscript"
+                            >
+                                <svg
+                                    class="h-3.5 w-3.5 shrink-0 transition-transform"
+                                    :class="{ 'rotate-90': voiceTranscriptExpanded }"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                                {{ voiceTranscriptExpanded ? 'Скрыть расшифровку' : 'Показать расшифровку' }}
+                            </button>
+                            <p
+                                v-if="voiceTranscriptExpanded"
+                                class="wa-voice-transcript-text mt-1.5 text-[13px] leading-snug whitespace-pre-wrap break-words opacity-90"
+                                style="word-break: break-word"
+                            >
+                                {{ voiceTranscriptText }}
+                            </p>
+                        </div>
                     </div>
                     <div v-else-if="isGifLikeMedia(m)" class="relative">
                         <video
@@ -1759,6 +1896,7 @@ onBeforeUnmount(() => {
                     @react="react"
                 />
             </div>
+        </div>
         </div>
     </div>
 

@@ -89,6 +89,8 @@ export interface Chat {
     last_message_text: string | null;
     last_message_at: string | null;
     last_message_direction: 'inbound' | 'outbound' | null;
+    /** Последнее сообщение — автоответ AI (для вкладки «Клиенты» / «Сотрудники»). */
+    last_message_is_ai?: boolean;
     latest_message?: ChatLastMessagePreview | null;
     community_id: number | null;
     ai_enabled?: boolean;
@@ -145,6 +147,15 @@ export interface MessageReaction {
     user?: { id: number; name: string } | null;
 }
 
+export interface MessageTranscript {
+    kind: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'skipped';
+    text?: string | null;
+    error_message?: string | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+}
+
 export interface MessageMedia {
     id: number;
     mime_type: string;
@@ -191,6 +202,7 @@ export interface Message {
     message_timestamp: string | null;
     created_at: string | null;
     media: MessageMedia[];
+    transcript?: MessageTranscript | null;
     reactions?: MessageReaction[];
     metadata?: Record<string, unknown> | null;
     sent_by_user?: { id: number; name: string } | null;
