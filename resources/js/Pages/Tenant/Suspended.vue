@@ -100,10 +100,6 @@ const iconPath = computed(() => {
                         На accel.kz
                     </a>
                 </div>
-
-                <p class="suspended__hint">
-                    Если вы&nbsp;администратор аккаунта — войдите в&nbsp;<a href="https://app.accel.kz/login">супер-админку</a>, чтобы изменить статус.
-                </p>
             </div>
         </main>
 
@@ -347,23 +343,6 @@ const iconPath = computed(() => {
 .suspended__btn--ghost:hover {
     background: rgba(15, 23, 42, 0.85);
     border-color: rgba(148, 163, 184, 0.45);
-}
-
-.suspended__hint {
-    margin: 1.5rem 0 0;
-    font-size: 0.82rem;
-    color: #64748b;
-}
-
-.suspended__hint a {
-    color: #6ee7b7;
-    text-decoration: none;
-    border-bottom: 1px dashed rgba(110, 231, 183, 0.4);
-}
-
-.suspended__hint a:hover {
-    color: #ffffff;
-    border-bottom-color: rgba(255, 255, 255, 0.7);
 }
 
 .suspended__footer {
