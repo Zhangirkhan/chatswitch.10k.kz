@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
+import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import { useToastStore } from '@/stores/toast';
 import type { Message } from '@/types';
 
@@ -53,11 +55,14 @@ type AiStatus = {
 
 const props = defineProps<{
     chatId: number;
+    contactId?: number | null;
     chatName?: string | null;
     messages?: Message[];
     aiStatus?: AiStatus | null;
     panelWidth?: string;
 }>();
+
+type PanelTab = 'assistant' | 'ai-status' | 'draft';
 
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -81,7 +86,23 @@ const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const clearAiDialogOpen = ref(false);
+const activeTab = ref<PanelTab>('assistant');
+const clientSummary = ref<ClientSummary | null>(null);
+const summaryLoading = ref(false);
 let autoDraftTimer: number | null = null;
+
+const PANEL_TABS: ReadonlyArray<{ id: PanelTab; label: string }> = [
+    { id: 'assistant', label: 'Ассистент' },
+    { id: 'ai-status', label: 'Решения AI' },
+    { id: 'draft', label: 'Черновик' },
+];
+
+const summaryEmptyHint = computed(() => {
+    if (props.contactId) {
+        return null;
+    }
+    return 'К этому чату не привязан контакт CRM — сводка недоступна.';
+});
 
 /**
  * Локальная история переписки оператора с AI хранится в localStorage по chatId,
@@ -196,6 +217,26 @@ async function generateFollowUpProposals(): Promise<void> {
             message: err?.response?.data?.message ?? err?.message ?? 'Не удалось сгенерировать варианты.',
             duration: 4500,
         });
+    }
+}
+
+async function loadClientSummary(): Promise<void> {
+    if (!props.contactId) {
+        clientSummary.value = null;
+        summaryLoading.value = false;
+        return;
+    }
+
+    summaryLoading.value = true;
+    try {
+        const res = await axios.get(route('ai-chat.client-summary', { contact: props.contactId }), {
+            params: { chat_id: props.chatId },
+        });
+        clientSummary.value = (res.data?.client_summary as ClientSummary | null) ?? null;
+    } catch {
+        clientSummary.value = null;
+    } finally {
+        summaryLoading.value = false;
     }
 }
 
@@ -374,6 +415,7 @@ onMounted(() => {
     loadFromStorage();
     window.addEventListener('keydown', onEscape);
     scheduleAutoDraft();
+    void loadClientSummary();
     void scrollToBottom();
     nextTick(() => textareaEl.value?.focus());
 });
@@ -391,7 +433,11 @@ watch(() => props.chatId, () => {
     autoDraft.value = '';
     autoDraftError.value = null;
     autoDraftMessageId.value = null;
+    activeTab.value = 'assistant';
     scheduleAutoDraft();
+});
+watch(() => [props.contactId, props.chatId] as const, () => {
+    void loadClientSummary();
 });
 </script>
 
@@ -442,10 +488,38 @@ watch(() => props.chatId, () => {
             </button>
         </div>
 
+        <AiWorkspaceClientSummary
+            variant="chat"
+            :summary="clientSummary"
+            :loading="summaryLoading"
+            :empty-hint="summaryEmptyHint"
+            hide-open-chat
+        />
+
+        <div
+            class="shrink-0 flex gap-1 px-3 py-2 border-b"
+            :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-panel-header)' }"
+            role="tablist"
+        >
+            <button
+                v-for="tab in PANEL_TABS"
+                :key="tab.id"
+                type="button"
+                role="tab"
+                class="ai-panel-tab"
+                :class="{ 'ai-panel-tab--active': activeTab === tab.id }"
+                :aria-selected="activeTab === tab.id"
+                @click="activeTab = tab.id"
+            >
+                {{ tab.label }}
+            </button>
+        </div>
+
         <div
             ref="listEl"
             class="flex-1 min-h-0 overflow-y-auto wa-scrollbar px-4 py-4 space-y-3"
         >
+            <template v-if="activeTab === 'ai-status'">
             <section
                 class="ai-status-card"
                 :class="`ai-status-card-${aiStatusTone}`"
@@ -581,7 +655,9 @@ watch(() => props.chatId, () => {
                     </div>
                 </details>
             </section>
+            </template>
 
+            <template v-else-if="activeTab === 'draft'">
             <section
                 class="rounded-xl border p-3 space-y-3"
                 :style="{
@@ -659,7 +735,9 @@ watch(() => props.chatId, () => {
                     </template>
                 </div>
             </section>
+            </template>
 
+            <template v-else>
             <div
                 v-if="isEmpty"
                 class="text-[13px] leading-relaxed rounded-lg p-3"
@@ -732,6 +810,7 @@ watch(() => props.chatId, () => {
                 <span class="ai-typing-dot" />
                 <span class="opacity-70 text-[12px] ml-1">AI думает…</span>
             </div>
+            </template>
         </div>
 
         <div
@@ -814,6 +893,29 @@ watch(() => props.chatId, () => {
 </template>
 
 <style scoped>
+.ai-panel-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--wa-text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+}
+.ai-panel-tab:hover {
+    background: var(--wa-panel-hover);
+}
+.ai-panel-tab--active {
+    color: var(--wa-accent);
+    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border));
+}
+
 .ai-status-card {
     border: 1px solid var(--wa-border);
     border-radius: 0.9rem;

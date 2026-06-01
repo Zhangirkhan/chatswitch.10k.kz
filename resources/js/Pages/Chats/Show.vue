@@ -922,6 +922,7 @@ function cleanupEcho() {
                 />
                 <AiAssistantPanel
                     :chat-id="chat.id"
+                    :contact-id="chat.contact_id"
                     :chat-name="chat.chat_name || chat.contact?.name || chat.contact?.push_name || null"
                     :messages="localMessages"
                     :ai-status="aiStatus"

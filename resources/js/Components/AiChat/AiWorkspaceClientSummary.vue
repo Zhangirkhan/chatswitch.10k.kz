@@ -5,12 +5,34 @@ import { Link } from '@inertiajs/vue3';
 import { formatPhone } from '@/utils/phone';
 import { computed } from 'vue';
 
-const props = defineProps<{
-    summary: ClientSummary | null;
-    loading: boolean;
-    contacts: WorkspaceContact[];
-    focusedContactId: number | null;
-}>();
+const props = withDefaults(
+    defineProps<{
+        summary: ClientSummary | null;
+        loading: boolean;
+        contacts?: WorkspaceContact[];
+        focusedContactId?: number | null;
+        variant?: 'workspace' | 'chat';
+        hideOpenChat?: boolean;
+        emptyHint?: string | null;
+    }>(),
+    {
+        contacts: () => [],
+        focusedContactId: null,
+        variant: 'workspace',
+        hideOpenChat: false,
+        emptyHint: null,
+    },
+);
+
+const emptyMessage = computed(() => {
+    if (props.emptyHint) {
+        return props.emptyHint;
+    }
+    if (props.variant === 'chat') {
+        return 'Сводка появится, когда к чату привязан контакт CRM.';
+    }
+    return 'Спросите про клиента или выберите контакт во вкладке «Контакты».';
+});
 
 const emit = defineEmits<{
     selectContact: [contactId: number];
@@ -36,7 +58,7 @@ function onPickContact(event: Event): void {
 </script>
 
 <template>
-    <section class="ai-client-summary">
+    <section class="ai-client-summary" :class="`ai-client-summary--${variant}`">
         <header class="ai-client-summary__head">
             <h2 class="ai-client-summary__title">Сводка клиента</h2>
             <span
@@ -54,7 +76,7 @@ function onPickContact(event: Event): void {
         </div>
 
         <div v-else-if="!summary" class="ai-client-summary__empty">
-            <p>Спросите про клиента или выберите контакт во вкладке «Контакты».</p>
+            <p>{{ emptyMessage }}</p>
         </div>
 
         <div v-else class="ai-client-summary__body wa-scrollbar">
@@ -107,9 +129,8 @@ function onPickContact(event: Event): void {
                 <p>{{ section.body }}</p>
             </article>
 
-            <div class="ai-client-summary__actions">
+            <div v-if="!hideOpenChat && summary.primary_chat_id" class="ai-client-summary__actions">
                 <Link
-                    v-if="summary.primary_chat_id"
                     :href="route('chats.show', summary.primary_chat_id)"
                     class="ai-client-summary__btn ai-client-summary__btn--primary"
                 >
@@ -128,6 +149,16 @@ function onPickContact(event: Event): void {
     max-height: min(42vh, 22rem);
     border-bottom: 1px solid var(--wa-sidebar-divider);
     background: color-mix(in srgb, var(--wa-panel-header) 92%, var(--wa-accent) 8%);
+}
+
+.ai-client-summary--chat {
+    max-height: min(36vh, 19rem);
+    border-bottom-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-sidebar-divider));
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel-header)) 0%,
+        color-mix(in srgb, var(--wa-panel-header) 96%, var(--wa-bg) 4%) 100%
+    );
 }
 
 .ai-client-summary__head {
