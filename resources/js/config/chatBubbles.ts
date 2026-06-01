@@ -7,6 +7,9 @@ export type MessageStyleColors = {
     textIn: string;
     textOut: string;
     accent: string;
+    /** Акцент всего интерфейса (кнопки, вкладки, бейджи). По умолчанию = accent. */
+    systemAccent?: string;
+    systemAccentHover?: string;
     tailShadow: string;
     quoteBgIn?: string;
     quoteBgOut?: string;
@@ -50,6 +53,8 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#111B21',
             textOut: '#111B21',
             accent: '#008069',
+            systemAccent: '#01B964',
+            systemAccentHover: '#08D878',
             tailShadow: 'rgba(11, 20, 26, 0.07)',
             quoteBgIn: '#F0F2F5',
             quoteBgOut: '#C8EBC4',
@@ -64,6 +69,8 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#E9EDEF',
             textOut: '#E9EDEF',
             accent: '#53BDAE',
+            systemAccent: '#01B964',
+            systemAccentHover: '#08D878',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
             quoteBgIn: '#2A3942',
             quoteBgOut: '#0A4A3D',
@@ -83,6 +90,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#111B21',
             textOut: '#FFFFFF',
             accent: '#2481CC',
+            systemAccent: '#3390EC',
             tailShadow: 'rgba(13, 60, 120, 0.12)',
             quoteBgIn: '#F0F4F8',
             quoteBgOut: '#2B7BC4',
@@ -97,6 +105,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#ECECEC',
             textOut: '#FFFFFF',
             accent: '#6AB3F0',
+            systemAccent: '#3390EC',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
             quoteBgIn: '#2C2C2C',
             quoteBgOut: '#2878C2',
@@ -116,6 +125,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#000000',
             textOut: '#FFFFFF',
             accent: '#D1103A',
+            systemAccent: '#2C2C2C',
             tailShadow: 'rgba(0, 0, 0, 0.14)',
             quoteBgIn: '#E4E4E4',
             quoteBgOut: '#3D3D3D',
@@ -130,6 +140,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#FFFFFF',
             textOut: '#111B21',
             accent: '#E8E8E8',
+            systemAccent: '#B0B0B0',
             tailShadow: 'rgba(0, 0, 0, 0.22)',
             quoteBgIn: '#3D3D3D',
             quoteBgOut: '#E4E4E4',
@@ -149,6 +160,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#111B21',
             textOut: '#FFFFFF',
             accent: '#6A4FA8',
+            systemAccent: '#7C5CBF',
             tailShadow: 'rgba(60, 30, 100, 0.12)',
             quoteBgIn: '#F3F0F8',
             quoteBgOut: '#6B52AD',
@@ -163,6 +175,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#E8E4EF',
             textOut: '#FFFFFF',
             accent: '#B8A8D8',
+            systemAccent: '#8E7BB8',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
             quoteBgIn: '#35323D',
             quoteBgOut: '#7A6AA0',
@@ -182,6 +195,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#111B21',
             textOut: '#FFFFFF',
             accent: '#2A7A70',
+            systemAccent: '#3D9B8F',
             tailShadow: 'rgba(20, 80, 72, 0.12)',
             quoteBgIn: '#EFF5F4',
             quoteBgOut: '#358F84',
@@ -196,6 +210,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#DDE8E6',
             textOut: '#FFFFFF',
             accent: '#7FBFB4',
+            systemAccent: '#4F8A82',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
             quoteBgIn: '#2F3A38',
             quoteBgOut: '#457A72',
@@ -215,6 +230,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#111B21',
             textOut: '#FFFFFF',
             accent: '#B85A48',
+            systemAccent: '#D9725C',
             tailShadow: 'rgba(120, 50, 40, 0.12)',
             quoteBgIn: '#FAF0EE',
             quoteBgOut: '#C46552',
@@ -229,6 +245,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             textIn: '#EDE4E1',
             textOut: '#FFFFFF',
             accent: '#E0A090',
+            systemAccent: '#B87A6A',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
             quoteBgIn: '#3A322F',
             quoteBgOut: '#A66E5E',
@@ -343,6 +360,36 @@ function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
     return `color-mix(in srgb, ${mix} ${amount}, ${color})`;
 }
 
+function systemAccentHoverColor(base: string, theme: Theme, explicit?: string): string {
+    if (explicit) {
+        return explicit;
+    }
+
+    return theme === 'light'
+        ? `color-mix(in srgb, ${base} 82%, #000)`
+        : `color-mix(in srgb, ${base} 78%, #fff)`;
+}
+
+/** Текст ссылок/лейблов на светлой теме — чуть темнее системного акцента. */
+function systemChromaFg(base: string, theme: Theme): string {
+    return theme === 'light'
+        ? `color-mix(in srgb, ${base} 70%, #000)`
+        : `color-mix(in srgb, ${base} 88%, #fff)`;
+}
+
+/**
+ * Синхронизирует --brand-accent и производные (кнопки, вкладки, chroma, ui-*).
+ * CSS-переменные с color-mix(..., var(--brand-accent)) пересчитываются автоматически.
+ */
+function applySystemAccent(colors: MessageStyleColors, theme: Theme, root: HTMLElement): void {
+    const base = colors.systemAccent ?? colors.accent;
+    const hover = systemAccentHoverColor(base, theme, colors.systemAccentHover);
+
+    root.style.setProperty('--brand-accent', base);
+    root.style.setProperty('--brand-accent-hover', hover);
+    root.style.setProperty('--wa-chroma-accent-fg', systemChromaFg(base, theme));
+}
+
 function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void {
     root.style.setProperty(
         '--wa-bubble-quote-author-in',
@@ -392,6 +439,7 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
         colors.quoteBgOut ?? quoteBg(colors.out, theme, 'out'),
     );
     applyQuoteTextVars(colors, root);
+    applySystemAccent(colors, theme, root);
 }
 
 /** @deprecated */
