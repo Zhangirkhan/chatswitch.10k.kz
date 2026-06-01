@@ -68,7 +68,7 @@
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
     --wa-accent-hover: var(--brand-accent-hover);
     --wa-accent-soft: var(--brand-accent-soft);     /* subtle accent bg (badges, pills) */
-    --wa-accent-on: #111b21;       /* foreground on accent bg */
+    --wa-accent-on: #ffffff;       /* foreground on accent bg */
     --wa-green: var(--brand-accent);
 
     /*
@@ -290,7 +290,7 @@
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
     --wa-accent-hover: var(--brand-accent-hover);
     --wa-accent-soft: var(--brand-accent-soft);
-    --wa-accent-on: #111b21;
+    --wa-accent-on: #ffffff;
     --wa-green: var(--brand-accent);
 
     /* Chroma tints — на светлой теме смешиваем с панелью, не с transparent */
