@@ -46,10 +46,17 @@ type FieldDef = {
 const heroField: FieldDef = {
     key: 'leads_per_day',
     label: 'Обращений в день',
-    hint: 'Сколько человек пишут вам за день',
+    hint: 'Сколько новых людей пишут вам в WhatsApp за рабочий день. Каждый новый диалог считается одним обращением.',
     min: 1,
     max: 500,
     step: 1,
+};
+
+const funnelField: FieldDef = {
+    key: 'funnel_enabled',
+    label: 'Воронка продаж',
+    hint: 'AI определяет этап сделки, подсказывает следующий шаг менеджеру и учитывает это в ответах клиенту.',
+    type: 'toggle',
 };
 
 const props = defineProps<{
@@ -134,7 +141,7 @@ const coreFields: FieldDef[] = [
     {
         key: 'inbound_msgs_per_lead',
         label: 'Сообщений в диалоге',
-        hint: 'Сколько раз клиент пишет за одну переписку',
+        hint: 'Среднее число сообщений от одного клиента за переписку. Чем длиннее диалог, тем больше контекста обрабатывает AI.',
         min: 1,
         max: 50,
         step: 1,
@@ -142,7 +149,7 @@ const coreFields: FieldDef[] = [
     {
         key: 'ai_reply_rate',
         label: 'AI отвечает сам',
-        hint: 'Доля чатов, где робот пишет без менеджера',
+        hint: 'Доля входящих сообщений, на которые AI отвечает без менеджера. Остальные чаты ведёт команда.',
         min: 0,
         max: 100,
         step: 5,
@@ -152,7 +159,7 @@ const coreFields: FieldDef[] = [
     {
         key: 'operators',
         label: 'Менеджеров',
-        hint: 'Сотрудники, которые ведут WhatsApp',
+        hint: 'Сотрудники, которые ведут WhatsApp и могут пользоваться AI-помощником и ИИ-чатом по базе клиентов.',
         min: 1,
         max: 50,
         step: 1,
@@ -160,7 +167,7 @@ const coreFields: FieldDef[] = [
     {
         key: 'voice_msg_rate',
         label: 'Голосовые от клиентов',
-        hint: 'Доля голосовых среди всех сообщений',
+        hint: 'Как часто клиенты отправляют голосовые вместо текста. Каждое голосовое расшифровывается через Whisper.',
         min: 0,
         max: 50,
         step: 5,
@@ -173,7 +180,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'silent_leads_per_day',
         label: '«Замолчало» в день',
-        hint: 'Клиенты, которые перестали отвечать',
+        hint: 'Клиенты в день, которые перестали отвечать. AI может предложить текст напоминания или отправить его автоматически.',
         min: 0,
         max: 100,
         step: 1,
@@ -181,7 +188,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'operator_ai_uses_per_day',
         label: 'Помощь AI менеджеру',
-        hint: 'Запросов к AI от сотрудников в день',
+        hint: 'Сколько раз в день каждый менеджер просит AI подсказать ответ, перефразировать или дописать сообщение.',
         min: 0,
         max: 50,
         step: 1,
@@ -189,7 +196,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'orchestrator_rate',
         label: 'Сложные сценарии',
-        hint: 'Запись, воронка, умные предложения',
+        hint: 'Доля AI-ответов со сложной логикой: запись на услугу, смена этапа воронки, умные предложения.',
         min: 0,
         max: 100,
         step: 5,
@@ -199,7 +206,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'avg_voice_duration_sec',
         label: 'Длина голосового',
-        hint: 'Средняя длительность голосового',
+        hint: 'Средняя длительность одного голосового от клиента. Влияет на стоимость расшифровки в минутах.',
         min: 5,
         max: 120,
         step: 5,
@@ -208,7 +215,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'translations_per_day',
         label: 'Переводов в день',
-        hint: 'Переводы сообщений для клиентов',
+        hint: 'Сколько сообщений в день переводится AI для клиентов на другой язык.',
         min: 0,
         max: 100,
         step: 1,
@@ -216,7 +223,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'workspace_queries_per_day',
         label: 'Запросов к базе',
-        hint: 'Вопросы к CRM в день на менеджера',
+        hint: 'Вопросы к базе на менеджера в день: «кто не ответил», «сколько сделок на этапе», поиск по перепискам.',
         min: 0,
         max: 50,
         step: 1,
@@ -224,7 +231,7 @@ const extraFields: FieldDef[] = [
     {
         key: 'work_days_per_month',
         label: 'Рабочих дней в месяц',
-        hint: 'Для месячного расчёта',
+        hint: 'Количество рабочих дней для перевода дневных показателей в месячный бюджет на AI.',
         min: 20,
         max: 31,
         step: 1,
@@ -364,7 +371,22 @@ const visibleScenarios = computed(() =>
                     <div class="calc-feature">
                         <div class="calc-feature__top">
                             <div>
-                                <span class="calc-feature__kicker">{{ heroField.label }}</span>
+                                <div class="calc-field__label-wrap">
+                                    <span class="calc-feature__kicker">{{ heroField.label }}</span>
+                                    <span
+                                        class="calc-info"
+                                        tabindex="0"
+                                        role="button"
+                                        :aria-label="heroField.hint"
+                                        :title="heroField.hint"
+                                    >
+                                        <svg class="calc-info__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                            <circle cx="8" cy="8" r="6.75" stroke="currentColor" stroke-width="1.2" />
+                                            <path d="M8 7.1V11M8 5.1h.01" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
+                                        </svg>
+                                        <span class="calc-info__tip" role="tooltip">{{ heroField.hint }}</span>
+                                    </span>
+                                </div>
                                 <strong class="calc-feature__value">{{ inputs.leads_per_day }}</strong>
                             </div>
                             <div class="calc-feature__aside">
@@ -396,7 +418,22 @@ const visibleScenarios = computed(() =>
                     <div class="calc-fields">
                         <div v-for="field in coreFields" :key="field.key" class="calc-field">
                             <div class="calc-field__row">
-                                <label :for="field.key" class="calc-field__label">{{ field.label }}</label>
+                                <div class="calc-field__label-wrap">
+                                    <label :for="field.key" class="calc-field__label">{{ field.label }}</label>
+                                    <span
+                                        class="calc-info"
+                                        tabindex="0"
+                                        role="button"
+                                        :aria-label="field.hint"
+                                        :title="field.hint"
+                                    >
+                                        <svg class="calc-info__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                            <circle cx="8" cy="8" r="6.75" stroke="currentColor" stroke-width="1.2" />
+                                            <path d="M8 7.1V11M8 5.1h.01" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
+                                        </svg>
+                                        <span class="calc-info__tip" role="tooltip">{{ field.hint }}</span>
+                                    </span>
+                                </div>
                                 <span class="calc-field__value">{{ displayValue(field) }}</span>
                             </div>
                             <div class="calc-range" :style="{ '--fill': `${sliderFillPercent(field)}%` }">
@@ -419,8 +456,22 @@ const visibleScenarios = computed(() =>
 
                     <div class="ui-check-row calc-toggle-row">
                         <div>
-                            <span class="calc-field__label">Воронка продаж</span>
-                            <p class="calc-field__hint">AI понимает этап сделки</p>
+                            <div class="calc-field__label-wrap">
+                                <span class="calc-field__label">{{ funnelField.label }}</span>
+                                <span
+                                    class="calc-info"
+                                    tabindex="0"
+                                    role="button"
+                                    :aria-label="funnelField.hint"
+                                    :title="funnelField.hint"
+                                >
+                                    <svg class="calc-info__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                        <circle cx="8" cy="8" r="6.75" stroke="currentColor" stroke-width="1.2" />
+                                        <path d="M8 7.1V11M8 5.1h.01" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
+                                    </svg>
+                                    <span class="calc-info__tip" role="tooltip">{{ funnelField.hint }}</span>
+                                </span>
+                            </div>
                         </div>
                         <UiCheckbox
                             :model-value="inputs.funnel_enabled"
@@ -441,7 +492,22 @@ const visibleScenarios = computed(() =>
                     <div v-if="showAdvanced" class="calc-fields calc-fields--extra">
                         <div v-for="field in extraFields" :key="field.key" class="calc-field">
                             <div class="calc-field__row">
-                                <label :for="`extra-${field.key}`" class="calc-field__label">{{ field.label }}</label>
+                                <div class="calc-field__label-wrap">
+                                    <label :for="`extra-${field.key}`" class="calc-field__label">{{ field.label }}</label>
+                                    <span
+                                        class="calc-info"
+                                        tabindex="0"
+                                        role="button"
+                                        :aria-label="field.hint"
+                                        :title="field.hint"
+                                    >
+                                        <svg class="calc-info__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                            <circle cx="8" cy="8" r="6.75" stroke="currentColor" stroke-width="1.2" />
+                                            <path d="M8 7.1V11M8 5.1h.01" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" />
+                                        </svg>
+                                        <span class="calc-info__tip" role="tooltip">{{ field.hint }}</span>
+                                    </span>
+                                </div>
                                 <span class="calc-field__value">{{ displayValue(field) }}</span>
                             </div>
                             <div class="calc-range" :style="{ '--fill': `${sliderFillPercent(field)}%` }">
@@ -938,10 +1004,91 @@ const visibleScenarios = computed(() =>
     margin-bottom: 0.45rem;
 }
 
+.calc-field__label-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.calc-field__label-wrap .calc-feature__kicker {
+    display: inline;
+    margin-bottom: 0;
+}
+
 .calc-field__label {
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ui-text);
+}
+
+.calc-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    color: var(--ui-text-muted);
+    cursor: help;
+    outline: none;
+}
+
+.calc-info__icon {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.calc-info:hover,
+.calc-info:focus-visible {
+    color: var(--ui-accent);
+}
+
+.calc-info__tip {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 0.45rem);
+    z-index: 20;
+    width: max-content;
+    max-width: min(16rem, 70vw);
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--primitive-radius-sm);
+    border: 1px solid var(--ui-border);
+    background: var(--ui-surface-raised);
+    box-shadow: var(--ui-shadow-soft);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--ui-text-secondary);
+    text-align: left;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.calc-info__tip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 0.55rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-bottom: -0.28rem;
+    background: var(--ui-surface-raised);
+    border-left: 1px solid var(--ui-border);
+    border-top: 1px solid var(--ui-border);
+    transform: rotate(45deg);
+}
+
+.calc-info:hover .calc-info__tip,
+.calc-info:focus-visible .calc-info__tip,
+.calc-info:focus-within .calc-info__tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
 }
 
 .calc-field__value {
@@ -949,12 +1096,6 @@ const visibleScenarios = computed(() =>
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--ui-text);
-}
-
-.calc-field__hint {
-    margin: 0.15rem 0 0;
-    font-size: 0.6875rem;
-    color: var(--ui-text-muted);
 }
 
 .calc-toggle-row {
