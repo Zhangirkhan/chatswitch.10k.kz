@@ -15,6 +15,7 @@ use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatFollowUpProposalController;
 use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\CompanyController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationTeamChatController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ToneProfileController;
@@ -93,7 +95,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/chats/sync-groups', [ChatController::class, 'syncGroups'])->name('chats.sync-groups');
         Route::get('/chats/{chat}/participants', [ChatController::class, 'groupParticipants'])->name('chats.group-participants');
         Route::get('/chats/{chat}', [ChatController::class, 'show'])->name('chats.show');
-        Route::post('/chats/{chat}/send-message', [ChatController::class, 'sendMessage'])->name('chats.send-message');
+        Route::post('/chats/{chat}/send-message', [ChatController::class, 'sendMessage'])
+            ->middleware('throttle:chat-send')
+            ->name('chats.send-message');
         Route::get('/chats/{chat}/products', [ChatController::class, 'products'])->name('chats.products');
         Route::get('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'index'])->name('chats.scheduled-messages.index');
         Route::post('/chats/{chat}/scheduled-messages', [ScheduledMessageController::class, 'store'])->name('chats.scheduled-messages.store');
@@ -122,15 +126,26 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/entity-memory/{subjectType}/{subjectId}/backups', [EntityMemoryController::class, 'backups'])->name('entity-memory.backups');
         Route::post('/entity-memory/{subjectType}/{subjectId}/backups/{backupId}/restore', [EntityMemoryController::class, 'restore'])->name('entity-memory.restore');
         Route::post('/chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:chat-ai')
             ->name('chats.ai.chat');
-        Route::patch('/chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])->name('chats.ai.update');
+        Route::patch('/chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])
+            ->middleware('throttle:chat-ai')
+            ->name('chats.ai.update');
         Route::post('/chats/{chat}/ai-simulate', [ChatController::class, 'simulateAi'])
             ->middleware('throttle:20,1')
             ->name('chats.ai-simulate');
         Route::post('/chats/{chat}/orchestrator-runs/{run}/approve', [ChatController::class, 'approveOrchestrator'])
             ->middleware('throttle:30,1')
             ->name('chats.orchestrator.approve');
+        Route::post('/chats/{chat}/follow-up-proposals/generate', [ChatFollowUpProposalController::class, 'generate'])
+            ->middleware('throttle:20,1')
+            ->name('chats.follow-up-proposals.generate');
+        Route::post('/chats/{chat}/follow-up-proposals/{proposal}/send', [ChatFollowUpProposalController::class, 'send'])
+            ->middleware('throttle:30,1')
+            ->name('chats.follow-up-proposals.send');
+        Route::post('/chats/{chat}/follow-up-proposals/{proposal}/dismiss', [ChatFollowUpProposalController::class, 'dismiss'])
+            ->middleware('throttle:30,1')
+            ->name('chats.follow-up-proposals.dismiss');
 
         Route::post('/chats/{chat}/upload-file', [ChatController::class, 'uploadFile'])->name('chats.upload-file');
         Route::post('/chats/{chat}/send-contact', [ChatController::class, 'sendContact'])->name('chats.send-contact');
@@ -142,7 +157,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/messages/{message}/share-to-team', [MessageController::class, 'shareToTeam'])->name('messages.share-to-team');
         Route::post('/messages/forward-bulk', [MessageController::class, 'forwardBulk'])->name('messages.forward-bulk');
         Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
-        Route::post('/messages/{message}/translate', [MessageTranslationController::class, 'translate'])->name('messages.translate');
+        Route::post('/messages/{message}/translate', [MessageTranslationController::class, 'translate'])
+            ->middleware('throttle:chat-translate')
+            ->name('messages.translate');
         Route::post('/messages/{message}/ai-feedback', [AiMessageFeedbackController::class, 'store'])
             ->middleware('throttle:60,1')
             ->name('messages.ai-feedback');
@@ -283,6 +300,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/knowledge/rules/bulk-prompt', [KnowledgeBaseController::class, 'bulkRulesPrompt'])->name('settings.knowledge.rules.bulk-prompt');
         Route::put('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'updateRule'])->name('settings.knowledge.rules.update');
         Route::delete('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'destroyRule'])->name('settings.knowledge.rules.destroy');
+
+        Route::get('/promotions', [PromotionController::class, 'index'])->name('settings.promotions');
+        Route::post('/promotions', [PromotionController::class, 'store'])->name('settings.promotions.store');
+        Route::put('/promotions/{promotion}', [PromotionController::class, 'update'])->name('settings.promotions.update');
+        Route::put('/promotions-settings', [PromotionController::class, 'updateSettings'])->name('settings.promotions.settings');
+        Route::delete('/promotions/{promotion}', [PromotionController::class, 'destroy'])->name('settings.promotions.destroy');
 
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');

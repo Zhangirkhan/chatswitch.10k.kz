@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Message;
+use App\Services\AI\AiUsageOptions;
 use App\Services\AI\OpenAiChatService;
+use App\Support\MessageInboundText;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -44,7 +46,7 @@ final class MessageTranslationController extends Controller
             'lang' => ['required', 'string', 'in:'.implode(',', array_keys(self::SUPPORTED_LANGS))],
         ]);
 
-        $body = (string) ($message->body ?? '');
+        $body = MessageInboundText::forMessage($message);
         if (trim($body) === '') {
             return response()->json(['translation' => '']);
         }
@@ -71,7 +73,12 @@ PROMPT,
         ];
 
         try {
-            $translation = $this->openAi->chat($messages, 0.2, 1000);
+            $translation = $this->openAi->chat(
+                $messages,
+                0.2,
+                1000,
+                new AiUsageOptions('translation', $message->chat->company_id),
+            );
         } catch (\Throwable $e) {
             return response()->json(['error' => 'Сервис перевода недоступен.'], 503);
         }

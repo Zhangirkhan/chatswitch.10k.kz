@@ -15,6 +15,7 @@ use App\Http\Requests\Chat\SyncDepartmentsRequest;
 use App\Http\Requests\Chat\ToggleMuteRequest;
 use App\Http\Requests\Chat\UploadFileRequest;
 use App\Jobs\SendOutboundMessageJob;
+use App\Models\AiFollowUpProposal;
 use App\Models\AiOrchestratorRun;
 use App\Models\AiResponseLog;
 use App\Models\CalendarEvent;
@@ -43,6 +44,7 @@ use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
+use App\Support\ChatUrl;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
 use App\Support\OrganizationDepartmentTasks;
@@ -228,7 +230,7 @@ final class ChatController extends Controller
                 ->orderByDesc('last_message_at')
                 ->get([
                     'id', 'whatsapp_session_id', 'contact_id', 'chat_name',
-                    'last_message_text', 'last_message_at', 'last_message_direction',
+                    'last_message_text', 'last_message_at', 'last_message_direction', 'last_message_is_ai',
                     'unread_count', 'is_archived',
                 ])
             : collect();
@@ -260,6 +262,7 @@ final class ChatController extends Controller
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
             'aiStatus' => $this->latestAiStatus($chat, $request->user()),
             'pendingOrchestratorApproval' => $this->pendingOrchestratorApproval($chat),
+            'pendingFollowUpProposal' => $this->pendingFollowUpProposal($chat),
             'sidebarInsights' => $this->sidebarInsights($chat),
             'listOwnership' => $listOwnership,
             'listFilter' => $listFilter,
@@ -449,6 +452,24 @@ final class ChatController extends Controller
      *     manager_note: string|null
      * }|null
      */
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function pendingFollowUpProposal(Chat $chat): ?array
+    {
+        $proposal = AiFollowUpProposal::query()
+            ->where('chat_id', $chat->id)
+            ->where('status', AiFollowUpProposal::STATUS_NEEDS_MANAGER)
+            ->latest('id')
+            ->first();
+
+        if ($proposal === null) {
+            return null;
+        }
+
+        return ChatFollowUpProposalController::serializeProposal($proposal);
+    }
+
     private function pendingOrchestratorApproval(Chat $chat): ?array
     {
         if ($chat->ai_orchestrator_status !== AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
@@ -813,6 +834,8 @@ final class ChatController extends Controller
             abort(403);
         }
 
+        $this->authorize('view', $chat);
+
         if ((int) $run->chat_id !== (int) $chat->id) {
             abort(404);
         }
@@ -914,7 +937,7 @@ final class ChatController extends Controller
             'department_id' => $department->id,
             'author_id' => $request->user()->id,
             'title' => $title,
-            'body' => $body."\n\nЧат: ".route('chats.show', $chat),
+            'body' => $body."\n\nЧат: ".ChatUrl::show($chat),
             'status' => DepartmentPost::STATUS_OPEN,
             'due_at' => null,
         ]);
@@ -1264,7 +1287,7 @@ final class ChatController extends Controller
             );
         }
 
-        return redirect()->route('chats.show', $chat->id);
+        return redirect(ChatUrl::show($chat));
     }
 
     public function createGroup(CreateGroupRequest $request): JsonResponse

@@ -160,6 +160,6 @@ final class ChatAiSettingsController extends Controller
             return;
         }
 
-        GenerateAiReplyJob::dispatch($chat->id, $latest->id);
+        GenerateAiReplyJob::dispatch($chat->id, $latest->id, $chat->company_id);
     }
 }
