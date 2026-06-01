@@ -36,6 +36,7 @@ final class User extends Authenticatable
         'id',
         'company_id',
         'is_super_admin',
+        'super_admin_scope',
     ];
 
     protected $hidden = [

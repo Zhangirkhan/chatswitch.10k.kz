@@ -125,6 +125,7 @@ const props = defineProps<{
     tenantUrl: string;
     canImpersonate: boolean;
     impersonateBlockedReason?: string | null;
+    canPopulateSandbox?: boolean;
     plans: PlanOption[];
     billing: { trial_days: number; standard_price_label: string };
     companyUsers: SuperAdminCompanyUser[];
@@ -306,6 +307,7 @@ function assignPlan(): void {
             :tenant-url="tenantUrl"
             :can-impersonate="canImpersonate"
             :impersonate-blocked-reason="impersonateBlockedReason"
+            :can-populate-sandbox="canPopulateSandbox"
             :billing-summary="billingSummary"
             :trial-info="trialInfo"
             :status-labels="statusLabels"

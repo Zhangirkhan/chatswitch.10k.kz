@@ -16,6 +16,7 @@ const props = defineProps<{
     tenantUrl: string;
     canImpersonate: boolean;
     impersonateBlockedReason?: string | null;
+    canPopulateSandbox?: boolean;
     rootDomain?: string;
     billingSummary: {
         mrr_kzt: number;
@@ -42,6 +43,28 @@ function formatDate(iso: string | null): string {
 }
 
 const impersonating = ref(false);
+const populating = ref(false);
+
+function populateSandbox(): void {
+    if (populating.value || !props.canPopulateSandbox) {
+        return;
+    }
+
+    populating.value = true;
+    router.post(
+        `/companies/${props.company.id}/populate-sandbox`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                populating.value = false;
+            },
+            onError: () => {
+                populating.value = false;
+            },
+        },
+    );
+}
 
 function impersonate(): void {
     if (impersonating.value || !props.canImpersonate) {
@@ -84,6 +107,15 @@ function impersonate(): void {
                 >
                     {{ company.slug }}.{{ rootDomain ?? 'accel.kz' }} — открыть
                 </a>
+                <button
+                    v-if="canPopulateSandbox"
+                    type="button"
+                    class="ui-btn ui-btn--secondary ui-btn--sm"
+                    :disabled="populating"
+                    @click="populateSandbox"
+                >
+                    {{ populating ? 'Загрузка…' : 'Заполнить тестовыми данными' }}
+                </button>
                 <button
                     type="button"
                     class="ui-btn ui-btn--primary ui-btn--sm"

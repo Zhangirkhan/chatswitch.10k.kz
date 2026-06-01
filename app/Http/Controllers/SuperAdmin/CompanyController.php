@@ -14,7 +14,9 @@ use App\Services\SuperAdmin\CompanyBillingSummaryService;
 use App\Services\SuperAdmin\CompanyDemoMaintenanceService;
 use App\Services\SuperAdmin\CompanyModuleSettingsService;
 use App\Services\SuperAdmin\CompanyUsersService;
+use App\Services\SuperAdmin\DemoTenantPopulationService;
 use App\Services\SuperAdmin\SuperAdminAuditLogger;
+use App\Services\SuperAdmin\SuperAdminCompanyScope;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\Tenancy\CompanyProvisioningService;
 use App\Services\WhatsappService;
@@ -37,6 +39,8 @@ final class CompanyController extends Controller
         private readonly TenantImpersonationService $impersonation,
         private readonly CompanyUsersService $companyUsers,
         private readonly WhatsappSessionLimitService $sessionLimits,
+        private readonly SuperAdminCompanyScope $superAdminScope,
+        private readonly DemoTenantPopulationService $demoPopulation,
     ) {}
 
     public function index(Request $request): Response
@@ -51,9 +55,15 @@ final class CompanyController extends Controller
 
         $demoSlug = $this->demoMaintenance->demoSlug();
 
-        $query = Company::query()
-            ->with(['plan:id,name', 'owner:id,name,email'])
-            ->where('slug', '!=', $demoSlug);
+        $query = $this->superAdminScope->applyToCompaniesQuery(
+            Company::query()
+                ->with(['plan:id,name', 'owner:id,name,email']),
+            $request->user(),
+        );
+
+        if ($this->superAdminScope->isGlobalSuperAdmin($request->user())) {
+            $query->where('slug', '!=', $demoSlug);
+        }
 
         if (! empty($filters['q'])) {
             $term = '%'.addcslashes($filters['q'], '%_\\').'%';
@@ -86,7 +96,9 @@ final class CompanyController extends Controller
 
         $companies->getCollection()->transform(fn (Company $company): Company => $this->decorateCompanyForIndex($company));
 
-        $demoCompany = $this->demoMaintenance->findDemoCompany();
+        $demoCompany = $this->superAdminScope->isGlobalSuperAdmin($request->user())
+            ? $this->demoMaintenance->findDemoCompany()
+            : null;
         if ($demoCompany !== null) {
             $demoCompany = $this->decorateCompanyForIndex($demoCompany);
         }
@@ -95,6 +107,7 @@ final class CompanyController extends Controller
             'companies' => $companies,
             'demoCompany' => $demoCompany,
             'demoSlug' => $demoSlug,
+            'isSandboxSuperAdmin' => $this->superAdminScope->isSandboxSuperAdmin($request->user()),
             'filters' => [
                 'q' => $filters['q'] ?? '',
                 'is_active' => $filters['is_active'] ?? '',
@@ -133,6 +146,9 @@ final class CompanyController extends Controller
         $result = $provisioning->create($data);
 
         $company = $result['company'];
+        if ($this->superAdminScope->isSandboxSuperAdmin($request->user())) {
+            $company->update(['provisioned_by_user_id' => $request->user()->id]);
+        }
         $this->audit->log($company, $request->user(), 'company.created', $company, [
             'company_name' => $company->name,
             'slug' => $company->slug,
@@ -145,8 +161,10 @@ final class CompanyController extends Controller
             ->with('success', 'Компания создана. Временный пароль владельца: '.$result['temporary_password']);
     }
 
-    public function show(Company $company): Response
+    public function show(Request $request, Company $company): Response
     {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
         $company->load([
             'plan',
             'owner:id,name,email,created_at',
@@ -193,6 +211,8 @@ final class CompanyController extends Controller
             'tenantUrl' => $company->tenantUrl('/login'),
             'canImpersonate' => $this->impersonation->canImpersonate($company),
             'impersonateBlockedReason' => $this->impersonation->impersonationBlockedReason($company),
+            'canPopulateSandbox' => $this->superAdminScope->isSandboxSuperAdmin($request->user())
+                && $this->superAdminScope->canManage($request->user(), $company),
             'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
             'billing' => [
                 'trial_days' => (int) config('billing.trial_days', 14),
@@ -205,8 +225,26 @@ final class CompanyController extends Controller
         ]);
     }
 
+    public function populateSandbox(Request $request, Company $company): RedirectResponse
+    {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
+        $result = $this->demoPopulation->populateCompany($company, $request->user());
+        $stats = $result['stats'];
+
+        return back()->with('success', sprintf(
+            'Тестовые данные загружены: %d чатов, %d сообщений. Вход в тенант: %s (логин %s)',
+            $stats['chats'],
+            $stats['messages'],
+            $stats['tenant_url'] ?? $company->tenantUrl('/login'),
+            $stats['login'],
+        ));
+    }
+
     public function update(Request $request, Company $company, SubscriptionLifecycleService $subscriptions): RedirectResponse
     {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
             'phone' => ['nullable', 'string', 'max:32', 'regex:/^[\d\s+\-()]+$/'],
@@ -299,6 +337,8 @@ final class CompanyController extends Controller
      */
     public function toggleActive(Request $request, Company $company): RedirectResponse
     {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
         $company->update(['is_active' => ! $company->is_active]);
 
         $fresh = $company->fresh();

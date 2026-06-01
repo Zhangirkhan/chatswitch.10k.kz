@@ -28,6 +28,7 @@ const props = defineProps<{
         sort: string;
     };
     plans: Array<{ id: number; name: string }>;
+    isSandboxSuperAdmin?: boolean;
 }>();
 
 const page = usePage();
@@ -116,7 +117,16 @@ function deleteAllExceptDemo(): void {
         <Head title="Компании" />
         <h1 class="mb-6 text-xl font-bold sm:text-2xl">Компании</h1>
 
-        <section v-if="demoCompany" class="mb-6">
+        <section v-if="isSandboxSuperAdmin" class="mb-6 ui-panel p-4">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-ui-text-secondary">
+                Песочница продаж
+            </h2>
+            <p class="mt-1 text-sm text-ui-text-muted">
+                Здесь только ваши тестовые компании. Создайте компанию, нажмите «Заполнить тестовыми данными» в карточке, затем «Войти в тенант» для проверки чатов и AI.
+            </p>
+        </section>
+
+        <section v-else-if="demoCompany" class="mb-6">
             <div class="mb-2 flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-ui-text-secondary">
@@ -224,6 +234,7 @@ function deleteAllExceptDemo(): void {
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <button
+                        v-if="!isSandboxSuperAdmin"
                         type="button"
                         class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                         :disabled="bulkBusy"
@@ -256,7 +267,7 @@ function deleteAllExceptDemo(): void {
                     />
                     <tr v-if="companies.data.length === 0">
                         <td colspan="7" class="!py-8 text-center text-ui-text-muted">
-                            Клиентские компании не найдены
+                            {{ isSandboxSuperAdmin ? 'Создайте первую тестовую компанию' : 'Клиентские компании не найдены' }}
                         </td>
                     </tr>
                 </tbody>

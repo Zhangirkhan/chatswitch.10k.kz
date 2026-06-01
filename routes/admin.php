@@ -37,17 +37,12 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('super.dashboard');
 
     Route::get('/invoices', [GlobalInvoiceController::class, 'index'])->name('super.invoices.global');
-    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('super.audit-logs.index');
 
     Route::get('/companies', [CompanyController::class, 'index'])->name('super.companies.index');
-    Route::post('/companies/populate-demo', [CompanyMaintenanceController::class, 'populateDemoTenant'])
-        ->name('super.companies.populate-demo');
-    Route::post('/companies/seed-test-data', [CompanyMaintenanceController::class, 'seedTestData'])
-        ->name('super.companies.seed-test-data');
-    Route::delete('/companies/non-demo', [CompanyMaintenanceController::class, 'destroyAllExceptDemo'])
-        ->name('super.companies.destroy-non-demo');
     Route::get('/companies/create', [CompanyController::class, 'create'])->name('super.companies.create');
     Route::post('/companies', [CompanyController::class, 'store'])->name('super.companies.store');
+    Route::post('/companies/{company}/populate-sandbox', [CompanyController::class, 'populateSandbox'])
+        ->name('super.companies.populate-sandbox');
     Route::put('/companies/{company}/modules', [CompanyModuleController::class, 'update'])
         ->name('super.companies.modules.update');
     Route::get('/companies/{company}', [CompanyController::class, 'show'])->name('super.companies.show');
@@ -63,10 +58,6 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::get('/companies/{company}/whatsapp-sessions/{session}/qr', [CompanyWhatsappController::class, 'qr'])->name('super.companies.whatsapp.qr');
     Route::get('/companies/{company}/whatsapp-sessions/{session}/status', [CompanyWhatsappController::class, 'status'])->name('super.companies.whatsapp.status');
 
-    Route::get('/plans', [PlanController::class, 'index'])->name('super.plans.index');
-    Route::post('/plans', [PlanController::class, 'store'])->name('super.plans.store');
-    Route::put('/plans/{plan}', [PlanController::class, 'update'])->name('super.plans.update');
-
     Route::post('/companies/{company}/subscriptions', [SubscriptionController::class, 'store'])->name('super.subscriptions.store');
     Route::post('/companies/{company}/subscriptions/activate', [SubscriptionController::class, 'activate'])->name('super.subscriptions.activate');
     Route::post('/companies/{company}/subscriptions/cancel', [SubscriptionController::class, 'cancel'])->name('super.subscriptions.cancel');
@@ -79,6 +70,21 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::post('/invoices/{invoice}/email', [InvoiceDocumentController::class, 'email'])->name('super.invoices.email');
 
     Route::post('/invoices/{invoice}/payments', [PaymentController::class, 'store'])->name('super.payments.store');
+});
+
+Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function (): void {
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('super.audit-logs.index');
+
+    Route::post('/companies/populate-demo', [CompanyMaintenanceController::class, 'populateDemoTenant'])
+        ->name('super.companies.populate-demo');
+    Route::post('/companies/seed-test-data', [CompanyMaintenanceController::class, 'seedTestData'])
+        ->name('super.companies.seed-test-data');
+    Route::delete('/companies/non-demo', [CompanyMaintenanceController::class, 'destroyAllExceptDemo'])
+        ->name('super.companies.destroy-non-demo');
+
+    Route::get('/plans', [PlanController::class, 'index'])->name('super.plans.index');
+    Route::post('/plans', [PlanController::class, 'store'])->name('super.plans.store');
+    Route::put('/plans/{plan}', [PlanController::class, 'update'])->name('super.plans.update');
 
     Route::get('/signup-requests', [SignupRequestController::class, 'index'])->name('super.signup-requests.index');
     Route::post('/signup-requests/{signupRequest}/approve', [SignupRequestController::class, 'approve'])

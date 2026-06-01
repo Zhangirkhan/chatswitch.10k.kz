@@ -45,26 +45,43 @@ final class DemoTenantPopulationService
      */
     public function populate(?User $actor = null): array
     {
-        $company = $this->resolveDemoCompany();
+        return $this->populateCompany($this->resolveDemoCompany(), $actor);
+    }
 
-        $stats = DB::transaction(function () use ($company, $actor): array {
-            $this->wipeOperationalData($company);
+    /**
+     * @return array{company: Company, stats: array<string, int|string>}
+     */
+    public function populateCompany(Company $company, ?User $actor = null): array
+    {
+        $isDemo = $this->isDemoCompany($company);
 
-            $company->forceFill([
-                'name' => 'Accel Demo',
-                'description' => 'Демонстрационный тенант: чаты, AI-воронка, отделы, каталог и база знаний для презентации Accel.',
-                'phone' => '+77001230000',
-                'email' => 'demo@accel.kz',
-                'website' => 'https://accel.kz',
-                'is_active' => true,
-            ])->save();
+        $stats = DB::transaction(function () use ($company, $actor, $isDemo): array {
+            $this->wipeOperationalData($company, preserveUsers: ! $isDemo);
+
+            if ($isDemo) {
+                $company->forceFill([
+                    'name' => 'Accel Demo',
+                    'description' => 'Демонстрационный тенант: чаты, AI-воронка, отделы, каталог и база знаний для презентации Accel.',
+                    'phone' => '+77001230000',
+                    'email' => 'demo@accel.kz',
+                    'website' => 'https://accel.kz',
+                    'is_active' => true,
+                ])->save();
+            } else {
+                $company->forceFill(['is_active' => true])->save();
+            }
 
             $plan = $this->subscriptions->defaultPlan();
             $company->update(['plan_id' => $plan->id]);
             $this->subscriptions->activatePaid($company->fresh(), $plan, now()->addYear());
 
-            $owner = $this->seedUsers($company);
-            $company->update(['owner_user_id' => $owner->id]);
+            $owner = $company->fresh()->owner;
+            if (! $owner instanceof User) {
+                $owner = $this->seedUsers($company);
+                $company->update(['owner_user_id' => $owner->id]);
+            } else {
+                $owner->syncRoles(['administrator']);
+            }
 
             $this->onboarding->bootstrap($company->fresh(), $owner);
             $this->modules->ensureDefaults($company->fresh());
@@ -84,6 +101,9 @@ final class DemoTenantPopulationService
                 'messages' => $chatStats['messages'],
             ]);
 
+            $ownerEmail = $owner->email;
+            $loginHint = $isDemo ? 'demo@accel.kz' : $ownerEmail;
+
             return [
                 'users' => User::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->count(),
                 'departments' => Department::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->where('is_active', true)->count(),
@@ -91,8 +111,9 @@ final class DemoTenantPopulationService
                 'whatsapp_sessions' => count($sessions),
                 'chats' => $chatStats['chats'],
                 'messages' => $chatStats['messages'],
-                'login' => 'demo@accel.kz',
-                'password' => self::DEMO_PASSWORD,
+                'login' => $loginHint,
+                'password' => $isDemo ? self::DEMO_PASSWORD : '(пароль владельца при создании компании)',
+                'tenant_url' => $company->fresh()->tenantUrl('/login'),
             ];
         });
 
@@ -124,7 +145,12 @@ final class DemoTenantPopulationService
         return $company;
     }
 
-    private function wipeOperationalData(Company $company): void
+    private function isDemoCompany(Company $company): bool
+    {
+        return $company->slug === (string) config('tenancy.fallback_slug', 'demo');
+    }
+
+    private function wipeOperationalData(Company $company, bool $preserveUsers = false): void
     {
         $companyId = $company->id;
 
@@ -178,16 +204,18 @@ final class DemoTenantPopulationService
         Contact::query()->withoutGlobalScope('tenant')->where('company_id', $companyId)->delete();
         DB::table('company_contact')->where('company_id', $companyId)->delete();
 
-        $userIds = User::query()
-            ->withoutGlobalScope('tenant')
-            ->where('company_id', $companyId)
-            ->where('is_super_admin', false)
-            ->pluck('id');
+        if (! $preserveUsers) {
+            $userIds = User::query()
+                ->withoutGlobalScope('tenant')
+                ->where('company_id', $companyId)
+                ->where('is_super_admin', false)
+                ->pluck('id');
 
-        if ($userIds->isNotEmpty()) {
-            DB::table('model_has_roles')->where('model_type', User::class)->whereIn('model_id', $userIds)->delete();
-            DB::table('user_whatsapp_session')->whereIn('user_id', $userIds)->delete();
-            User::query()->withoutGlobalScope('tenant')->whereIn('id', $userIds)->delete();
+            if ($userIds->isNotEmpty()) {
+                DB::table('model_has_roles')->where('model_type', User::class)->whereIn('model_id', $userIds)->delete();
+                DB::table('user_whatsapp_session')->whereIn('user_id', $userIds)->delete();
+                User::query()->withoutGlobalScope('tenant')->whereIn('id', $userIds)->delete();
+            }
         }
     }
 
@@ -255,21 +283,23 @@ final class DemoTenantPopulationService
      */
     private function seedWhatsappSessions(Company $company): array
     {
+        $prefix = $this->isDemoCompany($company) ? 'demo' : $company->slug;
+
         $defs = [
             [
-                'session_name' => 'demo-main',
+                'session_name' => "{$prefix}-main",
                 'display_name' => 'Главный WhatsApp',
                 'phone_number' => '+77001000001',
                 'display_color' => '#0f766e',
             ],
             [
-                'session_name' => 'demo-sales',
+                'session_name' => "{$prefix}-sales",
                 'display_name' => 'Продажи',
                 'phone_number' => '+77001000002',
                 'display_color' => '#2563eb',
             ],
             [
-                'session_name' => 'demo-support',
+                'session_name' => "{$prefix}-support",
                 'display_name' => 'Поддержка',
                 'phone_number' => '+77001000003',
                 'display_color' => '#7c3aed',

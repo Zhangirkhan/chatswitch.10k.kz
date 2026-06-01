@@ -30,19 +30,33 @@ const { theme, toggle: toggleTheme } = useTheme();
 
 const navOpen = ref(false);
 
-const navItems = computed(() => [
-    { href: '/dashboard', label: 'Дашборд', match: '/dashboard' },
-    { href: '/companies', label: 'Компании', match: '/companies' },
-    { href: '/invoices', label: 'Счета', match: '/invoices' },
-    { href: '/plans', label: 'Тарифы', match: '/plans' },
-    {
-        href: '/signup-requests',
-        label: 'Заявки',
-        match: '/signup-requests',
-        badge: superAdminNav.value?.pending_signups,
-    },
-    { href: '/audit-logs', label: 'Журнал', match: '/audit-logs' },
-]);
+const isSandboxSuperAdmin = computed(
+    () => (page.props.isSandboxSuperAdmin as boolean | undefined) === true
+        || superAdminNav.value?.is_sandbox === true,
+);
+
+const navItems = computed(() => {
+    const items = [
+        { href: '/dashboard', label: 'Дашборд', match: '/dashboard' },
+        { href: '/companies', label: 'Компании', match: '/companies' },
+        { href: '/invoices', label: 'Счета', match: '/invoices' },
+    ];
+
+    if (!isSandboxSuperAdmin.value) {
+        items.push(
+            { href: '/plans', label: 'Тарифы', match: '/plans' },
+            {
+                href: '/signup-requests',
+                label: 'Заявки',
+                match: '/signup-requests',
+                badge: superAdminNav.value?.pending_signups,
+            },
+            { href: '/audit-logs', label: 'Журнал', match: '/audit-logs' },
+        );
+    }
+
+    return items;
+});
 
 function isActive(match: string): boolean {
     return page.url.startsWith(match);

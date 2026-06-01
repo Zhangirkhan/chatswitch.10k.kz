@@ -142,10 +142,11 @@ final class DemoChatsFactory
         $contacts = [];
         foreach ($defs as $def) {
             $digits = preg_replace('/\D/', '', $def['phone']);
+            $whatsappId = "{$digits}.{$company->id}@c.us";
             $contacts[] = Contact::query()->withoutGlobalScope('tenant')->updateOrCreate(
                 [
                     'company_id' => $company->id,
-                    'whatsapp_id' => $digits.'@c.us',
+                    'whatsapp_id' => $whatsappId,
                 ],
                 [
                     'phone_number' => $def['phone'],

@@ -91,6 +91,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.active' => EnsureActiveCompany::class,
             'super.admin.host' => EnsureSuperAdminHost::class,
             'super.admin' => EnsureSuperAdmin::class,
+            'super.admin.global' => \App\Http\Middleware\EnsureGlobalSuperAdmin::class,
             'docs.password' => EnsureDocsApiPassword::class,
         ]);
 

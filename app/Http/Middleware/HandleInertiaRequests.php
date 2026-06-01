@@ -94,11 +94,25 @@ final class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
             ],
             'rootDomain' => fn () => (string) config('tenancy.root_domain', 'accel.kz'),
-            'superAdminNav' => fn () => app(TenantContext::class)->isAdminHost($request->getHost())
-                ? [
-                    'pending_signups' => TenantSignupRequest::query()->where('status', 'pending')->count(),
-                ]
-                : null,
+            'superAdminNav' => function () use ($request, $user) {
+                if (! app(TenantContext::class)->isAdminHost($request->getHost())) {
+                    return null;
+                }
+
+                $isSandbox = $user !== null
+                    && $user->is_super_admin
+                    && strtolower((string) ($user->super_admin_scope ?? 'global')) === 'sandbox';
+
+                return [
+                    'pending_signups' => $isSandbox
+                        ? 0
+                        : TenantSignupRequest::query()->where('status', 'pending')->count(),
+                    'is_sandbox' => $isSandbox,
+                ];
+            },
+            'isSandboxSuperAdmin' => fn () => $user !== null
+                && $user->is_super_admin
+                && strtolower((string) ($user->super_admin_scope ?? 'global')) === 'sandbox',
             'quickReactions' => fn () => QuickReactions::configured(),
             'recaptcha' => fn (): array => [
                 'enabled' => RecaptchaVerifier::isEnabled(),

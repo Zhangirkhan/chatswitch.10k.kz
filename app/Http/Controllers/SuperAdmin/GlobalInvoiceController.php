@@ -7,12 +7,17 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Invoice;
+use App\Services\SuperAdmin\SuperAdminCompanyScope;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final class GlobalInvoiceController extends Controller
 {
+    public function __construct(
+        private readonly SuperAdminCompanyScope $superAdminScope,
+    ) {}
+
     public function index(Request $request): Response
     {
         $filters = $request->validate([
@@ -26,6 +31,13 @@ final class GlobalInvoiceController extends Controller
         $query = Invoice::query()
             ->with(['company:id,name,slug'])
             ->orderByDesc('id');
+
+        if ($this->superAdminScope->isSandboxSuperAdmin($request->user())) {
+            $companyIds = $this->superAdminScope
+                ->applyToCompaniesQuery(Company::query(), $request->user())
+                ->pluck('id');
+            $query->whereIn('company_id', $companyIds);
+        }
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -60,7 +72,9 @@ final class GlobalInvoiceController extends Controller
                 'to' => $filters['to'] ?? '',
                 'q' => $filters['q'] ?? '',
             ],
-            'companies' => Company::query()->orderBy('name')->get(['id', 'name', 'slug']),
+            'companies' => $this->superAdminScope
+                ->applyToCompaniesQuery(Company::query()->orderBy('name'), $request->user())
+                ->get(['id', 'name', 'slug']),
         ]);
     }
 }

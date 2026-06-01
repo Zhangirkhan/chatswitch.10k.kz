@@ -23,6 +23,7 @@ final class Company extends Model
         'is_active',
         'ai_promotions_enabled',
         'owner_user_id',
+        'provisioned_by_user_id',
         'plan_id',
         'subscription_status',
         'trial_ends_at',
@@ -66,6 +67,11 @@ final class Company extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_user_id');
+    }
+
+    public function provisionedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'provisioned_by_user_id');
     }
 
     public function plan(): BelongsTo
