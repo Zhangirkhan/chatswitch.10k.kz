@@ -60,6 +60,7 @@ async function handleIncomingMessage(service, message) {
 
   const messageData = {
     session: service.sessionName,
+    companyId: service.companyId ?? undefined,
     messageId: message.id?._serialized,
     from: message.from,
     to: message.to,

@@ -8,7 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const apiRoutes = require('./api/routes');
+const { laravelAxiosOptions } = require('./laravelHttp');
 const { getOrCreateClient, destroyAll } = require('./whatsapp/clientManager');
+const { registerMany } = require('./whatsapp/sessionCompanyRegistry');
 const { AUTH_DIR } = require('./whatsapp/clientConfig');
 const { sweepStaleLocksOnStartup } = require('./whatsapp/sessionProfileCleanup');
 
@@ -41,8 +43,7 @@ app.use((err, _req, res, _next) => {
  * не поднимать phantom-сессии (папка в .wwebjs_auth есть, а в БД — нет; такие
  * бесконечно крутят QR, бессмысленно съедая CPU/RAM и пишут шум в логи).
  *
- * @returns {Promise<Set<string>|null>} null — если Laravel недоступен (тогда
- *   лучше не рисковать удалением и оставить всё как есть).
+ * @returns {Promise<{names: Set<string>, companyIds: Map<string, number>}|null>}
  */
 async function fetchLegalSessions() {
   const baseUrl = (process.env.LARAVEL_URL || '').replace(/\/+$/, '');
@@ -51,11 +52,31 @@ async function fetchLegalSessions() {
 
   try {
     const { data } = await axios.get(`${baseUrl}/api/whatsapp/legal-sessions`, {
-      headers: { Authorization: `Bearer ${token}` },
+      ...laravelAxiosOptions({
+        headers: { Authorization: `Bearer ${token}` },
+      }),
       timeout: 5000,
     });
     const list = Array.isArray(data?.sessions) ? data.sessions : [];
-    return new Set(list);
+    const names = new Set();
+    const companyIds = new Map();
+    for (const row of list) {
+      if (typeof row === 'string' && row) {
+        names.add(row);
+        continue;
+      }
+      const name = row?.session_name;
+      if (!name) continue;
+      names.add(name);
+      if (row?.company_id != null) {
+        companyIds.set(name, Number(row.company_id));
+      }
+    }
+    registerMany(companyIds);
+    console.log(
+      `[STARTUP] legal-sessions: ${names.size} session(s), ${companyIds.size} with companyId`,
+    );
+    return { names, companyIds };
   } catch (err) {
     console.warn(`[STARTUP] legal-sessions fetch failed (${err.message}); will restore every dir`);
     return null;
@@ -101,12 +122,12 @@ async function autoRestoreAllSessions() {
 
   const legal = await fetchLegalSessions();
   if (legal) {
-    const phantoms = sessionNames.filter((n) => !legal.has(n));
+    const phantoms = sessionNames.filter((n) => !legal.names.has(n));
     if (phantoms.length) {
       console.log(`[STARTUP] removing ${phantoms.length} phantom session(s): ${phantoms.join(', ')}`);
       phantoms.forEach(removeSessionDir);
     }
-    sessionNames = sessionNames.filter((n) => legal.has(n));
+    sessionNames = sessionNames.filter((n) => legal.names.has(n));
   }
 
   if (sessionNames.length === 0) {
@@ -120,7 +141,8 @@ async function autoRestoreAllSessions() {
   // даёт сбои вида "browser is already running" / lock на профиле.
   for (let i = 0; i < sessionNames.length; i += 1) {
     const name = sessionNames[i];
-    const client = getOrCreateClient(name);
+    const companyId = legal?.companyIds?.get(name) ?? null;
+    const client = getOrCreateClient(name, companyId);
     client.initialize().catch((err) =>
       console.error(`[STARTUP] [${name}] auto-init failed:`, err.message)
     );

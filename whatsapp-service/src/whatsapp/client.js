@@ -8,8 +8,9 @@ const { runExclusive } = require('./sessionMutex');
 const { releaseStaleChromiumProfileLocks } = require('./sessionProfileCleanup');
 
 class WhatsAppClient {
-  constructor(sessionName) {
+  constructor(sessionName, companyId = null) {
     this.sessionName = sessionName;
+    this.companyId = companyId;
     this.client = null;
     this.qrCode = null;
     this.isReady = false;

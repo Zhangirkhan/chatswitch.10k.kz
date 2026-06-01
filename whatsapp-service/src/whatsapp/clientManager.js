@@ -1,4 +1,5 @@
 const { WhatsAppClient } = require('./client');
+const { companyIdFor, registerSessionCompany } = require('./sessionCompanyRegistry');
 
 const clients = new Map();
 
@@ -6,9 +7,13 @@ function getDefaultSessionName() {
   return process.env.WHATSAPP_DEFAULT_SESSION || 'default';
 }
 
-function getOrCreateClient(sessionName) {
+function getOrCreateClient(sessionName, companyId = null) {
+  const resolvedCompanyId = companyId ?? companyIdFor(sessionName);
   if (!clients.has(sessionName)) {
-    clients.set(sessionName, new WhatsAppClient(sessionName));
+    clients.set(sessionName, new WhatsAppClient(sessionName, resolvedCompanyId));
+  } else if (resolvedCompanyId != null && clients.get(sessionName).companyId == null) {
+    clients.get(sessionName).companyId = resolvedCompanyId;
+    registerSessionCompany(sessionName, resolvedCompanyId);
   }
   return clients.get(sessionName);
 }
@@ -21,7 +26,7 @@ function getAllClients() {
   return Object.fromEntries(
     [...clients.entries()].map(([name, c]) => [
       name,
-      { sessionName: name, isReady: c.isReady, hasQR: !!c.qrCode },
+      { sessionName: name, companyId: c.companyId ?? null, isReady: c.isReady, hasQR: !!c.qrCode },
     ])
   );
 }

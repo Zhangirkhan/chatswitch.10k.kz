@@ -66,7 +66,8 @@ router.get('/sessions', (_req, res) => {
 });
 
 router.post('/sessions/:name/initialize', async (req, res) => {
-  const service = getOrCreateClient(req.params.name);
+  const companyId = req.body?.companyId ?? req.body?.company_id ?? null;
+  const service = getOrCreateClient(req.params.name, companyId != null ? Number(companyId) : null);
 
   // `initialize()` contains the real stale-browser check. Do not short-circuit
   // on `isReady`: a detached Puppeteer browser can leave the session marked ready.

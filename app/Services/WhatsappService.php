@@ -65,9 +65,14 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
-    public function initializeSession(string $sessionName): array
+    public function initializeSession(string $sessionName, ?int $companyId = null): array
     {
-        return $this->post("/api/sessions/{$sessionName}/initialize");
+        $payload = [];
+        if ($companyId !== null && $companyId > 0) {
+            $payload['companyId'] = $companyId;
+        }
+
+        return $this->post("/api/sessions/{$sessionName}/initialize", $payload);
     }
 
     /** @return array<string, mixed> */

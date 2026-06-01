@@ -2,6 +2,14 @@ const { Events } = require('whatsapp-web.js');
 const { notifyLaravel } = require('./webhook');
 const { handleIncomingMessage } = require('./messageInbound');
 
+function webhookData(service, data) {
+  if (service?.companyId != null) {
+    return { ...data, companyId: service.companyId };
+  }
+
+  return data;
+}
+
 const recentMessages = new Map();
 const DEDUP_TTL = 8000;
 
@@ -30,14 +38,14 @@ function attachRuntimeEvents(service) {
       console.error(`[${service.sessionName}] call reject error:`, err.message);
     }
     try {
-      await notifyLaravel('call_incoming', {
+      await notifyLaravel('call_incoming', webhookData(service, {
         session: service.sessionName,
         peerJid: call.from,
         callId: call.id,
         isVideo: Boolean(call.isVideo),
         isGroup: Boolean(call.isGroup),
         fromMe: Boolean(call.fromMe),
-      });
+      }));
     } catch (err) {
       console.error(`[${service.sessionName}] call webhook notify error:`, err.message);
     }
@@ -79,11 +87,11 @@ function attachRuntimeEvents(service) {
 
   client.on('message_ack', (message, ack) => {
     const ackMap = { 0: 'pending', 1: 'sent', 2: 'delivered', 3: 'read', 4: 'played' };
-    notifyLaravel('message_status', {
+    notifyLaravel('message_status', webhookData(service, {
       session: service.sessionName,
       messageId: message.id?._serialized,
       ack: ackMap[ack] || 'pending',
-    });
+    }));
   });
 
   client.on('message_reaction', (reaction) => {
@@ -100,13 +108,13 @@ function attachRuntimeEvents(service) {
       )} reaction=${JSON.stringify(reaction.reaction)}`
     );
 
-    notifyLaravel('message_reaction', {
+    notifyLaravel('message_reaction', webhookData(service, {
       session: service.sessionName,
       messageId: reaction.msgId?._serialized,
       reaction: reaction.reaction,
       senderId,
       fromMe,
-    });
+    }));
   });
 }
 
@@ -117,7 +125,7 @@ function attachEventBindings(service) {
   client.on(Events.QR_RECEIVED, (qr) => {
     console.log(`${tag} QR received`);
     service.qrCode = qr;
-    notifyLaravel('qr_generated', { session: service.sessionName, qr });
+    notifyLaravel('qr_generated', webhookData(service, { session: service.sessionName, qr }));
   });
 
   client.on(Events.READY, () => {
@@ -128,12 +136,12 @@ function attachEventBindings(service) {
     service.lastError = null;
 
     const info = client.info || {};
-    notifyLaravel('connected', {
+    notifyLaravel('connected', webhookData(service, {
       session: service.sessionName,
       phone: info.wid?.user || null,
       name: info.pushname || null,
       platform: info.platform || null,
-    });
+    }));
 
     attachRuntimeEvents(service);
   });
@@ -158,7 +166,7 @@ function attachEventBindings(service) {
     service.isReady = false;
     service.isInitializing = false;
     service.lastError = String(message || 'Authentication failure');
-    notifyLaravel('auth_failure', { session: service.sessionName, message });
+    notifyLaravel('auth_failure', webhookData(service, { session: service.sessionName, message }));
   });
 
   client.on(Events.DISCONNECTED, (reason) => {
@@ -166,7 +174,7 @@ function attachEventBindings(service) {
     service.isReady = false;
     service.isInitializing = false;
     service.qrCode = null;
-    notifyLaravel('disconnected', { session: service.sessionName, reason });
+    notifyLaravel('disconnected', webhookData(service, { session: service.sessionName, reason }));
   });
 }
 

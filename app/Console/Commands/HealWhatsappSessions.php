@@ -87,7 +87,7 @@ final class HealWhatsappSessions extends Command
             }
 
             try {
-                $whatsappService->initializeSession($session->session_name);
+                $whatsappService->initializeSession($session->session_name, (int) $session->company_id);
                 $session->forceFill(['status' => 'connecting'])->save();
                 $healed++;
             } catch (\Throwable $e) {

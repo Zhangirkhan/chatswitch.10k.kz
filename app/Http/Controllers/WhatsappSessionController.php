@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
 use App\Services\WhatsappService;
+use App\Services\WhatsappSessionLimitService;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +24,7 @@ final class WhatsappSessionController extends Controller
     public function __construct(
         private readonly WhatsappService $whatsappService,
         private readonly ChatService $chatService,
+        private readonly WhatsappSessionLimitService $sessionLimits,
     ) {}
 
     public function index(): Response
@@ -38,6 +40,7 @@ final class WhatsappSessionController extends Controller
         return Inertia::render('Settings/Connections', [
             'sessions' => $sessions,
             'whatsappServiceReachable' => $reachable,
+            'sessionLimits' => $this->sessionLimits->payload(),
         ]);
     }
 
@@ -63,7 +66,7 @@ final class WhatsappSessionController extends Controller
             if (empty($r['success'])) {
                 // desired_state=active ⇒ стараемся поднять: пользователь хочет, чтобы
                 // номер работал. Это же закрывает кейс «Node только что рестартанули».
-                $this->whatsappService->initializeSession($session->session_name);
+                $this->whatsappService->initializeSession($session->session_name, (int) $session->company_id);
                 $session->forceFill(['status' => 'connecting'])->save();
 
                 continue;
@@ -110,6 +113,11 @@ final class WhatsappSessionController extends Controller
             ], 503);
         }
 
+        $denyReason = $this->sessionLimits->denyReason();
+        if ($denyReason !== null) {
+            return response()->json(['message' => $denyReason], 422);
+        }
+
         $request->validate([
             'session_name' => [
                 'nullable',
@@ -133,7 +141,7 @@ final class WhatsappSessionController extends Controller
                 'desired_state' => WhatsappSession::DESIRED_ACTIVE,
             ]);
 
-            $init = $this->whatsappService->initializeSession($session->session_name);
+            $init = $this->whatsappService->initializeSession($session->session_name, (int) $session->company_id);
 
             if (! $this->whatsappService->initializeAccepted($init)) {
                 $session->delete();
@@ -212,7 +220,7 @@ final class WhatsappSessionController extends Controller
             'desired_state' => WhatsappSession::DESIRED_ACTIVE,
         ]);
 
-        $result = $this->whatsappService->initializeSession($session->session_name);
+        $result = $this->whatsappService->initializeSession($session->session_name, (int) $session->company_id);
 
         return response()->json($result);
     }
