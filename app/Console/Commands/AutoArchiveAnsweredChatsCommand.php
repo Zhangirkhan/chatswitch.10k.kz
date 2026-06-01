@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\AutoArchiveAnsweredChatsService;
+use App\Support\TenantConsole;
 use Illuminate\Console\Command;
 
 final class AutoArchiveAnsweredChatsCommand extends Command
@@ -13,17 +14,24 @@ final class AutoArchiveAnsweredChatsCommand extends Command
 
     protected $description = 'Archive chats whose last message is an outbound reply from a staff user (nightly cleanup).';
 
-    public function handle(AutoArchiveAnsweredChatsService $service): int
+    public function handle(AutoArchiveAnsweredChatsService $service, TenantConsole $tenantConsole): int
     {
         if ($this->option('dry-run')) {
-            $n = $service->countEligible();
-            $this->info("Would archive {$n} chat(s).");
+            $total = 0;
+            $tenantConsole->eachActiveCompany(function ($company) use ($service, &$total): void {
+                $total += $service->countEligible((int) $company->id);
+            });
+            $this->info("Would archive {$total} chat(s).");
 
             return self::SUCCESS;
         }
 
-        $n = $service->archiveEligibleChats();
-        $this->info("Archived {$n} chat(s) with staff as last sender.");
+        $archived = 0;
+        $tenantConsole->eachActiveCompany(function ($company) use ($service, &$archived): void {
+            $archived += $service->archiveEligibleChats((int) $company->id);
+        });
+
+        $this->info("Archived {$archived} chat(s) with staff as last sender.");
 
         return self::SUCCESS;
     }

@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Services\SlaReminderService;
 use App\Support\SlaReminderSettings;
+use App\Support\TenantConsole;
 use Illuminate\Console\Command;
 
 final class SendSlaReminders extends Command
@@ -16,30 +17,40 @@ final class SendSlaReminders extends Command
 
     protected $description = 'Create internal SLA reminders for chats where clients are waiting for a reply.';
 
-    public function handle(SlaReminderService $service, SlaReminderSettings $settings): int
-    {
-        if (! $settings->enabled()) {
-            $this->info('SLA reminders are disabled in system settings.');
-
-            return self::SUCCESS;
-        }
-
+    public function handle(
+        SlaReminderService $service,
+        SlaReminderSettings $settings,
+        TenantConsole $tenantConsole,
+    ): int {
         $minutesOption = $this->option('minutes');
         $minutes = $minutesOption !== null && $minutesOption !== ''
             ? max(SlaReminderSettings::MIN_MINUTES, (int) $minutesOption)
             : null;
 
-        $resolved = $minutes ?? $settings->waitMinutes();
-
         if ($this->option('dry-run')) {
-            $count = $service->countEligible($minutes);
-            $this->info("Would create {$count} SLA reminder(s) for chats waiting {$resolved}+ minutes.");
+            $total = 0;
+            $tenantConsole->eachActiveCompany(function ($company) use ($service, $settings, $minutes, &$total): void {
+                if (! $settings->enabled((int) $company->id)) {
+                    return;
+                }
+
+                $total += $service->countEligible($minutes, (int) $company->id);
+            });
+            $this->info("Would create {$total} SLA reminder(s).");
 
             return self::SUCCESS;
         }
 
-        $count = $service->sendReminders($minutes);
-        $this->info("Created {$count} SLA reminder(s) for chats waiting {$resolved}+ minutes.");
+        $count = 0;
+        $tenantConsole->eachActiveCompany(function ($company) use ($service, $settings, $minutes, &$count): void {
+            if (! $settings->enabled((int) $company->id)) {
+                return;
+            }
+
+            $count += $service->sendReminders($minutes, (int) $company->id);
+        });
+
+        $this->info("Created {$count} SLA reminder(s).");
 
         return self::SUCCESS;
     }

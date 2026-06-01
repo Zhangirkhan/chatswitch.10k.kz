@@ -7,8 +7,8 @@ namespace App\Services;
 use App\Models\Chat;
 use App\Models\Department;
 use App\Models\DepartmentPost;
+use App\Support\ChatUrl;
 use App\Support\SlaReminderSettings;
-use App\Support\TenantCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
@@ -19,25 +19,25 @@ final class SlaReminderService
         private readonly SlaReminderSettings $slaSettings,
     ) {}
 
-    public function countEligible(?int $minutes = null): int
+    public function countEligible(?int $minutes = null, ?int $companyId = null): int
     {
-        if (! $this->slaSettings->enabled()) {
+        if ($companyId === null || ! $this->slaSettings->enabled($companyId)) {
             return 0;
         }
 
-        return $this->eligibleQuery($this->resolveMinutes($minutes))->count();
+        return $this->eligibleQuery($this->resolveMinutes($minutes, $companyId), $companyId)->count();
     }
 
-    public function sendReminders(?int $minutes = null): int
+    public function sendReminders(?int $minutes = null, ?int $companyId = null): int
     {
-        if (! $this->slaSettings->enabled()) {
+        if ($companyId === null || ! $this->slaSettings->enabled($companyId)) {
             return 0;
         }
 
-        $minutes = $this->resolveMinutes($minutes);
+        $minutes = $this->resolveMinutes($minutes, $companyId);
         $created = 0;
 
-        $this->eligibleQuery($minutes)
+        $this->eligibleQuery($minutes, $companyId)
             ->with(['contact:id,name,push_name,phone_number', 'assignments'])
             ->orderBy('last_message_at')
             ->chunkById(100, function ($chats) use (&$created, $minutes): void {
@@ -52,26 +52,30 @@ final class SlaReminderService
             });
 
         if ($created > 0) {
-            Log::info('SLA reminders created', ['count' => $created, 'minutes' => $minutes]);
+            Log::info('SLA reminders created', [
+                'count' => $created,
+                'minutes' => $minutes,
+                'company_id' => $companyId,
+            ]);
         }
 
         return $created;
     }
 
-    private function resolveMinutes(?int $minutes): int
+    private function resolveMinutes(?int $minutes, int $companyId): int
     {
-        return $minutes ?? $this->slaSettings->waitMinutes();
+        return $minutes ?? $this->slaSettings->waitMinutes($companyId);
     }
 
     /**
      * @return Builder<Chat>
      */
-    private function eligibleQuery(int $minutes): Builder
+    private function eligibleQuery(int $minutes, int $companyId): Builder
     {
         $threshold = now()->subMinutes(max(1, $minutes));
 
         return Chat::query()
-            ->where('company_id', TenantCompany::id())
+            ->where('company_id', $companyId)
             ->where('is_archived', false)
             ->where('is_group', false)
             ->where('last_message_direction', 'inbound')
@@ -121,7 +125,7 @@ final class SlaReminderService
             'department_id' => $department->id,
             'author_id' => $chat->assignments->first()?->user_id,
             'title' => 'SLA: клиент ждёт ответа',
-            'body' => "{$body}\n\n".route('chats.show', $chat),
+            'body' => "{$body}\n\n".ChatUrl::show($chat),
             'status' => DepartmentPost::STATUS_OPEN,
             'due_at' => now()->addMinutes(10),
         ]);
