@@ -33,6 +33,8 @@ final class ContactFieldCatalog
             ['code' => 'lead_id', 'label' => 'ID лида WhatsApp', 'type' => ContactFieldType::STRING, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 70],
             ['code' => 'address', 'label' => 'Адрес', 'type' => ContactFieldType::ADDRESS, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 80],
             ['code' => 'city', 'label' => 'Город', 'type' => ContactFieldType::STRING, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 81],
+            ['code' => 'age', 'label' => 'Возраст', 'type' => ContactFieldType::NUMBER, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 83],
+            ['code' => 'birth_date', 'label' => 'Дата рождения', 'type' => ContactFieldType::DATE, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 84],
             ['code' => 'district', 'label' => 'Район', 'type' => ContactFieldType::STRING, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 82],
             ['code' => 'email', 'label' => 'E-mail', 'type' => ContactFieldType::STRING, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 90],
             ['code' => 'website', 'label' => 'Сайт', 'type' => ContactFieldType::LINK, 'section' => 'contacts', 'group' => 'about', 'is_system' => true, 'is_visible' => true, 'sort_order' => 100],
@@ -80,6 +82,6 @@ final class ContactFieldCatalog
      */
     public static function editableSystemCodes(): array
     {
-        return ['email', 'website', 'photo'];
+        return ['email', 'website', 'photo', 'city', 'address', 'district', 'age', 'birth_date'];
     }
 }

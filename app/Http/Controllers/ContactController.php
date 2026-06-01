@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
+use App\Models\FunnelStage;
 use App\Models\User;
 use App\Services\AI\AiWorkspaceClientSummaryService;
 use App\Services\Contact\ContactFieldValueService;
@@ -14,6 +15,8 @@ use App\Services\Contact\ClientProfileAiService;
 use App\Services\Contact\ClientProfileAssembler;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
+use App\Services\Contact\ContactListFilterService;
+use App\Support\ContactListFilters;
 use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +36,7 @@ final class ContactController extends Controller
         private readonly ClientProfileAssembler $clientProfileAssembler,
         private readonly ClientProfileAiService $clientProfileAiService,
         private readonly ContactFieldValueService $contactFieldValues,
+        private readonly ContactListFilterService $contactListFilters,
     ) {}
 
     public function settingsIndex(Request $request): RedirectResponse
@@ -46,6 +50,7 @@ final class ContactController extends Controller
         abort_unless($user, 403);
 
         $search = trim((string) $request->input('search', ''));
+        $listFilters = ContactListFilters::fromRequest($request);
         $activeTab = in_array($request->input('tab'), ['clients', 'companies'], true)
             ? (string) $request->input('tab')
             : 'clients';
@@ -74,6 +79,8 @@ final class ContactController extends Controller
                 }
             });
         }
+
+        $this->contactListFilters->apply($query, $listFilters);
 
         $contacts = $query
             ->with([
@@ -163,6 +170,31 @@ final class ContactController extends Controller
 
         return Inertia::render('Clients/Index', [
             'search' => $search,
+            'filters' => $listFilters->values,
+            'filterFields' => $this->contactListFilters->filterableFieldDefinitions(),
+            'funnelStages' => FunnelStage::query()
+                ->whereHas('funnel', fn ($funnelQuery) => $funnelQuery->where('company_id', TenantCompany::id()))
+                ->where('is_active', true)
+                ->orderBy('funnel_id')
+                ->orderBy('position')
+                ->get(['id', 'name', 'color'])
+                ->map(fn (FunnelStage $stage) => [
+                    'id' => $stage->id,
+                    'name' => $stage->name,
+                    'color' => $stage->color,
+                ])
+                ->values()
+                ->all(),
+            'assigneeOptions' => User::query()
+                ->where('company_id', TenantCompany::id())
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (User $assignee) => [
+                    'id' => $assignee->id,
+                    'name' => $assignee->name,
+                ])
+                ->values()
+                ->all(),
             'activeTab' => $activeTab,
             'clients' => $this->paginationPayload($clientsPaginator),
             'companies' => $companiesPaginator !== null
@@ -214,6 +246,10 @@ final class ContactController extends Controller
         }
         if ($request->filled('search')) {
             $params['search'] = $request->string('search')->toString();
+        }
+        $filterParams = ContactListFilters::fromRequest($request)->toQueryParams();
+        if ($filterParams !== []) {
+            $params = array_merge($params, $filterParams);
         }
         foreach (['clients_page', 'companies_page'] as $key) {
             if ($request->filled($key)) {

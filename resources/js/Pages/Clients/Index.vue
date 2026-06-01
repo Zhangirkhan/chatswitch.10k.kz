@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ClientDetailModal from '@/Components/Clients/ClientDetailModal.vue';
+import ClientsFilterPanel, { type AssigneeOption, type FilterFieldDef, type FunnelStageOption } from '@/Components/Clients/ClientsFilterPanel.vue';
 import type { ClientListItem } from '@/Components/Clients/clientProfileTypes';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
@@ -36,6 +37,10 @@ type PaginationPayload<T> = {
 
 const props = defineProps<{
     search: string;
+    filters: Record<string, string>;
+    filterFields: FilterFieldDef[];
+    funnelStages: FunnelStageOption[];
+    assigneeOptions: AssigneeOption[];
     activeTab: 'clients' | 'companies';
     clients: PaginationPayload<ClientListItem>;
     companies: PaginationPayload<CompanyItem>;
@@ -47,6 +52,7 @@ const props = defineProps<{
 const { show: showToast } = useToastStore();
 
 const search = ref(props.search || '');
+const filters = ref<Record<string, string>>({ ...props.filters });
 const clients = ref<ClientListItem[]>([...props.clients.data]);
 const companies = ref<CompanyItem[]>([...props.companies.data]);
 const activeTab = ref<'clients' | 'companies'>(props.activeTab || 'clients');
@@ -61,13 +67,28 @@ const companyForm = ref({ name: '', phone: '', email: '', website: '', descripti
 watch(() => props.clients, (next) => { clients.value = [...next.data]; });
 watch(() => props.companies, (next) => { companies.value = [...next.data]; });
 
+watch(() => props.filters, (next) => { filters.value = { ...next }; });
+
 let timer: ReturnType<typeof setTimeout> | null = null;
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
 watch(search, (q) => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
         visitClients({ search: q || undefined, clients_page: undefined, companies_page: undefined });
     }, 250);
 });
+
+function onFiltersApply(): void {
+    if (filterTimer) clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => {
+        visitClients({ clients_page: undefined, companies_page: undefined });
+    }, 300);
+}
+
+function resetFilters(): void {
+    filters.value = {};
+    visitClients({ clients_page: undefined, companies_page: undefined });
+}
 
 watch(activeTab, (tab) => {
     if (tab === 'companies' && !props.canManageCompanies) {
@@ -98,11 +119,20 @@ function dateLabel(v: string | null): string {
     return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function visitClients(overrides: Record<string, string | number | undefined>): void {
+function activeFilterParams(): Record<string, string> | undefined {
+    const active = Object.fromEntries(
+        Object.entries(filters.value).filter(([, value]) => String(value).trim() !== ''),
+    );
+
+    return Object.keys(active).length > 0 ? active : undefined;
+}
+
+function visitClients(overrides: Record<string, string | number | Record<string, string> | undefined>): void {
     router.get(
         route('clients.index'),
         {
             search: search.value.trim() || undefined,
+            filters: activeFilterParams(),
             tab: activeTab.value,
             clients_page: props.clients.current_page > 1 ? props.clients.current_page : undefined,
             companies_page: props.companies.current_page > 1 ? props.companies.current_page : undefined,
@@ -285,11 +315,22 @@ const companyDeleteDescription = computed(() => {
 
             <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
                 <div v-if="activeTab === 'clients'" class="space-y-4">
+                    <ClientsFilterPanel
+                        v-model="filters"
+                        :fields="filterFields"
+                        :funnel-stages="funnelStages"
+                        :assignee-options="assigneeOptions"
+                        @apply="onFiltersApply"
+                        @reset="resetFilters"
+                    />
+
                     <div class="text-xs text-[var(--ui-text-secondary)]">
                         Показано {{ props.clients.from || 0 }}–{{ props.clients.to || 0 }} из {{ props.clients.total }}
                     </div>
 
-                    <div v-if="clients.length === 0" class="py-16 text-center text-sm text-[var(--ui-text-secondary)]">Клиенты не найдены</div>
+                    <div v-if="clients.length === 0" class="py-16 text-center text-sm text-[var(--ui-text-secondary)]">
+                        {{ activeFilterParams() ? 'По выбранным фильтрам никого не найдено' : 'Клиенты не найдены' }}
+                    </div>
 
                     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         <button

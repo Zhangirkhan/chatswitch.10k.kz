@@ -68,4 +68,10 @@ final class Contact extends Model
             ->withPivot('position')
             ->withTimestamps();
     }
+
+    /** @return HasMany<ContactFieldValue, $this> */
+    public function fieldValues(): HasMany
+    {
+        return $this->hasMany(ContactFieldValue::class);
+    }
 }
