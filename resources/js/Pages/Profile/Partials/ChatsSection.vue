@@ -234,7 +234,6 @@ function isDefaultLang(value: TranslationLang): boolean {
         <UiModal
             :open="messageStylePickerOpen"
             title="Стиль сообщений"
-            subtitle="Цвета входящих и исходящих в ленте"
             max-width="lg"
             body-class="p-6"
             @close="messageStylePickerOpen = false"
@@ -259,7 +258,6 @@ function isDefaultLang(value: TranslationLang): boolean {
                         />
                     </div>
                     <div class="mt-2 font-medium text-sm text-[var(--wa-text)]">{{ preset.label }}</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">{{ preset.description }}</div>
                 </button>
             </div>
 

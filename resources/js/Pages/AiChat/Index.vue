@@ -664,10 +664,11 @@ watch(resultsOpen, (open) => {
                             <div v-if="isEmptyChat" class="ai-workspace__hero">
                                 <div class="ai-workspace__hero-icon" aria-hidden="true">
                                     <svg viewBox="0 0 32 32" fill="none">
-                                        <path
-                                            d="M16 4l2.2 6.8H25l-5.5 4 2.1 6.8L16 17.6 10.4 21.6l2.1-6.8-5.5-4h6.8L16 4z"
+                                        <polygon
+                                            points="16 4.5 19.48 11.55 27.26 12.68 21.63 18.17 22.96 25.92 16 22.26 9.04 25.92 10.37 18.17 4.74 12.68 12.52 11.55 16 4.5"
                                             stroke="currentColor"
-                                            stroke-width="1.4"
+                                            stroke-width="1.6"
+                                            stroke-linecap="round"
                                             stroke-linejoin="round"
                                         />
                                     </svg>
@@ -712,10 +713,11 @@ watch(resultsOpen, (open) => {
                                     >
                                         <span class="ai-workspace__assistant-mark">
                                             <svg viewBox="0 0 20 20" fill="none">
-                                                <path
-                                                    d="M10 2.5l1.4 4.3h4.6l-3.7 2.7 1.4 4.3L10 11.1 6.3 13.8l1.4-4.3-3.7-2.7h4.6L10 2.5z"
+                                                <polygon
+                                                    points="10 2.8 11.76 6.36 15.68 6.93 12.84 9.7 13.51 13.62 10 11.78 6.49 13.62 7.16 9.7 4.32 6.93 8.24 6.36 10 2.8"
                                                     stroke="currentColor"
-                                                    stroke-width="1.2"
+                                                    stroke-width="1.35"
+                                                    stroke-linecap="round"
                                                     stroke-linejoin="round"
                                                 />
                                             </svg>
@@ -791,10 +793,11 @@ watch(resultsOpen, (open) => {
                                     <div class="ai-workspace__turn-avatar" aria-hidden="true">
                                         <span class="ai-workspace__assistant-mark ai-workspace__assistant-mark--pulse">
                                             <svg viewBox="0 0 20 20" fill="none">
-                                                <path
-                                                    d="M10 2.5l1.4 4.3h4.6l-3.7 2.7 1.4 4.3L10 11.1 6.3 13.8l1.4-4.3-3.7-2.7h4.6L10 2.5z"
+                                                <polygon
+                                                    points="10 2.8 11.76 6.36 15.68 6.93 12.84 9.7 13.51 13.62 10 11.78 6.49 13.62 7.16 9.7 4.32 6.93 8.24 6.36 10 2.8"
                                                     stroke="currentColor"
-                                                    stroke-width="1.2"
+                                                    stroke-width="1.35"
+                                                    stroke-linecap="round"
                                                     stroke-linejoin="round"
                                                 />
                                             </svg>
@@ -1189,8 +1192,8 @@ watch(resultsOpen, (open) => {
     width: 3rem;
     height: 3rem;
     border-radius: 999px;
-    background: var(--ui-accent-soft);
-    color: var(--wa-accent);
+    background: color-mix(in srgb, #d4a72c 22%, var(--wa-panel));
+    color: #d4a72c;
     margin-bottom: 16px;
     animation: ai-float 4s ease-in-out infinite;
 }
@@ -1198,6 +1201,7 @@ watch(resultsOpen, (open) => {
 .ai-workspace__hero-icon svg {
     width: 1.75rem;
     height: 1.75rem;
+    filter: drop-shadow(0 1px 0 color-mix(in srgb, #fff 35%, transparent));
 }
 
 .ai-workspace__hero-title {
@@ -1305,8 +1309,8 @@ watch(resultsOpen, (open) => {
     width: 28px;
     height: 28px;
     border-radius: 999px;
-    background: var(--ui-accent-soft);
-    color: var(--wa-accent);
+    background: color-mix(in srgb, #d4a72c 20%, var(--wa-panel));
+    color: #d4a72c;
     transition: transform 0.25s ease;
 }
 
