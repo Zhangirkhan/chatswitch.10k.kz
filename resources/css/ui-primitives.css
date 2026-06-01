@@ -760,14 +760,14 @@
     .ui-btn--primary {
         color: var(--ui-accent-on);
         background: var(--ui-accent);
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
-        box-shadow: var(--wa-control-rim-shadow);
+        border: 1px solid var(--ui-accent-btn-border, color-mix(in srgb, var(--ui-accent) 72%, #000 28%));
+        box-shadow: var(--ui-accent-btn-shadow, var(--wa-control-rim-shadow));
     }
 
     .ui-btn--primary:hover:not(:disabled) {
         background: var(--ui-accent-hover);
         border-color: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
-        box-shadow: var(--wa-control-rim-shadow-hover);
+        box-shadow: var(--ui-accent-btn-shadow-hover, var(--wa-control-rim-shadow-hover));
         filter: brightness(1.03);
     }
 
@@ -1190,7 +1190,8 @@
         color: var(--ui-accent-on);
         font-weight: 600;
         background: var(--ui-accent);
-        border-color: color-mix(in srgb, var(--ui-accent) 80%, #000 20%);
+        border-color: var(--ui-accent-btn-border, color-mix(in srgb, var(--ui-accent) 80%, #000 20%));
+        box-shadow: var(--ui-accent-btn-shadow, none);
     }
 
     /* ─── Profile / chats settings: theme switch, language grid, pick card ─── */

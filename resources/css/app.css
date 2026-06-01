@@ -222,6 +222,15 @@
     --ui-icon: var(--wa-icon);
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
+    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
+    --ui-accent-btn-shadow:
+        inset 0 1px 0 0 color-mix(in srgb, #fff 22%, var(--ui-accent)),
+        inset 0 -1px 0 0 color-mix(in srgb, #000 14%, var(--ui-accent)),
+        0 1px 1px 0 rgba(0, 0, 0, 0.24);
+    --ui-accent-btn-shadow-hover:
+        inset 0 1px 0 0 color-mix(in srgb, #fff 28%, var(--ui-accent)),
+        inset 0 -1px 0 0 color-mix(in srgb, #000 12%, var(--ui-accent)),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
     --ui-surface-hover: var(--wa-panel-hover);
     --ui-selected: var(--wa-selected);
     --ui-shadow-card: 0 18px 48px rgba(0, 0, 0, 0.34);
@@ -280,7 +289,7 @@
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
     --wa-accent-hover: var(--brand-accent-hover);
     --wa-accent-soft: var(--brand-accent-soft);
-    --wa-accent-on: #FFFFFF;
+    --wa-accent-on: #111b21;
     --wa-green: var(--brand-accent);
 
     /* Chroma tints — на светлой теме смешиваем с панелью, не с transparent */
@@ -426,6 +435,9 @@
     --ui-icon: var(--wa-icon);
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
+    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 82%, #003d28);
+    --ui-accent-btn-shadow: 0 1px 2px rgba(17, 27, 33, 0.12);
+    --ui-accent-btn-shadow-hover: 0 2px 5px rgba(17, 27, 33, 0.16);
     --ui-surface-hover: var(--wa-panel-hover);
     --ui-selected: var(--wa-selected);
     --ui-shadow-card: 0 18px 48px rgba(17, 27, 33, 0.1);
@@ -440,6 +452,10 @@
 .wa-control-rim:hover:not(:disabled) {
     border-color: var(--wa-control-rim-hover);
     box-shadow: var(--wa-control-rim-shadow-hover);
+}
+
+[data-theme='light'] .ui-btn--primary:hover:not(:disabled) {
+    filter: none;
 }
 
 body {
