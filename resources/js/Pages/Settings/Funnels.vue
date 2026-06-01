@@ -9,7 +9,7 @@ import {
     stageRuleIssues as collectStageRuleIssues,
     type StageHint,
 } from '@/utils/funnelStageHints';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
@@ -55,6 +55,17 @@ interface FunnelStageAiRule {
     follow_up_ab_ratio: number;
     follow_up_cooldown_hours: number;
     follow_up_max_count: number;
+    follow_up_strategy?: 'off' | 'manager_proposals' | 'auto_cron';
+    follow_up_silence_after?: 'inbound' | 'outbound';
+    follow_up_allowed_promos?: Array<{
+        id: string;
+        label: string;
+        percent: number | null;
+        valid_until: string | null;
+        note: string | null;
+    }>;
+    follow_up_promotion_ids?: number[];
+    follow_up_use_promotions?: boolean;
 }
 
 interface Funnel {
@@ -78,9 +89,26 @@ interface FunnelTemplate {
     stages: Array<{ name: string; color: string }>;
 }
 
+type PromotionOption = {
+    id: number;
+    name: string;
+    discount_type: 'percent' | 'fixed' | 'bogo' | 'gift' | 'bundle' | 'free_delivery' | 'custom';
+    percent: number | null;
+    fixed_amount: string | null;
+    buy_quantity: number | null;
+    get_quantity: number | null;
+    benefit_summary: string | null;
+    valid_from: string | null;
+    valid_until: string | null;
+    conditions: string | null;
+    is_active: boolean;
+    is_currently_valid: boolean;
+};
+
 const props = defineProps<{
     funnels: Funnel[];
     funnelTemplates?: FunnelTemplate[];
+    promotions?: PromotionOption[];
     aiScenarioUsers?: Array<{ id: number; name: string; department_id: number | null }>;
     aiScenarioDepartments?: Array<{ id: number; name: string }>;
 }>();
@@ -613,8 +641,44 @@ function stageRuleDraft(stage: FunnelStage): FunnelStageAiRule {
         follow_up_ab_ratio: stage.ai_rule?.follow_up_ab_ratio ?? 50,
         follow_up_cooldown_hours: stage.ai_rule?.follow_up_cooldown_hours ?? 72,
         follow_up_max_count: stage.ai_rule?.follow_up_max_count ?? 2,
+        follow_up_strategy: stage.ai_rule?.follow_up_strategy ?? 'off',
+        follow_up_silence_after: stage.ai_rule?.follow_up_silence_after ?? 'outbound',
+        follow_up_use_promotions: stage.ai_rule?.follow_up_use_promotions ?? true,
+        follow_up_promotion_ids: stage.ai_rule?.follow_up_promotion_ids ?? [],
     };
 }
+
+function promotionLabel(promo: PromotionOption): string {
+    if (promo.benefit_summary) {
+        return `${promo.name} (${promo.benefit_summary})`;
+    }
+    if (promo.discount_type === 'percent' && promo.percent != null) {
+        return `${promo.name} (−${promo.percent}%)`;
+    }
+    if (promo.discount_type === 'fixed' && promo.fixed_amount) {
+        return `${promo.name} (−${promo.fixed_amount} ₸)`;
+    }
+    if (promo.discount_type === 'bogo') {
+        const buy = promo.buy_quantity ?? 1;
+        const get = promo.get_quantity ?? 1;
+        return `${promo.name} (${buy}+${get})`;
+    }
+    return promo.name;
+}
+
+function toggleStagePromotion(funnel: Funnel, stage: FunnelStage, promoId: number, enabled: boolean): void {
+    const current = [...(stageRuleDraft(stage).follow_up_promotion_ids ?? [])];
+    const next = enabled
+        ? Array.from(new Set([...current, promoId]))
+        : current.filter((id) => id !== promoId);
+    saveStageAiRule(funnel, stage, { follow_up_promotion_ids: next });
+}
+
+const followUpStrategyOptions = [
+    { id: 'off' as const, label: 'Выключено' },
+    { id: 'manager_proposals' as const, label: 'AI → варианты менеджеру (рекомендуется после КП)' },
+    { id: 'auto_cron' as const, label: 'Авто в WhatsApp по расписанию' },
+];
 
 const followUpModeOptions = [
     { id: 'template' as const, label: 'Шаблон', hint: 'Один фиксированный текст' },
@@ -1244,10 +1308,131 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             class="md:col-span-2 rounded-xl border px-3 py-3 space-y-3"
                                             :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-inset)' }"
                                         >
+                                            <label class="block space-y-1">
+                                                <span class="text-[var(--ui-text)] font-medium">Дожим клиентов</span>
+                                                <select
+                                                    class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                    :value="stageRuleDraft(stage).follow_up_strategy ?? 'off'"
+                                                    @change="saveStageAiRule(funnel, stage, { follow_up_strategy: ($event.target as HTMLSelectElement).value as FunnelStageAiRule['follow_up_strategy'] })"
+                                                >
+                                                    <option
+                                                        v-for="opt in followUpStrategyOptions"
+                                                        :key="opt.id"
+                                                        :value="opt.id"
+                                                    >
+                                                        {{ opt.label }}
+                                                    </option>
+                                                </select>
+                                            </label>
+                                            <p
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'manager_proposals'"
+                                                class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]"
+                                            >
+                                                После тишины клиента AI подготовит 2–3 варианта сообщения; менеджер выберет и отправит.
+                                                По умолчанию AI использует все активные акции компании.
+                                            </p>
+                                            <div
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'manager_proposals'"
+                                                class="grid grid-cols-1 sm:grid-cols-3 gap-3"
+                                            >
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Ждать (часов)</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="720"
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_delay_hours"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_delay_hours: Number(($event.target as HTMLInputElement).value) || 24 })"
+                                                    />
+                                                </label>
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Тишина после</span>
+                                                    <select
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_silence_after ?? 'outbound'"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_silence_after: ($event.target as HTMLSelectElement).value as 'inbound' | 'outbound' })"
+                                                    >
+                                                        <option value="outbound">Нашего сообщения (КП/цена)</option>
+                                                        <option value="inbound">Сообщения клиента</option>
+                                                    </select>
+                                                </label>
+                                                <label class="space-y-1">
+                                                    <span class="text-[var(--ui-text-secondary)]">Макс. предложений / период</span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="10"
+                                                        class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
+                                                        :value="stageRuleDraft(stage).follow_up_max_count"
+                                                        @change="saveStageAiRule(funnel, stage, { follow_up_max_count: Number(($event.target as HTMLInputElement).value) || 2 })"
+                                                    />
+                                                </label>
+                                            </div>
+                                            <div
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'manager_proposals'"
+                                                class="space-y-2"
+                                            >
+                                                <span class="inline-flex items-center gap-2 text-sm text-[var(--ui-text)]">
+                                                    <UiCheckbox
+                                                        :model-value="stageRuleDraft(stage).follow_up_use_promotions ?? true"
+                                                        aria-label="Предлагать акции в дожиме"
+                                                        @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_use_promotions: v })"
+                                                    />
+                                                    Предлагать акции в дожиме
+                                                </span>
+                                                <div
+                                                    v-if="stageRuleDraft(stage).follow_up_use_promotions !== false"
+                                                    class="space-y-2 rounded-lg border px-3 py-2"
+                                                    :style="{ borderColor: 'var(--ui-border)' }"
+                                                >
+                                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                                        <span class="text-[var(--ui-text-secondary)] text-sm">
+                                                            Ограничить список (необязательно)
+                                                        </span>
+                                                        <Link
+                                                            :href="route('settings.promotions')"
+                                                            class="text-[11px] text-[var(--ui-accent)] hover:underline"
+                                                        >
+                                                            Управление акциями
+                                                        </Link>
+                                                    </div>
+                                                    <p class="text-[11px] text-[var(--ui-text-secondary)]">
+                                                        Если ничего не выбрано — AI использует все активные акции.
+                                                    </p>
+                                                    <p
+                                                        v-if="!(promotions ?? []).length"
+                                                        class="text-[11px] text-[var(--ui-text-secondary)]"
+                                                    >
+                                                        Сначала добавьте акции в разделе «Акции и скидки».
+                                                    </p>
+                                                    <div v-else class="flex flex-col gap-2">
+                                                        <label
+                                                            v-for="promo in promotions"
+                                                            :key="promo.id"
+                                                            class="inline-flex items-start gap-2 text-[13px] text-[var(--ui-text)]"
+                                                        >
+                                                            <UiCheckbox
+                                                                :model-value="(stageRuleDraft(stage).follow_up_promotion_ids ?? []).includes(promo.id)"
+                                                                :aria-label="promotionLabel(promo)"
+                                                                @update:model-value="(v) => toggleStagePromotion(funnel, stage, promo.id, v)"
+                                                            />
+                                                            <span>
+                                                                {{ promotionLabel(promo) }}
+                                                                <span
+                                                                    v-if="!promo.is_currently_valid"
+                                                                    class="ml-1 text-[11px] opacity-60"
+                                                                >(срок истёк)</span>
+                                                            </span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <span class="inline-flex items-center gap-2 text-[var(--ui-text)] font-medium">
                                                 <UiCheckbox
                                                     :model-value="stageRuleDraft(stage).follow_up_enabled"
                                                     aria-label="Авто follow-up клиенту"
+                                                    :disabled="stageRuleDraft(stage).follow_up_strategy !== 'auto_cron'"
                                                     @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_enabled: v })"
                                                 />
                                                 Авто follow-up клиенту
@@ -1256,7 +1441,10 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 Если клиент не ответил после вашего последнего сообщения, система отправит мягкое напоминание через отложенное сообщение.
                                                 Плейсхолдеры: <code>{chat_name}</code>, <code>{stage_name}</code>.
                                             </p>
-                                            <div v-if="stageRuleDraft(stage).follow_up_enabled" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div
+                                                v-if="stageRuleDraft(stage).follow_up_enabled && stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
+                                                class="grid grid-cols-1 sm:grid-cols-3 gap-3"
+                                            >
                                                 <label class="space-y-1">
                                                     <span class="text-[var(--ui-text-secondary)]">Ждать (часов)</span>
                                                     <input
@@ -1291,7 +1479,10 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     />
                                                 </label>
                                             </div>
-                                            <div v-if="stageRuleDraft(stage).follow_up_enabled" class="space-y-3">
+                                            <div
+                                                v-if="stageRuleDraft(stage).follow_up_enabled && stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
+                                                class="space-y-3"
+                                            >
                                                 <label class="block space-y-1">
                                                     <span class="text-[var(--ui-text-secondary)]">Режим текста</span>
                                                     <select

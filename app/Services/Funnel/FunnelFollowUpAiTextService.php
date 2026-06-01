@@ -9,12 +9,14 @@ use App\Models\CompanyToneProfile;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Services\AI\OpenAiChatService;
+use App\Services\Promotion\CompanyPromotionCatalog;
 use Illuminate\Support\Str;
 
 final class FunnelFollowUpAiTextService
 {
     public function __construct(
         private readonly OpenAiChatService $openAi,
+        private readonly CompanyPromotionCatalog $promotionCatalog,
     ) {}
 
     public function generate(FunnelStageAiRule $rule, Chat $chat): string
@@ -27,6 +29,10 @@ final class FunnelFollowUpAiTextService
         $stageName = (string) ($rule->stage?->name ?? 'этап');
         $goal = trim((string) ($rule->goal ?? ''));
         $toneHint = $this->toneHint((int) $rule->company_id);
+        $promoBlock = $this->promotionCatalog->formatPromptBlock(
+            $this->promotionCatalog->promptItemsForRule($rule),
+            '',
+        );
 
         $history = Message::query()
             ->where('chat_id', $chat->id)
@@ -45,6 +51,7 @@ final class FunnelFollowUpAiTextService
 Этап воронки: {$stageName}
 Цель этапа: {$goal}
 {$toneHint}
+{$promoBlock}
 
 Последние сообщения:
 {$history}
@@ -53,6 +60,7 @@ final class FunnelFollowUpAiTextService
 - 1–3 предложения, без markdown
 - мягко напомни о себе, без давления
 - не выдумывай цены и сроки
+- если есть активные акции — уместно упомяни одну из них
 - только текст сообщения, без кавычек
 PROMPT;
 
@@ -60,7 +68,7 @@ PROMPT;
             $text = trim($this->openAi->chat([
                 ['role' => 'system', 'content' => 'Ты пишешь короткие follow-up в стиле менеджера поддержки.'],
                 ['role' => 'user', 'content' => $prompt],
-            ], 0.35, 220));
+            ], 0.35, 220, new \App\Services\AI\AiUsageOptions('auto_follow_up', (int) $rule->company_id)));
         } catch (\Throwable) {
             return FunnelStageFollowUpService::DEFAULT_MESSAGE;
         }

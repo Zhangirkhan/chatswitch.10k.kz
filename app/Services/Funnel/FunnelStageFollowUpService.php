@@ -37,6 +37,13 @@ final class FunnelStageFollowUpService
         $created = 0;
         $rules = FunnelStageAiRule::query()
             ->where('follow_up_enabled', true)
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('follow_up_strategy')
+                    ->orWhere('follow_up_strategy', FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF)
+                    ->orWhere('follow_up_strategy', FunnelStageAiRule::FOLLOW_UP_STRATEGY_AUTO_CRON)
+                    ->orWhere('follow_up_strategy', '');
+            })
             ->with(['stage:id,funnel_id,name', 'funnel.aiScenario'])
             ->orderBy('id')
             ->get();
@@ -47,6 +54,12 @@ final class FunnelStageFollowUpService
             }
 
             if (! $rule instanceof FunnelStageAiRule || $rule->stage === null) {
+                continue;
+            }
+
+            $strategy = (string) ($rule->follow_up_strategy ?? FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF);
+            if ($strategy !== FunnelStageAiRule::FOLLOW_UP_STRATEGY_AUTO_CRON
+                && $strategy !== '' && $strategy !== 'off') {
                 continue;
             }
 

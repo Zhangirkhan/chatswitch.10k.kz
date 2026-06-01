@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyPromotion;
 use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\FunnelAiScenario;
@@ -54,6 +55,12 @@ final class FunnelController extends Controller
         return Inertia::render('Settings/Funnels', [
             'funnels' => $funnels,
             'funnelTemplates' => $this->industryTemplates(),
+            'promotions' => CompanyPromotion::query()
+                ->where('company_id', $companyId)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CompanyPromotion $promo): array => PromotionController::serialize($promo)),
             'aiScenarioUsers' => User::query()
                 ->where('company_id', $companyId)
                 ->where('is_active', true)
@@ -348,6 +355,17 @@ final class FunnelController extends Controller
             'follow_up_ab_ratio' => ['nullable', 'integer', 'min:0', 'max:100'],
             'follow_up_cooldown_hours' => ['nullable', 'integer', 'min:1', 'max:720'],
             'follow_up_max_count' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'follow_up_strategy' => ['nullable', 'string', 'in:off,manager_proposals,auto_cron'],
+            'follow_up_silence_after' => ['nullable', 'string', 'in:inbound,outbound'],
+            'follow_up_allowed_promos' => ['nullable', 'array', 'max:10'],
+            'follow_up_allowed_promos.*.id' => ['nullable', 'string', 'max:64'],
+            'follow_up_allowed_promos.*.label' => ['nullable', 'string', 'max:120'],
+            'follow_up_allowed_promos.*.percent' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'follow_up_allowed_promos.*.valid_until' => ['nullable', 'date'],
+            'follow_up_allowed_promos.*.note' => ['nullable', 'string', 'max:500'],
+            'follow_up_promotion_ids' => ['nullable', 'array', 'max:20'],
+            'follow_up_promotion_ids.*' => ['integer', 'exists:company_promotions,id'],
+            'follow_up_use_promotions' => ['sometimes', 'boolean'],
         ]);
 
         $allowed = collect($data['allowed_actions'] ?? FunnelStageAiRule::DEFAULT_ALLOWED_ACTIONS)
@@ -375,6 +393,14 @@ final class FunnelController extends Controller
                 'follow_up_ab_ratio' => max(0, min(100, (int) ($data['follow_up_ab_ratio'] ?? 50))),
                 'follow_up_cooldown_hours' => max(1, (int) ($data['follow_up_cooldown_hours'] ?? 72)),
                 'follow_up_max_count' => max(1, min(10, (int) ($data['follow_up_max_count'] ?? 2))),
+                'follow_up_strategy' => $data['follow_up_strategy'] ?? FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF,
+                'follow_up_silence_after' => $data['follow_up_silence_after'] ?? FunnelStageAiRule::FOLLOW_UP_SILENCE_OUTBOUND,
+                'follow_up_allowed_promos' => $this->normalizeAllowedPromos($data['follow_up_allowed_promos'] ?? null),
+                'follow_up_promotion_ids' => array_values(array_unique(array_map(
+                    'intval',
+                    $data['follow_up_promotion_ids'] ?? [],
+                ))),
+                'follow_up_use_promotions' => (bool) ($data['follow_up_use_promotions'] ?? true),
             ],
         );
 
@@ -649,5 +675,36 @@ final class FunnelController extends Controller
         }
 
         return $error !== '' ? $error : 'AI временно недоступен. Попробуйте ещё раз.';
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<array{id: string, label: string, percent: int|null, valid_until: string|null, note: string|null}>
+     */
+    private function normalizeAllowedPromos(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($raw as $index => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $id = trim((string) ($item['id'] ?? ''));
+            if ($id === '') {
+                $id = 'promo_'.($index + 1);
+            }
+            $result[] = [
+                'id' => $id,
+                'label' => trim((string) ($item['label'] ?? '')),
+                'percent' => isset($item['percent']) ? max(1, min(100, (int) $item['percent'])) : null,
+                'valid_until' => isset($item['valid_until']) ? (string) $item['valid_until'] : null,
+                'note' => trim((string) ($item['note'] ?? '')) ?: null,
+            ];
+        }
+
+        return $result;
     }
 }

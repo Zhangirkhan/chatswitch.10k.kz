@@ -49,6 +49,11 @@ final class FunnelStageAiRule extends Model
         'follow_up_ab_ratio',
         'follow_up_cooldown_hours',
         'follow_up_max_count',
+        'follow_up_strategy',
+        'follow_up_silence_after',
+        'follow_up_allowed_promos',
+        'follow_up_promotion_ids',
+        'follow_up_use_promotions',
     ];
 
     public const FOLLOW_UP_MODE_TEMPLATE = 'template';
@@ -56,6 +61,16 @@ final class FunnelStageAiRule extends Model
     public const FOLLOW_UP_MODE_AB = 'ab';
 
     public const FOLLOW_UP_MODE_AI = 'ai';
+
+    public const FOLLOW_UP_STRATEGY_OFF = 'off';
+
+    public const FOLLOW_UP_STRATEGY_MANAGER_PROPOSALS = 'manager_proposals';
+
+    public const FOLLOW_UP_STRATEGY_AUTO_CRON = 'auto_cron';
+
+    public const FOLLOW_UP_SILENCE_INBOUND = 'inbound';
+
+    public const FOLLOW_UP_SILENCE_OUTBOUND = 'outbound';
 
     protected function casts(): array
     {
@@ -73,6 +88,9 @@ final class FunnelStageAiRule extends Model
             'follow_up_ab_ratio' => 'integer',
             'follow_up_cooldown_hours' => 'integer',
             'follow_up_max_count' => 'integer',
+            'follow_up_allowed_promos' => 'array',
+            'follow_up_promotion_ids' => 'array',
+            'follow_up_use_promotions' => 'boolean',
         ];
     }
 
