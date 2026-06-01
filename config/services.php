@@ -48,6 +48,8 @@ return [
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
         'timeout' => (int) env('OPENAI_TIMEOUT', 45),
+        'transcribe_timeout' => (int) env('OPENAI_TRANSCRIBE_TIMEOUT', 180),
+        'whisper_language' => env('OPENAI_WHISPER_LANGUAGE'),
     ],
 
 ];

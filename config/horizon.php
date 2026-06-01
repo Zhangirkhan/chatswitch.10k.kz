@@ -220,6 +220,16 @@ return [
             'tries' => 5,
             'timeout' => 120,
         ],
+        'transcription-supervisor' => [
+            'connection' => 'redis',
+            'queue' => ['transcription'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'memory' => 256,
+            'tries' => 5,
+            'timeout' => 210,
+        ],
     ],
 
     'environments' => [
@@ -234,6 +244,11 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'transcription-supervisor' => [
+                'maxProcesses' => 2,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 3,
+            ],
         ],
 
         'local' => [
@@ -242,6 +257,9 @@ return [
             ],
             'whatsapp-supervisor' => [
                 'maxProcesses' => 2,
+            ],
+            'transcription-supervisor' => [
+                'maxProcesses' => 1,
             ],
         ],
     ],

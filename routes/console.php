@@ -58,6 +58,11 @@ Schedule::command('funnel-follow-ups:schedule')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('funnel-follow-ups:propose')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('chats:sla-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping()
@@ -101,5 +106,15 @@ Schedule::command('subscriptions:expire-trials')
 
 Schedule::command('billing:send-payment-reminders')
     ->dailyAt(config('billing.payment_reminders.schedule_at', '09:00'))
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('queue:monitor-failed')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('chats:repair-funnel-integrity')
+    ->dailyAt('03:25')
     ->withoutOverlapping()
     ->runInBackground();

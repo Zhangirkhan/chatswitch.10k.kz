@@ -32,7 +32,6 @@ const quickReactions = ref<string[]>(parseQuickReactions(form.value[quickReactio
 const settingsConfig = [
     { key: 'company_name', label: 'Название компании', type: 'text' },
     { key: 'auto_assign_chats', label: 'Авто-назначение чатов', type: 'select', options: ['off', 'round-robin', 'least-busy'] },
-    { key: 'max_sessions', label: 'Макс. количество WhatsApp номеров', type: 'number' },
     { key: 'notification_sound', label: 'Звук уведомлений', type: 'select', options: ['on', 'off'] },
     {
         key: 'analytics.sla_first_response_seconds',

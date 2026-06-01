@@ -18,6 +18,7 @@ use App\Policies\WhatsappSessionPolicy;
 use App\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -45,6 +46,18 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(300)->by($request->ip());
         });
 
+        RateLimiter::for('chat-send', function (Request $request): Limit {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('chat-translate', function (Request $request): Limit {
+            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('chat-ai', function (Request $request): Limit {
+            return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
+        });
+
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
@@ -58,6 +71,10 @@ final class AppServiceProvider extends ServiceProvider
 
         Queue::before(function (JobProcessing $event): void {
             app(ApplyTenantToQueue::class)->handle($event);
+        });
+
+        Queue::after(function (JobProcessed $event): void {
+            app(TenantContext::class)->clear();
         });
     }
 }

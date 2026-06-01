@@ -26,7 +26,11 @@ Route::middleware(['whatsapp.service', 'throttle:whatsapp-service'])->group(func
         return response()->json([
             'sessions' => WhatsappSession::query()
                 ->withoutGlobalScope('tenant')
-                ->pluck('session_name')
+                ->get(['session_name', 'company_id'])
+                ->map(static fn (WhatsappSession $session): array => [
+                    'session_name' => $session->session_name,
+                    'company_id' => $session->company_id,
+                ])
                 ->values(),
         ]);
     })->name('api.whatsapp.legal-sessions');

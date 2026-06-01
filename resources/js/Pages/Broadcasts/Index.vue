@@ -35,9 +35,11 @@ type Campaign = {
 };
 
 type RateLimitInfo = {
-    max_per_hour: number;
+    max_per_day: number;
     delay_seconds: number;
-    sent_last_hour?: number;
+    delay_seconds_min: number;
+    delay_seconds_max: number;
+    sent_last_day?: number;
     remaining?: number;
 };
 
@@ -306,13 +308,13 @@ function statusLabel(status: string): string {
                         >
                             <p class="font-medium text-[var(--wa-text)]">Скорость отправки — автоматически</p>
                             <p class="mt-1">
-                                Пауза {{ rateLimit.delay_seconds }} сек между сообщениями
-                                (не более {{ rateLimit.max_per_hour }} в час с одного WhatsApp-номера).
+                                Случайная пауза {{ rateLimit.delay_seconds_min }}–{{ rateLimit.delay_seconds_max }} сек между сообщениями
+                                (не более {{ rateLimit.max_per_day }} в сутки с одного WhatsApp-номера).
                             </p>
                             <p v-if="rateLimit.remaining !== undefined" class="mt-1">
                                 Сейчас можно отправить ещё: <strong>{{ rateLimit.remaining }}</strong>
-                                <span v-if="rateLimit.sent_last_hour !== undefined">
-                                    (уже {{ rateLimit.sent_last_hour }} за последний час)
+                                <span v-if="rateLimit.sent_last_day !== undefined">
+                                    (уже {{ rateLimit.sent_last_day }} за последние 24 часа)
                                 </span>
                             </p>
                         </div>
@@ -443,7 +445,7 @@ function statusLabel(status: string): string {
                             Отправлено: {{ c.sent_count }} / {{ c.ready_count }},
                             пропущено: {{ c.skipped_count }},
                             ошибок: {{ c.failed_count }}
-                            <span v-if="c.delay_seconds"> · авто {{ c.delay_seconds }}с между сообщениями</span>
+                            <span v-if="c.delay_seconds"> · случайная пауза ~{{ c.delay_seconds }}с</span>
                         </p>
                         <button
                             v-if="c.status === 'running'"
