@@ -10,6 +10,7 @@ use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Models\User;
 use App\Support\ChatUrl;
+use App\Support\PhoneFormatter;
 use Illuminate\Support\Facades\DB;
 
 final class ContactCardAssembler
@@ -137,13 +138,17 @@ final class ContactCardAssembler
             ->values()
             ->all();
 
+        $phoneIdentity = PhoneFormatter::resolveContactIdentity($contacts);
+
         return [
             'identity' => [
                 'contact_id' => $contact->id,
-                'display_name' => $this->displayNameForContact($contact, $latestChat),
+                'display_name' => $this->displayNameForContact($contact, $latestChat, $phoneIdentity['phone_display']),
                 'saved_name' => $contacts->map(fn (Contact $c) => trim((string) $c->name))->first(fn (string $v) => $v !== '') ?: null,
                 'push_name' => $contacts->map(fn (Contact $c) => trim((string) $c->push_name))->first(fn (string $v) => $v !== '') ?: null,
-                'phone_number' => $this->buckets->normalizedDigits((string) ($contact->phone_number ?: $contact->whatsapp_id ?: '')) ?: $contact->phone_number,
+                'phone_number' => $phoneIdentity['phone_number'],
+                'phone_display' => $phoneIdentity['phone_display'],
+                'lead_id' => $phoneIdentity['lead_id'],
                 'whatsapp_ids' => $contacts->pluck('whatsapp_id')->filter()->unique()->values()->all(),
                 'profile_picture_url' => $contacts->pluck('profile_picture_url')->filter()->first(),
                 'is_business' => $contacts->contains(fn (Contact $c) => (bool) $c->is_business),
@@ -167,6 +172,7 @@ final class ContactCardAssembler
                     'session_id' => $chat->whatsapp_session_id,
                     'session_label' => trim((string) ($session?->display_name ?? '')) ?: trim((string) ($session?->phone_number ?? '')) ?: 'Без подписи номера',
                     'session_phone' => $session?->phone_number,
+                    'session_phone_display' => PhoneFormatter::formatInternational(PhoneFormatter::normalize($session?->phone_number)),
                     'session_status' => $session?->status,
                     'chat_name' => $chat->chat_name,
                     'last_message_text' => $chat->last_message_text,
@@ -215,12 +221,13 @@ final class ContactCardAssembler
         return $snippets;
     }
 
-    private function displayNameForContact(Contact $contact, ?Chat $latestChat): string
+    private function displayNameForContact(Contact $contact, ?Chat $latestChat, ?string $phoneDisplay = null): string
     {
         $name = trim((string) ($contact->name ?? ''))
             ?: trim((string) ($contact->push_name ?? ''))
             ?: trim((string) ($latestChat?->chat_name ?? ''))
-            ?: trim((string) ($contact->phone_number ?? ''));
+            ?: trim((string) ($phoneDisplay ?? ''))
+            ?: trim((string) (PhoneFormatter::formatInternational(PhoneFormatter::normalize($contact->phone_number)) ?? ''));
 
         return $name !== '' ? $name : 'Без имени';
     }

@@ -42,6 +42,8 @@ export type ClientListItem = {
     id: number;
     whatsapp_id: string | null;
     phone_number: string | null;
+    phone_display: string | null;
+    lead_id: string | null;
     name: string | null;
     push_name: string | null;
     profile_picture_url: string | null;

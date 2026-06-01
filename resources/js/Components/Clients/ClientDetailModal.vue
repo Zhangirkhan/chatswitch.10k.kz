@@ -12,6 +12,22 @@ import { computed, ref, watch } from 'vue';
 import { formatPhone } from '@/utils/phone';
 import { useToastStore } from '@/stores/toast';
 
+const profileCache = new Map<string, ClientProfile>();
+const summaryCache = new Map<string, ClientSummary>();
+
+function detailCacheKey(contactId: number, chatId: number | null | undefined): string {
+    return `${contactId}:${chatId ?? 'none'}`;
+}
+
+function invalidateDetailCache(contactId: number): void {
+    for (const key of [...profileCache.keys()]) {
+        if (key.startsWith(`${contactId}:`)) {
+            profileCache.delete(key);
+            summaryCache.delete(key);
+        }
+    }
+}
+
 const props = defineProps<{
     client: ClientListItem | null;
 }>();
@@ -39,7 +55,7 @@ const displayName = computed(() => {
         (props.client.name || '').trim()
         || (props.client.push_name || '').trim()
         || (props.client.last_chat_name || '').trim()
-        || formatPhone(props.client.phone_number)
+        || formatPhone(props.client.phone_display || props.client.phone_number)
         || 'Без имени'
     );
 });
@@ -55,25 +71,46 @@ const chatUrl = computed(() => {
 watch(
     () => props.client?.id,
     (contactId) => {
-        profile.value = null;
-        summary.value = null;
         profileError.value = null;
-        if (contactId) {
-            editingName.value = (props.client?.name || '').trim();
-            void loadProfile(contactId);
-            void loadSummary(contactId);
+        if (!contactId) {
+            profile.value = null;
+            summary.value = null;
+            return;
+        }
+
+        editingName.value = (props.client?.name || '').trim();
+        const cacheKey = detailCacheKey(contactId, props.client?.primary_chat_id);
+
+        const cachedProfile = profileCache.get(cacheKey);
+        if (cachedProfile) {
+            profile.value = cachedProfile;
+            profileLoading.value = false;
+        } else {
+            profile.value = null;
+            void loadProfile(contactId, cacheKey);
+        }
+
+        const cachedSummary = summaryCache.get(cacheKey);
+        if (cachedSummary) {
+            summary.value = cachedSummary;
+            summaryLoading.value = false;
+        } else {
+            summary.value = null;
+            void loadSummary(contactId, cacheKey);
         }
     },
     { immediate: true },
 );
 
-async function loadProfile(contactId: number): Promise<void> {
+async function loadProfile(contactId: number, cacheKey: string): Promise<void> {
     profileLoading.value = true;
     profileError.value = null;
     try {
         const params = props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
         const { data } = await axios.get(route('clients.profile', contactId), { params });
-        profile.value = data.profile as ClientProfile;
+        const nextProfile = data.profile as ClientProfile;
+        profile.value = nextProfile;
+        profileCache.set(cacheKey, nextProfile);
     } catch (e: any) {
         profile.value = null;
         profileError.value = e?.response?.data?.message || 'Не удалось загрузить профиль';
@@ -82,12 +119,14 @@ async function loadProfile(contactId: number): Promise<void> {
     }
 }
 
-async function loadSummary(contactId: number): Promise<void> {
+async function loadSummary(contactId: number, cacheKey: string): Promise<void> {
     summaryLoading.value = true;
     try {
         const params = props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
         const { data } = await axios.get(route('clients.summary', contactId), { params });
-        summary.value = data.client_summary as ClientSummary;
+        const nextSummary = data.client_summary as ClientSummary;
+        summary.value = nextSummary;
+        summaryCache.set(cacheKey, nextSummary);
     } catch {
         summary.value = null;
     } finally {
@@ -104,6 +143,7 @@ async function saveName(): Promise<void> {
         const name = editingName.value.trim();
         const { data } = await axios.patch(route('contacts.update', props.client.id), { name });
         if (data?.success) {
+            invalidateDetailCache(props.client.id);
             emit('saved', props.client.id, name !== '' ? name : null);
             showToast({ message: 'Имя клиента обновлено' });
             return;
@@ -142,7 +182,7 @@ function sectionByKey(key: string) {
                             <UserAvatar :name="displayName" :src="client.profile_picture_url" :size="40" />
                             <div class="min-w-0">
                                 <div class="truncate text-sm font-medium">{{ displayName }}</div>
-                                <div class="truncate text-xs opacity-70">{{ formatPhone(client.phone_number) || '—' }}</div>
+                                <div class="truncate text-xs opacity-70">{{ client.phone_display || formatPhone(client.phone_number) || client.lead_id || '—' }}</div>
                             </div>
                             <span
                                 v-if="client.stage"
@@ -231,14 +271,6 @@ function sectionByKey(key: string) {
                             :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                             placeholder="Сохранённое имя"
                         />
-                        <Link
-                            v-if="chatUrl"
-                            :href="chatUrl"
-                            class="rounded-lg px-3 py-2 text-sm"
-                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
-                        >
-                            Открыть чат
-                        </Link>
                         <button
                             type="button"
                             class="rounded-lg px-3 py-2 text-sm disabled:opacity-50"
@@ -248,6 +280,14 @@ function sectionByKey(key: string) {
                         >
                             Сохранить имя
                         </button>
+                        <Link
+                            v-if="chatUrl"
+                            :href="chatUrl"
+                            class="rounded-lg px-3 py-2 text-sm"
+                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                        >
+                            Открыть чат
+                        </Link>
                         <button type="button" class="rounded-lg px-3 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }" @click="emit('close')">
                             Закрыть
                         </button>
@@ -271,9 +311,14 @@ function sectionByKey(key: string) {
     flex-basis: 0;
 }
 
-:deep(.ai-workspace-summary) {
+:deep(.ai-client-summary) {
     --sem-who: #8b5cf6;
+    --sem-prefs: #7c9fd4;
     --sem-context: #f59e0b;
     --sem-agreements: #22c55e;
+    --wa-panel: var(--ui-surface);
+    --wa-border: var(--ui-border);
+    --wa-text: var(--ui-text);
+    --wa-text-secondary: var(--ui-text-secondary);
 }
 </style>

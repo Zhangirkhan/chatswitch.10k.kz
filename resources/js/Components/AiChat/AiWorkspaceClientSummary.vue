@@ -221,17 +221,14 @@ function sectionSemantic(title: string): SectionSemantic {
 
             <section v-if="profileSections.length" class="summary-group">
                 <h3 class="summary-group__label">Профиль клиента</h3>
-                <div class="summary-card">
+                <div class="summary-profile">
                     <div
-                        v-for="(section, index) in profileSections"
+                        v-for="section in profileSections"
                         :key="section.title"
-                        class="summary-row"
-                        :class="[
-                            `summary-row--${section.semantic}`,
-                            { 'summary-row--last': index === profileSections.length - 1 },
-                        ]"
+                        class="summary-profile__item"
+                        :class="`summary-profile__item--${section.semantic}`"
                     >
-                        <span class="summary-row__icon" aria-hidden="true">
+                        <span class="summary-profile__icon" aria-hidden="true">
                             <svg v-if="section.semantic === 'who'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                                 <path stroke-linecap="round" d="M12 12a4 4 0 100-8 4 4 0 000 8z" />
                                 <path stroke-linecap="round" d="M5 20a7 7 0 0114 0" />
@@ -240,9 +237,9 @@ function sectionSemantic(title: string): SectionSemantic {
                                 <path stroke-linecap="round" d="M12 3l2.4 4.8 5.4.8-3.9 3.8.9 5.3L12 15.8 7.2 17.7l.9-5.3L4.2 8.6l5.4-.8L12 3z" />
                             </svg>
                         </span>
-                        <div class="summary-row__content min-w-0">
-                            <span class="summary-row__label">{{ section.title }}</span>
-                            <p class="summary-row__value">{{ section.body }}</p>
+                        <div class="summary-profile__content min-w-0">
+                            <span class="summary-profile__label">{{ section.title }}</span>
+                            <p class="summary-profile__value">{{ section.body }}</p>
                         </div>
                     </div>
                 </div>
@@ -329,6 +326,12 @@ function sectionSemantic(title: string): SectionSemantic {
     min-height: 0;
     max-height: none;
     flex-shrink: 1;
+    border-bottom: none;
+    background: transparent;
+}
+
+.ai-client-summary--expanded .ai-client-summary__body {
+    padding: 0 0 4px;
 }
 
 .ai-client-summary--expanded .ai-client-summary__loading,
@@ -591,58 +594,64 @@ function sectionSemantic(title: string): SectionSemantic {
     border-color: var(--sem-agreements-border);
 }
 
-.summary-card {
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-border) 90%, transparent);
-    overflow: hidden;
+.summary-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.summary-row {
+.summary-profile__item {
     display: flex;
     align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--wa-border) 65%, transparent);
+    border-radius: 12px;
+    border: 1px solid transparent;
 }
 
-.summary-row--last {
-    border-bottom: none;
-}
-
-.summary-row__icon {
+.summary-profile__icon {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     width: 1.75rem;
     height: 1.75rem;
-    border-radius: 8px;
+    border-radius: 999px;
 }
 
-.summary-row__icon svg {
-    width: 1rem;
-    height: 1rem;
+.summary-profile__icon svg {
+    width: 0.9375rem;
+    height: 0.9375rem;
 }
 
-.summary-row--who .summary-row__icon {
-    color: var(--sem-who);
+.summary-profile__item--who {
     background: var(--sem-who-bg);
+    border-color: var(--sem-who-border);
 }
 
-.summary-row--preferences .summary-row__icon {
-    color: var(--sem-prefs);
+.summary-profile__item--who .summary-profile__icon {
+    color: var(--sem-who);
+    background: color-mix(in srgb, var(--sem-who) 18%, var(--wa-panel));
+}
+
+.summary-profile__item--preferences {
     background: var(--sem-prefs-bg);
+    border-color: var(--sem-prefs-border);
 }
 
-.summary-row__content {
+.summary-profile__item--preferences .summary-profile__icon {
+    color: var(--sem-prefs);
+    background: color-mix(in srgb, var(--sem-prefs) 18%, var(--wa-panel));
+}
+
+.summary-profile__content {
     flex: 1;
     min-width: 0;
 }
 
-.summary-row__label {
+.summary-profile__label {
     display: block;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
     font-size: 0.625rem;
     font-weight: 600;
     letter-spacing: 0.05em;
@@ -650,7 +659,7 @@ function sectionSemantic(title: string): SectionSemantic {
     color: var(--wa-text-secondary);
 }
 
-.summary-row__value {
+.summary-profile__value {
     margin: 0;
     font-size: 0.8125rem;
     line-height: 1.45;

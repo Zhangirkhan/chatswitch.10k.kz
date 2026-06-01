@@ -78,24 +78,6 @@ final class ClientsHubTest extends TestCase
 
     public function test_clients_profile_returns_six_sections_with_finance_placeholder(): void
     {
-        config(['services.openai.api_key' => 'test-key']);
-
-        Http::fake([
-            'https://api.openai.com/v1/chat/completions' => Http::response([
-                'choices' => [[
-                    'message' => [
-                        'content' => json_encode([
-                            'basic' => [['label' => 'Тег', 'value' => 'VIP', 'source' => 'ai']],
-                            'contacts' => [],
-                            'b2b' => [],
-                            'history' => [],
-                            'tasks_notes' => [],
-                        ], JSON_UNESCAPED_UNICODE),
-                    ],
-                ]],
-            ], 200),
-        ]);
-
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
         $session = WhatsappSession::factory()->create();

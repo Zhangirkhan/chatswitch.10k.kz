@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Enums\EntityMemorySubjectType;
+use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\EntityMemory;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\TenantCompany;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -33,6 +35,23 @@ final class AiWorkspaceClientSummaryService
             abort(403);
         }
 
+        $cacheKey = $this->cacheKey($user, $contact, $preferredChatId);
+
+        /** @var array<string, mixed>|null $payload */
+        $payload = Cache::remember(
+            $cacheKey,
+            now()->addMinutes(15),
+            fn (): ?array => $this->buildFresh($user, $contact, $preferredChatId),
+        );
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function buildFresh(User $user, Contact $contact, ?int $preferredChatId = null): ?array
+    {
         $card = $this->cardAssembler->build($user, $contact, $preferredChatId);
         $contactIds = $this->bucketResolver->bucketIds($contact);
         $chatIds = collect($card['channels'] ?? [])
@@ -69,7 +88,7 @@ final class AiWorkspaceClientSummaryService
             'contact_id' => (int) $contact->id,
             'identity' => [
                 'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
-                'phone' => $identity['phone_number'] ?? null,
+                'phone' => $identity['phone_display'] ?? $identity['phone_number'] ?? null,
                 'avatar' => $identity['profile_picture_url'] ?? null,
                 'companies' => $companies,
             ],
@@ -83,6 +102,38 @@ final class AiWorkspaceClientSummaryService
             'primary_chat_id' => $primaryChatId !== null ? (int) $primaryChatId : null,
             'candidate_contact_ids' => $contactIds,
         ];
+    }
+
+    private function cacheKey(User $user, Contact $contact, ?int $preferredChatId): string
+    {
+        $contactIds = $this->bucketResolver->bucketIds($contact);
+        $tenantId = TenantCompany::id();
+
+        $memoryUpdatedAt = EntityMemory::query()
+            ->where('tenant_company_id', $tenantId)
+            ->where('subject_type', EntityMemorySubjectType::Contact->value)
+            ->whereIn('subject_id', $contactIds)
+            ->max('updated_at');
+
+        $lastMessageAt = Chat::query()
+            ->whereIn('contact_id', $contactIds)
+            ->where('is_group', false)
+            ->max('last_message_at');
+
+        $fingerprint = hash('xxh128', implode('|', [
+            (int) $contact->id,
+            (int) ($preferredChatId ?? 0),
+            (string) ($memoryUpdatedAt ?? ''),
+            (string) ($lastMessageAt ?? ''),
+            (string) ($contact->updated_at ?? ''),
+        ]));
+
+        return sprintf(
+            'client_summary:%d:%d:%s',
+            (int) ($user->company_id ?? 0),
+            (int) $contact->id,
+            $fingerprint,
+        );
     }
 
     /**

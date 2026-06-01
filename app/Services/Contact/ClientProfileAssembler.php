@@ -117,14 +117,23 @@ final class ClientProfileAssembler
     {
         $fields = [];
 
-        $phone = trim((string) ($identity['phone_number'] ?? ''));
-        if ($phone !== '') {
-            $fields[] = $this->field('Телефон', $phone, 'crm');
+        $phoneDisplay = trim((string) ($identity['phone_display'] ?? ''));
+        if ($phoneDisplay !== '') {
+            $fields[] = $this->field('Телефон', $phoneDisplay, 'crm');
+        }
+
+        $leadId = trim((string) ($identity['lead_id'] ?? ''));
+        if ($leadId !== '') {
+            $fields[] = $this->field('ID лида WhatsApp', $leadId, 'crm');
         }
 
         $channelLabels = collect($channels)
             ->map(function (array $row): string {
                 $label = trim((string) ($row['session_label'] ?? ''));
+                $sessionPhone = trim((string) ($row['session_phone_display'] ?? ''));
+                if ($sessionPhone !== '') {
+                    $label = $label !== '' ? "{$label} ({$sessionPhone})" : $sessionPhone;
+                }
                 $chatName = trim((string) ($row['chat_name'] ?? ''));
 
                 return $chatName !== '' && $chatName !== $label
@@ -210,12 +219,12 @@ final class ClientProfileAssembler
 
         if (! $isBusiness) {
             $displayName = trim((string) ($identity['display_name'] ?? ''));
-            $phone = trim((string) ($identity['phone_number'] ?? ''));
+            $phoneDisplay = trim((string) ($identity['phone_display'] ?? ''));
             if ($displayName !== '') {
                 $fields[] = $this->field('Клиент', $displayName, 'crm');
             }
-            if ($phone !== '') {
-                $fields[] = $this->field('Телефон', $phone, 'crm');
+            if ($phoneDisplay !== '') {
+                $fields[] = $this->field('Телефон', $phoneDisplay, 'crm');
             }
         }
 

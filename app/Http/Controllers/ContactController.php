@@ -179,7 +179,10 @@ final class ContactController extends Controller
 
         $preferredChatId = $request->filled('chat_id') ? $request->integer('chat_id') : null;
         $profile = $this->clientProfileAssembler->build($user, $contact, $preferredChatId);
-        $profile = $this->clientProfileAiService->enrich($user, $contact, $profile, $preferredChatId);
+
+        if ($request->boolean('with_ai')) {
+            $profile = $this->clientProfileAiService->enrich($user, $contact, $profile, $preferredChatId);
+        }
 
         return response()->json(['profile' => $profile]);
     }
@@ -276,17 +279,16 @@ final class ContactController extends Controller
                     ])
                     ->values();
 
-                $phoneDigits = $this->contactBucketResolver->normalizedDigits((string) ($primary->phone_number ?? ''));
-                if ($phoneDigits === '') {
-                    $phoneDigits = str_replace('phone:', '', $groupKey);
-                }
+                $phoneIdentity = PhoneFormatter::resolveContactIdentity($bucket);
 
                 $stage = $latestChat?->funnelStage;
 
                 return [
                     'id' => $primary->id,
                     'whatsapp_id' => $primary->whatsapp_id,
-                    'phone_number' => $phoneDigits !== '' ? $phoneDigits : $primary->phone_number,
+                    'phone_number' => $phoneIdentity['phone_number'],
+                    'phone_display' => $phoneIdentity['phone_display'],
+                    'lead_id' => $phoneIdentity['lead_id'],
                     'name' => $savedName !== null ? $savedName : null,
                     'push_name' => $pushName !== null ? $pushName : null,
                     'profile_picture_url' => $primary->profile_picture_url,

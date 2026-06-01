@@ -282,7 +282,7 @@ const companyDeleteDescription = computed(() => {
                                 <UserAvatar :name="displayName(c)" :src="c.profile_picture_url" :size="40" />
                                 <div class="min-w-0 flex-1">
                                     <div class="truncate font-medium">{{ displayName(c) }}</div>
-                                    <div class="truncate text-xs opacity-70">{{ formatPhone(c.phone_number) || '—' }}</div>
+                                    <div class="truncate text-xs opacity-70">{{ c.phone_display || formatPhone(c.phone_number) || '—' }}</div>
                                 </div>
                                 <span
                                     v-if="c.unread_count > 0"
