@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\User;
 use App\Services\AI\AiUsageOptions;
 use App\Services\AI\OpenAiChatService;
+use App\Support\ClientProfileFieldHelper;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -55,7 +56,7 @@ final class ClientProfileAiService
                 continue;
             }
             $existingFields = is_array($section['fields'] ?? null) ? $section['fields'] : [];
-            $sections[$index]['fields'] = [...$existingFields, ...$extra];
+            $sections[$index]['fields'] = ClientProfileFieldHelper::mergeUnique($existingFields, $extra);
         }
 
         $profile['sections'] = $sections;
@@ -102,6 +103,7 @@ final class ClientProfileAiService
 - Не выдумывай суммы, реквизиты, LTV, заказы.
 - Каждое поле: label (короткий), value (1–2 предложения), source = ai|chat|memory.
 - Добавляй только поля с реальной опорой в данных (теги, предпочтительный канал, LPR, отрасль, UTM/источник, нюансы общения).
+- НЕ дублируй уже известные поля: имя, этап воронки, адрес, телефон, ID контакта.
 - Если данных нет — верни пустой массив для секции.
 - Пиши по-русски.
 PROMPT,

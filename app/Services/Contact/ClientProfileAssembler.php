@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\EntityMemory;
 use App\Models\User;
 use App\Services\Memory\EntityMemoryService;
+use App\Support\ClientProfileFieldHelper;
 use App\Support\TenantCompany;
 
 final class ClientProfileAssembler
@@ -49,7 +50,7 @@ final class ClientProfileAssembler
             'contact_id' => $contact->id,
             'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
             'sections' => [
-                $this->basicSection($contact, $identity, $crm, $memory['content'], $snippets),
+                $this->basicSection($contact, $identity, $crm),
                 $this->contactsSection($identity, $crm, $channels, $memory['content'], $snippets),
                 $this->financeSection(),
                 $this->b2bSection($identity, $crm),
@@ -65,7 +66,7 @@ final class ClientProfileAssembler
      * @param  array<string, mixed>  $crm
      * @return array<string, mixed>
      */
-    private function basicSection(Contact $contact, array $identity, array $crm, string $memoryContent, array $snippets): array
+    private function basicSection(Contact $contact, array $identity, array $crm): array
     {
         $deal = is_array($crm['deal'] ?? null) ? $crm['deal'] : null;
         $stage = is_array($deal['stage'] ?? null) ? $deal['stage'] : null;
@@ -106,20 +107,6 @@ final class ClientProfileAssembler
             $fields[] = $this->field('Прогресс сделки', (string) $deal['progress_percent'].'%', 'crm');
         }
 
-        foreach ($this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']) as $field) {
-            $fields[] = $field;
-        }
-
-        foreach ($this->factsMatching($crm, '/адрес|address|локац|улиц|город|район/iu') as $field) {
-            $fields[] = $field;
-        }
-
-        foreach ($this->fieldsFromSnippets($snippets) as $field) {
-            if (! $this->fieldsContainLabel($fields, $field['label'])) {
-                $fields[] = $field;
-            }
-        }
-
         return [
             'key' => 'basic',
             'title' => 'Основное',
@@ -149,17 +136,15 @@ final class ClientProfileAssembler
             $fields[] = $this->field('ID лида WhatsApp', $leadId, 'crm');
         }
 
-        foreach ($this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']) as $field) {
-            if (! $this->fieldsContainLabel($fields, $field['label'])) {
-                $fields[] = $field;
-            }
-        }
-
-        foreach ($this->fieldsFromSnippets($snippets) as $field) {
-            if (! $this->fieldsContainLabel($fields, $field['label'])) {
-                $fields[] = $field;
-            }
-        }
+        $fields = ClientProfileFieldHelper::mergeUnique(
+            $fields,
+            $this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']),
+        );
+        $fields = ClientProfileFieldHelper::mergeUnique(
+            $fields,
+            $this->factsMatching($crm, '/адрес|address|локац|улиц|город|район/iu'),
+        );
+        $fields = ClientProfileFieldHelper::mergeUnique($fields, $this->fieldsFromSnippets($snippets));
 
         $channelLabels = collect($channels)
             ->map(function (array $row): string {
@@ -491,7 +476,7 @@ final class ClientProfileAssembler
                 continue;
             }
 
-            if ($this->fieldsContainLabel($fields, 'Адрес')) {
+            if ($this->fieldIsDuplicate($fields, 'Адрес', $body)) {
                 break;
             }
 
@@ -565,14 +550,12 @@ final class ClientProfileAssembler
     /**
      * @param  list<array{label: string, value: string, source: string}>  $fields
      */
-    private function fieldsContainLabel(array $fields, string $label): bool
+    private function fieldIsDuplicate(array $fields, string $label, string $value): bool
     {
-        foreach ($fields as $field) {
-            if (($field['label'] ?? '') === $label) {
-                return true;
-            }
-        }
-
-        return false;
+        return ClientProfileFieldHelper::isDuplicate($fields, [
+            'label' => $label,
+            'value' => $value,
+            'source' => 'crm',
+        ]);
     }
 }

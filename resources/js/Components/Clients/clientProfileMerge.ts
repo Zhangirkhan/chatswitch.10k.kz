@@ -1,6 +1,39 @@
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import type { ClientProfile, ClientProfileField, ClientProfileSection } from '@/Components/Clients/clientProfileTypes';
 
+/** Narrative AI blocks stay in the right panel only — not duplicated as CRM rows. */
+const SUMMARY_TO_SECTION: Record<string, string> = {
+    'предпочтения': 'tasks_notes',
+    'контекст и локация': 'contacts',
+    'договорённости': 'tasks_notes',
+};
+
+function normalizeValue(value: string): string {
+    return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function labelsSameConcept(left: string, right: string): boolean {
+    const groups = [
+        [/имя|name|как обращ|клиент|кто это/i, /имя|name|как обращ|клиент|кто это/i],
+        [/адрес|address|локац|location/i, /адрес|address|локац|location/i],
+        [/этап|воронк|сделк|stage|funnel|следующ/i, /этап|воронк|сделк|stage|funnel|следующ/i],
+    ];
+
+    return groups.some(([a, b]) => a.test(left) && b.test(right));
+}
+
+function valuesOverlap(left: string, right: string): boolean {
+    if (left === right) {
+        return true;
+    }
+
+    if (left.length >= 4 && right.length >= 4) {
+        return left.includes(right) || right.includes(left);
+    }
+
+    return false;
+}
+
 function isEmptyAiBody(body: string): boolean {
     const normalized = body.trim().toLowerCase();
 
@@ -9,41 +42,36 @@ function isEmptyAiBody(body: string): boolean {
         || normalized.includes('нет данных');
 }
 
-function summarySectionKey(title: string): string | null {
-    const titleLower = title.toLowerCase();
+function fieldIsDuplicate(fields: ClientProfileField[], label: string, value: string): boolean {
+    const normalizedValue = normalizeValue(value);
 
-    if (/кто|профил|клиент|identity|who/.test(titleLower)) {
-        return 'basic';
-    }
-    if (/предпочт|preferen|вкус|стиль/.test(titleLower)) {
-        return 'tasks_notes';
-    }
-    if (/контекст|локац|context|location|адрес|ситуац/.test(titleLower)) {
-        return 'contacts';
-    }
-    if (/договор|согласован|agreement|обещан|обязатель|нюанс/.test(titleLower)) {
-        return 'tasks_notes';
-    }
-    if (/сделк|этап|следующ|шаг|deal|stage|next|воронк/.test(titleLower)) {
-        return 'basic';
-    }
+    return fields.some((field) => {
+        const existingLabel = field.label.trim();
+        const existingValue = normalizeValue(field.value);
 
-    return 'basic';
+        if (existingLabel === label || existingValue === normalizedValue) {
+            return true;
+        }
+
+        if (valuesOverlap(existingValue, normalizedValue)) {
+            return true;
+        }
+
+        return labelsSameConcept(existingLabel, label);
+    });
 }
 
-function fieldExists(fields: ClientProfileField[], label: string, value: string): boolean {
-    return fields.some((field) => field.label === label || field.value.trim() === value.trim());
+function summarySectionKey(title: string): string | null {
+    const normalized = title.trim().toLowerCase();
+
+    return SUMMARY_TO_SECTION[normalized] ?? null;
 }
 
 export function mergeSummaryIntoProfile(
     profile: ClientProfile | null,
     summary: ClientSummary | null,
 ): ClientProfile | null {
-    if (!profile) {
-        return null;
-    }
-
-    if (!summary?.ai?.sections?.length) {
+    if (!profile || !summary?.ai?.sections?.length) {
         return profile;
     }
 
@@ -69,8 +97,9 @@ export function mergeSummaryIntoProfile(
         }
 
         const fields = sections[index].fields ?? [];
-        const label = aiSection.title.trim() || 'Из переписки';
-        if (fieldExists(fields, label, body)) {
+        const label = aiSection.title.trim();
+
+        if (fieldIsDuplicate(fields, label, body)) {
             continue;
         }
 
