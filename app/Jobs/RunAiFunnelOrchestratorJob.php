@@ -15,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 final class RunAiFunnelOrchestratorJob implements ShouldQueue
 {
@@ -25,6 +26,7 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
     public function __construct(
         public readonly int $chatId,
         public readonly int $triggerMessageId,
+        public readonly ?int $tenantCompanyId = null,
     ) {}
 
     public function handle(
@@ -36,17 +38,19 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
         $chat = Chat::query()->with(['departments', 'funnel.aiScenario'])->whereKey($this->chatId)->first();
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
-        if ($chat !== null && $trigger !== null) {
-            $department = $departmentRouting->resolveAndAssignDepartment($chat, $trigger);
-            $chat->refresh();
-            if ($offHoursReply->tryReply($chat, $trigger, $department)) {
-                return;
-            }
+        if ($chat === null || $trigger === null) {
+            Log::warning('[ai-orchestrator] chat or trigger not found', [
+                'chat_id' => $this->chatId,
+                'trigger_message_id' => $this->triggerMessageId,
+                'tenant_company_id' => $this->tenantCompanyId,
+            ]);
+
+            return;
         }
 
-        if ($chat === null) {
-            $orchestrator->run($this->chatId, $this->triggerMessageId);
-
+        $department = $departmentRouting->resolveAndAssignDepartment($chat, $trigger);
+        $chat->refresh();
+        if ($offHoursReply->tryReply($chat, $trigger, $department)) {
             return;
         }
 
