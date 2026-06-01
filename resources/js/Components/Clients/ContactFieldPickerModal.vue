@@ -141,8 +141,7 @@ function onFieldCreated(): void {
                 </div>
                 <button
                     type="button"
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-base font-medium leading-none"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-base leading-none"
                     aria-label="Добавить поле"
                     title="Добавить поле"
                     @click="addFieldOpen = true"
@@ -183,13 +182,12 @@ function onFieldCreated(): void {
                     выбрать все
                 </label>
                 <div class="flex gap-2">
-                    <button type="button" class="rounded-lg px-4 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)' }" @click="emit('close')">
+                    <button type="button" class="ui-btn ui-btn--secondary" @click="emit('close')">
                         Отменить
                     </button>
                     <button
                         type="button"
-                        class="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-                        :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                        class="ui-btn ui-btn--primary"
                         :disabled="saving"
                         @click="save"
                     >

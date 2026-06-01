@@ -194,8 +194,7 @@ function clearCustomField(field: ClientProfileField): void {
                             <template v-if="canManageContactFields">
                                 <button
                                     type="button"
-                                    class="inline-flex h-8 items-center justify-center rounded-lg px-2.5 text-xs"
-                                    :style="{ background: 'var(--ui-surface)' }"
+                                    class="ui-btn ui-btn--secondary ui-btn--sm"
                                     title="Выбор полей"
                                     @click="fieldPickerOpen = true"
                                 >
@@ -203,8 +202,7 @@ function clearCustomField(field: ClientProfileField): void {
                                 </button>
                                 <button
                                     type="button"
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg text-base font-medium leading-none"
-                                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                                    class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-base leading-none"
                                     aria-label="Добавить поле"
                                     title="Добавить поле"
                                     @click="addFieldOpen = true"

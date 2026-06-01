@@ -1065,16 +1065,14 @@ async function saveContactName() {
                                     <template v-if="isAdmin">
                                         <button
                                             type="button"
-                                            class="inline-flex h-6 items-center justify-center rounded px-2 text-[11px]"
-                                            :style="{ background: 'var(--wa-panel-2)' }"
+                                            class="ui-btn ui-btn--secondary ui-btn--sm"
                                             @click="fieldPickerOpen = true"
                                         >
                                             Поля
                                         </button>
                                         <button
                                             type="button"
-                                            class="flex h-6 w-6 items-center justify-center rounded text-sm font-medium leading-none"
-                                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
+                                            class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-sm leading-none"
                                             aria-label="Добавить поле"
                                             @click="addFieldOpen = true"
                                         >

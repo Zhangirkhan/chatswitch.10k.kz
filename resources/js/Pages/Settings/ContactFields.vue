@@ -63,26 +63,24 @@ function onFieldCreated(): void {
                 </p>
             </div>
 
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap items-center gap-[var(--primitive-gap-sm)]">
                 <button
                     type="button"
-                    class="inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary"
                     @click="pickerOpen = true"
                 >
                     Выбор полей
                 </button>
                 <button
                     type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-medium leading-none"
-                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                    class="ui-btn ui-btn--primary ui-btn--icon text-lg leading-none"
                     aria-label="Добавить поле"
                     title="Добавить поле"
                     @click="addFieldOpen = true"
                 >
                     +
                 </button>
-                <Link :href="route('clients.index')" class="rounded-lg px-4 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)' }">
+                <Link :href="route('clients.index')" class="ui-btn ui-btn--secondary">
                     К клиентам
                 </Link>
             </div>
