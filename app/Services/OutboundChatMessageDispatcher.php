@@ -31,6 +31,7 @@ final class OutboundChatMessageDispatcher
     {
         return [
             'media',
+            'transcript:message_id,kind,status,text,error_message,started_at,completed_at',
             'sentByUser',
             'whatsappSession',
             'reactions.user:id,name',

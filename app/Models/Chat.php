@@ -52,6 +52,7 @@ final class Chat extends Model
         'last_message_text',
         'last_message_at',
         'last_message_direction',
+        'last_message_is_ai',
         'unread_count',
         'is_archived',
         'is_pinned',
@@ -87,6 +88,7 @@ final class Chat extends Model
             'funnel_tracking_enabled' => 'boolean',
             'funnel_stage_locked' => 'boolean',
             'last_message_at' => 'datetime',
+            'last_message_is_ai' => 'boolean',
             'muted_until' => 'datetime',
             'funnel_ai_last_analyzed_at' => 'datetime',
             'ai_orchestrator_last_action_at' => 'datetime',
@@ -203,6 +205,14 @@ final class Chat extends Model
     public function scheduledMessages(): HasMany
     {
         return $this->hasMany(ScheduledMessage::class);
+    }
+
+    /**
+     * @return HasMany<AiFollowUpProposal>
+     */
+    public function aiFollowUpProposals(): HasMany
+    {
+        return $this->hasMany(AiFollowUpProposal::class);
     }
 
     /**

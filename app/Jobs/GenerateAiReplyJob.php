@@ -9,10 +9,12 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\AiResponderResolver;
+use App\Services\AI\AutomatedPeerReplyGuard;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
+use App\Support\VoiceInboundHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -29,6 +31,7 @@ final class GenerateAiReplyJob implements ShouldQueue
     public function __construct(
         public readonly int $chatId,
         public readonly int $triggerMessageId,
+        public readonly ?int $tenantCompanyId = null,
     ) {}
 
     public function handle(
@@ -38,6 +41,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         AiResponderResolver $responderResolver,
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
+        AutomatedPeerReplyGuard $automatedPeerGuard,
     ): void {
         $chat = Chat::query()
             ->with(['aiResponder', 'assignments.user', 'departments', 'funnel.aiScenario'])
@@ -46,6 +50,25 @@ final class GenerateAiReplyJob implements ShouldQueue
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
+            return;
+        }
+
+        if (VoiceInboundHelper::isVoiceWithoutContent($trigger)) {
+            Log::info('[ai-reply] skipped voice awaiting transcript', [
+                'chat_id' => $chat->id,
+                'trigger_message_id' => $trigger->id,
+            ]);
+
+            return;
+        }
+
+        if ($automatedPeerGuard->shouldSuppress($chat, $trigger)) {
+            Log::info('[ai-reply] skipped automated peer', [
+                'chat_id' => $chat->id,
+                'trigger_message_id' => $trigger->id,
+                'reason' => $automatedPeerGuard->reason($chat, $trigger),
+            ]);
+
             return;
         }
 
@@ -83,12 +106,23 @@ final class GenerateAiReplyJob implements ShouldQueue
             ],
         );
 
-        if ($log->message_id !== null || in_array($log->status, ['sent', 'drafted'], true)) {
+        if ($log->message_id !== null || in_array($log->status, ['sent', 'drafted', 'generating'], true)) {
             return;
         }
 
+        $claimed = AiResponseLog::query()
+            ->whereKey($log->id)
+            ->whereNull('message_id')
+            ->whereIn('status', ['pending', 'failed'])
+            ->update(['status' => 'generating', 'error' => null]);
+
+        if ($claimed !== 1) {
+            return;
+        }
+
+        $log->refresh();
+
         try {
-            $log->forceFill(['status' => 'generating', 'error' => null])->save();
             $generated = $typing->whileGenerating($chat, fn (): array => $generator->generate($chat, $responder, $trigger, $log));
             if ($mode === 'draft') {
                 $log->forceFill([

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Models\AiFollowUpProposal;
 use App\Models\AiOrchestratorRun;
 use App\Models\Chat;
 use App\Support\TenantCompany;
@@ -45,6 +46,9 @@ final class ChatAttentionService
                         AiOrchestratorRun::STATUS_NEEDS_MANAGER,
                         AiOrchestratorRun::STATUS_FAILED,
                     ])
+                    ->orWhereHas('aiFollowUpProposals', function (Builder $proposalQuery): void {
+                        $proposalQuery->where('status', AiFollowUpProposal::STATUS_NEEDS_MANAGER);
+                    })
                     ->orWhere('unread_count', '>', 0)
                     ->orWhere(function (Builder $uncertain) use ($confidenceMax, $runSince): void {
                         $this->applyLowConfidenceLastRunScope($uncertain, $confidenceMax, $runSince);
@@ -52,6 +56,10 @@ final class ChatAttentionService
             })
             ->orderByRaw("CASE
                 WHEN ai_orchestrator_status = 'needs_manager' THEN 0
+                WHEN EXISTS (
+                    SELECT 1 FROM ai_follow_up_proposals fp
+                    WHERE fp.chat_id = chats.id AND fp.status = ?
+                ) THEN 0
                 WHEN ai_orchestrator_status = 'failed' THEN 1
                 WHEN EXISTS (
                     SELECT 1 FROM ai_orchestrator_runs r
@@ -63,6 +71,7 @@ final class ChatAttentionService
                 ) THEN 2
                 ELSE 3
             END", [
+                AiFollowUpProposal::STATUS_NEEDS_MANAGER,
                 $confidenceMax,
                 AiOrchestratorRun::STATUS_COMPLETED,
                 $runSince,
@@ -160,6 +169,10 @@ final class ChatAttentionService
 
     private function reason(Chat $chat): string
     {
+        if ($this->hasPendingFollowUpProposal($chat)) {
+            return 'AI подготовил варианты дожима — выберите и отправьте клиенту.';
+        }
+
         if ($chat->ai_orchestrator_status === AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
             return $chat->ai_orchestrator_last_summary ?: 'AI просит менеджера проверить диалог.';
         }
@@ -185,6 +198,10 @@ final class ChatAttentionService
      */
     private function severity(Chat $chat): string
     {
+        if ($this->hasPendingFollowUpProposal($chat)) {
+            return 'critical';
+        }
+
         if ($chat->ai_orchestrator_status === AiOrchestratorRun::STATUS_NEEDS_MANAGER) {
             return 'critical';
         }
@@ -246,5 +263,18 @@ final class ChatAttentionService
         }
 
         return (float) $run->confidence < $this->attentionConfidenceMax();
+    }
+
+    private function hasPendingFollowUpProposal(Chat $chat): bool
+    {
+        if ($chat->relationLoaded('aiFollowUpProposals')) {
+            return $chat->aiFollowUpProposals
+                ->contains(fn (AiFollowUpProposal $proposal): bool => $proposal->status === AiFollowUpProposal::STATUS_NEEDS_MANAGER);
+        }
+
+        return AiFollowUpProposal::query()
+            ->where('chat_id', $chat->id)
+            ->where('status', AiFollowUpProposal::STATUS_NEEDS_MANAGER)
+            ->exists();
     }
 }

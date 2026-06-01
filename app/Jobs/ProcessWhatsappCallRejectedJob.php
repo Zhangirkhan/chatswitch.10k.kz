@@ -7,9 +7,10 @@ namespace App\Jobs;
 use App\Events\NewMessageReceived;
 use App\Models\Chat;
 use App\Models\User;
-use App\Models\WhatsappSession;
+use App\Support\WhatsappSessionResolver;
 use App\Services\ChatService;
 use App\Support\OperatorSignature;
+use App\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -37,7 +38,7 @@ final class ProcessWhatsappCallRejectedJob implements ShouldQueue
         return 'whatsapp';
     }
 
-    public function handle(ChatService $chatService): void
+    public function handle(ChatService $chatService, TenantContext $tenantContext): void
     {
         $sessionName = trim((string) ($this->data['session'] ?? ''));
         $peerJid = trim((string) ($this->data['peerJid'] ?? ''));
@@ -50,11 +51,17 @@ final class ProcessWhatsappCallRejectedJob implements ShouldQueue
             return;
         }
 
-        $session = WhatsappSession::query()->where('session_name', $sessionName)->first();
+        $companyId = isset($this->data['companyId']) ? (int) $this->data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
         if ($session === null) {
             Log::warning('[wa-call-reject] session not found', ['session' => $sessionName]);
 
             return;
+        }
+
+        $company = $session->tenantCompany;
+        if ($company !== null) {
+            $tenantContext->setCompany($company);
         }
 
         $chat = Chat::query()
