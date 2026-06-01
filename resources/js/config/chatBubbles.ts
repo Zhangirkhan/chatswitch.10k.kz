@@ -74,21 +74,21 @@ export const messageStylePresets: MessageStylePreset[] = [
     {
         id: 'graphite',
         label: 'Графит',
-        description: 'Графит в светлой теме, белые исходящие в тёмной',
+        description: 'Тёмные исходящие в светлой теме, белые — в тёмной',
         light: {
-            in: '#FFFFFF',
-            out: '#D4D4D4',
-            textIn: '#1A1A1A',
-            textOut: '#1A1A1A',
-            accent: '#5C5C5C',
-            tailShadow: 'rgba(0, 0, 0, 0.1)',
+            in: '#E9E9E9',
+            out: '#3F3F3F',
+            textIn: '#111111',
+            textOut: '#FFFFFF',
+            accent: '#E8E8E8',
+            tailShadow: 'rgba(0, 0, 0, 0.18)',
         },
         dark: {
             in: '#333333',
             out: '#FFFFFF',
             textIn: '#D6D6D6',
-            textOut: '#1A1A1A',
-            accent: '#9A9A9A',
+            textOut: '#111111',
+            accent: '#B8B8B8',
             tailShadow: 'rgba(0, 0, 0, 0.2)',
         },
     },
@@ -208,11 +208,37 @@ export function findMessageStyle(id: string): MessageStylePreset {
 /** @deprecated */
 export const findBubblePreset = findMessageStyle;
 
-function quoteBg(baseVar: string, theme: Theme, kind: 'in' | 'out'): string {
+function hexChannel(pair: string): number {
+    return parseInt(pair, 16) / 255;
+}
+
+/** Относительная яркость 0…1 — для выбора затемнения или осветления цитаты. */
+function bubbleLuminance(hex: string): number {
+    const raw = hex.replace('#', '');
+    if (raw.length !== 6) {
+        return 0.5;
+    }
+
+    const r = hexChannel(raw.slice(0, 2));
+    const g = hexChannel(raw.slice(2, 4));
+    const b = hexChannel(raw.slice(4, 6));
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
+    const darkBubble = bubbleLuminance(color) < 0.42;
+
+    if (darkBubble) {
+        const amount = kind === 'out' ? '18%' : '12%';
+
+        return `color-mix(in srgb, #fff ${amount}, ${color})`;
+    }
+
     const mix = theme === 'light' ? '#000' : '#fff';
     const amount = kind === 'in' ? '5%' : '9%';
 
-    return `color-mix(in srgb, ${mix} ${amount}, ${baseVar})`;
+    return `color-mix(in srgb, ${mix} ${amount}, ${color})`;
 }
 
 /**
@@ -251,8 +277,8 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
     root.style.setProperty('--wa-bubble-text', colors.textIn);
     root.style.setProperty('--wa-bubble-tail-shadow', colors.tailShadow);
     root.style.setProperty('--wa-message-accent', colors.accent);
-    root.style.setProperty('--wa-bubble-quote-bg-in', quoteBg('var(--wa-bubble-in)', theme, 'in'));
-    root.style.setProperty('--wa-bubble-quote-bg-out', quoteBg('var(--wa-bubble-out)', theme, 'out'));
+    root.style.setProperty('--wa-bubble-quote-bg-in', quoteBg(colors.in, theme, 'in'));
+    root.style.setProperty('--wa-bubble-quote-bg-out', quoteBg(colors.out, theme, 'out'));
 }
 
 /** @deprecated */

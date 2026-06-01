@@ -49,7 +49,7 @@ export const wallpapers: Wallpaper[] = [
         id: 'plain',
         label: 'Без узора',
         kind: 'solid',
-        lightColor: '#efeae2',
+        lightColor: '#FFFFFF',
         darkColor: '#161717',
     },
     {
