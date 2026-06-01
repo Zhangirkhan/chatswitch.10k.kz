@@ -1044,10 +1044,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
     gap: 8px;
     width: calc(100% - 2rem);
     margin: 0 1rem 0.625rem;
-    padding: 6px 10px 6px 6px;
-    border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 30%, var(--wa-border));
-    background: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
+    padding: 7px 10px 7px 7px;
+    border-radius: 12px;
+    border: 1px solid var(--wa-border);
+    background: var(--wa-panel-header);
     color: var(--wa-text);
     text-align: left;
     cursor: pointer;
@@ -1055,8 +1055,8 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 }
 
 .ai-summary-chip:hover {
-    background: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel-header));
+    border-color: color-mix(in srgb, var(--wa-text-secondary) 35%, var(--wa-border));
 }
 
 .ai-summary-chip__text {
@@ -1087,13 +1087,14 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 .ai-summary-chip__badge {
     flex-shrink: 0;
     font-size: 9px;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     padding: 2px 6px;
-    border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 35%, transparent);
-    color: var(--wa-accent);
+    border-radius: 6px;
+    border: 1px solid var(--wa-control-rim);
+    color: var(--wa-text-secondary);
+    background: var(--wa-control-surface);
 }
 
 .ai-summary-chip__expand {
