@@ -1,13 +1,36 @@
 ---
-description: Keep commits small, ordered, and clearly named
+description: Always commit completed work; never leave implementation changes uncommitted
 alwaysApply: true
 ---
 
 # Commit Discipline
 
-When asked to commit work:
+## Always commit (default)
 
-- Split unrelated changes into separate commits in implementation order.
-- Use clear commit messages that describe the purpose of each change.
-- Do not commit runtime caches, logs, credentials, session state, or other sensitive/generated files.
-- Before committing, inspect staged changes and keep each commit focused.
+After any turn where you change the repository (code, config, migrations, tests, docs), **create git commits before finishing** — do not wait for the user to ask.
+
+- Ending a task with uncommitted changes is a mistake unless the user explicitly said not to commit.
+- Commit as soon as a logical piece of work is done, not only at the very end of a long session.
+- If you edited files in multiple areas, split into **separate focused commits** in implementation order (migrations → backend → frontend → tests).
+
+## How to commit
+
+1. Run `git status` and `git diff` (staged and unstaged).
+2. Stage only relevant files; never stage secrets or generated junk.
+3. Write a clear 1–2 sentence message focused on **why**.
+4. Verify with `git status` after each commit.
+
+## Do not commit
+
+- `.env`, credentials, API keys, session/auth caches
+- `storage/logs`, `bootstrap/cache`, `vendor`, `node_modules`, `public/build`
+- `.cursor/debug*.log` and other debug/runtime artifacts
+- Large accidental dumps or local-only files
+
+## When the user says “commit”
+
+Follow the same rules above; prefer multiple small commits over one large commit.
+
+## Safety net
+
+A `stop` hook may auto-commit any remaining tracked changes you left behind. Prefer committing yourself with good messages so the hook does not bundle unrelated files.
