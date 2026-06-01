@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Contact;
+use App\Services\AI\AiWorkspaceClientSummaryService;
 use App\Services\AI\AiWorkspaceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,6 +68,18 @@ final class AiWorkspaceController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    public function clientSummary(Request $request, Contact $contact, AiWorkspaceClientSummaryService $summary): JsonResponse
+    {
+        $this->authorize('view', $contact);
+
+        $preferredChatId = $request->filled('chat_id') ? $request->integer('chat_id') : null;
+        $payload = $summary->build($request->user(), $contact, $preferredChatId);
+
+        return response()->json([
+            'client_summary' => $payload,
+        ]);
     }
 
     private function safeErrorMessage(string $error): string

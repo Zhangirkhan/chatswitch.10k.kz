@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Models\Contact;
 use App\Models\User;
 use App\Services\AI\Locale\KazakhstanLocaleProfile;
 use App\Services\AI\Locale\LocalePromptAugmenter;
@@ -17,6 +18,7 @@ final class AiWorkspaceService
         private readonly AiWorkspaceVisualizationService $visualizations,
         private readonly AiWorkspaceContextBuilder $contextBuilder,
         private readonly LocalePromptAugmenter $localeAugmenter,
+        private readonly AiWorkspaceClientSummaryService $clientSummary,
     ) {}
 
     /**
@@ -33,7 +35,8 @@ final class AiWorkspaceService
      *     department_posts: list<array<string, mixed>>,
      *     employees: list<array<string, mixed>>,
      *     visualizations: list<array<string, mixed>>,
-     *     filters_applied: array<string, mixed>
+     *     filters_applied: array<string, mixed>,
+     *     client_summary: array<string, mixed>|null
      * }
      */
     public function handle(User $user, string $message, array $history = []): array
@@ -111,6 +114,13 @@ final class AiWorkspaceService
             $runMedia,
         );
 
+        $clientSummary = $this->resolveClientSummary(
+            $user,
+            $intent,
+            $contacts,
+            $parsed,
+        );
+
         return [
             'reply' => $reply,
             'intent' => $intent,
@@ -123,6 +133,7 @@ final class AiWorkspaceService
             'department_posts' => $departmentPosts,
             'employees' => $employees,
             'visualizations' => $visualizations,
+            'client_summary' => $clientSummary,
             'filters_applied' => [
                 'contacts' => $runContacts ? $contactFilters : null,
                 'media' => $runMedia ? $mediaFilters : null,
@@ -226,8 +237,9 @@ PROMPT,
 Черновик reply в JSON пиши на том же языке, что запрос: {$languageRule}
 Верни JSON:
 {
-  "intent": "search_contacts|search_media|search_messages|search_funnel|search_calendar|search_tasks|search_employees|search_both|answer",
+  "intent": "search_contacts|search_media|search_messages|search_funnel|search_calendar|search_tasks|search_employees|search_both|client_profile|answer",
   "reply": "краткий черновик ответа или пустая строка",
+  "primary_contact_id": null,
   "contact_filters": { "text", "company_name", "phone_contains", "has_unread_chat", "limit" },
   "media_filters": { "filename_contains", "text_query", "mime_category", "contact_text", "date_from", "date_to", "limit" },
   "message_filters": { "text_query", "contact_text", "date_from", "date_to", "limit" },
@@ -240,6 +252,7 @@ PROMPT,
 
 Правила маршрутизации:
 - Клиенты, контакты, компании, непрочитанные → contact_filters + intent search_contacts/search_both.
+- «Расскажи про клиента», «сводка по», «что знаем о», профиль клиента → intent client_profile + contact_filters.text.
 - Файлы, вложения, pdf, фото → media_filters.
 - Поиск по тексту переписки, «что писали», «найди сообщение» → message_filters.
 - Воронка, сделки, этапы, лиды → funnel_filters.
@@ -269,7 +282,7 @@ PROMPT,
      */
     private function shouldSearchContacts(string $intent, array $contactFilters): bool
     {
-        if (in_array($intent, ['search_contacts', 'search_both'], true)) {
+        if (in_array($intent, ['search_contacts', 'search_both', 'client_profile'], true)) {
             return true;
         }
 
@@ -421,5 +434,63 @@ PROMPT,
         }
 
         return implode("\n\n", $parts);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $contacts
+     * @param  array<string, mixed>  $parsed
+     * @return array<string, mixed>|null
+     */
+    private function resolveClientSummary(User $user, string $intent, array $contacts, array $parsed): ?array
+    {
+        $shouldBuild = $intent === 'client_profile'
+            || count($contacts) === 1
+            || ! empty($parsed['primary_contact_id']);
+
+        if (! $shouldBuild || $contacts === []) {
+            return null;
+        }
+
+        $contactId = $this->resolvePrimaryContactId($contacts, $parsed);
+        if ($contactId === null) {
+            return null;
+        }
+
+        $contact = Contact::query()->find($contactId);
+        if ($contact === null || ! $user->can('view', $contact)) {
+            return null;
+        }
+
+        $preferredChatId = null;
+        foreach ($contacts as $row) {
+            if ((int) ($row['id'] ?? 0) === $contactId && ! empty($row['chat_id'])) {
+                $preferredChatId = (int) $row['chat_id'];
+                break;
+            }
+        }
+
+        return $this->clientSummary->build($user, $contact, $preferredChatId);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $contacts
+     * @param  array<string, mixed>  $parsed
+     */
+    private function resolvePrimaryContactId(array $contacts, array $parsed): ?int
+    {
+        $fromParsed = (int) ($parsed['primary_contact_id'] ?? 0);
+        if ($fromParsed > 0) {
+            foreach ($contacts as $row) {
+                if ((int) ($row['id'] ?? 0) === $fromParsed) {
+                    return $fromParsed;
+                }
+            }
+        }
+
+        if (count($contacts) === 1) {
+            return (int) ($contacts[0]['id'] ?? 0) ?: null;
+        }
+
+        return (int) ($contacts[0]['id'] ?? 0) ?: null;
     }
 }

@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import axios from 'axios';
-import UserAvatar from '@/Components/UserAvatar.vue';
+import AiWorkspaceRightPanel from '@/Components/AiChat/AiWorkspaceRightPanel.vue';
 import AiWorkspaceVisualization, { type AiVisualization } from '@/Components/AiChat/AiWorkspaceVisualization.vue';
+import type {
+    ClientSummary,
+    ResultTabId,
+    TabCounts,
+    WorkspaceResults,
+} from '@/Components/AiChat/aiWorkspaceTypes';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
 import { useToastStore } from '@/stores/toast';
-import { formatPhone } from '@/utils/phone';
+import { Head, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
+import UserAvatar from '@/Components/UserAvatar.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+
+const resultsOpenStorageKey = 'accel.ai-workspace.resultsOpen';
 
 type AiTurn = {
     role: 'user' | 'assistant';
@@ -17,83 +25,16 @@ type AiTurn = {
     visualizations?: AiVisualization[];
 };
 
-type WorkspaceContact = {
-    id: number;
-    name: string;
-    phone_number: string | null;
-    companies: string[];
-    chat_id: number | null;
-    last_message_at: string | null;
-    unread_count?: number;
-};
-
-type WorkspaceMedia = {
-    id: number;
-    filename: string | null;
-    mime_type: string | null;
-    url: string;
-    chat_id: number | null;
-    chat_name: string | null;
-    contact_name: string | null;
-    message_at: string | null;
-};
-
-type WorkspaceMessage = {
-    id: number;
-    body: string;
-    direction: string;
-    chat_id: number | null;
-    chat_name: string | null;
-    contact_name: string | null;
-    message_at: string | null;
-};
-
-type WorkspaceFunnelDeal = {
-    id: number;
-    name: string;
-    funnel_name: string;
-    stage_name: string;
-    unread_count?: number;
-    assignees?: Array<{ id: number; name: string }>;
-};
-
-type WorkspaceCalendarEvent = {
-    id: number;
-    title: string;
-    starts_at: string;
-    ends_at: string;
-    all_day?: boolean;
-    assignee?: { id: number; name: string } | null;
-};
-
-type WorkspaceDepartmentPost = {
-    id: number;
-    title: string;
-    status: string;
-    due_at: string | null;
-    department_name: string | null;
-    assignees?: Array<{ id: number; name: string }>;
-};
-
-type WorkspaceEmployee = {
-    id: number;
-    name: string;
-    email: string | null;
-};
-
 type AiThread = {
     id: string;
     title: string;
     updatedAt: number;
     turns: AiTurn[];
-    contacts: WorkspaceContact[];
-    media: WorkspaceMedia[];
-    messages: WorkspaceMessage[];
-    funnel_deals: WorkspaceFunnelDeal[];
-    calendar_events: WorkspaceCalendarEvent[];
-    department_posts: WorkspaceDepartmentPost[];
-    employees: WorkspaceEmployee[];
-};
+    client_summary: ClientSummary | null;
+    activeResultTab: ResultTabId;
+    focusedContactId: number | null;
+    summaryLoading: boolean;
+} & WorkspaceResults;
 
 type ThreadGroup = {
     label: string;
@@ -117,8 +58,9 @@ const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const hoveredTurn = ref<number | null>(null);
 
-const threadsStorageKey = 'accel:ai-workspace:threads:v2';
+const threadsStorageKey = 'accel:ai-workspace:threads:v3';
 const legacyStorageKey = 'accel:ai-workspace:v1';
+const defaultResultTab: ResultTabId = 'contacts';
 
 const {
     widthPx: sidebarWidthPx,
@@ -156,17 +98,40 @@ const funnelDeals = computed(() => activeThread.value?.funnel_deals ?? []);
 const calendarEvents = computed(() => activeThread.value?.calendar_events ?? []);
 const departmentPosts = computed(() => activeThread.value?.department_posts ?? []);
 const employees = computed(() => activeThread.value?.employees ?? []);
+const clientSummary = computed(() => activeThread.value?.client_summary ?? null);
+const focusedContactId = computed(() => activeThread.value?.focusedContactId ?? null);
+const summaryLoading = computed(() => activeThread.value?.summaryLoading ?? false);
+const activeResultTab = computed({
+    get: () => activeThread.value?.activeResultTab ?? defaultResultTab,
+    set: (tab: ResultTabId) => {
+        const thread = activeThread.value;
+        if (thread) {
+            thread.activeResultTab = tab;
+            persistThreads();
+        }
+    },
+});
+const workspaceResults = computed<WorkspaceResults>(() => ({
+    contacts: contacts.value,
+    media: media.value,
+    messages: messages.value,
+    funnel_deals: funnelDeals.value,
+    calendar_events: calendarEvents.value,
+    department_posts: departmentPosts.value,
+    employees: employees.value,
+}));
+const tabCounts = computed<TabCounts>(() => ({
+    contacts: contacts.value.length,
+    media: media.value.length,
+    messages: messages.value.length,
+    calendar: calendarEvents.value.length,
+    funnel: funnelDeals.value.length,
+    tasks: departmentPosts.value.length,
+    employees: employees.value.length,
+}));
 const resultsCount = computed(
-    () =>
-        contacts.value.length
-        + media.value.length
-        + messages.value.length
-        + funnelDeals.value.length
-        + calendarEvents.value.length
-        + departmentPosts.value.length
-        + employees.value.length,
+    () => Object.values(tabCounts.value).reduce((sum, count) => sum + count, 0),
 );
-const hasResults = computed(() => resultsCount.value > 0);
 const isEmptyChat = computed(() => turns.value.length === 0 && !sending.value);
 
 const threadGroups = computed<ThreadGroup[]>(() => {
@@ -215,12 +180,8 @@ function threadTitleFromMessage(text: string): string {
     return trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed;
 }
 
-function createThread(): AiThread {
-    const thread: AiThread = {
-        id: newThreadId(),
-        title: 'Новый чат',
-        updatedAt: Date.now(),
-        turns: [],
+function emptyWorkspaceResults(): WorkspaceResults {
+    return {
         contacts: [],
         media: [],
         messages: [],
@@ -228,6 +189,20 @@ function createThread(): AiThread {
         calendar_events: [],
         department_posts: [],
         employees: [],
+    };
+}
+
+function createThread(): AiThread {
+    const thread: AiThread = {
+        id: newThreadId(),
+        title: 'Новый чат',
+        updatedAt: Date.now(),
+        turns: [],
+        client_summary: null,
+        activeResultTab: defaultResultTab,
+        focusedContactId: null,
+        summaryLoading: false,
+        ...emptyWorkspaceResults(),
     };
     threads.value = [thread, ...threads.value];
     activeThreadId.value = thread.id;
@@ -287,13 +262,11 @@ function migrateLegacyStorage(): void {
             title: firstUser ? threadTitleFromMessage(firstUser.content) : 'Прошлый диалог',
             updatedAt: Date.now(),
             turns: turnsLegacy,
-            contacts: [],
-            media: [],
-            messages: [],
-            funnel_deals: [],
-            calendar_events: [],
-            department_posts: [],
-            employees: [],
+            client_summary: null,
+            activeResultTab: defaultResultTab,
+            focusedContactId: null,
+            summaryLoading: false,
+            ...emptyWorkspaceResults(),
         };
 
         threads.value = [thread, ...threads.value];
@@ -306,7 +279,10 @@ function migrateLegacyStorage(): void {
 }
 
 function normalizeThread(raw: AiThread): AiThread {
+    const base = emptyWorkspaceResults();
+
     return {
+        ...base,
         ...raw,
         contacts: Array.isArray(raw.contacts) ? raw.contacts : [],
         media: Array.isArray(raw.media) ? raw.media : [],
@@ -315,7 +291,76 @@ function normalizeThread(raw: AiThread): AiThread {
         calendar_events: Array.isArray(raw.calendar_events) ? raw.calendar_events : [],
         department_posts: Array.isArray(raw.department_posts) ? raw.department_posts : [],
         employees: Array.isArray(raw.employees) ? raw.employees : [],
+        client_summary: raw.client_summary ?? null,
+        activeResultTab: raw.activeResultTab ?? defaultResultTab,
+        focusedContactId: raw.focusedContactId ?? null,
+        summaryLoading: false,
     };
+}
+
+function pickDefaultTab(counts: TabCounts): ResultTabId {
+    const order: ResultTabId[] = ['contacts', 'media', 'messages', 'calendar', 'funnel', 'tasks', 'employees'];
+    for (const tab of order) {
+        if (counts[tab] > 0) {
+            return tab;
+        }
+    }
+
+    return defaultResultTab;
+}
+
+function applyQueryResults(thread: AiThread, data: Record<string, unknown>): void {
+    thread.contacts = Array.isArray(data.contacts) ? data.contacts as AiThread['contacts'] : [];
+    thread.media = Array.isArray(data.media) ? data.media as AiThread['media'] : [];
+    thread.messages = Array.isArray(data.messages) ? data.messages as AiThread['messages'] : [];
+    thread.funnel_deals = Array.isArray(data.funnel_deals) ? data.funnel_deals as AiThread['funnel_deals'] : [];
+    thread.calendar_events = Array.isArray(data.calendar_events) ? data.calendar_events as AiThread['calendar_events'] : [];
+    thread.department_posts = Array.isArray(data.department_posts) ? data.department_posts as AiThread['department_posts'] : [];
+    thread.employees = Array.isArray(data.employees) ? data.employees as AiThread['employees'] : [];
+    thread.client_summary = (data.client_summary as ClientSummary | null | undefined) ?? null;
+    thread.focusedContactId = thread.client_summary?.contact_id ?? thread.focusedContactId;
+
+    const counts: TabCounts = {
+        contacts: thread.contacts.length,
+        media: thread.media.length,
+        messages: thread.messages.length,
+        calendar: thread.calendar_events.length,
+        funnel: thread.funnel_deals.length,
+        tasks: thread.department_posts.length,
+        employees: thread.employees.length,
+    };
+    thread.activeResultTab = pickDefaultTab(counts);
+}
+
+async function loadClientSummary(contactId: number, chatId?: number | null): Promise<void> {
+    const thread = ensureActiveThread();
+    thread.summaryLoading = true;
+    thread.focusedContactId = contactId;
+
+    try {
+        const { data } = await axios.get(route('ai-chat.client-summary', contactId), {
+            params: chatId ? { chat_id: chatId } : {},
+        });
+        thread.client_summary = (data.client_summary as ClientSummary | null | undefined) ?? null;
+        if (thread.client_summary) {
+            thread.focusedContactId = thread.client_summary.contact_id;
+        }
+    } catch {
+        showToast({ message: 'Не удалось загрузить сводку клиента', type: 'warning' });
+    } finally {
+        thread.summaryLoading = false;
+        thread.updatedAt = Date.now();
+        persistThreads();
+    }
+}
+
+async function onSelectContact(contactId: number): Promise<void> {
+    const contact = contacts.value.find((c) => c.id === contactId);
+    await loadClientSummary(contactId, contact?.chat_id ?? null);
+}
+
+function onActiveTabChange(tab: ResultTabId): void {
+    activeResultTab.value = tab;
 }
 
 function loadThreads(): void {
@@ -457,18 +502,14 @@ async function send(): Promise<void> {
             ts: Date.now(),
             visualizations: Array.isArray(data.visualizations) ? data.visualizations : [],
         });
-        thread.contacts = Array.isArray(data.contacts) ? data.contacts : [];
-        thread.media = Array.isArray(data.media) ? data.media : [];
-        thread.messages = Array.isArray(data.messages) ? data.messages : [];
-        thread.funnel_deals = Array.isArray(data.funnel_deals) ? data.funnel_deals : [];
-        thread.calendar_events = Array.isArray(data.calendar_events) ? data.calendar_events : [];
-        thread.department_posts = Array.isArray(data.department_posts) ? data.department_posts : [];
-        thread.employees = Array.isArray(data.employees) ? data.employees : [];
+        applyQueryResults(thread, data as Record<string, unknown>);
         thread.updatedAt = Date.now();
 
-        if (hasResults.value) {
-            resultsOpen.value = true;
+        if (!thread.client_summary && thread.contacts.length === 1) {
+            await loadClientSummary(thread.contacts[0].id, thread.contacts[0].chat_id);
         }
+
+        resultsOpen.value = true;
     } catch (e: unknown) {
         const msg =
             axios.isAxiosError(e) && e.response?.data && typeof e.response.data.message === 'string'
@@ -495,45 +536,29 @@ function onKeydown(e: KeyboardEvent): void {
     }
 }
 
-function mimeLabel(mime: string | null | undefined): string {
-    if (!mime) {
-        return 'Файл';
-    }
-    if (mime.startsWith('image/')) {
-        return 'Фото';
-    }
-    if (mime.startsWith('video/')) {
-        return 'Видео';
-    }
-    if (mime.startsWith('audio/')) {
-        return 'Аудио';
-    }
-    return 'Документ';
-}
-
-function formatEventWhen(startsAt: string, endsAt: string, allDay?: boolean): string {
-    const start = new Date(startsAt);
-    const end = new Date(endsAt);
-    if (Number.isNaN(start.getTime())) {
-        return startsAt;
-    }
-    if (allDay) {
-        return start.toLocaleDateString('ru-RU');
-    }
-    const date = start.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-    const from = start.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    const to = end.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-
-    return `${date}, ${from}–${to}`;
-}
-
 watch(activeThreadId, () => {
     scrollToBottom();
 });
 
 onMounted(() => {
+    try {
+        const stored = window.localStorage.getItem(resultsOpenStorageKey);
+        if (stored !== null) {
+            resultsOpen.value = stored === '1';
+        }
+    } catch {
+        /* ignore */
+    }
     loadThreads();
     scrollToBottom();
+});
+
+watch(resultsOpen, (open) => {
+    try {
+        window.localStorage.setItem(resultsOpenStorageKey, open ? '1' : '0');
+    } catch {
+        /* ignore */
+    }
 });
 </script>
 
@@ -544,7 +569,7 @@ onMounted(() => {
         <div
             class="ai-workspace"
             :class="{
-                'ai-workspace--results-open': resultsOpen && hasResults,
+                'ai-workspace--results-open': resultsOpen,
                 'ai-workspace--sidebar-resizing': sidebarResizing,
                 'ai-workspace--results-resizing': resultsResizing,
             }"
@@ -621,17 +646,14 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <div v-if="hasResults" class="ai-workspace__topbar-actions">
+                    <div class="ai-workspace__topbar-actions">
                         <button
                             type="button"
-                            class="ai-workspace__results-toggle"
+                            class="ai-workspace__results-toggle lg:hidden"
                             :class="{ 'is-active': resultsOpen }"
                             @click="resultsOpen = !resultsOpen"
                         >
-                            Результаты
-                            <span class="ai-workspace__results-badge">
-                                {{ resultsCount }}
-                            </span>
+                            Панель
                         </button>
                     </div>
                 </header>
@@ -833,178 +855,27 @@ onMounted(() => {
             </section>
 
             <PanelResizeHandle
-                v-if="resultsOpen && hasResults"
+                v-if="resultsOpen"
                 class="ai-workspace__results-resize hidden lg:flex"
                 :active="resultsResizing"
                 @pointerdown="onResultsResize"
             />
 
-            <aside
-                v-if="hasResults"
-                class="ai-workspace__results"
-                :class="{ 'is-open': resultsOpen }"
-            >
-                <div class="ai-workspace__results-head">
-                    <div>
-                        <h2 class="ai-workspace__results-title">Результаты</h2>
-                        <p class="ai-workspace__results-sub">
-                            {{ resultsCount }} результатов
-                        </p>
-                    </div>
-                    <button
-                        type="button"
-                        class="ai-workspace__icon-btn lg:hidden"
-                        aria-label="Скрыть результаты"
-                        @click="resultsOpen = false"
-                    >
-                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M5 5l10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="ai-workspace__results-body wa-scrollbar">
-                    <section v-if="contacts.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Контакты</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="c in contacts" :key="c.id" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title">{{ c.name }}</div>
-                                <p v-if="c.phone_number" class="ai-workspace__result-card-meta">
-                                    {{ formatPhone(c.phone_number) || c.phone_number }}
-                                </p>
-                                <p v-if="c.companies?.length" class="ai-workspace__result-card-meta truncate">
-                                    {{ c.companies.join(', ') }}
-                                </p>
-                                <p v-if="c.unread_count" class="ai-workspace__result-card-badge">
-                                    Непрочитанных: {{ c.unread_count }}
-                                </p>
-                                <Link
-                                    v-if="c.chat_id"
-                                    :href="route('chats.show', c.chat_id)"
-                                    class="ai-workspace__result-link"
-                                >
-                                    Открыть чат
-                                </Link>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="media.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Файлы</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="m in media" :key="m.id" class="ai-workspace__result-card ai-workspace__result-card--media">
-                                <a
-                                    :href="m.url"
-                                    target="_blank"
-                                    rel="noopener"
-                                    class="ai-workspace__media-thumb"
-                                >
-                                    <img
-                                        v-if="m.mime_type?.startsWith('image/')"
-                                        :src="m.url"
-                                        :alt="m.filename || ''"
-                                    />
-                                    <span v-else>{{ mimeLabel(m.mime_type) }}</span>
-                                </a>
-                                <div class="min-w-0 flex-1">
-                                    <a
-                                        :href="m.url"
-                                        target="_blank"
-                                        rel="noopener"
-                                        class="ai-workspace__result-card-title block truncate hover:underline"
-                                    >
-                                        {{ m.filename || 'Без имени' }}
-                                    </a>
-                                    <p class="ai-workspace__result-card-meta truncate">
-                                        {{ m.contact_name || m.chat_name || 'Чат' }}
-                                    </p>
-                                    <Link
-                                        v-if="m.chat_id"
-                                        :href="route('chats.show', m.chat_id)"
-                                        class="ai-workspace__result-link"
-                                    >
-                                        В диалог
-                                    </Link>
-                                </div>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="calendarEvents.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Календарь</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="ev in calendarEvents" :key="ev.id + ev.starts_at" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title">{{ ev.title }}</div>
-                                <p class="ai-workspace__result-card-meta">
-                                    {{ formatEventWhen(ev.starts_at, ev.ends_at, ev.all_day) }}
-                                </p>
-                                <p v-if="ev.assignee?.name" class="ai-workspace__result-card-meta">
-                                    {{ ev.assignee.name }}
-                                </p>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="funnelDeals.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Воронка</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="deal in funnelDeals" :key="deal.id" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title">{{ deal.name }}</div>
-                                <p class="ai-workspace__result-card-meta">
-                                    {{ deal.funnel_name }} · {{ deal.stage_name }}
-                                </p>
-                                <Link
-                                    :href="route('chats.show', deal.id)"
-                                    class="ai-workspace__result-link"
-                                >
-                                    Открыть сделку
-                                </Link>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="messages.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Сообщения</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="msg in messages" :key="msg.id" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title truncate">
-                                    {{ msg.contact_name || msg.chat_name || 'Чат' }}
-                                </div>
-                                <p class="ai-workspace__result-card-meta line-clamp-3">{{ msg.body }}</p>
-                                <Link
-                                    v-if="msg.chat_id"
-                                    :href="route('chats.show', msg.chat_id)"
-                                    class="ai-workspace__result-link"
-                                >
-                                    В диалог
-                                </Link>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="departmentPosts.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Задачи</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="post in departmentPosts" :key="post.id" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title">{{ post.title }}</div>
-                                <p class="ai-workspace__result-card-meta">
-                                    {{ post.department_name || 'Отдел' }} · {{ post.status }}
-                                </p>
-                            </li>
-                        </ul>
-                    </section>
-
-                    <section v-if="employees.length" class="ai-workspace__results-section">
-                        <h3 class="ai-workspace__results-label">Сотрудники</h3>
-                        <ul class="ai-workspace__result-list">
-                            <li v-for="emp in employees" :key="emp.id" class="ai-workspace__result-card">
-                                <div class="ai-workspace__result-card-title">{{ emp.name }}</div>
-                                <p v-if="emp.email" class="ai-workspace__result-card-meta">{{ emp.email }}</p>
-                            </li>
-                        </ul>
-                    </section>
-                </div>
-            </aside>
+            <AiWorkspaceRightPanel
+                v-if="resultsOpen"
+                :open="resultsOpen"
+                :summary="clientSummary"
+                :summary-loading="summaryLoading"
+                :results="workspaceResults"
+                :active-tab="activeResultTab"
+                :tab-counts="tabCounts"
+                :focused-contact-id="focusedContactId"
+                :contacts="contacts"
+                :results-count="resultsCount"
+                @close="resultsOpen = false"
+                @update:active-tab="onActiveTabChange"
+                @select-contact="onSelectContact"
+            />
         </div>
     </AuthenticatedLayout>
 </template>

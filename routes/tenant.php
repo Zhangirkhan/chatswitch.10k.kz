@@ -81,6 +81,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/ai-chat/query', [AiWorkspaceController::class, 'query'])
             ->middleware('throttle:30,1')
             ->name('ai-chat.query');
+        Route::get('/ai-chat/clients/{contact}/summary', [AiWorkspaceController::class, 'clientSummary'])
+            ->middleware('throttle:30,1')
+            ->name('ai-chat.client-summary');
 
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/feed', [ChatController::class, 'feed'])->name('chats.feed');

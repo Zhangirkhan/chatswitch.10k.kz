@@ -35,23 +35,39 @@ final class AiWorkspaceTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $parsePayload
+     * @param  array<string, mixed>|null  $summaryPayload
      */
-    private function fakeOpenAiWorkspace(array $parsePayload, string $answer = 'Ответ на основе данных.'): void
-    {
+    private function fakeOpenAiWorkspace(
+        array $parsePayload,
+        string $answer = 'Ответ на основе данных.',
+        ?array $summaryPayload = null,
+    ): void {
+        $sequence = Http::sequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode($parsePayload, JSON_UNESCAPED_UNICODE),
+                    ],
+                ]],
+            ], 200)
+            ->push([
+                'choices' => [[
+                    'message' => ['content' => $answer],
+                ]],
+            ], 200);
+
+        if ($summaryPayload !== null) {
+            $sequence->push([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode($summaryPayload, JSON_UNESCAPED_UNICODE),
+                    ],
+                ]],
+            ], 200);
+        }
+
         Http::fake([
-            'https://api.openai.com/v1/chat/completions' => Http::sequence()
-                ->push([
-                    'choices' => [[
-                        'message' => [
-                            'content' => json_encode($parsePayload, JSON_UNESCAPED_UNICODE),
-                        ],
-                    ]],
-                ], 200)
-                ->push([
-                    'choices' => [[
-                        'message' => ['content' => $answer],
-                    ]],
-                ], 200),
+            'https://api.openai.com/v1/chat/completions' => $sequence,
         ]);
     }
 
@@ -74,6 +90,12 @@ final class AiWorkspaceTest extends TestCase
             'reply' => '',
             'contact_filters' => ['text' => 'Иван'],
             'media_filters' => ['mime_category' => 'any'],
+        ], 'Найден контакт.', [
+            'headline' => 'Клиент Иван',
+            'sections' => [
+                ['title' => 'Кто это', 'body' => 'Иван Тестов'],
+            ],
+            'confidence' => 'medium',
         ]);
 
         $user = User::factory()->create();
@@ -96,6 +118,44 @@ final class AiWorkspaceTest extends TestCase
         $this->assertSame($contact->id, $response->json('contacts.0.id'));
         $this->assertSame($chat->id, $response->json('contacts.0.chat_id'));
         $this->assertIsArray($response->json('visualizations'));
+        $this->assertSame('Клиент Иван', $response->json('client_summary.ai.headline'));
+    }
+
+    public function test_workspace_query_client_profile_returns_client_summary(): void
+    {
+        config(['services.openai.api_key' => 'test-key']);
+
+        $this->fakeOpenAiWorkspace([
+            'intent' => 'client_profile',
+            'reply' => 'Кратко о клиенте.',
+            'contact_filters' => ['text' => 'Айдар'],
+            'primary_contact_id' => null,
+        ], 'Сводка готова.', [
+            'headline' => 'Активный клиент',
+            'sections' => [
+                ['title' => 'Предпочтения', 'body' => 'Пишет по будням'],
+            ],
+            'confidence' => 'high',
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole('administrator');
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::factory()->create(['name' => 'Айдар']);
+        Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('ai-chat.query'), [
+            'message' => 'Расскажи про клиента Айдар',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('intent', 'client_profile');
+        $response->assertJsonPath('client_summary.contact_id', $contact->id);
+        $response->assertJsonPath('client_summary.ai.headline', 'Активный клиент');
     }
 
     public function test_workspace_query_returns_visualizations_for_chart_request(): void
