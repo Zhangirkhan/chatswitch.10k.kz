@@ -77,7 +77,10 @@ const attentionPillStyle = computed<Record<string, string>>(() => {
         case 'warning':
             return { background: 'var(--wa-chroma-yellow-bg)', color: 'var(--wa-chroma-yellow-fg)' };
         default:
-            return { background: 'var(--wa-accent-soft)', color: 'var(--wa-chroma-accent-fg)' };
+            return {
+                background: 'color-mix(in srgb, var(--wa-danger) 18%, var(--wa-panel))',
+                color: 'var(--wa-danger)',
+            };
     }
 });
 
