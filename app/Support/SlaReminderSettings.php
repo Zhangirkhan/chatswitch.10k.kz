@@ -31,14 +31,14 @@ final readonly class SlaReminderSettings
         ];
     }
 
-    public function enabled(): bool
+    public function enabled(?int $companyId = null): bool
     {
-        return SystemSetting::getValue(self::ENABLED_KEY, self::DEFAULT_ENABLED ? 'on' : 'off') !== 'off';
+        return SystemSetting::getValue(self::ENABLED_KEY, self::DEFAULT_ENABLED ? 'on' : 'off', $companyId) !== 'off';
     }
 
-    public function waitMinutes(): int
+    public function waitMinutes(?int $companyId = null): int
     {
-        $raw = SystemSetting::getValue(self::MINUTES_KEY, (string) self::DEFAULT_MINUTES);
+        $raw = SystemSetting::getValue(self::MINUTES_KEY, (string) self::DEFAULT_MINUTES, $companyId);
         $minutes = is_numeric($raw) ? (int) $raw : self::DEFAULT_MINUTES;
 
         return min(self::MAX_MINUTES, max(self::MIN_MINUTES, $minutes));
