@@ -35,6 +35,13 @@ final class ClientProfileAssembler
         $crm = is_array($card['crm'] ?? null) ? $card['crm'] : [];
         $channels = is_array($card['channels'] ?? null) ? $card['channels'] : [];
 
+        $chatIds = collect($channels)
+            ->pluck('chat_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $snippets = $this->cardAssembler->recentMessageSnippets($chatIds, 10);
+
         $contactIds = $this->buckets->bucketIds($contact);
         $memory = $this->resolveMemory($contactIds, $contact->id);
 
@@ -42,8 +49,8 @@ final class ClientProfileAssembler
             'contact_id' => $contact->id,
             'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
             'sections' => [
-                $this->basicSection($contact, $identity, $crm, $memory['content']),
-                $this->contactsSection($identity, $crm, $channels, $memory['content']),
+                $this->basicSection($contact, $identity, $crm, $memory['content'], $snippets),
+                $this->contactsSection($identity, $crm, $channels, $memory['content'], $snippets),
                 $this->financeSection(),
                 $this->b2bSection($identity, $crm),
                 $this->historySection($activity, $crm),
@@ -58,7 +65,7 @@ final class ClientProfileAssembler
      * @param  array<string, mixed>  $crm
      * @return array<string, mixed>
      */
-    private function basicSection(Contact $contact, array $identity, array $crm, string $memoryContent): array
+    private function basicSection(Contact $contact, array $identity, array $crm, string $memoryContent, array $snippets): array
     {
         $deal = is_array($crm['deal'] ?? null) ? $crm['deal'] : null;
         $stage = is_array($deal['stage'] ?? null) ? $deal['stage'] : null;
@@ -107,6 +114,12 @@ final class ClientProfileAssembler
             $fields[] = $field;
         }
 
+        foreach ($this->fieldsFromSnippets($snippets) as $field) {
+            if (! $this->fieldsContainLabel($fields, $field['label'])) {
+                $fields[] = $field;
+            }
+        }
+
         return [
             'key' => 'basic',
             'title' => 'Основное',
@@ -119,9 +132,10 @@ final class ClientProfileAssembler
      * @param  array<string, mixed>  $identity
      * @param  array<string, mixed>  $crm
      * @param  list<array<string, mixed>>  $channels
+     * @param  list<array{direction: string, body: string|null, at: string|null}>  $snippets
      * @return array<string, mixed>
      */
-    private function contactsSection(array $identity, array $crm, array $channels, string $memoryContent): array
+    private function contactsSection(array $identity, array $crm, array $channels, string $memoryContent, array $snippets): array
     {
         $fields = [];
 
@@ -136,6 +150,12 @@ final class ClientProfileAssembler
         }
 
         foreach ($this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']) as $field) {
+            if (! $this->fieldsContainLabel($fields, $field['label'])) {
+                $fields[] = $field;
+            }
+        }
+
+        foreach ($this->fieldsFromSnippets($snippets) as $field) {
             if (! $this->fieldsContainLabel($fields, $field['label'])) {
                 $fields[] = $field;
             }
@@ -160,7 +180,7 @@ final class ClientProfileAssembler
             ->all();
 
         if ($channelLabels !== []) {
-            $fields[] = $this->field('Каналы WhatsApp', implode('; ', $channelLabels), 'crm');
+            $fields[] = $this->field('Писал на WA-номера', implode('; ', $channelLabels), 'crm');
         }
 
         foreach ($crm['companies'] ?? [] as $company) {
@@ -436,6 +456,50 @@ final class ClientProfileAssembler
         return str_contains($normalized, 'имя / как обращаться')
             && str_contains($normalized, 'предпочтения и контекст')
             && mb_strlen(trim($content)) < 400;
+    }
+
+    /**
+     * @param  list<array{direction: string, body: string|null, at: string|null}>  $snippets
+     * @return list<array{label: string, value: string, source: string}>
+     */
+    private function fieldsFromSnippets(array $snippets): array
+    {
+        $fields = [];
+
+        foreach ($snippets as $snippet) {
+            if (! is_array($snippet) || ($snippet['direction'] ?? '') !== 'inbound') {
+                continue;
+            }
+
+            $body = trim((string) ($snippet['body'] ?? ''));
+            if ($body === '' || mb_strlen($body) > 200) {
+                continue;
+            }
+
+            $looksLikeAddress = preg_match(
+                '/(?:^|[\s,.])(?:ул\.?|улиц|пр\.?|просп|пер\.?|геодез|мкр|район|адрес|дом\s*\d|кв\.?\s*\d)/iu',
+                $body,
+            ) === 1;
+
+            $looksLikeShortLocation = ! $looksLikeAddress
+                && mb_strlen($body) <= 80
+                && preg_match('/\d{1,4}/', $body) === 1
+                && preg_match('/[а-яёa-z]{4,}/iu', $body) === 1
+                && ! preg_match('/^[\d\s+\-()]+$/', $body);
+
+            if (! $looksLikeAddress && ! $looksLikeShortLocation) {
+                continue;
+            }
+
+            if ($this->fieldsContainLabel($fields, 'Адрес')) {
+                break;
+            }
+
+            $fields[] = $this->field('Адрес', $body, 'chat');
+            break;
+        }
+
+        return $fields;
     }
 
     /**

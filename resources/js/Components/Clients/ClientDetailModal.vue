@@ -5,6 +5,7 @@ import ClientActivityTimeline from '@/Components/Clients/ClientActivityTimeline.
 import ClientFinancePlaceholder from '@/Components/Clients/ClientFinancePlaceholder.vue';
 import ClientProfileSection from '@/Components/Clients/ClientProfileSection.vue';
 import type { ClientListItem, ClientProfile } from '@/Components/Clients/clientProfileTypes';
+import { mergeSummaryIntoProfile } from '@/Components/Clients/clientProfileMerge';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -59,6 +60,8 @@ const displayName = computed(() => {
         || 'Без имени'
     );
 });
+
+const displayProfile = computed(() => mergeSummaryIntoProfile(profile.value, summary.value));
 
 const chatUrl = computed(() => {
     const chatId = props.client?.primary_chat_id;
@@ -134,9 +137,6 @@ async function enrichProfileInBackground(contactId: number, cacheKey: string): P
             params: { ...profileRequestParams(), with_ai: 1 },
         });
         const enriched = data.profile as ClientProfile;
-        if (!enriched.ai_enriched) {
-            return;
-        }
         profile.value = enriched;
         profileCache.set(cacheKey, enriched);
     } catch {
@@ -182,7 +182,7 @@ async function saveName(): Promise<void> {
 }
 
 function sectionByKey(key: string) {
-    return profile.value?.sections.find((section) => section.key === key) ?? null;
+    return displayProfile.value?.sections.find((section) => section.key === key) ?? null;
 }
 </script>
 
@@ -226,7 +226,7 @@ function sectionByKey(key: string) {
                         <div class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
                                 <div v-if="profileLoading" class="py-10 text-center text-sm opacity-70">Загружаем профиль…</div>
                                 <div v-else-if="profileError" class="rounded-lg border px-4 py-3 text-sm" :style="{ borderColor: 'var(--ui-border)' }">{{ profileError }}</div>
-                                <template v-else-if="profile">
+                                <template v-else-if="displayProfile">
                                     <ClientProfileSection
                                         v-if="sectionByKey('basic')"
                                         :title="sectionByKey('basic')!.title"

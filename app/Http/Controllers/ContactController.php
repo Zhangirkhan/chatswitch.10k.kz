@@ -182,6 +182,7 @@ final class ContactController extends Controller
 
         if ($request->boolean('with_ai')) {
             $profile = $this->clientProfileAiService->enrich($user, $contact, $profile, $preferredChatId);
+            $profile['ai_enriched'] = true;
         }
 
         return response()->json(['profile' => $profile]);
