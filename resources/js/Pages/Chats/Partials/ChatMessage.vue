@@ -1504,15 +1504,31 @@ onBeforeUnmount(() => {
                 class="mb-1 w-full text-left rounded-md px-2 py-1 border-l-4"
                 :style="{
                     background: isOutbound ? 'var(--wa-bubble-quote-bg-out)' : 'var(--wa-bubble-quote-bg-in)',
-                    borderColor: 'var(--wa-message-accent, var(--wa-accent))',
+                    borderColor: isOutbound
+                        ? 'var(--wa-bubble-quote-author-out, var(--wa-accent))'
+                        : 'var(--wa-bubble-quote-author-in, var(--wa-accent))',
                 }"
                 @click.stop="jumpToQuoted"
                 title="Перейти к сообщению"
             >
-                <div class="text-[12px] font-medium truncate" :style="{ color: 'var(--wa-message-accent, var(--wa-accent))' }">
+                <div
+                    class="text-[12px] font-medium truncate"
+                    :style="{
+                        color: isOutbound
+                            ? 'var(--wa-bubble-quote-author-out, var(--wa-accent))'
+                            : 'var(--wa-bubble-quote-author-in, var(--wa-accent))',
+                    }"
+                >
                     {{ quotedAuthor }}
                 </div>
-                <div class="text-[12px] truncate" :style="{ color: 'var(--wa-text-secondary)' }">
+                <div
+                    class="text-[12px] truncate"
+                    :style="{
+                        color: isOutbound
+                            ? 'var(--wa-bubble-quote-text-out, var(--wa-text-secondary))'
+                            : 'var(--wa-bubble-quote-text-in, var(--wa-text-secondary))',
+                    }"
+                >
                     {{ quotedPreview }}
                 </div>
             </button>

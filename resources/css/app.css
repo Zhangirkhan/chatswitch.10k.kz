@@ -131,6 +131,10 @@
     --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.26);
     --wa-bubble-quote-bg-in: color-mix(in srgb, #fff 10%, var(--wa-bubble-in));
     --wa-bubble-quote-bg-out: color-mix(in srgb, #fff 8%, var(--wa-bubble-out));
+    --wa-bubble-quote-author-in: var(--wa-accent);
+    --wa-bubble-quote-author-out: var(--wa-accent);
+    --wa-bubble-quote-text-in: color-mix(in srgb, var(--wa-bubble-text-in) 70%, transparent);
+    --wa-bubble-quote-text-out: color-mix(in srgb, var(--wa-bubble-text-out) 70%, transparent);
 
     /* Indicators */
     --wa-unread: var(--brand-accent);
@@ -354,6 +358,10 @@
     --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
     --wa-bubble-quote-bg-in: color-mix(in srgb, #000 5%, var(--wa-bubble-in));
     --wa-bubble-quote-bg-out: color-mix(in srgb, #000 9%, var(--wa-bubble-out));
+    --wa-bubble-quote-author-in: var(--wa-accent);
+    --wa-bubble-quote-author-out: var(--wa-accent);
+    --wa-bubble-quote-text-in: color-mix(in srgb, var(--wa-bubble-text-in) 70%, transparent);
+    --wa-bubble-quote-text-out: color-mix(in srgb, var(--wa-bubble-text-out) 70%, transparent);
 
     /* Indicators */
     --wa-unread: var(--brand-accent);          /* brand green badge */

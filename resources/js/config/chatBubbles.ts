@@ -80,7 +80,7 @@ export const messageStylePresets: MessageStylePreset[] = [
             out: '#3F3F3F',
             textIn: '#111111',
             textOut: '#FFFFFF',
-            accent: '#E8E8E8',
+            accent: '#5A5A5A',
             tailShadow: 'rgba(0, 0, 0, 0.18)',
         },
         dark: {
@@ -226,6 +226,35 @@ function bubbleLuminance(hex: string): number {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+function quoteAuthorColor(bubbleColor: string, textColor: string, accentColor: string): string {
+    if (bubbleLuminance(bubbleColor) < 0.42) {
+        return textColor;
+    }
+
+    if (bubbleLuminance(accentColor) < 0.55) {
+        return accentColor;
+    }
+
+    return textColor;
+}
+
+function quoteBodyColor(textColor: string): string {
+    return `color-mix(in srgb, ${textColor} 70%, transparent)`;
+}
+
+function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void {
+    root.style.setProperty(
+        '--wa-bubble-quote-author-in',
+        quoteAuthorColor(colors.in, colors.textIn, colors.accent),
+    );
+    root.style.setProperty(
+        '--wa-bubble-quote-author-out',
+        quoteAuthorColor(colors.out, colors.textOut, colors.accent),
+    );
+    root.style.setProperty('--wa-bubble-quote-text-in', quoteBodyColor(colors.textIn));
+    root.style.setProperty('--wa-bubble-quote-text-out', quoteBodyColor(colors.textOut));
+}
+
 function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
     const darkBubble = bubbleLuminance(color) < 0.42;
 
@@ -265,6 +294,10 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
         root.style.removeProperty('--wa-bubble-tail-shadow');
         root.style.removeProperty('--wa-bubble-quote-bg-in');
         root.style.removeProperty('--wa-bubble-quote-bg-out');
+        root.style.removeProperty('--wa-bubble-quote-author-in');
+        root.style.removeProperty('--wa-bubble-quote-author-out');
+        root.style.removeProperty('--wa-bubble-quote-text-in');
+        root.style.removeProperty('--wa-bubble-quote-text-out');
         root.style.removeProperty('--wa-message-accent');
 
         return;
@@ -279,6 +312,7 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
     root.style.setProperty('--wa-message-accent', colors.accent);
     root.style.setProperty('--wa-bubble-quote-bg-in', quoteBg(colors.in, theme, 'in'));
     root.style.setProperty('--wa-bubble-quote-bg-out', quoteBg(colors.out, theme, 'out'));
+    applyQuoteTextVars(colors, root);
 }
 
 /** @deprecated */
