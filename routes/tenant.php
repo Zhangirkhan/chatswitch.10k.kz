@@ -85,6 +85,14 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             ->middleware('throttle:30,1')
             ->name('ai-chat.client-summary');
 
+        Route::get('/clients', [ContactController::class, 'clientsIndex'])->name('clients.index');
+        Route::get('/clients/{contact}/profile', [ContactController::class, 'clientProfile'])
+            ->middleware('throttle:30,1')
+            ->name('clients.profile');
+        Route::get('/clients/{contact}/summary', [ContactController::class, 'clientSummary'])
+            ->middleware('throttle:30,1')
+            ->name('clients.summary');
+
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/feed', [ChatController::class, 'feed'])->name('chats.feed');
         Route::get('/chats/archived', [ChatController::class, 'archivedIndex'])->name('chats.archived');

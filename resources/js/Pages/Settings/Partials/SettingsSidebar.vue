@@ -86,7 +86,7 @@ const adminItems: AdminItem[] = [
         label: 'Клиенты',
         description: 'Контакты и сведения',
         icon: 'clients',
-        routeName: 'settings.clients',
+        routeName: 'clients.index',
     },
     {
         kind: 'admin',

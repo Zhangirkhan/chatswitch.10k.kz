@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\DepartmentPost;
+use App\Models\Message;
 use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\FunnelProgressCalculator;
 use App\Support\ChatUrl;
@@ -26,10 +27,11 @@ final class ContactCardCrmService
      * @param  array<int, int>  $contactIds
      * @return array{
      *     deal: array<string, mixed>|null,
-     *     companies: list<array{id: int, name: string, position: string|null}>,
+     *     companies: list<array{id: int, name: string, position: string|null, phone: string|null, email: string|null, website: string|null, description: string|null}>,
      *     upcoming_events: list<array<string, mixed>>,
      *     open_tasks: list<array<string, mixed>>,
-     *     facts: list<array{label: string, value: string, source: string}>
+     *     facts: list<array{label: string, value: string, source: string}>,
+     *     timeline_snippets: list<array{direction: string, body: string, at: string|null, type: string}>
      * }
      */
     public function build(Collection $chats, array $contactIds, ?int $preferredChatId = null): array
@@ -43,6 +45,7 @@ final class ContactCardCrmService
             'upcoming_events' => $this->eventsPayload($chatIds, $contactIds),
             'open_tasks' => $this->tasksPayload($chatIds),
             'facts' => $this->factsPayload($chats, $primary),
+            'timeline_snippets' => $this->timelineSnippets($chatIds),
         ];
     }
 
@@ -130,7 +133,7 @@ final class ContactCardCrmService
 
     /**
      * @param  array<int, int>  $contactIds
-     * @return list<array{id: int, name: string, position: string|null}>
+     * @return list<array{id: int, name: string, position: string|null, phone: string|null, email: string|null, website: string|null, description: string|null}>
      */
     private function companiesPayload(array $contactIds): array
     {
@@ -141,7 +144,7 @@ final class ContactCardCrmService
         return Company::query()
             ->whereHas('contacts', fn ($q) => $q->whereIn('contacts.id', $contactIds))
             ->orderBy('name')
-            ->get(['id', 'name'])
+            ->get(['id', 'name', 'phone', 'email', 'website', 'description'])
             ->map(function (Company $company) use ($contactIds): array {
                 $position = Contact::query()
                     ->whereIn('id', $contactIds)
@@ -157,10 +160,53 @@ final class ContactCardCrmService
                     'id' => $company->id,
                     'name' => $company->name,
                     'position' => is_string($position) && trim($position) !== '' ? trim($position) : null,
+                    'phone' => $company->phone,
+                    'email' => $company->email,
+                    'website' => $company->website,
+                    'description' => $company->description,
                 ];
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<int, int>  $chatIds
+     * @return list<array{direction: string, body: string, at: string|null, type: string}>
+     */
+    private function timelineSnippets(array $chatIds): array
+    {
+        if ($chatIds === []) {
+            return [];
+        }
+
+        $snippets = [];
+        $limitPerDirection = 3;
+
+        foreach (['inbound', 'outbound'] as $direction) {
+            $rows = Message::query()
+                ->whereIn('chat_id', $chatIds)
+                ->where('direction', $direction)
+                ->whereNotNull('body')
+                ->where('body', '!=', '')
+                ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+                ->orderByDesc('id')
+                ->limit($limitPerDirection)
+                ->get(['body', 'direction', 'message_timestamp', 'created_at']);
+
+            foreach ($rows as $row) {
+                $snippets[] = [
+                    'type' => 'message',
+                    'direction' => $direction,
+                    'body' => mb_substr(trim((string) $row->body), 0, 400),
+                    'at' => ($row->message_timestamp ?: $row->created_at)?->toIso8601String(),
+                ];
+            }
+        }
+
+        usort($snippets, fn (array $a, array $b): int => strcmp((string) ($b['at'] ?? ''), (string) ($a['at'] ?? '')));
+
+        return array_slice($snippets, 0, 6);
     }
 
     /**

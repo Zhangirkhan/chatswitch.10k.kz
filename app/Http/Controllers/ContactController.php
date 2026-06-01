@@ -7,11 +7,16 @@ namespace App\Http\Controllers;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
+use App\Models\User;
+use App\Services\AI\AiWorkspaceClientSummaryService;
+use App\Services\Contact\ClientProfileAiService;
+use App\Services\Contact\ClientProfileAssembler;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
 use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -24,11 +29,28 @@ final class ContactController extends Controller
     public function __construct(
         private readonly ContactCardAssembler $contactCardAssembler,
         private readonly ContactBucketResolver $contactBucketResolver,
+        private readonly ClientProfileAssembler $clientProfileAssembler,
+        private readonly ClientProfileAiService $clientProfileAiService,
     ) {}
-    public function settingsIndex(Request $request): Response
+
+    public function settingsIndex(Request $request): RedirectResponse
     {
+        return redirect()->route('clients.index', $this->clientsRedirectParams($request));
+    }
+
+    public function clientsIndex(Request $request): Response
+    {
+        $user = $request->user();
+        abort_unless($user, 403);
+
         $search = trim((string) $request->input('search', ''));
-        $activeTab = 'clients';
+        $activeTab = in_array($request->input('tab'), ['clients', 'companies'], true)
+            ? (string) $request->input('tab')
+            : 'clients';
+        if ($activeTab === 'companies' && ! $user->hasRole('administrator')) {
+            $activeTab = 'clients';
+        }
+
         $clientsPage = max(1, (int) $request->input('clients_page', 1));
         $companiesPage = max(1, (int) $request->input('companies_page', 1));
         $clientsPerPage = 20;
@@ -56,7 +78,10 @@ final class ContactController extends Controller
                 'companies:id,name',
                 'chats' => fn ($q) => $q
                     ->where('is_group', false)
-                    ->with('whatsappSession:id,display_name,phone_number')
+                    ->with([
+                        'whatsappSession:id,display_name,phone_number',
+                        'funnelStage:id,name,color',
+                    ])
                     ->orderByDesc('last_message_at')
                     ->orderByDesc('id'),
             ])
@@ -69,74 +94,152 @@ final class ContactController extends Controller
                 'profile_picture_url',
             ]);
 
-        $companiesQuery = Company::query()
-            ->whereKey(TenantCompany::id())
-            ->with(['contacts:id,name,push_name,phone_number'])
-            ->withCount('contacts')
-            ->orderBy('name');
+        $companiesPaginator = null;
+        $companyOptions = collect();
 
-        if ($search !== '') {
-            $companiesQuery->where(function ($q) use ($search): void {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('website', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('contacts', function ($contactQuery) use ($search): void {
-                        $contactQuery
-                            ->where('name', 'like', "%{$search}%")
-                            ->orWhere('push_name', 'like', "%{$search}%")
-                            ->orWhere('phone_number', 'like', "%{$search}%");
-                    });
-            });
-        }
+        if ($user->hasRole('administrator')) {
+            $companiesQuery = Company::query()
+                ->whereKey(TenantCompany::id())
+                ->with(['contacts:id,name,push_name,phone_number'])
+                ->withCount('contacts')
+                ->orderBy('name');
 
-        $companiesPaginator = $companiesQuery->paginate(
-            perPage: $companiesPerPage,
-            columns: ['*'],
-            pageName: 'companies_page',
-            page: $companiesPage,
-        )->through(fn (Company $company) => [
-            'id' => $company->id,
-            'name' => $company->name,
-            'phone' => $company->phone,
-            'email' => $company->email,
-            'website' => $company->website,
-            'description' => $company->description,
-            'clients_count' => (int) ($company->contacts_count ?? $company->contacts->count()),
-            'clients' => $company->contacts
-                ->map(fn (Contact $contact) => [
-                    'id' => $contact->id,
-                    'name' => $contact->name ?: $contact->push_name ?: $contact->phone_number ?: 'Без имени',
-                    'phone_number' => $contact->phone_number,
-                    'position' => $contact->pivot?->position,
-                ])
-                ->values()
-                ->all(),
-        ]);
+            if ($search !== '') {
+                $companiesQuery->where(function ($q) use ($search): void {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('website', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('contacts', function ($contactQuery) use ($search): void {
+                            $contactQuery
+                                ->where('name', 'like', "%{$search}%")
+                                ->orWhere('push_name', 'like', "%{$search}%")
+                                ->orWhere('phone_number', 'like', "%{$search}%");
+                        });
+                });
+            }
 
-        $companyOptions = Company::query()
-            ->whereKey(TenantCompany::id())
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Company $company) => [
+            $companiesPaginator = $companiesQuery->paginate(
+                perPage: $companiesPerPage,
+                columns: ['*'],
+                pageName: 'companies_page',
+                page: $companiesPage,
+            )->through(fn (Company $company) => [
                 'id' => $company->id,
                 'name' => $company->name,
-            ])
-            ->values();
+                'phone' => $company->phone,
+                'email' => $company->email,
+                'website' => $company->website,
+                'description' => $company->description,
+                'clients_count' => (int) ($company->contacts_count ?? $company->contacts->count()),
+                'clients' => $company->contacts
+                    ->map(fn (Contact $contact) => [
+                        'id' => $contact->id,
+                        'name' => $contact->name ?: $contact->push_name ?: $contact->phone_number ?: 'Без имени',
+                        'phone_number' => $contact->phone_number,
+                        'position' => $contact->pivot?->position,
+                    ])
+                    ->values()
+                    ->all(),
+            ]);
 
-        $clients = $contacts
+            $companyOptions = Company::query()
+                ->whereKey(TenantCompany::id())
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Company $company) => [
+                    'id' => $company->id,
+                    'name' => $company->name,
+                ])
+                ->values();
+        }
+
+        $clients = $this->buildClientsList($user, $contacts);
+
+        $clientsPaginator = $this->paginateCollection($clients, $clientsPage, $clientsPerPage, 'clients_page');
+
+        return Inertia::render('Clients/Index', [
+            'search' => $search,
+            'activeTab' => $activeTab,
+            'clients' => $this->paginationPayload($clientsPaginator),
+            'companies' => $companiesPaginator !== null
+                ? $this->paginationPayload($companiesPaginator)
+                : $this->emptyPagination(),
+            'companyOptions' => $companyOptions,
+            'canManageCompanies' => $user->hasRole('administrator'),
+        ]);
+    }
+
+    public function clientProfile(Request $request, Contact $contact): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user, 403);
+        $this->authorize('view', $contact);
+
+        $preferredChatId = $request->filled('chat_id') ? $request->integer('chat_id') : null;
+        $profile = $this->clientProfileAssembler->build($user, $contact, $preferredChatId);
+        $profile = $this->clientProfileAiService->enrich($user, $contact, $profile, $preferredChatId);
+
+        return response()->json(['profile' => $profile]);
+    }
+
+    public function clientSummary(Request $request, Contact $contact, AiWorkspaceClientSummaryService $summary): JsonResponse
+    {
+        $this->authorize('view', $contact);
+
+        $preferredChatId = $request->filled('chat_id') ? $request->integer('chat_id') : null;
+        $payload = $summary->build($request->user(), $contact, $preferredChatId);
+
+        return response()->json([
+            'client_summary' => $payload,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function clientsRedirectParams(Request $request): array
+    {
+        $params = [];
+        if ($request->input('tab') === 'companies') {
+            $params['tab'] = 'companies';
+        }
+        if ($request->filled('search')) {
+            $params['search'] = $request->string('search')->toString();
+        }
+        foreach (['clients_page', 'companies_page'] as $key) {
+            if ($request->filled($key)) {
+                $params[$key] = $request->input($key);
+            }
+        }
+
+        return $params;
+    }
+
+    /**
+     * @param  Collection<int, Contact>  $contacts
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function buildClientsList(User $user, Collection $contacts): Collection
+    {
+        return $contacts
             ->groupBy(function (Contact $c) {
                 $digits = $this->contactBucketResolver->normalizedDigits((string) ($c->phone_number ?: $c->whatsapp_id ?: ''));
 
                 return $digits !== '' ? "phone:{$digits}" : "contact:{$c->id}";
             })
-            ->map(function ($bucket, string $groupKey) {
+            ->map(function ($bucket, string $groupKey) use ($user) {
                 /** @var Contact $primary */
                 $primary = $bucket->first();
                 $allChats = $bucket
                     ->flatMap(fn (Contact $c) => $c->chats)
+                    ->filter(fn (Chat $chat): bool => $user->can('view', $chat))
                     ->sortByDesc(fn (Chat $chat) => (string) ($chat->last_message_at ?? $chat->updated_at ?? ''));
+
+                if ($allChats->isEmpty()) {
+                    return null;
+                }
 
                 $latestChat = $allChats->first();
                 $savedName = $bucket
@@ -159,8 +262,6 @@ final class ContactController extends Controller
                             'last_message_at' => $chat->last_message_at?->toISOString(),
                         ];
                     })
-                    // Show only one “channel” per WA session number (even if there are multiple chats
-                    // for the same client inside the same WA session due to duplicated WA ids).
                     ->groupBy(fn (array $row) => (string) ($row['session_id'] ?? ''))
                     ->map(fn ($rows) => $rows->first())
                     ->values();
@@ -180,6 +281,8 @@ final class ContactController extends Controller
                     $phoneDigits = str_replace('phone:', '', $groupKey);
                 }
 
+                $stage = $latestChat?->funnelStage;
+
                 return [
                     'id' => $primary->id,
                     'whatsapp_id' => $primary->whatsapp_id,
@@ -187,26 +290,38 @@ final class ContactController extends Controller
                     'name' => $savedName !== null ? $savedName : null,
                     'push_name' => $pushName !== null ? $pushName : null,
                     'profile_picture_url' => $primary->profile_picture_url,
-                    // channels[] already grouped by WA session number; use the same unique basis for count.
                     'chats_count' => $channels->count(),
                     'last_chat_name' => $latestChat?->chat_name,
                     'last_chat_at' => $latestChat?->last_message_at?->toISOString(),
+                    'primary_chat_id' => $latestChat?->id,
+                    'unread_count' => (int) $allChats->sum(fn (Chat $chat): int => (int) $chat->unread_count),
+                    'stage' => $stage !== null ? [
+                        'name' => $stage->name,
+                        'color' => $stage->color,
+                    ] : null,
                     'channels' => $channels,
                     'companies' => $clientCompanies,
                 ];
             })
+            ->filter()
             ->sortByDesc(fn (array $client) => (string) ($client['last_chat_at'] ?? ''))
             ->values();
+    }
 
-        $clientsPaginator = $this->paginateCollection($clients, $clientsPage, $clientsPerPage, 'clients_page');
-
-        return Inertia::render('Settings/Clients', [
-            'search' => $search,
-            'activeTab' => $activeTab,
-            'clients' => $this->paginationPayload($clientsPaginator),
-            'companies' => $this->paginationPayload($companiesPaginator),
-            'companyOptions' => $companyOptions,
-        ]);
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyPagination(): array
+    {
+        return [
+            'data' => [],
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => 12,
+            'total' => 0,
+            'from' => null,
+            'to' => null,
+        ];
     }
 
     /**
@@ -244,35 +359,9 @@ final class ContactController extends Controller
         ];
     }
 
-    public function index(Request $request): Response
+    public function index(Request $request): RedirectResponse
     {
-        $search = trim((string) $request->input('search', ''));
-
-        $query = Contact::query()->orderByRaw('COALESCE(name, push_name, phone_number) asc');
-
-        if ($search !== '') {
-            $digits = preg_replace('/\D/', '', $search);
-            $query->where(function ($q) use ($search, $digits) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('push_name', 'like', "%{$search}%")
-                    ->orWhere('phone_number', 'like', "%{$search}%");
-                if (is_string($digits) && $digits !== '') {
-                    $q->orWhere('whatsapp_id', 'like', "%{$digits}%");
-                }
-            });
-        }
-
-        return Inertia::render('Contacts/Index', [
-            'search' => $search,
-            'contacts' => $query->limit(500)->get([
-                'id',
-                'whatsapp_id',
-                'phone_number',
-                'name',
-                'push_name',
-                'profile_picture_url',
-            ]),
-        ]);
+        return redirect()->route('clients.index', $this->clientsRedirectParams($request));
     }
 
     public function card(Request $request, Contact $contact): JsonResponse
