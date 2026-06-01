@@ -11,6 +11,7 @@ use App\Models\ChatFunnelTransition;
 use App\Models\User;
 use App\Services\AI\ChatFunnelClassification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class ChatFunnelStateService
 {
@@ -21,6 +22,18 @@ final class ChatFunnelStateService
 
     public function applyFromAi(Chat $chat, ChatFunnelClassification $classification, int $triggerMessageId): void
     {
+        $catalog = $this->catalogBuilder->forChat($chat);
+        if (! $this->catalogBuilder->isPairInCatalog($catalog, $classification->funnelId, $classification->funnelStageId)) {
+            Log::warning('[funnel-ai] rejected cross-tenant or invalid funnel assignment', [
+                'chat_id' => $chat->id,
+                'company_id' => $chat->company_id,
+                'funnel_id' => $classification->funnelId,
+                'funnel_stage_id' => $classification->funnelStageId,
+            ]);
+
+            return;
+        }
+
         $fromFunnelId = $chat->funnel_id;
         $fromStageId = $chat->funnel_stage_id;
 
