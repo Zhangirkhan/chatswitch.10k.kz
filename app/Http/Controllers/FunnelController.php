@@ -649,7 +649,10 @@ final class FunnelController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => $this->safeAiErrorMessage($e->getMessage()),
+            'message' => \App\Support\AiSafeErrorMessage::forUser(
+                $e->getMessage(),
+                $request->user()?->hasRole('administrator') === true,
+            ),
         ], 422);
     }
 
@@ -664,17 +667,6 @@ final class FunnelController extends Controller
             'success' => false,
             'message' => 'Не удалось получить ответ AI. Попробуйте ещё раз.',
         ], 500);
-    }
-
-    private function safeAiErrorMessage(string $error): string
-    {
-        $lower = mb_strtolower($error);
-
-        if (str_contains($lower, 'openai') || str_contains($lower, 'api') || str_contains($lower, 'timeout')) {
-            return 'AI-сервис временно недоступен. Попробуйте ещё раз позже.';
-        }
-
-        return $error !== '' ? $error : 'AI временно недоступен. Попробуйте ещё раз.';
     }
 
     /**

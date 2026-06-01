@@ -44,6 +44,7 @@ use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
+use App\Support\AiSafeErrorMessage;
 use App\Support\ChatUrl;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
@@ -412,7 +413,7 @@ final class ChatController extends Controller
             'mode' => $log->mode,
             'status' => $status,
             'label' => $this->aiStatusLabel($status),
-            'message' => $this->aiStatusMessage($status, $error),
+            'message' => $this->aiStatusMessage($status, $error, $isAdministrator),
             'hint' => $this->aiStatusHint($status),
             'knowledge_context' => $this->aiKnowledgeContextCounts($chat, $viewer),
             'tone_source' => $this->aiToneSource($chat, $viewer),
@@ -428,7 +429,7 @@ final class ChatController extends Controller
                     'mode' => $item->mode,
                     'status' => (string) $item->status,
                     'label' => $this->aiStatusLabel((string) $item->status),
-                    'message' => $this->aiStatusMessage((string) $item->status, is_string($item->error) ? $item->error : null),
+                    'message' => $this->aiStatusMessage((string) $item->status, is_string($item->error) ? $item->error : null, $isAdministrator),
                     'technical_error' => $isAdministrator && is_string($item->error) ? $item->error : null,
                     'message_id' => $item->message_id,
                     'trigger_message_id' => $item->trigger_message_id,
@@ -595,7 +596,7 @@ final class ChatController extends Controller
         };
     }
 
-    private function aiStatusMessage(string $status, ?string $error): string
+    private function aiStatusMessage(string $status, ?string $error, bool $isAdministrator = false): string
     {
         return match ($status) {
             'pending' => 'AI получил задачу и скоро начнёт готовить ответ.',
@@ -603,7 +604,7 @@ final class ChatController extends Controller
             'drafted' => 'AI подготовил черновик ответа. Проверьте его и отправьте вручную, если он подходит.',
             'sent' => 'Последний автоответ AI успешно отправлен клиенту.',
             'blocked' => 'AI подготовил ответ, но он был остановлен проверкой безопасности.',
-            'failed' => $this->safeAiErrorMessage($error),
+            'failed' => AiSafeErrorMessage::forUser($error, $isAdministrator),
             default => 'AI обновил статус обработки.',
         };
     }
@@ -618,29 +619,6 @@ final class ChatController extends Controller
             'failed' => 'Ответьте вручную и передайте ошибку администратору, если она повторяется.',
             default => null,
         };
-    }
-
-    private function safeAiErrorMessage(?string $error): string
-    {
-        $error = trim((string) $error);
-        if ($error === '') {
-            return 'AI не смог подготовить ответ. Попробуйте ещё раз или ответьте вручную.';
-        }
-
-        $lower = mb_strtolower($error);
-        if (str_contains($lower, 'sqlstate') || str_contains($lower, 'base table') || str_contains($lower, 'table')) {
-            return 'AI временно недоступен. Администратору нужно проверить настройки базы данных и миграции.';
-        }
-
-        if (str_contains($lower, 'openai') || str_contains($lower, 'api') || str_contains($lower, 'timeout')) {
-            return 'AI-сервис временно недоступен. Попробуйте ещё раз позже или ответьте вручную.';
-        }
-
-        if (str_contains($lower, 'safety')) {
-            return 'AI остановил ответ из-за проверки безопасности. Ответьте клиенту вручную.';
-        }
-
-        return 'AI не смог подготовить ответ. Попробуйте ещё раз или ответьте вручную.';
     }
 
     /**

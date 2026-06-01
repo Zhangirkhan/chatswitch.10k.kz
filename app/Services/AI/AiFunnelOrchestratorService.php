@@ -11,7 +11,9 @@ use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
+use App\Jobs\GenerateAiReplyJob;
 use App\Models\Message;
+use App\Support\AiSafeErrorMessage;
 use App\Models\Product;
 use App\Models\Service;
 use App\Models\User;
@@ -204,6 +206,11 @@ final class AiFunnelOrchestratorService
                 'trigger_message_id' => $trigger->id,
                 'error' => $e->getMessage(),
             ]);
+
+            if ($chat->ai_enabled
+                && ! AiSafeErrorMessage::isQuotaExceeded(mb_strtolower($e->getMessage()))) {
+                GenerateAiReplyJob::dispatch($chat->id, $trigger->id, $chat->company_id);
+            }
 
             throw $e;
         }
