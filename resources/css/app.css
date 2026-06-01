@@ -222,10 +222,16 @@
     --ui-icon: var(--wa-icon);
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
-    --ui-accent-btn-border: var(--ui-accent);
-    --ui-accent-btn-border-hover: var(--ui-accent-hover);
-    --ui-accent-btn-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.24);
-    --ui-accent-btn-shadow-hover: 0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    --ui-accent-btn-rim-inset-bottom: color-mix(in srgb, #000 14%, var(--ui-accent));
+    --ui-accent-btn-rim-outer: rgba(0, 0, 0, 0.24);
+    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
+    --ui-accent-btn-shadow:
+        inset 0 -1px 0 0 var(--ui-accent-btn-rim-inset-bottom),
+        0 1px 1px 0 var(--ui-accent-btn-rim-outer);
+    --ui-accent-btn-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #000 12%, var(--ui-accent-hover)),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
     --ui-surface-hover: var(--wa-panel-hover);
     --ui-selected: var(--wa-selected);
     --ui-shadow-card: 0 18px 48px rgba(0, 0, 0, 0.34);
@@ -430,10 +436,16 @@
     --ui-icon: var(--wa-icon);
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
-    --ui-accent-btn-border: var(--ui-accent);
-    --ui-accent-btn-border-hover: var(--ui-accent-hover);
-    --ui-accent-btn-shadow: 0 1px 1px 0 var(--wa-control-rim-outer);
-    --ui-accent-btn-shadow-hover: 0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --ui-accent-btn-rim-inset-bottom: color-mix(in srgb, #111b21 10%, var(--ui-accent));
+    --ui-accent-btn-rim-outer: var(--wa-control-rim-outer);
+    --ui-accent-btn-border: color-mix(in srgb, #006b47 30%, var(--ui-accent) 70%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, #006b47 26%, var(--ui-accent-hover) 74%);
+    --ui-accent-btn-shadow:
+        inset 0 -1px 0 0 var(--ui-accent-btn-rim-inset-bottom),
+        0 1px 1px 0 var(--ui-accent-btn-rim-outer);
+    --ui-accent-btn-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #111b21 7%, var(--ui-accent-hover)),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
     --ui-surface-hover: var(--wa-panel-hover);
     --ui-selected: var(--wa-selected);
     --ui-shadow-card: 0 18px 48px rgba(17, 27, 33, 0.1);
@@ -448,6 +460,10 @@
 .wa-control-rim:hover:not(:disabled) {
     border-color: var(--wa-control-rim-hover);
     box-shadow: var(--wa-control-rim-shadow-hover);
+}
+
+[data-theme='light'] .ui-btn--primary:hover:not(:disabled) {
+    filter: none;
 }
 
 body {

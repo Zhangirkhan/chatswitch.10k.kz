@@ -760,14 +760,15 @@
     .ui-btn--primary {
         color: var(--ui-accent-on);
         background: var(--ui-accent);
-        border: 1px solid var(--ui-accent-btn-border, var(--ui-accent));
-        box-shadow: var(--ui-accent-btn-shadow, none);
+        border: 1px solid var(--ui-accent-btn-border, color-mix(in srgb, var(--ui-accent) 72%, #000 28%));
+        box-shadow: var(--ui-accent-btn-shadow, var(--wa-control-rim-shadow));
     }
 
     .ui-btn--primary:hover:not(:disabled) {
         background: var(--ui-accent-hover);
-        border-color: var(--ui-accent-btn-border-hover, var(--ui-accent-hover));
-        box-shadow: var(--ui-accent-btn-shadow-hover, none);
+        border-color: var(--ui-accent-btn-border-hover, color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%));
+        box-shadow: var(--ui-accent-btn-shadow-hover, var(--wa-control-rim-shadow-hover));
+        filter: brightness(1.03);
     }
 
     .ui-btn--secondary {

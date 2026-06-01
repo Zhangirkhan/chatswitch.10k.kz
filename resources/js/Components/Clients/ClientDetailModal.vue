@@ -257,7 +257,8 @@ function clearCustomField(field: ClientProfileField): void {
                         />
                         <button
                             type="button"
-                            class="ui-btn ui-btn--primary ui-btn--sm"
+                            class="rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                             :disabled="saving"
                             @click="saveName"
                         >
@@ -266,11 +267,12 @@ function clearCustomField(field: ClientProfileField): void {
                         <Link
                             v-if="chatUrl"
                             :href="chatUrl"
-                            class="ui-btn ui-btn--secondary ui-btn--sm"
+                            class="rounded-lg px-3 py-2 text-sm"
+                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
                         >
                             Открыть чат
                         </Link>
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="emit('close')">
+                        <button type="button" class="rounded-lg px-3 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }" @click="emit('close')">
                             Закрыть
                         </button>
                     </footer>
