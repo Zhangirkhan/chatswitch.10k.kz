@@ -16,6 +16,7 @@ export default defineConfig({
                 'resources/js/app.ts',
                 'resources/js/Pages/AiChat/Index.vue',
                 'resources/js/Pages/Landing/Home.vue',
+                'resources/js/Pages/Landing/Calculator.vue',
             ],
             refresh: true,
         }),

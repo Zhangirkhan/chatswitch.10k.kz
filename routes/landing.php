@@ -6,6 +6,7 @@ use App\Http\Controllers\LandingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'home'])->name('landing.home');
+Route::get('/calculator', [LandingController::class, 'calculator'])->name('landing.calculator');
 Route::get('/check-tenant-slug', [LandingController::class, 'checkTenantSlug'])
     ->middleware('throttle:60,1')
     ->name('landing.check-tenant-slug');

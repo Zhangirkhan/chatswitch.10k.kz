@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\TenantSignupRequest;
+use App\Services\Marketing\AiTokenCalculatorService;
 use App\Services\Tenancy\TenantSlugAvailabilityService;
 use App\Support\PhoneFormatter;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,14 @@ final class LandingController extends Controller
     {
         return Inertia::render('Landing/Home', [
             'rootDomain' => (string) config('tenancy.root_domain', 'accel.kz'),
+        ]);
+    }
+
+    public function calculator(AiTokenCalculatorService $calculator): Response
+    {
+        return Inertia::render('Landing/Calculator', [
+            'rootDomain' => (string) config('tenancy.root_domain', 'accel.kz'),
+            'calculator' => $calculator->payloadForFrontend(),
         ]);
     }
 
