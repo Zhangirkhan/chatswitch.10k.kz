@@ -29,8 +29,12 @@ final class User extends Authenticatable
         'password',
         'pin_hash',
         'department_id',
-        'company_id',
         'is_active',
+    ];
+
+    protected $guarded = [
+        'id',
+        'company_id',
         'is_super_admin',
     ];
 

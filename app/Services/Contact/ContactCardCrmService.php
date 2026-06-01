@@ -11,6 +11,7 @@ use App\Models\Contact;
 use App\Models\DepartmentPost;
 use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\FunnelProgressCalculator;
+use App\Support\ChatUrl;
 use Illuminate\Support\Collection;
 
 final class ContactCardCrmService
@@ -92,7 +93,7 @@ final class ContactCardCrmService
         return [
             'chat_id' => $chat->id,
             'chat_name' => $chat->chat_name,
-            'open_url' => route('chats.show', $chat->id),
+            'open_url' => ChatUrl::show($chat),
             'funnel' => $chat->funnel ? [
                 'id' => $chat->funnel->id,
                 'name' => $chat->funnel->name,
@@ -201,7 +202,7 @@ final class ContactCardCrmService
                 'assignee' => $event->assignee?->name,
                 'source' => $event->source,
                 'chat_id' => $event->chat_id,
-                'open_url' => $event->chat_id ? route('chats.show', $event->chat_id) : null,
+                'open_url' => $event->chat_id ? ChatUrl::show((int) $event->chat_id) : null,
             ])
             ->values()
             ->all();

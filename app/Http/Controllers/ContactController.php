@@ -10,6 +10,7 @@ use App\Models\Contact;
 use App\Models\Message;
 use App\Models\MessageMedia;
 use App\Services\Contact\ContactCardCrmService;
+use App\Support\ChatUrl;
 use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
@@ -283,6 +284,7 @@ final class ContactController extends Controller
     {
         $user = $request->user();
         abort_unless($user, 403);
+        $this->authorize('view', $contact);
 
         $contactIds = $this->contactBucketIds($contact);
 
@@ -430,7 +432,7 @@ final class ContactController extends Controller
                     'last_message_at' => $chat->last_message_at?->toIso8601String(),
                     'unread_count' => $chat->unread_count,
                     'is_archived' => (bool) $chat->is_archived,
-                    'open_url' => route('chats.show', $chat->id),
+                    'open_url' => ChatUrl::show($chat),
                 ];
             })->all(),
             'crm' => app(ContactCardCrmService::class)->build($chats, $contactIds, $preferredChatId ?: null),

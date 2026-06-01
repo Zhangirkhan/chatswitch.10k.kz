@@ -10,6 +10,11 @@ use App\Models\User;
 
 final class ContactPolicy
 {
+    public function view(User $user, Contact $contact): bool
+    {
+        return $this->hasVisibleChat($user, $contact);
+    }
+
     public function update(User $user, Contact $contact): bool
     {
         return $this->hasVisibleChat($user, $contact);
