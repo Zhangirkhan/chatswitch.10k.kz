@@ -1390,7 +1390,9 @@ onBeforeUnmount(() => {
             ]"
             :style="{
                 background: isOutbound ? 'var(--wa-bubble-out)' : 'var(--wa-bubble-in)',
-                color: 'var(--wa-bubble-text)',
+                color: isOutbound
+                    ? 'var(--wa-bubble-text-out, var(--wa-bubble-text))'
+                    : 'var(--wa-bubble-text-in, var(--wa-bubble-text))',
             }"
             @mouseenter="hovered = true"
             @mouseleave="hovered = false"
@@ -1500,11 +1502,14 @@ onBeforeUnmount(() => {
                 v-if="hasQuoted"
                 type="button"
                 class="mb-1 w-full text-left rounded-md px-2 py-1 border-l-4"
-                :style="{ background: 'var(--wa-bubble-quote-bg, rgba(0,0,0,0.06))', borderColor: 'var(--wa-accent)' }"
+                :style="{
+                    background: isOutbound ? 'var(--wa-bubble-quote-bg-out)' : 'var(--wa-bubble-quote-bg-in)',
+                    borderColor: 'var(--wa-message-accent, var(--wa-accent))',
+                }"
                 @click.stop="jumpToQuoted"
                 title="Перейти к сообщению"
             >
-                <div class="text-[12px] font-medium truncate" :style="{ color: 'var(--wa-accent)' }">
+                <div class="text-[12px] font-medium truncate" :style="{ color: 'var(--wa-message-accent, var(--wa-accent))' }">
                     {{ quotedAuthor }}
                 </div>
                 <div class="text-[12px] truncate" :style="{ color: 'var(--wa-text-secondary)' }">

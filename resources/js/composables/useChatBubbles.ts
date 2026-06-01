@@ -1,21 +1,21 @@
 import { ref, watch } from 'vue';
 import { useTheme } from './useTheme';
 import {
-    applyBubblePreset,
-    bubblePresets,
-    findBubblePreset,
-    getStoredBubblePresetId,
-    storeBubblePresetId,
-    type BubblePreset,
+    applyMessageStyle,
+    findMessageStyle,
+    getStoredMessageStyleId,
+    messageStylePresets,
+    storeMessageStyleId,
+    type MessageStylePreset,
 } from '@/config/chatBubbles';
 
-const currentBubblePresetId = ref<string>(getStoredBubblePresetId());
+const currentMessageStyleId = ref<string>(getStoredMessageStyleId());
 
 let initialized = false;
 
 export function initChatBubbles(): void {
     const { theme } = useTheme();
-    applyBubblePreset(findBubblePreset(currentBubblePresetId.value), theme.value);
+    applyMessageStyle(findMessageStyle(currentMessageStyleId.value), theme.value);
 
     if (initialized) {
         return;
@@ -24,27 +24,40 @@ export function initChatBubbles(): void {
     initialized = true;
 
     watch(theme, (value) => {
-        applyBubblePreset(findBubblePreset(currentBubblePresetId.value), value);
+        applyMessageStyle(findMessageStyle(currentMessageStyleId.value), value);
     });
 
-    watch(currentBubblePresetId, (id) => {
-        applyBubblePreset(findBubblePreset(id), theme.value);
-        storeBubblePresetId(id);
+    watch(currentMessageStyleId, (id) => {
+        applyMessageStyle(findMessageStyle(id), theme.value);
+        storeMessageStyleId(id);
     });
 }
 
-export function useChatBubbles() {
+export function useChatMessageStyle() {
     const { theme } = useTheme();
 
     return {
         theme,
-        presets: bubblePresets,
-        currentBubblePresetId,
-        setBubblePreset(id: string) {
-            currentBubblePresetId.value = id;
+        presets: messageStylePresets,
+        currentMessageStyleId,
+        setMessageStyle(id: string) {
+            currentMessageStyleId.value = id;
         },
-        getCurrent(): BubblePreset {
-            return findBubblePreset(currentBubblePresetId.value);
+        getCurrent(): MessageStylePreset {
+            return findMessageStyle(currentMessageStyleId.value);
         },
+    };
+}
+
+/** @deprecated — используйте useChatMessageStyle */
+export function useChatBubbles() {
+    const style = useChatMessageStyle();
+
+    return {
+        theme: style.theme,
+        presets: style.presets,
+        currentBubblePresetId: style.currentMessageStyleId,
+        setBubblePreset: style.setMessageStyle,
+        getCurrent: style.getCurrent,
     };
 }

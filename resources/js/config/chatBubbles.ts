@@ -1,120 +1,225 @@
 import type { Theme } from '@/composables/useTheme';
 
-export type BubbleColors = {
+/** Цвета ленты сообщений: входящие / исходящие, текст, акцент (цитаты, ссылки). */
+export type MessageStyleColors = {
     in: string;
     out: string;
-    text: string;
+    textIn: string;
+    textOut: string;
+    accent: string;
     tailShadow: string;
 };
 
-export interface BubblePreset {
+export interface MessageStylePreset {
     id: string;
     label: string;
     description: string;
-    light: BubbleColors;
-    dark: BubbleColors;
+    light: MessageStyleColors;
+    dark: MessageStyleColors;
 }
 
-/** «По умолчанию» — цвета из [data-theme] в app.css (без override). */
-export const DEFAULT_BUBBLE_PRESET_ID = 'default';
+/** @deprecated alias */
+export type BubbleColors = MessageStyleColors;
+/** @deprecated alias */
+export type BubblePreset = MessageStylePreset;
 
-export const bubblePresets: BubblePreset[] = [
+export const DEFAULT_MESSAGE_STYLE_ID = 'whatsapp';
+
+/** @deprecated */
+export const DEFAULT_BUBBLE_PRESET_ID = DEFAULT_MESSAGE_STYLE_ID;
+
+export const messageStylePresets: MessageStylePreset[] = [
     {
-        id: DEFAULT_BUBBLE_PRESET_ID,
-        label: 'По умолчанию',
-        description: 'Как в WhatsApp: светлые исходящие в светлой теме',
+        id: 'whatsapp',
+        label: 'Зелёный',
+        description: 'Классика WhatsApp — светлые исходящие',
         light: {
             in: '#FFFFFF',
             out: '#D9FDD3',
-            text: '#111B21',
+            textIn: '#111B21',
+            textOut: '#111B21',
+            accent: '#008069',
             tailShadow: 'rgba(11, 20, 26, 0.08)',
         },
         dark: {
             in: '#202C33',
             out: '#005C4B',
-            text: '#E9EDEF',
+            textIn: '#E9EDEF',
+            textOut: '#E9EDEF',
+            accent: '#01B964',
             tailShadow: 'rgba(0, 0, 0, 0.26)',
         },
     },
     {
-        id: 'brand',
-        label: 'Брендовый',
-        description: 'Больше фирменного зелёного в исходящих',
+        id: 'blue',
+        label: 'Синий',
+        description: 'Голубые исходящие, как в Telegram',
         light: {
             in: '#FFFFFF',
-            out: 'color-mix(in srgb, var(--brand-accent) 28%, #D9FDD3 72%)',
-            text: '#111B21',
-            tailShadow: 'rgba(11, 20, 26, 0.1)',
+            out: '#D6EAFF',
+            textIn: '#111B21',
+            textOut: '#0B3D91',
+            accent: '#0088CC',
+            tailShadow: 'rgba(11, 60, 120, 0.1)',
         },
         dark: {
-            in: '#1F2C34',
-            out: 'color-mix(in srgb, var(--brand-accent) 55%, #003B32 45%)',
-            text: '#E9EDEF',
+            in: '#2A3038',
+            out: '#1A5FA8',
+            textIn: '#E9EDEF',
+            textOut: '#FFFFFF',
+            accent: '#5EB3F6',
             tailShadow: 'rgba(0, 0, 0, 0.28)',
         },
     },
     {
-        id: 'soft',
-        label: 'Мягкий',
-        description: 'Пастельные пузыри, меньше контраста',
+        id: 'graphite',
+        label: 'Графит',
+        description: 'Тёмные исходящие, нейтральные входящие',
         light: {
             in: '#FFFFFF',
-            out: '#E8F5E3',
-            text: '#111B21',
-            tailShadow: 'rgba(11, 20, 26, 0.06)',
+            out: '#1F2937',
+            textIn: '#111B21',
+            textOut: '#F9FAFB',
+            accent: '#4B5563',
+            tailShadow: 'rgba(15, 23, 42, 0.2)',
         },
         dark: {
-            in: '#2A3942',
-            out: '#1A4D42',
-            text: '#E9EDEF',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            in: '#374151',
+            out: '#111827',
+            textIn: '#F3F4F6',
+            textOut: '#F9FAFB',
+            accent: '#9CA3AF',
+            tailShadow: 'rgba(0, 0, 0, 0.32)',
         },
     },
     {
-        id: 'contrast',
-        label: 'Контраст',
-        description: 'Ярче исходящие, чётче входящие',
+        id: 'purple',
+        label: 'Фиолетовый',
+        description: 'Лавандовые исходящие',
         light: {
             in: '#FFFFFF',
-            out: '#C5F0BC',
-            text: '#0B141A',
-            tailShadow: 'rgba(11, 20, 26, 0.12)',
+            out: '#EDE7F6',
+            textIn: '#111B21',
+            textOut: '#4A148C',
+            accent: '#7C4DFF',
+            tailShadow: 'rgba(74, 20, 140, 0.1)',
         },
         dark: {
-            in: '#233138',
-            out: '#0B6B55',
-            text: '#FFFFFF',
-            tailShadow: 'rgba(0, 0, 0, 0.32)',
+            in: '#2C2A33',
+            out: '#5E35B1',
+            textIn: '#E9EDEF',
+            textOut: '#FFFFFF',
+            accent: '#B388FF',
+            tailShadow: 'rgba(0, 0, 0, 0.28)',
+        },
+    },
+    {
+        id: 'ocean',
+        label: 'Бирюза',
+        description: 'Морские оттенки',
+        light: {
+            in: '#FFFFFF',
+            out: '#D5F5F0',
+            textIn: '#111B21',
+            textOut: '#004D40',
+            accent: '#00897B',
+            tailShadow: 'rgba(0, 77, 64, 0.1)',
+        },
+        dark: {
+            in: '#263238',
+            out: '#00695C',
+            textIn: '#E0F2F1',
+            textOut: '#FFFFFF',
+            accent: '#4DB6AC',
+            tailShadow: 'rgba(0, 0, 0, 0.28)',
+        },
+    },
+    {
+        id: 'coral',
+        label: 'Коралл',
+        description: 'Тёплые персиковые исходящие',
+        light: {
+            in: '#FFFFFF',
+            out: '#FFE8E0',
+            textIn: '#111B21',
+            textOut: '#BF360C',
+            accent: '#E64A19',
+            tailShadow: 'rgba(191, 54, 12, 0.1)',
+        },
+        dark: {
+            in: '#3E2723',
+            out: '#D84315',
+            textIn: '#FFCCBC',
+            textOut: '#FFFFFF',
+            accent: '#FF8A65',
+            tailShadow: 'rgba(0, 0, 0, 0.28)',
         },
     },
 ];
 
-const STORAGE_KEY = 'accel.chat-bubbles';
+/** @deprecated */
+export const bubblePresets = messageStylePresets;
 
-export function getStoredBubblePresetId(): string {
+const STORAGE_KEY = 'accel.message-style';
+const LEGACY_STORAGE_KEY = 'accel.chat-bubbles';
+
+export function getStoredMessageStyleId(): string {
     if (typeof window === 'undefined') {
-        return DEFAULT_BUBBLE_PRESET_ID;
+        return DEFAULT_MESSAGE_STYLE_ID;
     }
 
-    return localStorage.getItem(STORAGE_KEY) || DEFAULT_BUBBLE_PRESET_ID;
+    const stored = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!stored) {
+        return DEFAULT_MESSAGE_STYLE_ID;
+    }
+
+    if (stored === 'default') {
+        return 'whatsapp';
+    }
+
+    if (messageStylePresets.some((p) => p.id === stored)) {
+        return stored;
+    }
+
+    return DEFAULT_MESSAGE_STYLE_ID;
 }
 
-export function storeBubblePresetId(id: string): void {
+/** @deprecated */
+export const getStoredBubblePresetId = getStoredMessageStyleId;
+
+export function storeMessageStyleId(id: string): void {
     if (typeof window === 'undefined') {
         return;
     }
 
     localStorage.setItem(STORAGE_KEY, id);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
 }
 
-export function findBubblePreset(id: string): BubblePreset {
-    return bubblePresets.find((preset) => preset.id === id) ?? bubblePresets[0];
+/** @deprecated */
+export const storeBubblePresetId = storeMessageStyleId;
+
+export function findMessageStyle(id: string): MessageStylePreset {
+    const normalized = id === 'default' ? 'whatsapp' : id;
+
+    return messageStylePresets.find((preset) => preset.id === normalized) ?? messageStylePresets[0];
+}
+
+/** @deprecated */
+export const findBubblePreset = findMessageStyle;
+
+function quoteBg(baseVar: string, theme: Theme, kind: 'in' | 'out'): string {
+    const mix = theme === 'light' ? '#000' : '#fff';
+    const amount = kind === 'in' ? '5%' : '9%';
+
+    return `color-mix(in srgb, ${mix} ${amount}, ${baseVar})`;
 }
 
 /**
- * Пишет CSS-переменные пузырьков на <html>. preset «default» снимает override — работают токены темы.
+ * Пишет CSS-переменные ленты сообщений на <html>.
+ * id «whatsapp» без override — цвета из [data-theme] в app.css.
  */
-export function applyBubblePreset(preset: BubblePreset, theme: Theme): void {
+export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): void {
     if (typeof document === 'undefined') {
         return;
     }
@@ -122,33 +227,42 @@ export function applyBubblePreset(preset: BubblePreset, theme: Theme): void {
     const root = document.documentElement;
     const colors = theme === 'light' ? preset.light : preset.dark;
 
+    root.dataset.messageStyle = preset.id;
     root.dataset.chatBubbles = preset.id;
 
-    if (preset.id === DEFAULT_BUBBLE_PRESET_ID) {
+    if (preset.id === 'whatsapp') {
         root.style.removeProperty('--wa-bubble-in');
         root.style.removeProperty('--wa-bubble-out');
         root.style.removeProperty('--wa-bubble-text');
+        root.style.removeProperty('--wa-bubble-text-in');
+        root.style.removeProperty('--wa-bubble-text-out');
         root.style.removeProperty('--wa-bubble-tail-shadow');
-        root.style.removeProperty('--wa-bubble-quote-bg');
+        root.style.removeProperty('--wa-bubble-quote-bg-in');
+        root.style.removeProperty('--wa-bubble-quote-bg-out');
+        root.style.removeProperty('--wa-message-accent');
 
         return;
     }
 
     root.style.setProperty('--wa-bubble-in', colors.in);
     root.style.setProperty('--wa-bubble-out', colors.out);
-    root.style.setProperty('--wa-bubble-text', colors.text);
+    root.style.setProperty('--wa-bubble-text-in', colors.textIn);
+    root.style.setProperty('--wa-bubble-text-out', colors.textOut);
+    root.style.setProperty('--wa-bubble-text', colors.textIn);
     root.style.setProperty('--wa-bubble-tail-shadow', colors.tailShadow);
-    root.style.setProperty(
-        '--wa-bubble-quote-bg',
-        theme === 'light'
-            ? 'color-mix(in srgb, #000 6%, var(--wa-bubble-in))'
-            : 'color-mix(in srgb, #fff 8%, var(--wa-bubble-in))',
-    );
+    root.style.setProperty('--wa-message-accent', colors.accent);
+    root.style.setProperty('--wa-bubble-quote-bg-in', quoteBg('var(--wa-bubble-in)', theme, 'in'));
+    root.style.setProperty('--wa-bubble-quote-bg-out', quoteBg('var(--wa-bubble-out)', theme, 'out'));
 }
 
-/** Мини-превью для настроек: два пузыря in/out. */
-export function bubblePresetPreview(preset: BubblePreset, theme: Theme): { in: string; out: string } {
+/** @deprecated */
+export const applyBubblePreset = applyMessageStyle;
+
+export function messageStylePreview(preset: MessageStylePreset, theme: Theme): { in: string; out: string } {
     const colors = theme === 'light' ? preset.light : preset.dark;
 
     return { in: colors.in, out: colors.out };
 }
+
+/** @deprecated */
+export const bubblePresetPreview = messageStylePreview;

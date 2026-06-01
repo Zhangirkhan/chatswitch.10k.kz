@@ -3,33 +3,33 @@ import SectionHeader from './SectionHeader.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import { useTheme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
-import { useChatBubbles } from '@/composables/useChatBubbles';
+import { useChatMessageStyle } from '@/composables/useChatBubbles';
 import {
     useTranslationLang,
     TRANSLATION_LANG_OPTIONS,
     type TranslationLang,
 } from '@/composables/useTranslationLang';
 import { wallpaperPreview } from '@/config/wallpapers';
-import { bubblePresetPreview } from '@/config/chatBubbles';
+import { messageStylePreview } from '@/config/chatBubbles';
 import { computed, ref } from 'vue';
 
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
-const { presets: bubblePresets, currentBubblePresetId, setBubblePreset, getCurrent: getCurrentBubbles } = useChatBubbles();
+const { presets: messageStyles, currentMessageStyleId, setMessageStyle, getCurrent: getCurrentMessageStyle } = useChatMessageStyle();
 const { lang: translateLang } = useTranslationLang();
 
 const wallpaperLabel = computed(() => getCurrent().label);
-const bubblePresetLabel = computed(() => getCurrentBubbles().label);
+const messageStyleLabel = computed(() => getCurrentMessageStyle().label);
 const wallpaperPickerOpen = ref(false);
-const bubblePickerOpen = ref(false);
+const messageStylePickerOpen = ref(false);
 const isDarkTheme = computed(() => theme.value === 'dark');
 
 function pickWallpaper(id: string) {
     setWallpaper(id);
 }
 
-function pickBubblePreset(id: string) {
-    setBubblePreset(id);
+function pickMessageStyle(id: string) {
+    setMessageStyle(id);
 }
 
 function previewStyle(id: string): string {
@@ -113,28 +113,28 @@ function isDefaultLang(value: TranslationLang): boolean {
                 </div>
 
                 <div class="chats-settings__field">
-                    <span class="ui-settings-field-label">Пузыри сообщений</span>
+                    <span class="ui-settings-field-label">Стиль сообщений</span>
                     <p class="ui-settings-block-hint !mt-0 !mb-2">
-                        Цвет входящих и исходящих сообщений отдельно от фона чата.
+                        Цвет входящих и исходящих в ленте чата — отдельно от обоев и темы интерфейса.
                     </p>
                     <button
                         type="button"
                         class="ui-settings-pick-card"
-                        @click="bubblePickerOpen = true"
+                        @click="messageStylePickerOpen = true"
                     >
                         <div class="ui-settings-pick-card__preview chats-settings__bubble-preview" aria-hidden="true">
                             <span
                                 class="chats-settings__bubble-sample chats-settings__bubble-sample--in"
-                                :style="{ background: bubblePresetPreview(getCurrentBubbles(), theme).in }"
+                                :style="{ background: messageStylePreview(getCurrentMessageStyle(), theme).in }"
                             />
                             <span
                                 class="chats-settings__bubble-sample chats-settings__bubble-sample--out"
-                                :style="{ background: bubblePresetPreview(getCurrentBubbles(), theme).out }"
+                                :style="{ background: messageStylePreview(getCurrentMessageStyle(), theme).out }"
                             />
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="text-[15px] text-[var(--wa-text)] truncate">{{ bubblePresetLabel }}</div>
-                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Стиль пузырьков в ленте</div>
+                            <div class="text-[15px] text-[var(--wa-text)] truncate">{{ messageStyleLabel }}</div>
+                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Зелёный, синий, графит и др.</div>
                         </div>
                         <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -232,30 +232,30 @@ function isDefaultLang(value: TranslationLang): boolean {
         </UiModal>
 
         <UiModal
-            :open="bubblePickerOpen"
-            title="Стиль пузырьков"
-            subtitle="Входящие и исходящие — для вашего устройства"
+            :open="messageStylePickerOpen"
+            title="Стиль сообщений"
+            subtitle="Цвета входящих и исходящих в ленте"
             max-width="lg"
             body-class="p-6"
-            @close="bubblePickerOpen = false"
+            @close="messageStylePickerOpen = false"
         >
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
-                    v-for="preset in bubblePresets"
+                    v-for="preset in messageStyles"
                     :key="preset.id"
                     type="button"
                     class="chats-settings__bubble-option group text-left focus:outline-none"
-                    :class="{ 'is-active': currentBubblePresetId === preset.id }"
-                    @click="pickBubblePreset(preset.id)"
+                    :class="{ 'is-active': currentMessageStyleId === preset.id }"
+                    @click="pickMessageStyle(preset.id)"
                 >
                     <div class="chats-settings__bubble-option-preview">
                         <span
                             class="chats-settings__bubble-sample chats-settings__bubble-sample--in"
-                            :style="{ background: bubblePresetPreview(preset, theme).in }"
+                            :style="{ background: messageStylePreview(preset, theme).in }"
                         />
                         <span
                             class="chats-settings__bubble-sample chats-settings__bubble-sample--out"
-                            :style="{ background: bubblePresetPreview(preset, theme).out }"
+                            :style="{ background: messageStylePreview(preset, theme).out }"
                         />
                     </div>
                     <div class="mt-2 font-medium text-sm text-[var(--wa-text)]">{{ preset.label }}</div>
@@ -267,7 +267,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                 <button
                     type="button"
                     class="ui-btn ui-btn--primary"
-                    @click="bubblePickerOpen = false"
+                    @click="messageStylePickerOpen = false"
                 >
                     Готово
                 </button>

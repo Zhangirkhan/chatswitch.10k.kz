@@ -393,7 +393,9 @@ onBeforeUnmount(() => {
             :class="isOutbound ? 'wa-msg-bubble-out' : 'wa-msg-bubble-in'"
             :style="{
                 background: isOutbound ? 'var(--wa-bubble-out)' : 'var(--wa-bubble-in)',
-                color: 'var(--wa-bubble-text)',
+                color: isOutbound
+                    ? 'var(--wa-bubble-text-out, var(--wa-bubble-text))'
+                    : 'var(--wa-bubble-text-in, var(--wa-bubble-text))',
             }"
             @mouseenter="hovered = true"
             @mouseleave="hovered = false"
