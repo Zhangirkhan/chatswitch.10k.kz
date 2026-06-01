@@ -712,11 +712,15 @@ const companyDeleteDescription = computed(() => {
         <teleport to="body">
             <div
                 v-if="openedClient"
-                class="fixed inset-0 z-[450] flex items-center justify-center px-4"
+                class="fixed inset-0 z-[450] overflow-y-auto px-4 py-4 sm:py-8"
                 :style="{ background: 'rgba(0,0,0,.45)' }"
             >
-                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }">
-                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
+                <div class="mx-auto flex min-h-[calc(100%-2rem)] max-w-[520px] items-center justify-center">
+                <div
+                    class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col rounded-2xl border overflow-hidden"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                >
+                    <div class="shrink-0 px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
                         <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">
                             Клиент: {{ displayName(openedClient) }}
                         </div>
@@ -725,7 +729,7 @@ const companyDeleteDescription = computed(() => {
                         </button>
                     </div>
 
-                    <div class="p-5 space-y-4 text-sm">
+                    <div class="min-h-0 flex-1 overflow-y-auto p-5 space-y-4 text-sm">
                         <div>
                             <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Сохранённое имя</div>
                             <input
@@ -891,20 +895,25 @@ const companyDeleteDescription = computed(() => {
                             </div>
                         </div>
 
-                        <div class="flex justify-end gap-2">
-                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeClient">
-                                Закрыть
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-btn ui-btn--primary"
-                                :disabled="saving"
-                                @click="saveClientName"
-                            >
-                                Сохранить
-                            </button>
-                        </div>
                     </div>
+
+                    <div
+                        class="shrink-0 flex justify-end gap-2 border-t px-5 py-4"
+                        :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface)' }"
+                    >
+                        <button type="button" class="ui-btn ui-btn--secondary" @click="closeClient">
+                            Закрыть
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-btn ui-btn--primary"
+                            :disabled="saving"
+                            @click="saveClientName"
+                        >
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
                 </div>
             </div>
         </teleport>
@@ -912,11 +921,15 @@ const companyDeleteDescription = computed(() => {
         <teleport to="body">
             <div
                 v-if="openedCompanyId !== null"
-                class="fixed inset-0 z-[460] flex items-center justify-center px-4"
+                class="fixed inset-0 z-[460] overflow-y-auto px-4 py-4 sm:py-8"
                 :style="{ background: 'rgba(0,0,0,.45)' }"
             >
-                <div class="w-full max-w-[520px] rounded-2xl border overflow-hidden" :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }">
-                    <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
+                <div class="mx-auto flex min-h-[calc(100%-2rem)] max-w-[520px] items-center justify-center">
+                <div
+                    class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col rounded-2xl border overflow-hidden"
+                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                >
+                    <div class="shrink-0 px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
                         <div>
                             <div class="text-sm font-medium" :style="{ color: 'var(--ui-text)' }">
                                 {{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}
@@ -930,7 +943,7 @@ const companyDeleteDescription = computed(() => {
                         </button>
                     </div>
 
-                    <div class="p-5 space-y-4 text-sm">
+                    <div class="min-h-0 flex-1 overflow-y-auto p-5 space-y-4 text-sm">
                         <div>
                             <div class="mb-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Название компании</div>
                             <input
@@ -999,20 +1012,25 @@ const companyDeleteDescription = computed(() => {
                             </div>
                         </div>
 
-                        <div class="flex justify-end gap-2">
-                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">
-                                Закрыть
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-btn ui-btn--primary"
-                                :disabled="companySaving || !companyForm.name.trim()"
-                                @click="saveCompany"
-                            >
-                                Сохранить
-                            </button>
-                        </div>
                     </div>
+
+                    <div
+                        class="shrink-0 flex justify-end gap-2 border-t px-5 py-4"
+                        :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface)' }"
+                    >
+                        <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">
+                            Закрыть
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-btn ui-btn--primary"
+                            :disabled="companySaving || !companyForm.name.trim()"
+                            @click="saveCompany"
+                        >
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
                 </div>
             </div>
         </teleport>
