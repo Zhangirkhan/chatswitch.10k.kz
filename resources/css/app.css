@@ -121,20 +121,20 @@
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 14%, var(--wa-chroma-blend));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 22%, var(--wa-chroma-blend));
 
-    /* Message bubbles — тёмная тема: приглушённые */
-    --wa-bubble-in: #2A3942;
-    --wa-bubble-out: #1E4D40;
+    /* Message bubbles — тёмная тема (до init JS = зелёный пресет) */
+    --wa-bubble-in: #202C33;
+    --wa-bubble-out: #005C4B;
     --wa-bubble-text: #E9EDEF;
     --wa-bubble-text-in: var(--wa-bubble-text);
     --wa-bubble-text-out: var(--wa-bubble-text);
-    --wa-message-accent: var(--brand-accent);
-    --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.26);
-    --wa-bubble-quote-bg-in: color-mix(in srgb, #fff 10%, var(--wa-bubble-in));
-    --wa-bubble-quote-bg-out: color-mix(in srgb, #fff 8%, var(--wa-bubble-out));
-    --wa-bubble-quote-author-in: var(--wa-accent);
-    --wa-bubble-quote-author-out: var(--wa-accent);
-    --wa-bubble-quote-text-in: color-mix(in srgb, var(--wa-bubble-text-in) 70%, transparent);
-    --wa-bubble-quote-text-out: color-mix(in srgb, var(--wa-bubble-text-out) 70%, transparent);
+    --wa-message-accent: #53BDAE;
+    --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.24);
+    --wa-bubble-quote-bg-in: #2A3942;
+    --wa-bubble-quote-bg-out: #0A4A3D;
+    --wa-bubble-quote-author-in: #53BDAE;
+    --wa-bubble-quote-author-out: #53BDAE;
+    --wa-bubble-quote-text-in: #D8DEE3;
+    --wa-bubble-quote-text-out: #D8DEE3;
 
     /* Indicators */
     --wa-unread: var(--brand-accent);
@@ -348,20 +348,20 @@
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 22%, var(--wa-border));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 28%, var(--wa-chroma-blend));
 
-    /* Message bubbles — светлая тема: насыщеннее */
+    /* Message bubbles — светлая тема (до init JS = зелёный пресет) */
     --wa-bubble-in: #FFFFFF;
-    --wa-bubble-out: #B8EBB0;
+    --wa-bubble-out: #D9FDD3;
     --wa-bubble-text: #111B21;
     --wa-bubble-text-in: var(--wa-bubble-text);
     --wa-bubble-text-out: var(--wa-bubble-text);
-    --wa-message-accent: var(--brand-accent);
-    --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.08);
-    --wa-bubble-quote-bg-in: color-mix(in srgb, #000 5%, var(--wa-bubble-in));
-    --wa-bubble-quote-bg-out: color-mix(in srgb, #000 9%, var(--wa-bubble-out));
-    --wa-bubble-quote-author-in: var(--wa-accent);
-    --wa-bubble-quote-author-out: var(--wa-accent);
-    --wa-bubble-quote-text-in: color-mix(in srgb, var(--wa-bubble-text-in) 70%, transparent);
-    --wa-bubble-quote-text-out: color-mix(in srgb, var(--wa-bubble-text-out) 70%, transparent);
+    --wa-message-accent: #008069;
+    --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.07);
+    --wa-bubble-quote-bg-in: #F0F2F5;
+    --wa-bubble-quote-bg-out: #C8EBC4;
+    --wa-bubble-quote-author-in: #008069;
+    --wa-bubble-quote-author-out: #008069;
+    --wa-bubble-quote-text-in: #5E686F;
+    --wa-bubble-quote-text-out: #5E686F;
 
     /* Indicators */
     --wa-unread: var(--brand-accent);          /* brand green badge */

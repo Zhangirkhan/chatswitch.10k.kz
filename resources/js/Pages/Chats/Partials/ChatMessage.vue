@@ -2186,11 +2186,18 @@ onBeforeUnmount(() => {
 .translate-text { margin: 0; font-size: 0.85rem; }
 
 .ai-message-badge {
-    color: var(--wa-accent);
     display: block;
     font-size: 11px;
     font-weight: 700;
     margin-bottom: 2px;
+}
+
+.wa-msg-bubble-in .ai-message-badge {
+    color: var(--wa-accent);
+}
+
+.wa-msg-bubble-out .ai-message-badge {
+    color: color-mix(in srgb, var(--wa-bubble-text-out, var(--wa-bubble-text)) 90%, transparent);
 }
 
 .wa-msg-bubble {

@@ -56,51 +56,51 @@ export const wallpapers: Wallpaper[] = [
         id: 'mint',
         label: 'Мятный',
         kind: 'solid',
-        lightColor: '#d9f2e0',
+        lightColor: '#EEF6F0',
         darkColor: '#0e2b23',
     },
     {
         id: 'ocean',
         label: 'Океан',
         kind: 'solid',
-        lightColor: '#d5e7f2',
+        lightColor: '#EEF2F5',
         darkColor: '#0f1d2b',
     },
     {
         id: 'sand',
         label: 'Песок',
         kind: 'solid',
-        lightColor: '#f2ead5',
+        lightColor: '#F5F2EC',
         darkColor: '#24201a',
     },
     {
         id: 'dots',
         label: 'Точки',
         kind: 'pattern',
-        lightColor: '#efeae2',
+        lightColor: '#F5F5F5',
         darkColor: '#161717',
-        lightImage: dotsPattern('%23b5a994'),
-        darkImage: dotsPattern('%23243240'),
+        lightImage: dotsPattern('%23999999'),
+        darkImage: dotsPattern('%23555555'),
         tileSize: '40px',
     },
     {
         id: 'waves',
         label: 'Волны',
         kind: 'pattern',
-        lightColor: '#d8e9f2',
+        lightColor: '#F5F5F5',
         darkColor: '#0d1c2b',
-        lightImage: linesPattern('%238ab4d0'),
-        darkImage: linesPattern('%231d3a52'),
+        lightImage: linesPattern('%23A8A8A8'),
+        darkImage: linesPattern('%23555555'),
         tileSize: '60px',
     },
     {
         id: 'triangles',
         label: 'Треугольники',
         kind: 'pattern',
-        lightColor: '#ede5d9',
+        lightColor: '#F5F5F5',
         darkColor: '#1a1410',
-        lightImage: trianglesPattern('%23a89179'),
-        darkImage: trianglesPattern('%23342a22'),
+        lightImage: trianglesPattern('%239A9A9A'),
+        darkImage: trianglesPattern('%234A4A4A'),
         tileSize: '48px',
     },
 ];
@@ -166,7 +166,7 @@ export function applyWallpaper(wallpaper: Wallpaper, theme: Theme): void {
 /** Returns a CSS `background` shorthand used for the picker thumbnail preview. */
 export function wallpaperPreview(wallpaper: Wallpaper, theme: Theme): string {
     if (wallpaper.kind === 'default') {
-        return theme === 'light' ? '#efeae2' : '#161717';
+        return theme === 'light' ? '#F5F5F5' : '#161717';
     }
 
     const color = theme === 'light' ? wallpaper.lightColor : wallpaper.darkColor;

@@ -8,7 +8,6 @@ export type MessageStyleColors = {
     textOut: string;
     accent: string;
     tailShadow: string;
-    /** Фон блока цитаты; если не задан — считается от цвета пузыря. */
     quoteBgIn?: string;
     quoteBgOut?: string;
     quoteAuthorIn?: string;
@@ -35,143 +34,208 @@ export const DEFAULT_MESSAGE_STYLE_ID = 'whatsapp';
 /** @deprecated */
 export const DEFAULT_BUBBLE_PRESET_ID = DEFAULT_MESSAGE_STYLE_ID;
 
+/** Нейтральный вторичный текст цитаты на светлом фоне (без синевы). */
+const QUOTE_MUTED_LIGHT = '#5E686F';
+/** Вторичный текст цитаты на тёмном / насыщенном пузыре. */
+const QUOTE_MUTED_ON_DARK = '#D8DEE3';
+
 export const messageStylePresets: MessageStylePreset[] = [
     {
         id: 'whatsapp',
         label: 'Зелёный',
-        description: 'Классика WhatsApp',
+        description: 'Классический WhatsApp',
         light: {
             in: '#FFFFFF',
-            out: '#B8EBB0',
+            out: '#D9FDD3',
             textIn: '#111B21',
-            textOut: '#0B3D2E',
+            textOut: '#111B21',
             accent: '#008069',
-            tailShadow: 'rgba(11, 20, 26, 0.08)',
+            tailShadow: 'rgba(11, 20, 26, 0.07)',
+            quoteBgIn: '#F0F2F5',
+            quoteBgOut: '#C8EBC4',
+            quoteAuthorIn: '#008069',
+            quoteAuthorOut: '#008069',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: QUOTE_MUTED_LIGHT,
         },
         dark: {
-            in: '#2A3942',
-            out: '#1E4D40',
-            textIn: '#D1D7DB',
+            in: '#202C33',
+            out: '#005C4B',
+            textIn: '#E9EDEF',
             textOut: '#E9EDEF',
-            accent: '#6BC49A',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            accent: '#53BDAE',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#2A3942',
+            quoteBgOut: '#0A4A3D',
+            quoteAuthorIn: '#53BDAE',
+            quoteAuthorOut: '#53BDAE',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: QUOTE_MUTED_ON_DARK,
         },
     },
     {
         id: 'blue',
         label: 'Синий',
-        description: 'Насыщенный голубой, как в Telegram',
+        description: 'Telegram: белый текст на синем',
         light: {
             in: '#FFFFFF',
-            out: '#9FD0FF',
+            out: '#3390EC',
             textIn: '#111B21',
-            textOut: '#0A3D8F',
-            accent: '#0077CC',
-            tailShadow: 'rgba(11, 60, 120, 0.1)',
+            textOut: '#FFFFFF',
+            accent: '#2481CC',
+            tailShadow: 'rgba(13, 60, 120, 0.12)',
+            quoteBgIn: '#F0F4F8',
+            quoteBgOut: '#2B7BC4',
+            quoteAuthorIn: '#2481CC',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#E8F4FC',
         },
         dark: {
-            in: '#2E3640',
-            out: '#4A6E8F',
-            textIn: '#C5CDD4',
-            textOut: '#E8F0F8',
-            accent: '#8BB8E8',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            in: '#212121',
+            out: '#3390EC',
+            textIn: '#ECECEC',
+            textOut: '#FFFFFF',
+            accent: '#6AB3F0',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#2C2C2C',
+            quoteBgOut: '#2878C2',
+            quoteAuthorIn: '#6AB3F0',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#E8F4FC',
         },
     },
     {
         id: 'graphite',
         label: 'Графит',
-        description: 'Как в Telegram: #F1F1F1 / #2C2C2C',
+        description: 'Нейтральный серый, как в Telegram',
         light: {
             in: '#F1F1F1',
             out: '#2C2C2C',
             textIn: '#000000',
             textOut: '#FFFFFF',
             accent: '#D1103A',
-            tailShadow: 'rgba(0, 0, 0, 0.15)',
+            tailShadow: 'rgba(0, 0, 0, 0.14)',
             quoteBgIn: '#E4E4E4',
             quoteBgOut: '#3D3D3D',
             quoteAuthorIn: '#D1103A',
             quoteAuthorOut: '#FFFFFF',
-            quoteTextIn: '#000000',
+            quoteTextIn: '#1A1A1A',
             quoteTextOut: '#FFFFFF',
         },
         dark: {
             in: '#2C2C2C',
             out: '#FFFFFF',
             textIn: '#FFFFFF',
-            textOut: '#000000',
-            accent: '#FFFFFF',
+            textOut: '#111B21',
+            accent: '#E8E8E8',
             tailShadow: 'rgba(0, 0, 0, 0.22)',
             quoteBgIn: '#3D3D3D',
             quoteBgOut: '#E4E4E4',
             quoteAuthorIn: '#FFFFFF',
-            quoteAuthorOut: '#000000',
+            quoteAuthorOut: '#111B21',
             quoteTextIn: '#FFFFFF',
-            quoteTextOut: '#000000',
+            quoteTextOut: '#111B21',
         },
     },
     {
         id: 'purple',
         label: 'Фиолетовый',
-        description: 'Яркая лаванда',
+        description: 'Спокойная лаванда',
         light: {
             in: '#FFFFFF',
-            out: '#D4B8FF',
+            out: '#7C5CBF',
             textIn: '#111B21',
-            textOut: '#4A148C',
-            accent: '#7B1FA2',
-            tailShadow: 'rgba(74, 20, 140, 0.1)',
+            textOut: '#FFFFFF',
+            accent: '#6A4FA8',
+            tailShadow: 'rgba(60, 30, 100, 0.12)',
+            quoteBgIn: '#F3F0F8',
+            quoteBgOut: '#6B52AD',
+            quoteAuthorIn: '#6A4FA8',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#EDE8F5',
         },
         dark: {
-            in: '#342F3D',
-            out: '#7E6B9A',
-            textIn: '#C8C0D4',
-            textOut: '#EDE7F6',
-            accent: '#B39DDB',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            in: '#2A2830',
+            out: '#8E7BB8',
+            textIn: '#E8E4EF',
+            textOut: '#FFFFFF',
+            accent: '#B8A8D8',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#35323D',
+            quoteBgOut: '#7A6AA0',
+            quoteAuthorIn: '#B8A8D8',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#F0ECF8',
         },
     },
     {
         id: 'ocean',
         label: 'Бирюза',
-        description: 'Насыщенная морская гамма',
+        description: 'Приглушённая морская гамма',
         light: {
             in: '#FFFFFF',
-            out: '#8FE8D8',
+            out: '#3D9B8F',
             textIn: '#111B21',
-            textOut: '#004D40',
-            accent: '#00796B',
-            tailShadow: 'rgba(0, 77, 64, 0.1)',
+            textOut: '#FFFFFF',
+            accent: '#2A7A70',
+            tailShadow: 'rgba(20, 80, 72, 0.12)',
+            quoteBgIn: '#EFF5F4',
+            quoteBgOut: '#358F84',
+            quoteAuthorIn: '#2A7A70',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#E6F5F2',
         },
         dark: {
-            in: '#2E3A38',
-            out: '#5A857C',
-            textIn: '#B8CCC8',
-            textOut: '#E0F2F1',
-            accent: '#80CBC4',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            in: '#252E2C',
+            out: '#4F8A82',
+            textIn: '#DDE8E6',
+            textOut: '#FFFFFF',
+            accent: '#7FBFB4',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#2F3A38',
+            quoteBgOut: '#457A72',
+            quoteAuthorIn: '#7FBFB4',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#E8F5F2',
         },
     },
     {
         id: 'coral',
         label: 'Коралл',
-        description: 'Тёплый персиковый',
+        description: 'Тёплый терракотовый',
         light: {
             in: '#FFFFFF',
-            out: '#FFB89A',
+            out: '#D9725C',
             textIn: '#111B21',
-            textOut: '#BF360C',
-            accent: '#E64A19',
-            tailShadow: 'rgba(191, 54, 12, 0.12)',
+            textOut: '#FFFFFF',
+            accent: '#B85A48',
+            tailShadow: 'rgba(120, 50, 40, 0.12)',
+            quoteBgIn: '#FAF0EE',
+            quoteBgOut: '#C46552',
+            quoteAuthorIn: '#B85A48',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#FDEEEA',
         },
         dark: {
-            in: '#3A322E',
-            out: '#A67B6E',
-            textIn: '#D7C4BC',
-            textOut: '#FFF0EB',
-            accent: '#FFAB91',
-            tailShadow: 'rgba(0, 0, 0, 0.22)',
+            in: '#2E2826',
+            out: '#B87A6A',
+            textIn: '#EDE4E1',
+            textOut: '#FFFFFF',
+            accent: '#E0A090',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#3A322F',
+            quoteBgOut: '#A66E5E',
+            quoteAuthorIn: '#E0A090',
+            quoteAuthorOut: '#FFFFFF',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#FDEEEA',
         },
     },
 ];
@@ -231,7 +295,6 @@ function hexChannel(pair: string): number {
     return parseInt(pair, 16) / 255;
 }
 
-/** Относительная яркость 0…1 — для выбора затемнения или осветления цитаты. */
 function bubbleLuminance(hex: string): number {
     const raw = hex.replace('#', '');
     if (raw.length !== 6) {
@@ -257,8 +320,27 @@ function quoteAuthorColor(bubbleColor: string, textColor: string, accentColor: s
     return textColor;
 }
 
-function quoteBodyColor(textColor: string): string {
-    return `color-mix(in srgb, ${textColor} 70%, transparent)`;
+function quoteBodyColor(textColor: string, bubbleColor: string): string {
+    if (bubbleLuminance(bubbleColor) < 0.42) {
+        return `color-mix(in srgb, ${textColor} 88%, transparent)`;
+    }
+
+    return bubbleLuminance(textColor) > 0.55 ? QUOTE_MUTED_LIGHT : QUOTE_MUTED_ON_DARK;
+}
+
+function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
+    const darkBubble = bubbleLuminance(color) < 0.42;
+
+    if (darkBubble) {
+        const amount = kind === 'out' ? '14%' : '10%';
+
+        return `color-mix(in srgb, #fff ${amount}, ${color})`;
+    }
+
+    const mix = theme === 'light' ? '#000' : '#fff';
+    const amount = kind === 'in' ? '4%' : '7%';
+
+    return `color-mix(in srgb, ${mix} ${amount}, ${color})`;
 }
 
 function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void {
@@ -272,32 +354,16 @@ function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void
     );
     root.style.setProperty(
         '--wa-bubble-quote-text-in',
-        colors.quoteTextIn ?? quoteBodyColor(colors.textIn),
+        colors.quoteTextIn ?? quoteBodyColor(colors.textIn, colors.in),
     );
     root.style.setProperty(
         '--wa-bubble-quote-text-out',
-        colors.quoteTextOut ?? quoteBodyColor(colors.textOut),
+        colors.quoteTextOut ?? quoteBodyColor(colors.textOut, colors.out),
     );
-}
-
-function quoteBg(color: string, theme: Theme, kind: 'in' | 'out'): string {
-    const darkBubble = bubbleLuminance(color) < 0.42;
-
-    if (darkBubble) {
-        const amount = kind === 'out' ? '18%' : '12%';
-
-        return `color-mix(in srgb, #fff ${amount}, ${color})`;
-    }
-
-    const mix = theme === 'light' ? '#000' : '#fff';
-    const amount = kind === 'in' ? '5%' : '9%';
-
-    return `color-mix(in srgb, ${mix} ${amount}, ${color})`;
 }
 
 /**
  * Пишет CSS-переменные ленты сообщений на <html>.
- * id «whatsapp» без override — цвета из [data-theme] в app.css.
  */
 export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): void {
     if (typeof document === 'undefined') {
@@ -309,24 +375,6 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
 
     root.dataset.messageStyle = preset.id;
     root.dataset.chatBubbles = preset.id;
-
-    if (preset.id === 'whatsapp') {
-        root.style.removeProperty('--wa-bubble-in');
-        root.style.removeProperty('--wa-bubble-out');
-        root.style.removeProperty('--wa-bubble-text');
-        root.style.removeProperty('--wa-bubble-text-in');
-        root.style.removeProperty('--wa-bubble-text-out');
-        root.style.removeProperty('--wa-bubble-tail-shadow');
-        root.style.removeProperty('--wa-bubble-quote-bg-in');
-        root.style.removeProperty('--wa-bubble-quote-bg-out');
-        root.style.removeProperty('--wa-bubble-quote-author-in');
-        root.style.removeProperty('--wa-bubble-quote-author-out');
-        root.style.removeProperty('--wa-bubble-quote-text-in');
-        root.style.removeProperty('--wa-bubble-quote-text-out');
-        root.style.removeProperty('--wa-message-accent');
-
-        return;
-    }
 
     root.style.setProperty('--wa-bubble-in', colors.in);
     root.style.setProperty('--wa-bubble-out', colors.out);
