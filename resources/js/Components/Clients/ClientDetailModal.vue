@@ -185,7 +185,7 @@ function clearCustomField(field: ClientProfileField): void {
                             <span
                                 v-if="client.stage"
                                 class="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                                :style="{ background: client.stage.color || 'var(--ui-accent)', color: '#fff' }"
+                                :style="{ background: client.stage.color || 'var(--ui-accent)', color: 'var(--ui-accent-on)' }"
                             >
                                 {{ client.stage.name }}
                             </span>
@@ -210,7 +210,12 @@ function clearCustomField(field: ClientProfileField): void {
                                     +
                                 </button>
                             </template>
-                            <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--ui-surface-hover)]" aria-label="Закрыть" @click="emit('close')">
+                            <button
+                                type="button"
+                                class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm text-base leading-none"
+                                aria-label="Закрыть"
+                                @click="emit('close')"
+                            >
                                 ✕
                             </button>
                         </div>
@@ -247,18 +252,16 @@ function clearCustomField(field: ClientProfileField): void {
                         </aside>
                     </div>
 
-                    <footer class="shrink-0 flex flex-wrap items-center gap-2 border-t px-4 py-3" :style="{ borderColor: 'var(--ui-border)' }">
+                    <footer class="shrink-0 flex flex-wrap items-center gap-[var(--primitive-gap-sm)] border-t border-[var(--ui-border)] px-4 py-3">
                         <input
                             v-model="editingName"
                             type="text"
-                            class="min-w-[140px] flex-1 rounded-lg border-0 px-3 py-2 text-sm focus:ring-0 focus:outline-none"
-                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                            class="ui-input min-w-[140px] flex-1 !min-h-[30px] !py-0 text-sm"
                             placeholder="Сохранённое имя"
                         />
                         <button
                             type="button"
-                            class="rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-                            :style="{ background: 'var(--ui-accent)', color: '#fff' }"
+                            class="ui-btn ui-btn--primary ui-btn--sm"
                             :disabled="saving"
                             @click="saveName"
                         >
@@ -267,12 +270,11 @@ function clearCustomField(field: ClientProfileField): void {
                         <Link
                             v-if="chatUrl"
                             :href="chatUrl"
-                            class="rounded-lg px-3 py-2 text-sm"
-                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                            class="ui-btn ui-btn--secondary ui-btn--sm"
                         >
                             Открыть чат
                         </Link>
-                        <button type="button" class="rounded-lg px-3 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }" @click="emit('close')">
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="emit('close')">
                             Закрыть
                         </button>
                     </footer>
