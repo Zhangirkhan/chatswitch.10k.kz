@@ -236,35 +236,36 @@ const companyDeleteDescription = computed(() => {
 
     <AuthenticatedLayout>
         <div class="flex h-full min-h-0 flex-col overflow-hidden">
-            <header class="shrink-0 border-b px-4 py-4 sm:px-6" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface)' }">
+            <header class="shrink-0 border-b border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-4 sm:px-6">
                 <div class="mb-3">
-                    <h1 class="text-lg font-semibold" :style="{ color: 'var(--ui-text)' }">Клиенты</h1>
-                    <p class="text-sm opacity-70">Карточки клиентов, профиль и AI-сводка</p>
+                    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Клиенты</h1>
+                    <p class="text-sm text-[var(--ui-text-secondary)]">Карточки клиентов, профиль и AI-сводка</p>
                 </div>
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            class="rounded-full px-4 py-2 text-sm font-medium"
-                            :style="{ background: activeTab === 'clients' ? 'var(--ui-accent)' : 'var(--ui-surface-muted)', color: activeTab === 'clients' ? '#fff' : 'var(--ui-text)' }"
-                            @click="activeTab = 'clients'"
-                        >
-                            Клиенты · {{ total }}
-                        </button>
-                        <button
-                            v-if="canManageCompanies"
-                            type="button"
-                            class="rounded-full px-4 py-2 text-sm font-medium"
-                            :style="{ background: activeTab === 'companies' ? 'var(--ui-accent)' : 'var(--ui-surface-muted)', color: activeTab === 'companies' ? '#fff' : 'var(--ui-text)' }"
-                            @click="activeTab = 'companies'"
-                        >
-                            Компании · {{ companiesTotal }}
-                        </button>
+                    <div class="flex flex-wrap items-center gap-[var(--primitive-gap-sm)]">
+                        <div class="ui-pill-nav ui-pill-nav--inline">
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': activeTab === 'clients' }"
+                                @click="activeTab = 'clients'"
+                            >
+                                Клиенты · {{ total }}
+                            </button>
+                            <button
+                                v-if="canManageCompanies"
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': activeTab === 'companies' }"
+                                @click="activeTab = 'companies'"
+                            >
+                                Компании · {{ companiesTotal }}
+                            </button>
+                        </div>
                         <button
                             v-if="activeTab === 'companies' && canManageCompanies"
                             type="button"
-                            class="rounded-full px-4 py-2 text-sm"
-                            :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                            class="ui-btn ui-btn--primary ui-btn--sm"
                             @click="openCompany()"
                         >
                             + Компания
@@ -273,8 +274,7 @@ const companyDeleteDescription = computed(() => {
                     <input
                         v-model="search"
                         type="search"
-                        class="w-full min-w-[240px] rounded-full border-0 px-4 py-2 text-sm focus:ring-0 focus:outline-none lg:max-w-sm"
-                        :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
+                        class="ui-input w-full min-w-[240px] !rounded-[var(--primitive-radius-pill)] lg:max-w-sm"
                         :placeholder="activeTab === 'clients' ? 'Поиск по имени, номеру, WhatsApp ID' : 'Поиск по компаниям'"
                     />
                 </div>
@@ -282,31 +282,29 @@ const companyDeleteDescription = computed(() => {
 
             <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
                 <div v-if="activeTab === 'clients'" class="space-y-4">
-                    <div class="text-xs opacity-70">
+                    <div class="text-xs text-[var(--ui-text-secondary)]">
                         Показано {{ props.clients.from || 0 }}–{{ props.clients.to || 0 }} из {{ props.clients.total }}
                     </div>
 
-                    <div v-if="clients.length === 0" class="py-16 text-center text-sm opacity-70">Клиенты не найдены</div>
+                    <div v-if="clients.length === 0" class="py-16 text-center text-sm text-[var(--ui-text-secondary)]">Клиенты не найдены</div>
 
                     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         <button
                             v-for="c in clients"
                             :key="c.id"
                             type="button"
-                            class="rounded-2xl border p-4 text-left transition hover:shadow-sm focus:outline-none focus-visible:ring-2"
-                            :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                            class="ui-panel rounded-2xl p-4 text-left transition hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--ui-accent)_35%,transparent)]"
                             @click="openClient(c)"
                         >
                             <div class="mb-3 flex items-start gap-3">
                                 <UserAvatar :name="displayName(c)" :src="c.profile_picture_url" :size="40" />
                                 <div class="min-w-0 flex-1">
-                                    <div class="truncate font-medium">{{ displayName(c) }}</div>
-                                    <div class="truncate text-xs opacity-70">{{ c.phone_display || formatPhone(c.phone_number) || '—' }}</div>
+                                    <div class="truncate font-medium text-[var(--ui-text)]">{{ displayName(c) }}</div>
+                                    <div class="truncate text-xs text-[var(--ui-text-secondary)]">{{ c.phone_display || formatPhone(c.phone_number) || '—' }}</div>
                                 </div>
                                 <span
                                     v-if="c.unread_count > 0"
-                                    class="shrink-0 min-w-[20px] rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold"
-                                    :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
+                                    class="ui-tab-badge shrink-0"
                                 >
                                     {{ c.unread_count > 99 ? '99+' : c.unread_count }}
                                 </span>
@@ -314,51 +312,50 @@ const companyDeleteDescription = computed(() => {
                             <div class="flex flex-wrap items-center gap-2">
                                 <span
                                     v-if="c.stage"
-                                    class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                    :style="{ background: c.stage.color || 'var(--ui-accent)', color: '#fff' }"
+                                    class="ui-badge rounded-full px-2 py-0.5 text-[11px]"
+                                    :style="{ background: c.stage.color || 'var(--ui-accent)', color: 'var(--ui-accent-on)', borderColor: 'transparent' }"
                                 >
                                     {{ c.stage.name }}
                                 </span>
-                                <span class="text-xs opacity-60">{{ dateLabel(c.last_chat_at) }}</span>
+                                <span class="text-xs text-[var(--ui-text-muted)]">{{ dateLabel(c.last_chat_at) }}</span>
                             </div>
                         </button>
                     </div>
 
                     <div v-if="props.clients.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
-                        <button type="button" class="rounded-lg px-3 py-2 text-sm disabled:opacity-40" :style="{ background: 'var(--ui-surface-muted)' }" :disabled="props.clients.current_page <= 1" @click="goToPage('clients', props.clients.current_page - 1)">Назад</button>
-                        <span class="text-xs opacity-70">Страница {{ props.clients.current_page }} из {{ props.clients.last_page }}</span>
-                        <button type="button" class="rounded-lg px-3 py-2 text-sm disabled:opacity-40" :style="{ background: 'var(--ui-surface-muted)' }" :disabled="props.clients.current_page >= props.clients.last_page" @click="goToPage('clients', props.clients.current_page + 1)">Вперёд</button>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page <= 1" @click="goToPage('clients', props.clients.current_page - 1)">Назад</button>
+                        <span class="text-xs text-[var(--ui-text-secondary)]">Страница {{ props.clients.current_page }} из {{ props.clients.last_page }}</span>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page >= props.clients.last_page" @click="goToPage('clients', props.clients.current_page + 1)">Вперёд</button>
                     </div>
                 </div>
 
                 <div v-else-if="canManageCompanies" class="space-y-4">
-                    <div class="text-xs opacity-70">Показано {{ props.companies.from || 0 }}–{{ props.companies.to || 0 }} из {{ props.companies.total }}</div>
+                    <div class="text-xs text-[var(--ui-text-secondary)]">Показано {{ props.companies.from || 0 }}–{{ props.companies.to || 0 }} из {{ props.companies.total }}</div>
                     <div
                         v-for="company in companies"
                         :key="company.id"
-                        class="rounded-2xl border p-4"
-                        :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
+                        class="ui-panel rounded-2xl p-4"
                     >
                         <div class="mb-2 flex items-start justify-between gap-3">
                             <div>
-                                <div class="font-medium">{{ company.name }}</div>
-                                <div class="text-xs opacity-70">Клиентов: {{ company.clients_count }}</div>
+                                <div class="font-medium text-[var(--ui-text)]">{{ company.name }}</div>
+                                <div class="text-xs text-[var(--ui-text-secondary)]">Клиентов: {{ company.clients_count }}</div>
                             </div>
-                            <div class="flex gap-2">
-                                <button type="button" class="rounded-lg px-2 py-1 text-xs" :style="{ background: 'var(--ui-surface-muted)' }" @click="openCompany(company)">Изменить</button>
-                                <button type="button" class="rounded-lg px-2 py-1 text-xs text-red-600" @click="requestDeleteCompany(company)">Удалить</button>
+                            <div class="flex gap-[var(--primitive-gap-sm)]">
+                                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="openCompany(company)">Изменить</button>
+                                <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="requestDeleteCompany(company)">Удалить</button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 gap-1 text-xs opacity-80 sm:grid-cols-2">
+                        <div class="grid grid-cols-1 gap-1 text-xs text-[var(--ui-text-secondary)] sm:grid-cols-2">
                             <div v-if="company.phone">Тел: {{ company.phone }}</div>
                             <div v-if="company.email">Email: {{ company.email }}</div>
                             <div v-if="company.website" class="sm:col-span-2">Сайт: {{ company.website }}</div>
                         </div>
                     </div>
                     <div v-if="props.companies.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
-                        <button type="button" class="rounded-lg px-3 py-2 text-sm disabled:opacity-40" :disabled="props.companies.current_page <= 1" @click="goToPage('companies', props.companies.current_page - 1)">Назад</button>
-                        <span class="text-xs opacity-70">Страница {{ props.companies.current_page }} из {{ props.companies.last_page }}</span>
-                        <button type="button" class="rounded-lg px-3 py-2 text-sm disabled:opacity-40" :disabled="props.companies.current_page >= props.companies.last_page" @click="goToPage('companies', props.companies.current_page + 1)">Вперёд</button>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page <= 1" @click="goToPage('companies', props.companies.current_page - 1)">Назад</button>
+                        <span class="text-xs text-[var(--ui-text-secondary)]">Страница {{ props.companies.current_page }} из {{ props.companies.last_page }}</span>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page >= props.companies.last_page" @click="goToPage('companies', props.companies.current_page + 1)">Вперёд</button>
                     </div>
                 </div>
             </div>
@@ -375,24 +372,36 @@ const companyDeleteDescription = computed(() => {
         <teleport to="body">
             <div v-if="openedCompanyId !== null" class="fixed inset-0 z-[460] overflow-y-auto px-4 py-4 sm:py-8" :style="{ background: 'rgba(0,0,0,.45)' }" @click.self="closeCompany">
                 <div class="mx-auto flex min-h-[calc(100%-2rem)] max-w-[520px] items-center justify-center">
-                    <div class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col rounded-2xl border overflow-hidden" :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }">
-                        <div class="shrink-0 px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--ui-surface-muted)' }">
-                            <div class="text-sm font-medium">{{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}</div>
-                            <button type="button" class="w-9 h-9 rounded-full" @click="closeCompany">✕</button>
+                    <div class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)]">
+                        <div class="flex shrink-0 items-center justify-between bg-[var(--ui-surface-muted)] px-5 py-4">
+                            <div class="text-sm font-medium text-[var(--ui-text)]">{{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}</div>
+                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm text-base leading-none" aria-label="Закрыть" @click="closeCompany">✕</button>
                         </div>
-                        <div class="min-h-0 flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+                        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-sm">
                             <div>
-                                <div class="mb-1 text-xs opacity-70">Название</div>
-                                <input v-model="companyForm.name" type="text" class="w-full rounded-lg border-0 px-3 py-2" :style="{ background: 'var(--ui-surface-muted)' }" />
+                                <label class="ui-filter-field__label">Название</label>
+                                <input v-model="companyForm.name" type="text" class="ui-input" />
                             </div>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div><div class="mb-1 text-xs opacity-70">Телефон</div><input v-model="companyForm.phone" type="text" class="w-full rounded-lg border-0 px-3 py-2" :style="{ background: 'var(--ui-surface-muted)' }" /></div>
-                                <div><div class="mb-1 text-xs opacity-70">Email</div><input v-model="companyForm.email" type="email" class="w-full rounded-lg border-0 px-3 py-2" :style="{ background: 'var(--ui-surface-muted)' }" /></div>
+                                <div>
+                                    <label class="ui-filter-field__label">Телефон</label>
+                                    <input v-model="companyForm.phone" type="text" class="ui-input" />
+                                </div>
+                                <div>
+                                    <label class="ui-filter-field__label">Email</label>
+                                    <input v-model="companyForm.email" type="email" class="ui-input" />
+                                </div>
                             </div>
-                            <div><div class="mb-1 text-xs opacity-70">Сайт</div><input v-model="companyForm.website" type="text" class="w-full rounded-lg border-0 px-3 py-2" :style="{ background: 'var(--ui-surface-muted)' }" /></div>
-                            <div><div class="mb-1 text-xs opacity-70">Описание</div><textarea v-model="companyForm.description" rows="3" class="w-full resize-none rounded-lg border-0 px-3 py-2" :style="{ background: 'var(--ui-surface-muted)' }" /></div>
+                            <div>
+                                <label class="ui-filter-field__label">Сайт</label>
+                                <input v-model="companyForm.website" type="text" class="ui-input" />
+                            </div>
+                            <div>
+                                <label class="ui-filter-field__label">Описание</label>
+                                <textarea v-model="companyForm.description" rows="3" class="ui-input" />
+                            </div>
                         </div>
-                        <div class="shrink-0 flex justify-end gap-2 border-t px-5 py-4" :style="{ borderColor: 'var(--ui-border)' }">
+                        <div class="flex shrink-0 justify-end gap-[var(--primitive-gap-sm)] border-t border-[var(--ui-border)] px-5 py-4">
                             <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">Закрыть</button>
                             <button type="button" class="ui-btn ui-btn--primary" :disabled="companySaving || !companyForm.name.trim()" @click="saveCompany">Сохранить</button>
                         </div>
