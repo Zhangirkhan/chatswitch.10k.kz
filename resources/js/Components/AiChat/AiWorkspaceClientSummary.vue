@@ -14,6 +14,7 @@ const props = withDefaults(
         variant?: 'workspace' | 'chat';
         hideOpenChat?: boolean;
         emptyHint?: string | null;
+        expanded?: boolean;
     }>(),
     {
         contacts: () => [],
@@ -21,6 +22,7 @@ const props = withDefaults(
         variant: 'workspace',
         hideOpenChat: false,
         emptyHint: null,
+        expanded: false,
     },
 );
 
@@ -58,7 +60,13 @@ function onPickContact(event: Event): void {
 </script>
 
 <template>
-    <section class="ai-client-summary" :class="`ai-client-summary--${variant}`">
+    <section
+        class="ai-client-summary"
+        :class="[
+            `ai-client-summary--${variant}`,
+            { 'ai-client-summary--expanded': expanded },
+        ]"
+    >
         <header class="ai-client-summary__head">
             <h2 class="ai-client-summary__title">Сводка клиента</h2>
             <span
@@ -159,6 +167,19 @@ function onPickContact(event: Event): void {
         color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel-header)) 0%,
         color-mix(in srgb, var(--wa-panel-header) 96%, var(--wa-bg) 4%) 100%
     );
+}
+
+.ai-client-summary--expanded {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    flex-shrink: 1;
+}
+
+.ai-client-summary--expanded .ai-client-summary__loading,
+.ai-client-summary--expanded .ai-client-summary__empty {
+    flex: 1;
+    min-height: 0;
 }
 
 .ai-client-summary__head {

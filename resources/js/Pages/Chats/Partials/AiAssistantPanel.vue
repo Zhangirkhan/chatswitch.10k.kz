@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
+import UserAvatar from '@/Components/UserAvatar.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import { useToastStore } from '@/stores/toast';
 import type { Message } from '@/types';
@@ -63,6 +64,7 @@ const props = defineProps<{
 }>();
 
 type PanelTab = 'assistant' | 'ai-status' | 'draft';
+type PanelMode = 'overview' | 'chat';
 
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -87,6 +89,7 @@ const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const clearAiDialogOpen = ref(false);
 const activeTab = ref<PanelTab>('assistant');
+const panelMode = ref<PanelMode>('overview');
 const clientSummary = ref<ClientSummary | null>(null);
 const summaryLoading = ref(false);
 let autoDraftTimer: number | null = null;
@@ -103,6 +106,53 @@ const summaryEmptyHint = computed(() => {
     }
     return 'К этому чату не привязан контакт CRM — сводка недоступна.';
 });
+
+const isOverviewMode = computed(() => panelMode.value === 'overview');
+const isChatMode = computed(() => panelMode.value === 'chat');
+
+const summaryChipName = computed(() => {
+    if (clientSummary.value) {
+        return clientSummary.value.identity.display_name;
+    }
+    return props.chatName ?? 'Клиент';
+});
+
+const summaryChipHeadline = computed(() => {
+    if (summaryLoading.value) {
+        return 'Собираем профиль…';
+    }
+    if (clientSummary.value) {
+        return clientSummary.value.ai.headline;
+    }
+    return summaryEmptyHint.value ?? 'Сводка недоступна';
+});
+
+const summaryChipConfidence = computed(() => {
+    const level = clientSummary.value?.ai.confidence;
+    if (level === 'high') {
+        return 'Много данных';
+    }
+    if (level === 'medium') {
+        return 'Частичные данные';
+    }
+    if (level === 'low') {
+        return 'Мало данных';
+    }
+    return null;
+});
+
+function enterChatMode(): void {
+    if (panelMode.value === 'chat') {
+        return;
+    }
+    panelMode.value = 'chat';
+    void scrollToBottom();
+}
+
+function exitChatMode(): void {
+    panelMode.value = 'overview';
+    textareaEl.value?.blur();
+}
 
 /**
  * Локальная история переписки оператора с AI хранится в localStorage по chatId,
@@ -245,6 +295,8 @@ async function send(prompt?: string): Promise<void> {
     if (sending.value || text === '') {
         return;
     }
+
+    enterChatMode();
 
     const historySnapshot = turns.value.map((t) => ({ role: t.role, content: t.content }));
 
@@ -391,6 +443,10 @@ function onEscape(e: KeyboardEvent): void {
             clearAiDialogOpen.value = false;
             return;
         }
+        if (panelMode.value === 'chat') {
+            exitChatMode();
+            return;
+        }
         emit('close');
     }
 }
@@ -416,8 +472,6 @@ onMounted(() => {
     window.addEventListener('keydown', onEscape);
     scheduleAutoDraft();
     void loadClientSummary();
-    void scrollToBottom();
-    nextTick(() => textareaEl.value?.focus());
 });
 
 onBeforeUnmount(() => {
@@ -434,6 +488,7 @@ watch(() => props.chatId, () => {
     autoDraftError.value = null;
     autoDraftMessageId.value = null;
     activeTab.value = 'assistant';
+    panelMode.value = 'overview';
     scheduleAutoDraft();
 });
 watch(() => [props.contactId, props.chatId] as const, () => {
@@ -451,51 +506,97 @@ watch(() => [props.contactId, props.chatId] as const, () => {
         }"
     >
         <div
-            class="min-h-[60px] py-2 px-4 flex items-center gap-3 shrink-0"
-            :style="{ background: 'var(--wa-panel-header)' }"
+            class="shrink-0 border-b"
+            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-sidebar-divider)' }"
         >
-            <button
-                type="button"
-                class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                title="Закрыть"
-                @click="emit('close')"
-            >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-            <div class="flex-1 min-w-0">
-                <h2 class="text-base leading-tight truncate" :style="{ color: 'var(--wa-text)' }">
-                    AI-ассистент
-                </h2>
-                <p
-                    v-if="chatName"
-                    class="text-[11px] leading-tight truncate opacity-80"
-                    :style="{ color: 'var(--wa-text-secondary)' }"
+            <div class="min-h-[60px] py-2 px-4 flex items-center gap-3">
+                <button
+                    type="button"
+                    class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
+                    title="Закрыть"
+                    @click="emit('close')"
                 >
-                    по чату с {{ chatName }}
-                </p>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base leading-tight truncate" :style="{ color: 'var(--wa-text)' }">
+                        AI-ассистент
+                    </h2>
+                    <p
+                        v-if="chatName && isOverviewMode"
+                        class="text-[11px] leading-tight truncate opacity-80"
+                        :style="{ color: 'var(--wa-text-secondary)' }"
+                    >
+                        по чату с {{ chatName }}
+                    </p>
+                </div>
+                <button
+                    v-if="!isEmpty"
+                    type="button"
+                    class="text-xs px-2.5 py-1.5 rounded-md hover:bg-[var(--wa-panel-hover)]"
+                    :style="{ color: 'var(--wa-text-secondary)' }"
+                    title="Очистить переписку с AI"
+                    @click="requestClearConversation"
+                >
+                    Очистить
+                </button>
             </div>
+
             <button
-                v-if="!isEmpty"
+                v-if="isChatMode"
                 type="button"
-                class="text-xs px-2.5 py-1.5 rounded-md hover:bg-[var(--wa-panel-hover)]"
-                :style="{ color: 'var(--wa-text-secondary)' }"
-                title="Очистить переписку с AI"
-                @click="requestClearConversation"
+                class="ai-summary-chip"
+                title="Развернуть сводку клиента"
+                @click="exitChatMode"
             >
-                Очистить
+                <UserAvatar
+                    :name="summaryChipName"
+                    :src="clientSummary?.identity.avatar ?? null"
+                    :size="28"
+                />
+                <span class="ai-summary-chip__text min-w-0">
+                    <span class="ai-summary-chip__name">{{ summaryChipName }}</span>
+                    <span class="ai-summary-chip__headline">{{ summaryChipHeadline }}</span>
+                </span>
+                <span
+                    v-if="summaryChipConfidence"
+                    class="ai-summary-chip__badge"
+                >
+                    {{ summaryChipConfidence }}
+                </span>
+                <svg
+                    class="ai-summary-chip__expand shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                </svg>
             </button>
         </div>
 
-        <AiWorkspaceClientSummary
-            variant="chat"
-            :summary="clientSummary"
-            :loading="summaryLoading"
-            :empty-hint="summaryEmptyHint"
-            hide-open-chat
-        />
+        <div
+            class="ai-panel-summary-wrap"
+            :class="{ 'ai-panel-summary-wrap--hidden': isChatMode }"
+        >
+            <AiWorkspaceClientSummary
+                variant="chat"
+                expanded
+                :summary="clientSummary"
+                :loading="summaryLoading"
+                :empty-hint="summaryEmptyHint"
+                hide-open-chat
+            />
+        </div>
 
+        <div
+            class="ai-panel-chat-wrap"
+            :class="{ 'ai-panel-chat-wrap--hidden': isOverviewMode }"
+        >
         <div
             class="shrink-0 flex gap-1 px-3 py-2 border-b"
             :style="{ borderColor: 'var(--wa-sidebar-divider)', background: 'var(--wa-panel-header)' }"
@@ -812,13 +913,14 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             </div>
             </template>
         </div>
+        </div>
 
         <div
             class="shrink-0 border-t px-3 py-3"
             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
         >
             <div
-                v-if="!isEmpty"
+                v-if="isChatMode"
                 class="flex flex-wrap gap-1.5 mb-2"
             >
                 <button
@@ -845,15 +947,18 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 <textarea
                     ref="textareaEl"
                     v-model="draft"
-                    rows="2"
+                    :rows="isOverviewMode ? 1 : 2"
                     placeholder="Спросите AI про этот диалог…"
-                    class="flex-1 resize-none rounded-lg px-3 py-2 text-[13.5px] outline-none"
+                    class="flex-1 resize-none rounded-lg px-3 py-2 text-[13.5px] outline-none transition-[border-color,box-shadow] duration-200"
                     :style="{
                         background: 'var(--wa-panel)',
                         color: 'var(--wa-text)',
                         border: '1px solid var(--wa-border)',
+                        boxShadow: isChatMode ? '0 0 0 1px color-mix(in srgb, var(--wa-accent) 35%, transparent)' : 'none',
                     }"
                     :disabled="sending"
+                    @focus="enterChatMode"
+                    @click="enterChatMode"
                     @keydown="onKeydown"
                 />
                 <button
@@ -876,7 +981,12 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </button>
             </div>
             <p class="mt-1.5 text-[10.5px] opacity-60" :style="{ color: 'var(--wa-text-secondary)' }">
-                Enter — отправить, Shift+Enter — перенос строки. AI видит до 80 последних сообщений чата.
+                <template v-if="isOverviewMode">
+                    Нажмите на поле — откроется чат с AI. Escape — закрыть панель.
+                </template>
+                <template v-else>
+                    Enter — отправить, Shift+Enter — перенос строки. Escape — свернуть к сводке.
+                </template>
             </p>
         </div>
     </aside>
@@ -893,6 +1003,106 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 </template>
 
 <style scoped>
+.ai-panel-summary-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 0.25s ease, flex 0.25s ease, max-height 0.25s ease;
+}
+
+.ai-panel-summary-wrap--hidden {
+    flex: 0 0 0;
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ai-panel-chat-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity 0.25s ease, flex 0.25s ease, max-height 0.25s ease;
+}
+
+.ai-panel-chat-wrap--hidden {
+    flex: 0 0 0;
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.ai-summary-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% - 2rem);
+    margin: 0 1rem 0.625rem;
+    padding: 6px 10px 6px 6px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 30%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 10%, var(--wa-panel));
+    color: var(--wa-text);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-summary-chip:hover {
+    background: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
+}
+
+.ai-summary-chip__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+}
+
+.ai-summary-chip__name {
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.2;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ai-summary-chip__headline {
+    font-size: 10.5px;
+    line-height: 1.25;
+    color: var(--wa-text-secondary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ai-summary-chip__badge {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 6px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 35%, transparent);
+    color: var(--wa-accent);
+}
+
+.ai-summary-chip__expand {
+    width: 14px;
+    height: 14px;
+    opacity: 0.65;
+    color: var(--wa-text-secondary);
+}
+
 .ai-panel-tab {
     flex: 1;
     min-width: 0;
