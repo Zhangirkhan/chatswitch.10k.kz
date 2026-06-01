@@ -213,19 +213,19 @@ function sectionSemantic(title: string): SectionSemantic {
 <style scoped>
 .ai-client-summary {
     --sem-who: #9b8fb8;
-    --sem-who-bg: color-mix(in srgb, var(--sem-who) 9%, var(--wa-panel));
+    --sem-who-bg: color-mix(in srgb, var(--sem-who) 14%, var(--wa-panel));
     --sem-who-border: color-mix(in srgb, var(--sem-who) 28%, var(--wa-border));
     --sem-prefs: #7a92b0;
-    --sem-prefs-bg: color-mix(in srgb, var(--sem-prefs) 9%, var(--wa-panel));
+    --sem-prefs-bg: color-mix(in srgb, var(--sem-prefs) 14%, var(--wa-panel));
     --sem-prefs-border: color-mix(in srgb, var(--sem-prefs) 28%, var(--wa-border));
     --sem-context: #b8945f;
-    --sem-context-bg: color-mix(in srgb, var(--sem-context) 10%, var(--wa-panel));
+    --sem-context-bg: color-mix(in srgb, var(--sem-context) 15%, var(--wa-panel));
     --sem-context-border: color-mix(in srgb, var(--sem-context) 30%, var(--wa-border));
     --sem-agreements: #6fa384;
-    --sem-agreements-bg: color-mix(in srgb, var(--sem-agreements) 10%, var(--wa-panel));
+    --sem-agreements-bg: color-mix(in srgb, var(--sem-agreements) 15%, var(--wa-panel));
     --sem-agreements-border: color-mix(in srgb, var(--sem-agreements) 30%, var(--wa-border));
     --sem-deal: #8890b5;
-    --sem-deal-bg: color-mix(in srgb, var(--sem-deal) 9%, var(--wa-panel));
+    --sem-deal-bg: color-mix(in srgb, var(--sem-deal) 14%, var(--wa-panel));
     --sem-deal-border: color-mix(in srgb, var(--sem-deal) 28%, var(--wa-border));
 
     display: flex;
@@ -461,12 +461,14 @@ function sectionSemantic(title: string): SectionSemantic {
 
 .ai-client-summary__headline {
     margin: 0 0 12px;
-    padding: 0 0 0 10px;
+    padding: 10px 12px;
     font-size: 0.9375rem;
     line-height: 1.45;
     font-weight: 500;
     color: var(--wa-text);
-    border-left: 3px solid var(--sem-context);
+    border-radius: 10px;
+    background: var(--sem-context-bg);
+    border: 1px solid var(--sem-context-border);
 }
 
 .ai-client-summary__chips {
@@ -521,48 +523,32 @@ function sectionSemantic(title: string): SectionSemantic {
     min-width: 0;
 }
 
-.ai-client-summary__section--inline,
-.ai-client-summary__section--half,
-.ai-client-summary__section--full {
-    border-left-style: solid;
-}
-
 .ai-client-summary__section--inline {
     flex: 0 1 auto;
     max-width: calc(50% - 5px);
-    padding: 7px 10px 7px 9px;
+    padding: 8px 10px;
     border-radius: 10px;
-    border-width: 1px 1px 1px 3px;
-    border-style: solid;
+    border: 1px solid transparent;
 }
 
 .ai-client-summary__section--half {
     flex: 1 1 calc(50% - 6px);
     min-width: min(100%, 9.5rem);
-    padding: 8px 10px 9px 9px;
+    padding: 8px 10px;
     border-radius: 10px;
-    border-width: 1px 1px 1px 3px;
-    border-style: solid;
+    border: 1px solid transparent;
 }
 
 .ai-client-summary__section--full {
     flex: 1 1 100%;
-    padding: 6px 0 10px 9px;
-    border-radius: 0;
-    border-top: none;
-    border-right: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--wa-border) 70%, transparent);
-    border-left-width: 3px;
-}
-
-.ai-client-summary__section--full:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid transparent;
 }
 
 .ai-client-summary__section--semantic-who {
-    border-color: var(--sem-who-border) var(--sem-who-border) var(--sem-who-border) var(--sem-who);
     background: var(--sem-who-bg);
+    border-color: var(--sem-who-border);
 }
 
 .ai-client-summary__section--semantic-who h3 {
@@ -570,8 +556,8 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary__section--semantic-preferences {
-    border-color: var(--sem-prefs-border) var(--sem-prefs-border) var(--sem-prefs-border) var(--sem-prefs);
     background: var(--sem-prefs-bg);
+    border-color: var(--sem-prefs-border);
 }
 
 .ai-client-summary__section--semantic-preferences h3 {
@@ -579,8 +565,8 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary__section--semantic-context {
-    border-color: var(--sem-context-border) var(--sem-context-border) var(--sem-context-border) var(--sem-context);
     background: var(--sem-context-bg);
+    border-color: var(--sem-context-border);
 }
 
 .ai-client-summary__section--semantic-context h3 {
@@ -588,8 +574,8 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary__section--semantic-agreements {
-    border-color: var(--sem-agreements-border) var(--sem-agreements-border) var(--sem-agreements-border) var(--sem-agreements);
     background: var(--sem-agreements-bg);
+    border-color: var(--sem-agreements-border);
 }
 
 .ai-client-summary__section--semantic-agreements h3 {
@@ -597,8 +583,8 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary__section--semantic-deal {
-    border-color: var(--sem-deal-border) var(--sem-deal-border) var(--sem-deal-border) var(--sem-deal);
     background: var(--sem-deal-bg);
+    border-color: var(--sem-deal-border);
 }
 
 .ai-client-summary__section--semantic-deal h3 {
@@ -606,22 +592,12 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary__section--semantic-neutral {
+    background: color-mix(in srgb, var(--wa-text) 4%, var(--wa-panel));
     border-color: color-mix(in srgb, var(--wa-border) 85%, transparent);
-    border-left-color: color-mix(in srgb, var(--wa-text-secondary) 35%, var(--wa-border));
-    background: color-mix(in srgb, var(--wa-text) 3%, var(--wa-panel));
 }
 
 .ai-client-summary__section--semantic-neutral h3 {
     color: var(--wa-text-secondary);
-}
-
-.ai-client-summary__section--full.ai-client-summary__section--semantic-who,
-.ai-client-summary__section--full.ai-client-summary__section--semantic-preferences,
-.ai-client-summary__section--full.ai-client-summary__section--semantic-context,
-.ai-client-summary__section--full.ai-client-summary__section--semantic-agreements,
-.ai-client-summary__section--full.ai-client-summary__section--semantic-deal,
-.ai-client-summary__section--full.ai-client-summary__section--semantic-neutral {
-    border-bottom-color: color-mix(in srgb, var(--wa-border) 55%, transparent);
 }
 
 .ai-client-summary__section h3 {
