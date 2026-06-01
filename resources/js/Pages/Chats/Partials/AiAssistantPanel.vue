@@ -1010,7 +1010,12 @@ watch(() => [props.contactId, props.chatId] as const, () => {
     min-height: 0;
     overflow: hidden;
     opacity: 1;
+    background: var(--wa-panel);
     transition: opacity 0.25s ease, flex 0.25s ease, max-height 0.25s ease;
+}
+
+.ai-panel-summary-wrap :deep(.ai-client-summary--expanded) {
+    background: var(--wa-panel);
 }
 
 .ai-panel-summary-wrap--hidden {

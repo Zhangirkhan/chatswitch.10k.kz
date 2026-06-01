@@ -331,7 +331,7 @@ function sectionSemantic(title: string): SectionSemantic {
 }
 
 .ai-client-summary--expanded .ai-client-summary__body {
-    padding: 0 0 4px;
+    padding: 14px 16px 16px;
 }
 
 .ai-client-summary--expanded .ai-client-summary__loading,
