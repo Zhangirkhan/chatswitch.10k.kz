@@ -400,6 +400,20 @@
         background: transparent;
     }
 
+    .ui-pill-nav--lg {
+        min-width: min(100%, 22rem);
+    }
+
+    .ui-pill-nav--lg .ui-pill-nav__item,
+    .ui-pill-nav--lg.ui-pill-nav--sliding .ui-pill-nav__item {
+        flex: 1 1 0;
+        min-height: var(--primitive-control-h);
+        height: var(--primitive-control-h);
+        padding: 0 1.25rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+
     /* ─── View transitions (synced with pill nav timing) ─── */
     .ui-view-transition {
         position: relative;

@@ -2,6 +2,7 @@
 import ClientDetailModal from '@/Components/Clients/ClientDetailModal.vue';
 import type { ClientListItem } from '@/Components/Clients/clientProfileTypes';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
@@ -243,14 +244,15 @@ const companyDeleteDescription = computed(() => {
                 </div>
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex flex-wrap items-center gap-[var(--primitive-gap-sm)]">
-                        <div class="ui-pill-nav ui-pill-nav--inline">
+                        <UiPillNav class="ui-pill-nav--lg w-full sm:w-auto sm:min-w-[22rem]">
                             <button
                                 type="button"
                                 class="ui-pill-nav__item"
                                 :class="{ 'is-active': activeTab === 'clients' }"
                                 @click="activeTab = 'clients'"
                             >
-                                Клиенты · {{ total }}
+                                <span class="truncate">Клиенты</span>
+                                <span class="ui-tab-badge ui-tab-badge--neutral">{{ total }}</span>
                             </button>
                             <button
                                 v-if="canManageCompanies"
@@ -259,9 +261,10 @@ const companyDeleteDescription = computed(() => {
                                 :class="{ 'is-active': activeTab === 'companies' }"
                                 @click="activeTab = 'companies'"
                             >
-                                Компании · {{ companiesTotal }}
+                                <span class="truncate">Компании</span>
+                                <span class="ui-tab-badge ui-tab-badge--neutral">{{ companiesTotal }}</span>
                             </button>
-                        </div>
+                        </UiPillNav>
                         <button
                             v-if="activeTab === 'companies' && canManageCompanies"
                             type="button"
