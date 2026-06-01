@@ -18,6 +18,9 @@ use App\Models\MessageMedia;
 use App\Models\MessageReaction;
 use App\Models\WhatsappSession;
 use App\Support\ChatBroadcastAudience;
+use App\Support\SafeBroadcast;
+use App\Support\WhatsappSessionResolver;
+use App\Support\TranscribeAudioJobDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -63,7 +66,8 @@ final class WhatsappWebhookController extends Controller
             ],
         ]);
 
-        $session = WhatsappSession::query()->where('session_name', $validated['session'])->first();
+        $companyId = isset($validated['companyId']) ? (int) $validated['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($validated['session'], $companyId);
         if ($session === null) {
             return response()->json(['status' => 'session_not_found'], 404);
         }
@@ -79,6 +83,8 @@ final class WhatsappWebhookController extends Controller
         }
 
         if ($message->media()->exists()) {
+            TranscribeAudioJobDispatcher::dispatchIfNeeded($message);
+
             return response()->json(['status' => 'ok', 'duplicate' => true]);
         }
 
@@ -106,7 +112,9 @@ final class WhatsappWebhookController extends Controller
             'quotedMessage.media:id,message_id,mime_type,filename',
         ]);
 
-        broadcast(new NewMessageReceived($message, $message->chat_id));
+        SafeBroadcast::dispatch(new NewMessageReceived($message, $message->chat_id), 'whatsapp-inbound-media');
+
+        TranscribeAudioJobDispatcher::dispatchIfNeeded($message);
 
         return response()->json(['status' => 'ok']);
     }
@@ -144,7 +152,8 @@ final class WhatsappWebhookController extends Controller
             return;
         }
 
-        $session = WhatsappSession::query()->where('session_name', $sessionName)->first();
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
         if ($session === null) {
             return;
         }
@@ -165,7 +174,7 @@ final class WhatsappWebhookController extends Controller
 
         $chat->loadMissing(['contact', 'whatsappSession']);
 
-        broadcast(new ChatsListNotify(
+        SafeBroadcast::dispatch(new ChatsListNotify(
             $chat->id,
             'call_incoming',
             'Входящий звонок WhatsApp',
@@ -173,7 +182,7 @@ final class WhatsappWebhookController extends Controller
             ChatBroadcastAudience::absoluteIconUrl($chat->contact?->profile_picture_url),
             (bool) $chat->is_muted,
             $recipientUserIds,
-        ));
+        ), 'whatsapp-call');
     }
 
     private function onConnected(array $data): JsonResponse
@@ -183,7 +192,8 @@ final class WhatsappWebhookController extends Controller
         $waName = isset($data['name']) ? (string) $data['name'] : null;
         $platform = isset($data['platform']) ? (string) $data['platform'] : null;
 
-        $session = WhatsappSession::where('session_name', $sessionName)->first();
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName((string) $sessionName, $companyId);
         if ($session) {
             $update = [
                 'status' => 'connected',
@@ -201,7 +211,7 @@ final class WhatsappWebhookController extends Controller
             $session->update($update);
         }
 
-        broadcast(new WhatsappStatusChanged($sessionName, 'connected', $phone, $waName));
+        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'connected', $phone, $waName), 'whatsapp-status');
 
         return response()->json(['status' => 'ok']);
     }
@@ -213,12 +223,24 @@ final class WhatsappWebhookController extends Controller
         // Это «авто-disconnect» от whatsapp-web.js: меняем только фактический
         // статус, но НЕ трогаем desired_state — пользователь не просил
         // отключать, поэтому watchdog должен поднять сессию заново.
-        WhatsappSession::where('session_name', $sessionName)->update([
-            'status' => 'disconnected',
-            'disconnected_at' => now(),
-        ]);
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
+        if ($session !== null) {
+            $session->update([
+                'status' => 'disconnected',
+                'disconnected_at' => now(),
+            ]);
+        } else {
+            WhatsappSession::query()
+                ->withoutGlobalScope('tenant')
+                ->where('session_name', $sessionName)
+                ->update([
+                    'status' => 'disconnected',
+                    'disconnected_at' => now(),
+                ]);
+        }
 
-        broadcast(new WhatsappStatusChanged($sessionName, 'disconnected'));
+        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'disconnected'), 'whatsapp-status');
 
         return response()->json(['status' => 'ok']);
     }
@@ -227,11 +249,18 @@ final class WhatsappWebhookController extends Controller
     {
         $sessionName = $data['session'] ?? 'default';
 
-        WhatsappSession::where('session_name', $sessionName)->update([
-            'status' => 'qr_pending',
-        ]);
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
+        if ($session !== null) {
+            $session->update(['status' => 'qr_pending']);
+        } else {
+            WhatsappSession::query()
+                ->withoutGlobalScope('tenant')
+                ->where('session_name', $sessionName)
+                ->update(['status' => 'qr_pending']);
+        }
 
-        broadcast(new WhatsappStatusChanged($sessionName, 'qr_pending'));
+        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'qr_pending'), 'whatsapp-status');
 
         return response()->json(['status' => 'ok']);
     }
@@ -240,11 +269,18 @@ final class WhatsappWebhookController extends Controller
     {
         $sessionName = $data['session'] ?? 'default';
 
-        WhatsappSession::where('session_name', $sessionName)->update([
-            'status' => 'disconnected',
-        ]);
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
+        if ($session !== null) {
+            $session->update(['status' => 'disconnected']);
+        } else {
+            WhatsappSession::query()
+                ->withoutGlobalScope('tenant')
+                ->where('session_name', $sessionName)
+                ->update(['status' => 'disconnected']);
+        }
 
-        broadcast(new WhatsappStatusChanged($sessionName, 'auth_failure'));
+        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'auth_failure'), 'whatsapp-status');
 
         return response()->json(['status' => 'ok']);
     }
@@ -257,8 +293,19 @@ final class WhatsappWebhookController extends Controller
 
         $newAck = (string) ($data['ack'] ?? 'pending');
 
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $sessionName = trim((string) ($data['session'] ?? ''));
+
+        $messageQuery = Message::query()->where('whatsapp_message_id', $data['messageId']);
+        if ($sessionName !== '') {
+            $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
+            if ($session !== null) {
+                $messageQuery->where('whatsapp_session_id', $session->id);
+            }
+        }
+
         /** @var Message|null $message */
-        $message = Message::where('whatsapp_message_id', $data['messageId'])->first();
+        $message = $messageQuery->first();
         if ($message === null) {
             return response()->json(['status' => 'ok']);
         }
@@ -276,7 +323,7 @@ final class WhatsappWebhookController extends Controller
 
         $message->forceFill(['ack' => $newAck])->save();
 
-        broadcast(new MessageAckUpdated($message->chat_id, $message->id, $newAck));
+        SafeBroadcast::dispatch(new MessageAckUpdated($message->chat_id, $message->id, $newAck), 'whatsapp-ack');
 
         return response()->json(['status' => 'ok']);
     }
@@ -295,8 +342,19 @@ final class WhatsappWebhookController extends Controller
             return response()->json(['status' => 'ok']);
         }
 
+        $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
+        $sessionName = trim((string) ($data['session'] ?? ''));
+
+        $messageQuery = Message::query()->where('whatsapp_message_id', $messageId);
+        if ($sessionName !== '') {
+            $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
+            if ($session !== null) {
+                $messageQuery->where('whatsapp_session_id', $session->id);
+            }
+        }
+
         /** @var Message|null $message */
-        $message = Message::where('whatsapp_message_id', $messageId)->first();
+        $message = $messageQuery->first();
         if ($message === null) {
             return response()->json(['status' => 'ok']);
         }
@@ -320,7 +378,7 @@ final class WhatsappWebhookController extends Controller
             ->where('message_id', $message->id)
             ->get();
 
-        broadcast(new MessageReactionsUpdated($message->chat_id, $message->id, $reactions));
+        SafeBroadcast::dispatch(new MessageReactionsUpdated($message->chat_id, $message->id, $reactions), 'whatsapp-reaction');
 
         return response()->json(['status' => 'ok']);
     }

@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Events\NewMessageReceived;
-use App\Models\FunnelAiScenario;
 use App\Models\Message;
-use App\Models\SystemSetting;
 use App\Models\WhatsappSession;
+use App\Services\AI\AutomatedPeerReplyGuard;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
+use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
+use App\Support\VoiceInboundHelper;
 use App\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
+use App\Support\WhatsappSessionResolver;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -21,11 +24,13 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-final class ProcessWhatsappInboundJob implements ShouldQueue
+final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 5;
+
+    public int $uniqueFor = 300;
 
     /** @var list<int> */
     public array $backoff = [5, 15, 30, 60, 120];
@@ -35,17 +40,25 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
      */
     public function __construct(public readonly array $data) {}
 
+    public function uniqueId(): string
+    {
+        $session = (string) ($this->data['session'] ?? 'default');
+        $messageId = (string) ($this->data['messageId'] ?? '');
+
+        return $session.':'.$messageId;
+    }
+
     public function handle(
         ChatService $chatService,
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
+        AutomatedPeerReplyGuard $automatedPeerGuard,
         TenantContext $tenantContext,
+        InboundAiDispatchService $aiDispatch,
     ): void {
         $sessionName = (string) ($this->data['session'] ?? 'default');
-        $session = WhatsappSession::query()
-            ->withoutGlobalScope('tenant')
-            ->where('session_name', $sessionName)
-            ->first();
+        $companyId = isset($this->data['companyId']) ? (int) $this->data['companyId'] : null;
+        $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
 
         if (! $session) {
             Log::warning('[whatsapp-inbound] session not found', ['session' => $sessionName]);
@@ -60,10 +73,19 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
 
         $chatId = 0;
 
-        $message = DB::transaction(function () use ($chatService, $session, &$chatId): Message {
+        $isDuplicate = false;
+
+        $message = DB::transaction(function () use ($chatService, $session, &$chatId, &$isDuplicate): Message {
             $chat = $chatService->findOrCreateChat($this->data, $session);
             $chatId = (int) $chat->id;
+            $beforeId = isset($this->data['messageId'])
+                ? Message::query()
+                    ->where('whatsapp_session_id', $session->id)
+                    ->where('whatsapp_message_id', (string) $this->data['messageId'])
+                    ->value('id')
+                : null;
             $message = $chatService->storeInboundMessage($chat, $session, $this->data);
+            $isDuplicate = $beforeId !== null && (int) $beforeId === (int) $message->id;
             $message->load([
                 'media',
                 'sentByUser',
@@ -75,6 +97,15 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
 
             return $message;
         });
+
+        if ($isDuplicate) {
+            Log::info('[whatsapp-inbound] duplicate webhook skipped side effects', [
+                'chat_id' => $chatId,
+                'message_id' => $message->id,
+            ]);
+
+            return;
+        }
 
         try {
             broadcast(new NewMessageReceived($message, $chatId));
@@ -88,6 +119,18 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
 
         $message->loadMissing('chat');
 
+        if ($message->chat !== null
+            && $message->direction === 'inbound'
+            && $automatedPeerGuard->shouldSuppress($message->chat, $message)) {
+            Log::info('[whatsapp-inbound] AI suppressed for automated peer', [
+                'chat_id' => $message->chat->id,
+                'message_id' => $message->id,
+                'reason' => $automatedPeerGuard->reason($message->chat, $message),
+            ]);
+
+            return;
+        }
+
         $resolvedDepartment = null;
         if ($message->chat !== null && $message->direction === 'inbound') {
             $resolvedDepartment = $departmentRouting->resolveAndAssignDepartment($message->chat, $message);
@@ -100,37 +143,11 @@ final class ProcessWhatsappInboundJob implements ShouldQueue
             return;
         }
 
-        $shouldAnalyzeFunnel = $message->chat !== null
-            && SystemSetting::getValue('module_funnels', 'on') === 'on'
-            && ! $message->chat->is_group
-            && $message->direction === 'inbound'
-            && $message->chat->funnel_tracking_enabled
-            && ! $message->chat->funnel_stage_locked;
-
-        $orchestratorEnabled = $message->chat !== null
-            && $message->chat->funnel_id !== null
-            && FunnelAiScenario::query()
-                ->where('funnel_id', $message->chat->funnel_id)
-                ->where('enabled', true)
-                ->exists();
-
-        if ($orchestratorEnabled) {
-            $delaySeconds = max(1, (int) config('funnel.orchestrator.debounce_seconds', 3));
-            RunAiFunnelOrchestratorJob::dispatch($message->chat_id, $message->id)
-                ->delay(now()->addSeconds($delaySeconds));
-
+        if (VoiceInboundHelper::needsTranscriptionBeforeAi($message)) {
             return;
         }
 
-        if ($shouldAnalyzeFunnel) {
-            $delaySeconds = max(1, (int) config('funnel.ai.debounce_seconds', 5));
-            AnalyzeChatFunnelJob::dispatch($message->chat_id, $message->id)
-                ->delay(now()->addSeconds($delaySeconds));
-        }
-
-        if ($message->chat?->ai_enabled === true && ! $shouldAnalyzeFunnel) {
-            GenerateAiReplyJob::dispatch($message->chat_id, $message->id);
-        }
+        $aiDispatch->dispatchForInboundMessage($message);
     }
 
     public function viaQueue(): string

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class Message extends Model
 {
@@ -63,6 +64,11 @@ final class Message extends Model
     public function media(): HasMany
     {
         return $this->hasMany(MessageMedia::class);
+    }
+
+    public function transcript(): HasOne
+    {
+        return $this->hasOne(MessageTranscript::class);
     }
 
     public function reactions(): HasMany

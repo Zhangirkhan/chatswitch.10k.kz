@@ -16,6 +16,7 @@ use App\Models\WhatsappSession;
 use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
+use App\Support\TranscribeAudioJobDispatcher;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -422,16 +423,55 @@ final class ChatService
 
     public function findOrCreateContact(array $data): Contact
     {
-        $whatsappId = $data['from'] ?? $data['senderPhone'] ?? '';
+        $senderAuthorJid = isset($data['senderAuthorJid']) ? trim((string) $data['senderAuthorJid']) : '';
+        $from = isset($data['from']) ? trim((string) $data['from']) : '';
+        $senderPhone = isset($data['senderPhone']) ? trim((string) $data['senderPhone']) : '';
+        $senderName = isset($data['senderName']) ? trim((string) $data['senderName']) : null;
+        $senderName = ($senderName !== '') ? $senderName : null;
 
-        return Contact::firstOrCreate(
-            ['whatsapp_id' => $whatsappId],
-            [
-                'phone_number' => $data['senderPhone'] ?? $whatsappId,
-                'name' => $data['senderName'] ?? null,
-                'push_name' => $data['senderName'] ?? null,
-            ],
-        );
+        if ($senderPhone !== '' && ! str_ends_with(strtolower($senderAuthorJid), '@lid')) {
+            $digits = preg_replace('/\D/', '', $senderPhone);
+
+            if ($digits !== '') {
+                return $this->findOrCreateContactByPhone($digits, $senderName);
+            }
+        }
+
+        $whatsappId = $senderAuthorJid !== ''
+            ? $senderAuthorJid
+            : ($from !== '' ? $from : $senderPhone);
+
+        if ($whatsappId === '') {
+            throw new \InvalidArgumentException('Inbound contact payload is missing sender identifiers.');
+        }
+
+        if (str_ends_with(strtolower($whatsappId), '@c.us')) {
+            $digits = preg_replace('/\D/', '', explode('@', $whatsappId)[0] ?? '');
+            if ($digits !== '') {
+                return $this->findOrCreateContactByPhone($digits, $senderName);
+            }
+        }
+
+        $existing = Contact::query()
+            ->where('whatsapp_id', $whatsappId)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $phoneDigits = preg_replace('/\D/', '', $whatsappId);
+        $phoneNumber = ($phoneDigits !== '' && strlen($phoneDigits) >= 8 && strlen($phoneDigits) <= 15)
+            ? $phoneDigits
+            : null;
+
+        return Contact::create([
+            'whatsapp_id' => $whatsappId,
+            'phone_number' => $phoneNumber,
+            'name' => $senderName,
+            'push_name' => $senderName,
+        ]);
     }
 
     public function storeInboundMessage(Chat $chat, WhatsappSession $session, array $data): Message
@@ -471,6 +511,18 @@ final class ChatService
             }
         }
 
+        $waMessageId = isset($data['messageId']) ? trim((string) $data['messageId']) : '';
+        if ($waMessageId !== '') {
+            $existing = Message::query()
+                ->where('whatsapp_session_id', $session->id)
+                ->where('whatsapp_message_id', $waMessageId)
+                ->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+        }
+
         $message = Message::create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
@@ -489,6 +541,8 @@ final class ChatService
 
         if (! empty($data['mediaUrl'])) {
             $this->storeMediaFromBase64($message, $data['mediaUrl'], $data['mediaMimetype'] ?? 'application/octet-stream', $data['mediaFilename'] ?? null);
+
+            TranscribeAudioJobDispatcher::dispatchIfNeeded($message);
         }
 
         // Для превью чата: если есть caption — используем его; иначе локализованная
@@ -504,11 +558,7 @@ final class ChatService
             $preview = '';
         }
 
-        $chat->forceFill([
-            'last_message_text' => Str::limit($preview, 200),
-            'last_message_at' => $message->message_timestamp,
-            'last_message_direction' => 'inbound',
-        ])->save();
+        $this->applyLastMessageSnapshot($chat, $message, $preview);
 
         // Atomic increment — избегаем race condition при параллельных webhook'ах.
         $chat->increment('unread_count');
@@ -519,6 +569,7 @@ final class ChatService
         }
 
         app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat);
+        app(\App\Services\Funnel\ConsultationFollowUpProposalService::class)->dismissPendingForChat($chat);
 
         return $message;
     }
@@ -633,11 +684,7 @@ final class ChatService
             'message_timestamp' => now(),
         ]);
 
-        $chat->update([
-            'last_message_text' => Str::limit($body, 200),
-            'last_message_at' => $message->message_timestamp,
-            'last_message_direction' => 'outbound',
-        ]);
+        $this->applyLastMessageSnapshot($chat, $message, Str::limit($body, 200));
 
         $this->releaseAdministratorIfSoleAssigneeOnOutbound($chat, $user);
         $this->attachAdministratorWhenJoiningStaffedChat($chat, $user);
@@ -704,6 +751,7 @@ final class ChatService
     {
         $last = Message::query()
             ->where('chat_id', $chat->id)
+            ->whereIn('direction', ['inbound', 'outbound'])
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->first();
@@ -713,6 +761,7 @@ final class ChatService
                 'last_message_text' => null,
                 'last_message_at' => null,
                 'last_message_direction' => null,
+                'last_message_is_ai' => false,
             ]);
 
             return;
@@ -725,11 +774,18 @@ final class ChatService
                 : '';
         }
 
-        $chat->update([
+        $this->applyLastMessageSnapshot($chat, $last, $preview);
+    }
+
+    private function applyLastMessageSnapshot(Chat $chat, Message $message, string $preview): void
+    {
+        $chat->forceFill([
             'last_message_text' => Str::limit($preview, 200),
-            'last_message_at' => $last->message_timestamp,
-            'last_message_direction' => $last->direction,
-        ]);
+            'last_message_at' => $message->message_timestamp,
+            'last_message_direction' => $message->direction,
+            'last_message_is_ai' => $message->direction === 'outbound'
+                && data_get($message->metadata, 'ai.generated') === true,
+        ])->save();
     }
 
     /**
