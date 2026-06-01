@@ -42,8 +42,8 @@ final class ClientProfileAssembler
             'contact_id' => $contact->id,
             'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
             'sections' => [
-                $this->basicSection($contact, $identity, $crm),
-                $this->contactsSection($identity, $crm, $channels),
+                $this->basicSection($contact, $identity, $crm, $memory['content']),
+                $this->contactsSection($identity, $crm, $channels, $memory['content']),
                 $this->financeSection(),
                 $this->b2bSection($identity, $crm),
                 $this->historySection($activity, $crm),
@@ -58,7 +58,7 @@ final class ClientProfileAssembler
      * @param  array<string, mixed>  $crm
      * @return array<string, mixed>
      */
-    private function basicSection(Contact $contact, array $identity, array $crm): array
+    private function basicSection(Contact $contact, array $identity, array $crm, string $memoryContent): array
     {
         $deal = is_array($crm['deal'] ?? null) ? $crm['deal'] : null;
         $stage = is_array($deal['stage'] ?? null) ? $deal['stage'] : null;
@@ -99,6 +99,14 @@ final class ClientProfileAssembler
             $fields[] = $this->field('Прогресс сделки', (string) $deal['progress_percent'].'%', 'crm');
         }
 
+        foreach ($this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']) as $field) {
+            $fields[] = $field;
+        }
+
+        foreach ($this->factsMatching($crm, '/адрес|address|локац|улиц|город|район/iu') as $field) {
+            $fields[] = $field;
+        }
+
         return [
             'key' => 'basic',
             'title' => 'Основное',
@@ -113,7 +121,7 @@ final class ClientProfileAssembler
      * @param  list<array<string, mixed>>  $channels
      * @return array<string, mixed>
      */
-    private function contactsSection(array $identity, array $crm, array $channels): array
+    private function contactsSection(array $identity, array $crm, array $channels, string $memoryContent): array
     {
         $fields = [];
 
@@ -125,6 +133,12 @@ final class ClientProfileAssembler
         $leadId = trim((string) ($identity['lead_id'] ?? ''));
         if ($leadId !== '') {
             $fields[] = $this->field('ID лида WhatsApp', $leadId, 'crm');
+        }
+
+        foreach ($this->fieldsFromMemory($memoryContent, ['Адрес', 'Город', 'Район']) as $field) {
+            if (! $this->fieldsContainLabel($fields, $field['label'])) {
+                $fields[] = $field;
+            }
         }
 
         $channelLabels = collect($channels)
@@ -422,5 +436,79 @@ final class ClientProfileAssembler
         return str_contains($normalized, 'имя / как обращаться')
             && str_contains($normalized, 'предпочтения и контекст')
             && mb_strlen(trim($content)) < 400;
+    }
+
+    /**
+     * @param  list<string>  $onlyLabels
+     * @return list<array{label: string, value: string, source: string}>
+     */
+    private function fieldsFromMemory(string $memoryContent, array $onlyLabels = []): array
+    {
+        $content = trim($memoryContent);
+        if ($content === '') {
+            return [];
+        }
+
+        $patterns = [
+            'Адрес' => '/(?:^|\n)\s*(?:[-*#]+\s*)?(?:адрес(?:\s*\/\s*лока(?:ция|ции)?)?|address)\s*:?\s*([^\n]+)/iu',
+            'Город' => '/(?:^|\n)\s*(?:[-*#]+\s*)?(?:город|city)\s*:?\s*([^\n]+)/iu',
+            'Район' => '/(?:^|\n)\s*(?:[-*#]+\s*)?(?:район|district)\s*:?\s*([^\n]+)/iu',
+        ];
+
+        $fields = [];
+        foreach ($patterns as $label => $pattern) {
+            if ($onlyLabels !== [] && ! in_array($label, $onlyLabels, true)) {
+                continue;
+            }
+            if (! preg_match($pattern, $content, $matches)) {
+                continue;
+            }
+            $value = trim((string) ($matches[1] ?? ''), " \t-");
+            if ($value === '' || $value === '-') {
+                continue;
+            }
+            $fields[] = $this->field($label, $value, 'memory');
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param  array<string, mixed>  $crm
+     * @return list<array{label: string, value: string, source: string}>
+     */
+    private function factsMatching(array $crm, string $pattern): array
+    {
+        $fields = [];
+        foreach ($crm['facts'] ?? [] as $fact) {
+            if (! is_array($fact)) {
+                continue;
+            }
+            $label = trim((string) ($fact['label'] ?? ''));
+            $value = trim((string) ($fact['value'] ?? ''));
+            if ($label === '' || $value === '') {
+                continue;
+            }
+            if (! preg_match($pattern, $label) && ! preg_match($pattern, $value)) {
+                continue;
+            }
+            $fields[] = $this->field($label, $value, (string) ($fact['source'] ?? 'crm'));
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param  list<array{label: string, value: string, source: string}>  $fields
+     */
+    private function fieldsContainLabel(array $fields, string $label): bool
+    {
+        foreach ($fields as $field) {
+            if (($field['label'] ?? '') === $label) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

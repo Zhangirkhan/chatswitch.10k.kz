@@ -85,6 +85,9 @@ watch(
         if (cachedProfile) {
             profile.value = cachedProfile;
             profileLoading.value = false;
+            if (!cachedProfile.ai_enriched) {
+                void enrichProfileInBackground(contactId, cacheKey);
+            }
         } else {
             profile.value = null;
             void loadProfile(contactId, cacheKey);
@@ -102,20 +105,42 @@ watch(
     { immediate: true },
 );
 
+function profileRequestParams(): Record<string, number> {
+    return props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
+}
+
 async function loadProfile(contactId: number, cacheKey: string): Promise<void> {
     profileLoading.value = true;
     profileError.value = null;
     try {
-        const params = props.client?.primary_chat_id ? { chat_id: props.client.primary_chat_id } : {};
-        const { data } = await axios.get(route('clients.profile', contactId), { params });
+        const { data } = await axios.get(route('clients.profile', contactId), {
+            params: profileRequestParams(),
+        });
         const nextProfile = data.profile as ClientProfile;
         profile.value = nextProfile;
         profileCache.set(cacheKey, nextProfile);
+        void enrichProfileInBackground(contactId, cacheKey);
     } catch (e: any) {
         profile.value = null;
         profileError.value = e?.response?.data?.message || 'Не удалось загрузить профиль';
     } finally {
         profileLoading.value = false;
+    }
+}
+
+async function enrichProfileInBackground(contactId: number, cacheKey: string): Promise<void> {
+    try {
+        const { data } = await axios.get(route('clients.profile', contactId), {
+            params: { ...profileRequestParams(), with_ai: 1 },
+        });
+        const enriched = data.profile as ClientProfile;
+        if (!enriched.ai_enriched) {
+            return;
+        }
+        profile.value = enriched;
+        profileCache.set(cacheKey, enriched);
+    } catch {
+        // CRM-профиль уже показан — тихо игнорируем сбой AI-дополнения
     }
 }
 
