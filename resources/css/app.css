@@ -223,6 +223,7 @@
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
     --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
     --ui-accent-btn-shadow:
         inset 0 1px 0 0 color-mix(in srgb, #fff 22%, var(--ui-accent)),
         inset 0 -1px 0 0 color-mix(in srgb, #000 14%, var(--ui-accent)),
@@ -281,9 +282,9 @@
     --wa-text-secondary: #667781;
     --wa-text-muted: #8696A0;
 
-    /* Brand / accent — на светлом фоне чуть темнее для контраста текста и иконок */
-    --brand-accent: #008f5a;
-    --brand-accent-hover: #00a066;
+    /* Brand / accent — тот же зелёный, что в тёмной теме; для текста ссылок — --wa-chroma-accent-fg */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
     --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 22%, var(--wa-panel));
     --brand-accent-border: color-mix(in srgb, var(--brand-accent) 42%, var(--wa-border));
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
@@ -435,9 +436,10 @@
     --ui-icon: var(--wa-icon);
     --ui-danger: var(--wa-danger);
     --ui-accent-on: var(--wa-accent-on);
-    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 82%, #003d28);
-    --ui-accent-btn-shadow: 0 1px 2px rgba(17, 27, 33, 0.12);
-    --ui-accent-btn-shadow-hover: 0 2px 5px rgba(17, 27, 33, 0.16);
+    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 76%, #008656 24%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, var(--ui-accent-hover) 76%, #008656 24%);
+    --ui-accent-btn-shadow: 0 1px 2px color-mix(in srgb, var(--ui-accent) 28%, rgba(17, 27, 33, 0.14));
+    --ui-accent-btn-shadow-hover: 0 2px 5px color-mix(in srgb, var(--ui-accent) 22%, rgba(17, 27, 33, 0.18));
     --ui-surface-hover: var(--wa-panel-hover);
     --ui-selected: var(--wa-selected);
     --ui-shadow-card: 0 18px 48px rgba(17, 27, 33, 0.1);

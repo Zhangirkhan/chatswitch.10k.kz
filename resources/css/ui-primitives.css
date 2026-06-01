@@ -766,7 +766,7 @@
 
     .ui-btn--primary:hover:not(:disabled) {
         background: var(--ui-accent-hover);
-        border-color: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
+        border-color: var(--ui-accent-btn-border-hover, color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%));
         box-shadow: var(--ui-accent-btn-shadow-hover, var(--wa-control-rim-shadow-hover));
         filter: brightness(1.03);
     }
