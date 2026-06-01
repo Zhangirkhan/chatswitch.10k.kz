@@ -74,8 +74,8 @@ function onFieldCreated(): void {
                 </button>
                 <button
                     type="button"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg text-lg leading-none"
-                    :style="{ background: 'var(--ui-surface-muted)' }"
+                    class="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-medium leading-none"
+                    :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     aria-label="Добавить поле"
                     title="Добавить поле"
                     @click="addFieldOpen = true"

@@ -1073,8 +1073,8 @@ async function saveContactName() {
                                         </button>
                                         <button
                                             type="button"
-                                            class="flex h-6 w-6 items-center justify-center rounded text-sm leading-none"
-                                            :style="{ background: 'var(--wa-panel-2)' }"
+                                            class="flex h-6 w-6 items-center justify-center rounded text-sm font-medium leading-none"
+                                            :style="{ background: 'var(--wa-accent)', color: '#fff' }"
                                             aria-label="Добавить поле"
                                             @click="addFieldOpen = true"
                                         >
