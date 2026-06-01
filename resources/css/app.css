@@ -121,9 +121,9 @@
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 14%, var(--wa-chroma-blend));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 22%, var(--wa-chroma-blend));
 
-    /* Message bubbles */
-    --wa-bubble-in: #202C33;
-    --wa-bubble-out: #005C4B;
+    /* Message bubbles — тёмная тема: приглушённые */
+    --wa-bubble-in: #2A3942;
+    --wa-bubble-out: #1E4D40;
     --wa-bubble-text: #E9EDEF;
     --wa-bubble-text-in: var(--wa-bubble-text);
     --wa-bubble-text-out: var(--wa-bubble-text);
@@ -344,9 +344,9 @@
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 22%, var(--wa-border));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 28%, var(--wa-chroma-blend));
 
-    /* Message bubbles */
+    /* Message bubbles — светлая тема: насыщеннее */
     --wa-bubble-in: #FFFFFF;
-    --wa-bubble-out: #D9FDD3;
+    --wa-bubble-out: #B8EBB0;
     --wa-bubble-text: #111B21;
     --wa-bubble-text-in: var(--wa-bubble-text);
     --wa-bubble-text-out: var(--wa-bubble-text);
