@@ -12,6 +12,8 @@ use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\Memory\EntityMemoryService;
+use App\Services\Promotion\CompanyPromotionCatalog;
+use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -38,6 +40,7 @@ final class PromptBuilder
         private readonly PromptCompressionCache $compressionCache,
         private readonly WhatsappAiTypingService $whatsappTyping,
         private readonly LocalePromptAugmenter $localeAugmenter,
+        private readonly CompanyPromotionCatalog $promotionCatalog,
     ) {}
 
     /**
@@ -87,6 +90,9 @@ final class PromptBuilder
         $calendarBlock = $this->calendarContext->buildContextBlock($responder);
         $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder, $replyAsCompany);
         $memoryBlock = $this->entityMemoryBlock($chat, $responder);
+        $promotionsBlock = $companyId !== null
+            ? $this->promotionsBlock($companyId)
+            : '';
         $companyName = trim((string) ($chat->company?->name ?? '')) ?: 'компании';
         $responderName = trim($responder->name) !== '' ? $responder->name : 'сотрудник';
 
@@ -130,7 +136,23 @@ final class PromptBuilder
 {$styleExamplesBlock}
 
 {$memoryBlock}
+
+{$promotionsBlock}
 PROMPT;
+    }
+
+    private function promotionsBlock(int $companyId): string
+    {
+        $block = $this->promotionCatalog->formatPromptBlock(
+            $this->promotionCatalog->promptItemsForCompany($companyId),
+            '',
+        );
+
+        if ($block === '') {
+            return '';
+        }
+
+        return $block."\n\nЕсли клиент сомневается или спрашивает про выгоду — уместно предложи одну из акций выше. Не выдумывай другие скидки.";
     }
 
     private function entityMemoryBlock(Chat $chat, User $responder): string
@@ -324,9 +346,10 @@ PROMPT;
 
     private function formatMessage(Message $message, bool $replyAsCompany = false): string
     {
-        $body = trim((string) $message->body);
-        if ($message->direction === 'outbound') {
-            $body = OperatorSignature::strip($body);
+        if ($message->direction === 'inbound') {
+            $body = trim(MessageInboundText::forMessage($message, voicePrefixWhenFromTranscript: true));
+        } else {
+            $body = OperatorSignature::strip(trim((string) $message->body));
         }
         if ($body === '') {
             $body = '<сообщение без текста>';
@@ -364,7 +387,7 @@ PROMPT;
                 $summaries[] = trim($this->openAi->chat([
                     ['role' => 'system', 'content' => 'Сожми фрагмент переписки поддержки. Сохрани факты, договоренности, цены, возражения, нерешенные вопросы и стиль сотрудника. Не выдумывай.'],
                     ['role' => 'user', 'content' => 'Фрагмент '.($index + 1).' из '.count($chunks).":\n".implode("\n", $chunk)],
-                ], 0.2, 900));
+                ], 0.2, 900, new AiUsageOptions('history_compress', $chat->company_id)));
             } catch (Throwable) {
                 $summaries[] = $this->fallbackChunkSummary($chunk);
             }

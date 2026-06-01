@@ -67,6 +67,14 @@ const adminItems: AdminItem[] = [
     },
     {
         kind: 'admin',
+        label: 'Акции и скидки',
+        description: 'Промо для дожима и AI',
+        icon: 'promotions',
+        routeName: 'settings.promotions',
+        moduleKey: 'funnels',
+    },
+    {
+        kind: 'admin',
         label: 'Воронки продаж',
         description: 'Этапы и статусы сделок',
         icon: 'funnel',
@@ -245,6 +253,10 @@ function logout() {
                         </svg>
                         <svg v-else-if="item.icon === 'funnel'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18l-7 9v6l-4 2v-8L3 4z" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'promotions'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 .953.343 1.087.835l.415 1.66a2 2 0 001.85 1.505h4.293a1 1 0 01.97 1.243l-1.5 6A2 2 0 0116.5 17H8a2 2 0 01-1.98-1.65L4.5 5.65A2 2 0 016.48 4H7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 21a2 2 0 100-4 2 2 0 000 4zM17 21a2 2 0 100-4 2 2 0 000 4z" />
                         </svg>
                         <svg v-else-if="item.icon === 'products'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5l9-4 9 4-9 4-9-4z" />

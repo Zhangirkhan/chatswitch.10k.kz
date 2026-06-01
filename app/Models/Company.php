@@ -21,6 +21,7 @@ final class Company extends Model
         'website',
         'description',
         'is_active',
+        'ai_promotions_enabled',
         'owner_user_id',
         'plan_id',
         'subscription_status',
@@ -32,6 +33,7 @@ final class Company extends Model
     {
         return [
             'is_active' => 'boolean',
+            'ai_promotions_enabled' => 'boolean',
             'trial_ends_at' => 'datetime',
             'current_period_ends_at' => 'datetime',
         ];
