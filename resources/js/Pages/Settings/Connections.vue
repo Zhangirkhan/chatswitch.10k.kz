@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
@@ -50,6 +51,8 @@ const props = defineProps<{
         can_create: boolean;
     };
 }>();
+
+const { t } = useI18n();
 
 const localSessions = ref<WhatsappSession[]>([...props.sessions]);
 const whatsappServiceReachable = ref<boolean | null>(props.whatsappServiceReachable);
@@ -113,12 +116,12 @@ onBeforeUnmount(() => {
     }
 });
 
-const statusLabels: Record<SessionStatus, string> = {
-    connected: 'Подключено',
-    connecting: 'Подключается',
-    qr_pending: 'Ожидает QR',
-    disconnected: 'Отключено',
-};
+const statusLabels = computed<Record<SessionStatus, string>>(() => ({
+    connected: t('whatsapp.status.connected'),
+    connecting: t('whatsapp.status.connecting'),
+    qr_pending: t('whatsapp.status.qrPending'),
+    disconnected: t('whatsapp.status.disconnected'),
+}));
 
 const statusClasses: Record<SessionStatus, string> = {
     connected: 'bg-[var(--ui-accent)]',
@@ -139,7 +142,9 @@ const connConfirmSession = ref<WhatsappSession | null>(null);
 const connConfirmBusy = ref(false);
 
 const connConfirmTitle = computed(() =>
-    connConfirmAction.value === 'logout' ? 'Отключить WhatsApp?' : 'Удалить подключение?',
+    connConfirmAction.value === 'logout'
+        ? t('settings.connections.confirmLogoutTitle')
+        : t('settings.connections.confirmRemoveTitle'),
 );
 
 const connConfirmDescription = computed(() => {
@@ -147,11 +152,15 @@ const connConfirmDescription = computed(() => {
     if (!s) return '';
     const label = sessionLabel(s);
     return connConfirmAction.value === 'logout'
-        ? `Отключить «${label}»? Сессия будет завершена.`
-        : `Удалить подключение «${label}»? Связанные чаты останутся без этого номера.`;
+        ? t('settings.connections.confirmLogoutDescription', { label })
+        : t('settings.connections.confirmRemoveDescription', { label });
 });
 
-const connConfirmLabel = computed(() => (connConfirmAction.value === 'logout' ? 'Отключить' : 'Удалить'));
+const connConfirmLabel = computed(() =>
+    connConfirmAction.value === 'logout'
+        ? t('settings.connections.confirmLogout')
+        : t('settings.connections.confirmRemove'),
+);
 
 function requestLogout(session: WhatsappSession): void {
     connConfirmAction.value = 'logout';
@@ -196,7 +205,8 @@ async function confirmConnAction(): Promise<void> {
             delete qrBySessionId.value[session.id];
         }
     } catch (err: unknown) {
-        const fallback = kind === 'logout' ? 'Не удалось отключить подключение' : 'Не удалось удалить подключение';
+        const fallback =
+            kind === 'logout' ? t('settings.connections.errorLogout') : t('settings.connections.errorRemove');
         message.value = errorMessage(err, fallback);
     } finally {
         busySessionId.value = null;
@@ -260,7 +270,7 @@ function fullDateTimeTitle(value: string | null | undefined): string {
     return fullDateFormatter.format(date);
 }
 
-function errorMessage(err: unknown, fallback = 'Ошибка выполнения действия'): string {
+function errorMessage(err: unknown, fallback = t('settings.connections.errorGeneric')): string {
     const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } }; message?: string };
     const errors = e.response?.data?.errors;
     if (errors) {
@@ -315,7 +325,7 @@ function normalizeQr(payload: QrResponse): string | null {
 
 async function createSession(): Promise<void> {
     if (whatsappServiceReachable.value !== true) {
-        message.value = 'Сервис WhatsApp недоступен. Проверьте запуск whatsapp-service.';
+        message.value = t('settings.connections.serviceUnavailableAction');
         return;
     }
 
@@ -332,7 +342,7 @@ async function createSession(): Promise<void> {
         updateSession(data.session);
         await loadQr(data.session, { silent: true });
     } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось создать подключение');
+        message.value = errorMessage(err, t('settings.connections.errorCreate'));
     } finally {
         isCreating.value = false;
     }
@@ -347,7 +357,7 @@ async function initialize(session: WhatsappSession): Promise<void> {
         updateSession({ ...session, status: 'connecting' });
         setTimeout(() => void loadQr(session, { silent: true }), 1500);
     } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось запустить подключение');
+        message.value = errorMessage(err, t('settings.connections.errorInitialize'));
     } finally {
         busySessionId.value = null;
     }
@@ -385,7 +395,7 @@ async function loadQr(session: WhatsappSession, options: { silent?: boolean } = 
         }
     } catch (err: unknown) {
         if (!silent) {
-            message.value = errorMessage(err, 'Не удалось получить QR-код');
+            message.value = errorMessage(err, t('settings.connections.errorQr'));
         }
     } finally {
         if (!silent) {
@@ -411,7 +421,7 @@ async function refreshStatus(session: WhatsappSession): Promise<void> {
             await loadQr(session, { silent: true });
         }
     } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось обновить статус');
+        message.value = errorMessage(err, t('settings.connections.errorStatus'));
     } finally {
         busySessionId.value = null;
     }
@@ -431,7 +441,7 @@ async function verify(session: WhatsappSession): Promise<void> {
             }
         }
     } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось проверить подключение');
+        message.value = errorMessage(err, t('settings.connections.errorVerify'));
     } finally {
         busySessionId.value = null;
     }
@@ -461,7 +471,7 @@ function pickPaletteColor(hex: string): void {
 async function saveDisplayName(session: WhatsappSession): Promise<void> {
     const displayName = editedDisplayName.value.trim();
     if (!displayName) {
-        message.value = 'Укажите название подключения.';
+        message.value = t('settings.connections.errorDisplayNameRequired');
         return;
     }
 
@@ -476,7 +486,7 @@ async function saveDisplayName(session: WhatsappSession): Promise<void> {
         updateSession(data.session);
         editingSessionId.value = null;
     } catch (err: unknown) {
-        message.value = errorMessage(err, 'Не удалось сохранить название');
+        message.value = errorMessage(err, t('settings.connections.errorSaveName'));
     } finally {
         busySessionId.value = null;
     }
@@ -494,11 +504,11 @@ async function reloadPage(): Promise<void> {
 </script>
 
 <template>
-    <Head title="Подключения WhatsApp" />
+    <Head :title="t('settings.connections.title')" />
 
     <SettingsLayout
-        title="Подключения WhatsApp"
-        subtitle="Номера, QR-коды и цвета обводки в списке «Чаты»"
+        :title="t('settings.connections.title')"
+        :subtitle="t('settings.connections.subtitle')"
     >
         <template #actions>
             <button
@@ -507,30 +517,30 @@ async function reloadPage(): Promise<void> {
                 :disabled="isCreating || !canCreateSession"
                 @click="createSession"
             >
-                {{ isCreating ? 'Создание...' : '+ Добавить подключение' }}
+                {{ isCreating ? t('settings.connections.creating') : t('settings.connections.addConnection') }}
             </button>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
             <div class="ui-panel px-4 py-3 text-sm text-ui-text-secondary">
-                Подключений: <span class="font-semibold text-ui-text">{{ sessionLimitLabel }}</span>
+                {{ t('settings.connections.limitsCount') }} <span class="font-semibold text-ui-text">{{ sessionLimitLabel }}</span>
                 <span class="mx-2 text-ui-text-muted">·</span>
-                На сервере: {{ sessionLimits.global_count }} / {{ sessionLimits.global_max }} (все компании)
+                {{ t('settings.connections.limitsServer', { global: sessionLimits.global_count, max: sessionLimits.global_max }) }}
                 <p v-if="!sessionLimits.can_create" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                    Лимит исчерпан — ограничение только по RAM/CPU сервера, не по тарифу.
+                    {{ t('settings.connections.limitsExhausted') }}
                 </p>
             </div>
             <div
                 v-if="isBootstrapping"
                 class="ui-alert ui-alert--info text-sm"
             >
-                Проверяем доступность whatsapp-service и актуальные статусы подключений…
+                {{ t('settings.connections.bootstrapping') }}
             </div>
             <div
                 v-else-if="whatsappServiceReachable === false"
                 class="ui-alert ui-alert--warn"
             >
-                Сервис WhatsApp недоступен. Проверьте `WHATSAPP_SERVICE_URL`, `WHATSAPP_SERVICE_TOKEN` и процесс whatsapp-service.
+                {{ t('settings.connections.serviceUnavailable') }}
             </div>
 
             <div
@@ -544,9 +554,9 @@ async function reloadPage(): Promise<void> {
                 v-if="!hasSessions"
                 class="ui-empty-state"
             >
-                <h3 class="text-[var(--ui-text)] font-medium">Подключений пока нет</h3>
+                <h3 class="text-[var(--ui-text)] font-medium">{{ t('settings.connections.emptyTitle') }}</h3>
                 <p class="text-sm text-[var(--ui-text-secondary)] mt-1">
-                    Добавьте WhatsApp-подключение и отсканируйте QR-код с телефона.
+                    {{ t('settings.connections.emptyHint') }}
                 </p>
                 <button
                     type="button"
@@ -554,7 +564,7 @@ async function reloadPage(): Promise<void> {
                     :disabled="isCreating || !canCreateSession"
                     @click="createSession"
                 >
-                    Создать первое подключение
+                    {{ t('settings.connections.createFirst') }}
                 </button>
             </div>
 
@@ -563,10 +573,9 @@ async function reloadPage(): Promise<void> {
                 v-if="hasMultipleSessions"
                 class="ui-alert ui-alert--info text-sm leading-relaxed"
             >
-                <strong class="font-medium text-[var(--ui-text)]">Несколько номеров — как отличить в «Чатах»</strong>
+                <strong class="font-medium text-[var(--ui-text)]">{{ t('settings.connections.multiSessionsTitle') }}</strong>
                 <p class="mt-1 text-[var(--ui-text-secondary)]">
-                    У каждого подключения свой цвет. В списке диалогов слева у фото клиента рисуется кольцо этого цвета —
-                    сразу видно, с какого WhatsApp-номера переписка. Настройте цвет в карточке номера ниже.
+                    {{ t('settings.connections.multiSessionsHint') }}
                 </p>
             </div>
 
@@ -610,7 +619,7 @@ async function reloadPage(): Promise<void> {
                             />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-[var(--ui-text)]">
-                                    {{ hasMultipleSessions ? 'Цвет в списке «Чаты»' : 'Цвет для списка «Чаты»' }}
+                                    {{ hasMultipleSessions ? t('settings.connections.colorLabelMulti') : t('settings.connections.colorLabelSingle') }}
                                 </p>
                                 <p class="text-xs text-[var(--ui-text-secondary)] mt-0.5 leading-relaxed">
                                     <template v-if="hasMultipleSessions">
@@ -634,7 +643,7 @@ async function reloadPage(): Promise<void> {
                                     type="text"
                                     class="settings-input w-full"
                                     maxlength="100"
-                                    placeholder="Например: WhatsApp продаж"
+                                    :placeholder="t('settings.connections.displayNamePlaceholder')"
                                     @keyup.enter="saveDisplayName(session)"
                                 />
                             </div>
@@ -647,11 +656,11 @@ async function reloadPage(): Promise<void> {
                                         :value="editedDisplayColor || '#01b964'"
                                         type="color"
                                         class="session-color-input"
-                                        aria-label="Выбрать цвет кольца"
+                                        :aria-label="t('settings.connections.pickRingColor')"
                                         @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
                                     />
                                     <span class="text-xs text-[var(--ui-text-secondary)]">или быстрый выбор:</span>
-                                    <div class="flex flex-wrap gap-1.5" role="group" aria-label="Готовые цвета">
+                                    <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('settings.connections.presetColors')">
                                         <button
                                             v-for="hex in WHATSAPP_SESSION_RING_PALETTE"
                                             :key="hex"
@@ -673,7 +682,7 @@ async function reloadPage(): Promise<void> {
                                     :disabled="busySessionId === session.id"
                                     @click="saveDisplayName(session)"
                                 >
-                                    {{ busySessionId === session.id ? 'Сохранение…' : 'Сохранить' }}
+                                    {{ busySessionId === session.id ? t('settings.connections.saving') : t('common.save') }}
                                 </button>
                                 <button
                                     type="button"
@@ -681,7 +690,7 @@ async function reloadPage(): Promise<void> {
                                     :disabled="busySessionId === session.id"
                                     @click="cancelEdit"
                                 >
-                                    Отмена
+                                    {{ t('common.cancel') }}
                                 </button>
                             </div>
                         </div>
