@@ -3,6 +3,7 @@ import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -33,6 +34,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 const localPromotions = ref<PromotionRow[]>([...props.promotions]);
 const aiPromotionsEnabled = ref(props.ai_promotions_enabled);
 const settingsSaving = ref(false);
@@ -84,14 +86,14 @@ async function saveAiPromotionsSetting(enabled: boolean): Promise<void> {
             ai_promotions_enabled: enabled,
         });
         showToast({
-            message: enabled ? 'AI будет предлагать акции автоматически.' : 'AI больше не предлагает акции.',
+            message: enabled ? t('settings.promotions.toastAiEnabled') : t('settings.promotions.toastAiDisabled'),
             duration: 3000,
         });
     } catch (e: unknown) {
         aiPromotionsEnabled.value = previous;
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось сохранить настройку.',
+            message: err?.response?.data?.message ?? err?.message ?? t('settings.promotions.errorSaveSetting'),
             duration: 4500,
         });
     } finally {
@@ -99,18 +101,16 @@ async function saveAiPromotionsSetting(enabled: boolean): Promise<void> {
     }
 }
 
-const promotionTypeOptions: Array<{ id: PromotionType; label: string; hint?: string }> = [
-    { id: 'percent', label: 'Скидка в процентах' },
-    { id: 'fixed', label: 'Скидка суммой' },
-    { id: 'bogo', label: 'N+M (1+1, 2+1…)', hint: 'Купи N — получи M в подарок' },
-    { id: 'gift', label: 'Подарок при покупке' },
-    { id: 'bundle', label: 'Комплект / набор' },
-    { id: 'free_delivery', label: 'Бесплатная доставка' },
-    { id: 'custom', label: 'Другое (текстовое описание)' },
-];
+const promotionTypeOptions = computed(() =>
+    (['percent', 'fixed', 'bogo', 'gift', 'bundle', 'free_delivery', 'custom'] as PromotionType[]).map((id) => ({
+        id,
+        label: t(`settings.promotions.types.${id}`),
+        hint: id === 'bogo' ? t('settings.promotions.types.bogoHint') : undefined,
+    })),
+);
 
 const selectedTypeHint = computed(() =>
-    promotionTypeOptions.find((opt) => opt.id === form.value.discount_type)?.hint ?? null,
+    promotionTypeOptions.value.find((opt) => opt.id === form.value.discount_type)?.hint ?? null,
 );
 
 function resetForm(): void {
@@ -169,23 +169,23 @@ function discountSummary(row: PromotionRow): string {
         return `${buy}+${get}`;
     }
     if (row.discount_type === 'gift') {
-        return 'Подарок';
+        return t('settings.promotions.summaryGift');
     }
     if (row.discount_type === 'bundle') {
-        return 'Комплект';
+        return t('settings.promotions.summaryBundle');
     }
     if (row.discount_type === 'free_delivery') {
-        return 'Бесплатная доставка';
+        return t('settings.promotions.summaryFreeDelivery');
     }
-    return 'Условие';
+    return t('settings.promotions.summaryCustom');
 }
 
 function validityLabel(row: PromotionRow): string {
     if (!row.valid_from && !row.valid_until) {
-        return 'Без срока';
+        return t('settings.promotions.validityOpen');
     }
-    const from = row.valid_from ? `с ${row.valid_from}` : '';
-    const until = row.valid_until ? `до ${row.valid_until}` : '';
+    const from = row.valid_from ? t('settings.promotions.validityFrom', { date: row.valid_from }) : '';
+    const until = row.valid_until ? t('settings.promotions.validityUntil', { date: row.valid_until }) : '';
     return [from, until].filter(Boolean).join(' ');
 }
 
@@ -220,20 +220,20 @@ async function save(): Promise<void> {
             if (idx >= 0 && updated) {
                 localPromotions.value[idx] = updated;
             }
-            showToast({ message: 'Акция обновлена.', duration: 3000 });
+            showToast({ message: t('settings.promotions.toastUpdated'), duration: 3000 });
         } else {
             const res = await axios.post(route('settings.promotions.store'), payload);
             const created = res.data?.promotion as PromotionRow;
             if (created) {
                 localPromotions.value.push(created);
             }
-            showToast({ message: 'Акция добавлена.', duration: 3000 });
+            showToast({ message: t('settings.promotions.toastCreated'), duration: 3000 });
         }
         modalOpen.value = false;
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось сохранить.',
+            message: err?.response?.data?.message ?? err?.message ?? t('settings.promotions.errorSave'),
             duration: 4500,
         });
     } finally {
@@ -254,13 +254,13 @@ async function destroyPromotion(): Promise<void> {
     try {
         await axios.delete(route('settings.promotions.destroy', { promotion: deleteTarget.value.id }));
         localPromotions.value = localPromotions.value.filter((p) => p.id !== deleteTarget.value?.id);
-        showToast({ message: 'Акция удалена.', duration: 3000 });
+        showToast({ message: t('settings.promotions.toastDeleted'), duration: 3000 });
         deleteOpen.value = false;
         deleteTarget.value = null;
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось удалить.',
+            message: err?.response?.data?.message ?? err?.message ?? t('settings.promotions.errorDelete'),
             duration: 4500,
         });
     } finally {
@@ -271,23 +271,22 @@ async function destroyPromotion(): Promise<void> {
 
 <template>
     <SettingsLayout
-        title="Акции и скидки"
-        subtitle="Промо для AI и дожима в воронках"
+        :title="t('settings.promotions.title')"
+        :subtitle="t('settings.promotions.subtitle')"
     >
-        <Head title="Акции и скидки" />
+        <Head :title="t('settings.promotions.title')" />
 
         <template #actions>
             <button type="button" class="ui-btn ui-btn--primary" @click="openCreate">
-                Добавить акцию
+                {{ t('settings.promotions.addButton') }}
             </button>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
             <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
-                По умолчанию AI предлагает все активные акции в чатах и при дожиме.
-                Привязка к этапам воронки —
+                {{ t('settings.promotions.intro') }}
                 <Link :href="route('settings.funnels')" class="text-[var(--ui-accent)] hover:underline">
-                    Воронки продаж
+                    {{ t('settings.promotions.introFunnelsLink') }}
                 </Link>
             </p>
 
@@ -297,20 +296,19 @@ async function destroyPromotion(): Promise<void> {
             >
                 <div class="flex flex-wrap items-center justify-between gap-4">
                     <div class="min-w-0 flex-1">
-                        <h2 class="text-[15px] font-semibold text-[var(--ui-text)]">AI и акции</h2>
+                        <h2 class="text-[15px] font-semibold text-[var(--ui-text)]">{{ t('settings.promotions.aiSectionTitle') }}</h2>
                         <p class="mt-1 text-sm text-[var(--ui-text-secondary)]">
-                            Когда включено, AI автоматически видит все активные акции в чатах и при дожиме клиентов.
-                            Отключите, если промо не должны упоминаться.
+                            {{ t('settings.promotions.aiSectionDesc') }}
                         </p>
                     </div>
                     <label class="inline-flex shrink-0 items-center gap-2 text-sm text-[var(--ui-text)]">
                         <UiCheckbox
                             :model-value="aiPromotionsEnabled"
                             :disabled="settingsSaving"
-                            aria-label="AI предлагает акции"
+                            :aria-label="t('settings.promotions.aiToggleAria')"
                             @update:model-value="saveAiPromotionsSetting"
                         />
-                        AI предлагает акции
+                        {{ t('settings.promotions.aiToggle') }}
                     </label>
                 </div>
             </article>
@@ -320,7 +318,7 @@ async function destroyPromotion(): Promise<void> {
                 class="rounded-xl border border-dashed px-6 py-10 text-center text-sm text-[var(--ui-text-secondary)]"
                 :style="{ borderColor: 'var(--ui-border)' }"
             >
-                Пока нет акций. Добавьте первую — например «Скидка 10% до конца месяца».
+                {{ t('settings.promotions.empty') }}
             </div>
 
             <div v-else class="space-y-3">
@@ -341,14 +339,14 @@ async function destroyPromotion(): Promise<void> {
                                         color: row.is_currently_valid ? 'var(--ui-accent)' : 'var(--ui-text-secondary)',
                                     }"
                                 >
-                                    {{ row.is_currently_valid ? 'Активна' : 'Не действует' }}
+                                    {{ row.is_currently_valid ? t('settings.promotions.statusActive') : t('settings.promotions.statusInactive') }}
                                 </span>
                                 <span
                                     v-if="!row.is_active"
                                     class="rounded-full px-2 py-0.5 text-[11px] font-medium opacity-70"
                                     :style="{ background: 'var(--ui-surface-inset)' }"
                                 >
-                                    Выключена
+                                    {{ t('settings.promotions.statusDisabled') }}
                                 </span>
                             </div>
                             <p class="mt-1 text-sm text-[var(--ui-text-secondary)]">
@@ -365,7 +363,7 @@ async function destroyPromotion(): Promise<void> {
                                 :style="{ borderColor: 'var(--ui-border)' }"
                                 @click="openEdit(row)"
                             >
-                                Изменить
+                                {{ t('settings.promotions.edit') }}
                             </button>
                             <button
                                 type="button"
@@ -373,7 +371,7 @@ async function destroyPromotion(): Promise<void> {
                                 :style="{ borderColor: 'var(--ui-border)' }"
                                 @click="confirmDelete(row)"
                             >
-                                Удалить
+                                {{ t('settings.promotions.delete') }}
                             </button>
                         </div>
                     </div>
@@ -383,24 +381,24 @@ async function destroyPromotion(): Promise<void> {
 
         <UiModal
             :open="modalOpen"
-            title="Акция"
+            :title="t('settings.promotions.modalTitle')"
             max-width="lg"
             panel-class="max-w-lg"
             @close="modalOpen = false"
         >
             <div class="space-y-4">
                 <label class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Название</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldName') }}</span>
                     <input
                         v-model="form.name"
                         type="text"
                         class="ui-field w-full rounded-lg border px-3 py-2"
-                        placeholder="Скидка 10% на пакет «Старт»"
+                        :placeholder="t('settings.promotions.fieldNamePlaceholder')"
                     />
                 </label>
 
                 <label class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Тип акции</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldType') }}</span>
                     <select v-model="form.discount_type" class="ui-field w-full rounded-lg border px-3 py-2">
                         <option v-for="opt in promotionTypeOptions" :key="opt.id" :value="opt.id">
                             {{ opt.label }}
@@ -412,7 +410,7 @@ async function destroyPromotion(): Promise<void> {
                 </label>
 
                 <label v-if="form.discount_type === 'percent'" class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Процент</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldPercent') }}</span>
                     <input
                         v-model="form.percent"
                         type="number"
@@ -423,7 +421,7 @@ async function destroyPromotion(): Promise<void> {
                 </label>
 
                 <label v-if="form.discount_type === 'fixed'" class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Сумма (₸)</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldFixed') }}</span>
                     <input
                         v-model="form.fixed_amount"
                         type="number"
@@ -435,7 +433,7 @@ async function destroyPromotion(): Promise<void> {
 
                 <div v-if="form.discount_type === 'bogo'" class="grid grid-cols-2 gap-3">
                     <label class="block space-y-1">
-                        <span class="text-sm text-[var(--ui-text-secondary)]">Покупаете (N)</span>
+                        <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldBuyN') }}</span>
                         <input
                             v-model="form.buy_quantity"
                             type="number"
@@ -445,7 +443,7 @@ async function destroyPromotion(): Promise<void> {
                         />
                     </label>
                     <label class="block space-y-1">
-                        <span class="text-sm text-[var(--ui-text-secondary)]">В подарок (M)</span>
+                        <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldGetM') }}</span>
                         <input
                             v-model="form.get_quantity"
                             type="number"
@@ -460,32 +458,32 @@ async function destroyPromotion(): Promise<void> {
                     v-if="form.discount_type === 'gift' || form.discount_type === 'bundle'"
                     class="text-xs text-[var(--ui-text-secondary)]"
                 >
-                    Опишите подарок или состав комплекта в поле «Условия» ниже — AI будет опираться на этот текст.
+                    {{ t('settings.promotions.fieldGiftHint') }}
                 </p>
 
                 <div class="grid grid-cols-2 gap-3">
                     <label class="block space-y-1">
-                        <span class="text-sm text-[var(--ui-text-secondary)]">Действует с</span>
+                        <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldValidFrom') }}</span>
                         <input v-model="form.valid_from" type="date" class="ui-field w-full rounded-lg border px-3 py-2" />
                     </label>
                     <label class="block space-y-1">
-                        <span class="text-sm text-[var(--ui-text-secondary)]">Действует до</span>
+                        <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldValidUntil') }}</span>
                         <input v-model="form.valid_until" type="date" class="ui-field w-full rounded-lg border px-3 py-2" />
                     </label>
                 </div>
 
                 <label class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Условия (для AI и менеджера)</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldConditions') }}</span>
                     <textarea
                         v-model="form.conditions"
                         rows="3"
                         class="ui-field w-full rounded-lg border px-3 py-2"
-                        placeholder="Только на первый заказ, не суммируется с другими акциями…"
+                        :placeholder="t('settings.promotions.fieldConditionsPlaceholder')"
                     />
                 </label>
 
                 <label class="block space-y-1">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Порядок сортировки</span>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.promotions.fieldSortOrder') }}</span>
                     <input
                         v-model.number="form.sort_order"
                         type="number"
@@ -495,8 +493,8 @@ async function destroyPromotion(): Promise<void> {
                 </label>
 
                 <span class="inline-flex items-center gap-2 text-sm text-[var(--ui-text)]">
-                    <UiCheckbox v-model="form.is_active" aria-label="Акция активна" />
-                    Акция активна
+                    <UiCheckbox v-model="form.is_active" :aria-label="t('settings.promotions.fieldActiveAria')" />
+                    {{ t('settings.promotions.fieldActive') }}
                 </span>
 
                 <div class="flex justify-end gap-2 pt-2">
@@ -506,7 +504,7 @@ async function destroyPromotion(): Promise<void> {
                         :style="{ borderColor: 'var(--ui-border)' }"
                         @click="modalOpen = false"
                     >
-                        Отмена
+                        {{ t('common.cancel') }}
                     </button>
                     <button
                         type="button"
@@ -515,7 +513,7 @@ async function destroyPromotion(): Promise<void> {
                         :disabled="saving || !form.name.trim()"
                         @click="save"
                     >
-                        {{ saving ? 'Сохраняем…' : 'Сохранить' }}
+                        {{ saving ? t('settings.promotions.saving') : t('common.save') }}
                     </button>
                 </div>
             </div>
@@ -523,9 +521,9 @@ async function destroyPromotion(): Promise<void> {
 
         <DangerConfirmModal
             :open="deleteOpen"
-            title="Удалить акцию?"
-            :description="deleteTarget ? `«${deleteTarget.name}» будет удалена без возможности восстановления.` : ''"
-            confirm-label="Удалить"
+            :title="t('settings.promotions.deleteTitle')"
+            :description="deleteTarget ? t('settings.promotions.deleteDescription', { name: deleteTarget.name }) : ''"
+            :confirm-label="t('common.delete')"
             :busy="deleteBusy"
             confirm-variant="danger"
             @close="deleteOpen = false"

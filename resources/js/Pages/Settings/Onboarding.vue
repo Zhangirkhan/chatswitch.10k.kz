@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 
 type ReadinessCheck = {
     key: string;
@@ -65,18 +68,18 @@ function submitComplete(): void {
 </script>
 
 <template>
-    <Head title="Онбординг" />
+    <Head :title="t('settings.onboarding.title')" />
 
-    <SettingsLayout title="Онбординг" subtitle="Пошаговая настройка компании для запуска AI-воронки">
+    <SettingsLayout :title="t('settings.onboarding.title')" :subtitle="t('settings.onboarding.subtitle')">
         <div class="w-full space-y-8 px-6 py-6">
             <section class="ui-settings-section">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <div class="text-xs font-semibold uppercase tracking-wide" :style="{ color: readinessColor(readiness.status) }">
-                            Прогресс онбординга · {{ progressPercent }}%
+                            {{ t('settings.onboarding.progressLabel', { percent: progressPercent }) }}
                         </div>
                         <h2 class="mt-1 text-lg font-semibold" :style="{ color: 'var(--ui-text)' }">
-                            {{ completed_steps }} из {{ total_steps }} шагов
+                            {{ t('settings.onboarding.stepsProgress', { completed: completed_steps, total: total_steps }) }}
                         </h2>
                         <p class="mt-1 max-w-2xl text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                             {{ readiness.summary }}
@@ -109,10 +112,10 @@ function submitComplete(): void {
                         :disabled="!allStepsDone || completeForm.processing"
                         @click="submitComplete"
                     >
-                        {{ completeForm.processing ? 'Сохранение…' : 'Завершить онбординг' }}
+                        {{ completeForm.processing ? t('settings.onboarding.completeProcessing') : t('settings.onboarding.completeButton') }}
                     </button>
                     <p v-if="!allStepsDone" class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                        Выполните все шаги и доведите готовность AI до «готово».
+                        {{ t('settings.onboarding.completeHint') }}
                     </p>
                 </div>
             </section>
@@ -146,7 +149,7 @@ function submitComplete(): void {
                                         background: step.ok ? 'rgba(22, 163, 74, .12)' : 'rgba(220, 38, 38, .12)',
                                     }"
                                 >
-                                    {{ step.ok ? 'Готово' : 'Нужно' }}
+                                    {{ step.ok ? t('settings.onboarding.stepDone') : t('settings.onboarding.stepNeeded') }}
                                 </span>
                             </div>
                             <p class="mt-2 text-sm leading-relaxed" :style="{ color: 'var(--ui-text-secondary)' }">
@@ -157,7 +160,7 @@ function submitComplete(): void {
                             :href="route(step.route)"
                             class="ui-btn ui-btn--ghost ui-btn--sm shrink-0"
                         >
-                            {{ step.ok ? 'Открыть' : 'Настроить' }}
+                            {{ step.ok ? t('settings.onboarding.open') : t('settings.onboarding.configure') }}
                         </Link>
                     </div>
                 </article>
@@ -167,7 +170,7 @@ function submitComplete(): void {
                 v-if="readiness.next_actions.length"
                 class="ui-settings-section"
             >
-                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Рекомендации AI Quality</h2>
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.onboarding.recommendationsTitle') }}</h2>
                 <ul class="mt-3 space-y-1.5 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                     <li v-for="action in readiness.next_actions" :key="action">• {{ action }}</li>
                 </ul>
@@ -175,7 +178,7 @@ function submitComplete(): void {
                     :href="route('settings.ai-quality')"
                     class="ui-btn ui-btn--primary mt-4"
                 >
-                    Открыть AI и качество
+                    {{ t('settings.onboarding.openAiQuality') }}
                 </Link>
             </section>
         </div>

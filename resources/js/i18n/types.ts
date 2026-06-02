@@ -337,6 +337,67 @@ export interface MessageCatalog {
                 wipLimitPlaceholder: string;
                 wipLimitHint: string;
             };
+            issues: {
+                noRules: string;
+                noGoal: string;
+                noTransition: string;
+                noActions: string;
+                noQuestions: string;
+                noAssignee: string;
+            };
+            hints: {
+                noRule: string;
+                goal: string;
+                transition: string;
+                questions: string;
+                questionsMore: string;
+                assignee: string;
+                actions: string;
+                followUp: string;
+            };
+            coachTips: {
+                lead: string;
+                qualification: string;
+                offer: string;
+                payment: string;
+                production: string;
+                delivery: string;
+                done: string;
+                default: string;
+            };
+            presets: {
+                appointment: {
+                    goal: string;
+                    q1: string;
+                    q2: string;
+                    q3: string;
+                    transition: string;
+                };
+                payment: {
+                    goal: string;
+                    q1: string;
+                    q2: string;
+                    transition: string;
+                };
+                delivery: {
+                    goal: string;
+                    q1: string;
+                    q2: string;
+                    q3: string;
+                    transition: string;
+                };
+                final: {
+                    goal: string;
+                    transition: string;
+                };
+                default: {
+                    goal: string;
+                    q1: string;
+                    q2: string;
+                    q3: string;
+                    transition: string;
+                };
+            };
             stageActions: {
                 replyCustomer: string;
                 moveFunnelStage: string;
@@ -344,6 +405,82 @@ export interface MessageCatalog {
                 assignEmployee: string;
                 notifyManager: string;
                 createTask: string;
+            };
+        };
+        onboarding: {
+            title: string;
+            subtitle: string;
+            progressLabel: string;
+            stepsProgress: string;
+            completeProcessing: string;
+            completeButton: string;
+            completeHint: string;
+            stepDone: string;
+            stepNeeded: string;
+            open: string;
+            configure: string;
+            recommendationsTitle: string;
+            openAiQuality: string;
+        };
+        promotions: {
+            title: string;
+            subtitle: string;
+            addButton: string;
+            intro: string;
+            introFunnelsLink: string;
+            aiSectionTitle: string;
+            aiSectionDesc: string;
+            aiToggle: string;
+            aiToggleAria: string;
+            toastAiEnabled: string;
+            toastAiDisabled: string;
+            errorSaveSetting: string;
+            empty: string;
+            statusActive: string;
+            statusInactive: string;
+            statusDisabled: string;
+            edit: string;
+            delete: string;
+            modalTitle: string;
+            fieldName: string;
+            fieldNamePlaceholder: string;
+            fieldType: string;
+            fieldPercent: string;
+            fieldFixed: string;
+            fieldBuyN: string;
+            fieldGetM: string;
+            fieldGiftHint: string;
+            fieldValidFrom: string;
+            fieldValidUntil: string;
+            fieldConditions: string;
+            fieldConditionsPlaceholder: string;
+            fieldSortOrder: string;
+            fieldActive: string;
+            fieldActiveAria: string;
+            saving: string;
+            toastUpdated: string;
+            toastCreated: string;
+            toastDeleted: string;
+            errorSave: string;
+            errorDelete: string;
+            deleteTitle: string;
+            deleteDescription: string;
+            summaryGift: string;
+            summaryBundle: string;
+            summaryFreeDelivery: string;
+            summaryCustom: string;
+            validityOpen: string;
+            validityFrom: string;
+            validityUntil: string;
+            types: {
+                percent: string;
+                fixed: string;
+                bogo: string;
+                bogoHint: string;
+                gift: string;
+                bundle: string;
+                free_delivery: string;
+                custom: string;
             };
         };
         connections: {

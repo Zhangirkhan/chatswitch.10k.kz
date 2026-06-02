@@ -14,9 +14,9 @@ describe('funnelStageHints', () => {
             3,
         );
 
-        expect(issues).toContain('Нет цели этапа');
-        expect(issues).toContain('Нет условий перехода');
-        expect(issues).toContain('Нет уточняющих вопросов');
+        expect(issues).toContain('noGoal');
+        expect(issues).toContain('noTransition');
+        expect(issues).toContain('noQuestions');
     });
 
     it('shows inline hints for missing questions and transition', () => {
@@ -52,5 +52,6 @@ describe('funnelStageHints', () => {
 
         expect(hints).toHaveLength(1);
         expect(hints[0]?.tone).toBe('success');
+        expect(hints[0]?.textKey).toBe('settings.funnels.coachTips.payment');
     });
 });

@@ -8,6 +8,7 @@ import {
     stageHintToneStyle,
     stageInlineHints,
     stageRuleIssues as collectStageRuleIssues,
+    type StageRuleIssueId,
     type StageHint,
 } from '@/utils/funnelStageHints';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -725,9 +726,16 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
 
     if (name.includes('запись') || name.includes('приём') || name.includes('замер') || name.includes('показ') || name.includes('созвон')) {
         return {
-            goal: current.goal || 'Согласовать с клиентом удобную дату, время и ответственного.',
-            required_questions: current.required_questions?.length ? current.required_questions : ['Удобная дата и время', 'Адрес или формат встречи', 'Контактное лицо'],
-            transition_conditions: current.transition_conditions || 'Перейти дальше, когда клиент подтвердил дату и время. Если данных не хватает, задать один короткий уточняющий вопрос.',
+            goal: current.goal || t('settings.funnels.presets.appointment.goal'),
+            required_questions: current.required_questions?.length
+                ? current.required_questions
+                : [
+                    t('settings.funnels.presets.appointment.q1'),
+                    t('settings.funnels.presets.appointment.q2'),
+                    t('settings.funnels.presets.appointment.q3'),
+                ],
+            transition_conditions:
+                current.transition_conditions || t('settings.funnels.presets.appointment.transition'),
             allowed_actions: [...baseActions, 'create_appointment', 'assign_employee'],
             assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
             require_manager_confirmation: current.require_manager_confirmation ?? false,
@@ -736,9 +744,11 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
 
     if (name.includes('оплат') || name.includes('предоплат')) {
         return {
-            goal: current.goal || 'Корректно обработать оплату, реквизиты или перенос оплаты без повторных вопросов.',
-            required_questions: current.required_questions?.length ? current.required_questions : ['Нужны ли реквизиты?', 'Когда удобно оплатить?'],
-            transition_conditions: current.transition_conditions || 'Если клиент сообщил, что оплатил, перейти к следующему этапу. Если просит реквизиты или оплатит позже, создать задачу менеджеру.',
+            goal: current.goal || t('settings.funnels.presets.payment.goal'),
+            required_questions: current.required_questions?.length
+                ? current.required_questions
+                : [t('settings.funnels.presets.payment.q1'), t('settings.funnels.presets.payment.q2')],
+            transition_conditions: current.transition_conditions || t('settings.funnels.presets.payment.transition'),
             allowed_actions: baseActions,
             assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
             require_manager_confirmation: false,
@@ -747,9 +757,15 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
 
     if (name.includes('достав') || name.includes('монтаж') || name.includes('готов')) {
         return {
-            goal: current.goal || 'Согласовать финальную доставку, монтаж, выдачу или подтвердить выполнение.',
-            required_questions: current.required_questions?.length ? current.required_questions : ['Удобный день и время', 'Адрес и контакт на месте', 'Есть ли ограничения по доступу'],
-            transition_conditions: current.transition_conditions || 'Перейти дальше, когда клиент указал дату и время или подтвердил успешное выполнение.',
+            goal: current.goal || t('settings.funnels.presets.delivery.goal'),
+            required_questions: current.required_questions?.length
+                ? current.required_questions
+                : [
+                    t('settings.funnels.presets.delivery.q1'),
+                    t('settings.funnels.presets.delivery.q2'),
+                    t('settings.funnels.presets.delivery.q3'),
+                ],
+            transition_conditions: current.transition_conditions || t('settings.funnels.presets.delivery.transition'),
             allowed_actions: baseActions,
             assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
             require_manager_confirmation: false,
@@ -758,9 +774,9 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
 
     if (isFinal || name.includes('закрыто') || name.includes('выполн')) {
         return {
-            goal: current.goal || 'Финальный этап. Поблагодарить клиента и не продолжать активные касания без нового вопроса.',
+            goal: current.goal || t('settings.funnels.presets.final.goal'),
             required_questions: [],
-            transition_conditions: current.transition_conditions || 'Финальный этап. Если клиент задаёт новый вопрос, обработать его как новый запрос.',
+            transition_conditions: current.transition_conditions || t('settings.funnels.presets.final.transition'),
             allowed_actions: ['reply_customer', 'notify_manager'],
             assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
             require_manager_confirmation: false,
@@ -768,9 +784,15 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
     }
 
     return {
-        goal: current.goal || 'Понять запрос клиента и продвинуть его к следующему шагу воронки.',
-        required_questions: current.required_questions?.length ? current.required_questions : ['Что именно интересует?', 'Какие сроки удобны?', 'Есть ли важные условия или ограничения?'],
-        transition_conditions: current.transition_conditions || 'Перейти дальше, когда собраны ключевые данные для следующего этапа. Не спрашивать повторно то, что клиент уже написал.',
+        goal: current.goal || t('settings.funnels.presets.default.goal'),
+        required_questions: current.required_questions?.length
+            ? current.required_questions
+            : [
+                t('settings.funnels.presets.default.q1'),
+                t('settings.funnels.presets.default.q2'),
+                t('settings.funnels.presets.default.q3'),
+            ],
+        transition_conditions: current.transition_conditions || t('settings.funnels.presets.default.transition'),
         allowed_actions: baseActions,
         assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
         require_manager_confirmation: false,
@@ -799,7 +821,11 @@ function toggleStageAction(stage: FunnelStage, action: string): string[] {
 const totalFunnels = computed(() => localFunnels.value.length);
 const funnelTemplates = computed(() => props.funnelTemplates ?? []);
 
-function stageRuleIssues(stage: FunnelStage, index = 0, total = 0): string[] {
+function stageRuleIssueLabel(issue: StageRuleIssueId): string {
+    return t(`settings.funnels.issues.${issue}`);
+}
+
+function stageRuleIssues(stage: FunnelStage, index = 0, total = 0): StageRuleIssueId[] {
     return collectStageRuleIssues(stage.ai_rule, index, total, stage.stage_type);
 }
 
@@ -808,7 +834,7 @@ function funnelIssueSummary(funnel: Funnel): string {
     funnel.stages.forEach((stage, index) => {
         const issues = stageRuleIssues(stage, index, funnel.stages.length);
         if (issues.length > 0) {
-            parts.push(`${stage.name}: ${issues.join(', ')}`);
+            parts.push(`${stage.name}: ${issues.map(stageRuleIssueLabel).join(', ')}`);
         }
     });
 
@@ -1212,7 +1238,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         <span class="shrink-0 font-semibold" aria-hidden="true">
                                             {{ hint.tone === 'success' ? '✓' : hint.tone === 'warn' ? '!' : '→' }}
                                         </span>
-                                        <span>{{ hint.text }}</span>
+                                        <span>{{ t(hint.textKey) }}</span>
                                     </span>
                                 </div>
 
@@ -1245,7 +1271,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         </div>
                                         <ul class="space-y-1 text-xs text-[var(--ui-text-secondary)]">
                                             <li v-for="issue in stageRuleIssues(stage, idx, funnel.stages.length)" :key="issue">
-                                                • {{ issue }}
+                                                • {{ stageRuleIssueLabel(issue) }}
                                             </li>
                                         </ul>
                                     </div>

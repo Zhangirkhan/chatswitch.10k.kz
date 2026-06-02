@@ -1,8 +1,29 @@
 export type StageHintTone = 'tip' | 'warn' | 'success';
 
+export type StageRuleIssueId =
+    | 'noRules'
+    | 'noGoal'
+    | 'noTransition'
+    | 'noActions'
+    | 'noQuestions'
+    | 'noAssignee';
+
+export type StageHintId =
+    | 'noRule'
+    | 'goal'
+    | 'transition'
+    | 'questions'
+    | 'questionsMore'
+    | 'assignee'
+    | 'actions'
+    | 'followUp'
+    | 'ok';
+
+export type StageCoachTipId = 'lead' | 'qualification' | 'offer' | 'payment' | 'production' | 'delivery' | 'done' | 'default';
+
 export type StageHint = {
     id: string;
-    text: string;
+    textKey: string;
     tone: StageHintTone;
 };
 
@@ -21,12 +42,12 @@ export function stageRuleIssues(
     index = 0,
     total = 0,
     stageType?: string | null,
-): string[] {
+): StageRuleIssueId[] {
     if (!rule) {
-        return ['Нет AI-правил'];
+        return ['noRules'];
     }
 
-    const issues: string[] = [];
+    const issues: StageRuleIssueId[] = [];
     const goal = (rule.goal || '').trim();
     const conditions = (rule.transition_conditions || '').trim();
     const actions = rule.allowed_actions ?? [];
@@ -34,41 +55,41 @@ export function stageRuleIssues(
     const isFinalStage = total > 0 && index >= total - 1;
 
     if (!goal) {
-        issues.push('Нет цели этапа');
+        issues.push('noGoal');
     }
     if (!conditions) {
-        issues.push('Нет условий перехода');
+        issues.push('noTransition');
     }
     if (actions.length === 0) {
-        issues.push('Нет разрешённых действий');
+        issues.push('noActions');
     }
     const skipQuestionsCheck = stageType === 'production' || stageType === 'done';
     if (!isFinalStage && questions.length === 0 && !skipQuestionsCheck) {
-        issues.push('Нет уточняющих вопросов');
+        issues.push('noQuestions');
     }
     if (
         (actions.includes('create_appointment') || actions.includes('assign_employee'))
         && !rule.assignee_department_id
         && (rule.assignee_user_ids ?? []).length === 0
     ) {
-        issues.push('Не указан отдел/исполнитель');
+        issues.push('noAssignee');
     }
 
     return issues;
 }
 
-export function stageTypeCoachTip(stageType: string | null | undefined): string {
-    const tips: Record<string, string> = {
-        lead: 'На этапе лида AI должен быстро понять запрос и не задавать лишних вопросов.',
-        qualification: 'Зафиксируйте дату, формат и контакт — так меньше ручных передач менеджеру.',
-        offer: 'AI не должен обещать цену или срок без данных из базы знаний и каталога.',
-        payment: 'Для оплаты полезны действия «задача менеджеру» и уведомление ответственного.',
-        production: 'На этапе работ информируйте о статусе без выдуманных дат готовности.',
-        delivery: 'Согласуйте время, адрес и контакт на месте — это снижает срывы доставки.',
-        done: 'Финальный этап: поблагодарить клиента и не инициировать лишние касания.',
+export function stageCoachTipId(stageType: string | null | undefined): StageCoachTipId {
+    const map: Record<string, StageCoachTipId> = {
+        lead: 'lead',
+        qualification: 'qualification',
+        offer: 'offer',
+        payment: 'payment',
+        production: 'production',
+        delivery: 'delivery',
+        done: 'done',
     };
 
-    return tips[stageType ?? ''] ?? 'Правила этапа заполнены — AI может вести диалог по этому шагу.';
+    return map[stageType ?? ''] ?? 'default';
 }
 
 export function stageInlineHints(
@@ -80,8 +101,8 @@ export function stageInlineHints(
     if (!rule) {
         return [
             {
-                id: 'no-rule',
-                text: 'Настройте AI-правила этапа — без цели и условий перехода оркестратор не понимает, что делать на этом шаге.',
+                id: 'noRule',
+                textKey: 'settings.funnels.hints.noRule',
                 tone: 'warn',
             },
         ];
@@ -92,56 +113,56 @@ export function stageInlineHints(
     const questions = rule.required_questions ?? [];
     const isFinal = total > 0 && index >= total - 1;
 
-    if (issues.has('Нет цели этапа')) {
+    if (issues.has('noGoal')) {
         hints.push({
             id: 'goal',
-            text: 'Цель этапа: что AI должен добиться здесь (одно короткое предложение).',
+            textKey: 'settings.funnels.hints.goal',
             tone: 'warn',
         });
     }
 
-    if (issues.has('Нет условий перехода')) {
+    if (issues.has('noTransition')) {
         hints.push({
             id: 'transition',
-            text: 'Условие перехода: когда переводить сделку дальше (например: «клиент подтвердил дату замера»).',
+            textKey: 'settings.funnels.hints.transition',
             tone: 'warn',
         });
     }
 
-    if (issues.has('Нет уточняющих вопросов')) {
+    if (issues.has('noQuestions')) {
         hints.push({
             id: 'questions',
-            text: 'Добавьте 2–3 коротких вопроса — AI задаст их, если в переписке ещё нет ответов.',
+            textKey: 'settings.funnels.hints.questions',
             tone: 'warn',
         });
     } else if (!isFinal && questions.length > 0 && questions.length < 2) {
         hints.push({
-            id: 'questions-more',
-            text: 'Лучше 2–3 вопроса на этап: AI сможет закрыть типовые пробелы без догадок.',
+            id: 'questionsMore',
+            textKey: 'settings.funnels.hints.questionsMore',
             tone: 'tip',
         });
     }
 
-    if (issues.has('Не указан отдел/исполнитель')) {
+    if (issues.has('noAssignee')) {
         hints.push({
             id: 'assignee',
-            text: 'Укажите отдел или исполнителя для записи/назначения — иначе AI не сможет создать задачу.',
+            textKey: 'settings.funnels.hints.assignee',
             tone: 'warn',
         });
     }
 
-    if (issues.has('Нет разрешённых действий')) {
+    if (issues.has('noActions')) {
         hints.push({
             id: 'actions',
-            text: 'Разрешите хотя бы ответ клиенту и переход этапа — иначе AI не сможет действовать.',
+            textKey: 'settings.funnels.hints.actions',
             tone: 'warn',
         });
     }
 
     if (!rule.follow_up_enabled && (stageType === 'qualification' || stageType === 'offer' || stageType === 'payment')) {
         hints.push({
-            id: 'follow-up',
-            text: 'Рассмотрите авто follow-up, если клиент часто «думает» на этом этапе.',
+            id: 'followUp',
+            textKey: 'settings.funnels.hints.followUp',
             tone: 'tip',
         });
     }
@@ -149,7 +170,7 @@ export function stageInlineHints(
     if (hints.length === 0) {
         hints.push({
             id: 'ok',
-            text: stageTypeCoachTip(stageType),
+            textKey: `settings.funnels.coachTips.${stageCoachTipId(stageType)}`,
             tone: 'success',
         });
     }
