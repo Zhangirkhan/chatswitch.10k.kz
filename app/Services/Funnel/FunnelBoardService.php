@@ -144,11 +144,61 @@ final class FunnelBoardService
             ])
             ->findOrFail($funnelId);
 
-        $chats = $this->boardChatsQuery($user, $funnel->id, $filters)->get();
-        $inboxChats = $this->inboxChatsQuery($user, $filters)->get();
-        $stageStats = $this->computeStageStats($funnel, $chats, $inboxChats);
+        $stageIds = $funnel->stages->pluck('id')->map(static fn ($id): int => (int) $id)->all();
 
-        return $this->buildBoardPayload($funnel, $chats, $inboxChats, $stageStats);
+        $countsByStage = $this->boardStageCounts($user, $funnel->id, $filters);
+        $inboxCount = (int) $this->inboxChatsQuery($user, $filters)->count();
+
+        $cardsByStage = $this->loadLimitedCardsByStage($user, $funnel->id, $filters, $stageIds);
+        $inboxChats = $this->inboxChatsQuery($user, $filters)->take(self::CARDS_PER_STAGE)->get();
+
+        $stageStats = $this->computeStageStats($funnel, $countsByStage, $inboxCount);
+
+        return $this->buildBoardPayload($funnel, $cardsByStage, $inboxChats, $stageStats);
+    }
+
+    /**
+     * Точные счётчики по этапам одним сгруппированным запросом (без выгрузки карточек в память).
+     *
+     * @return array<int, int>
+     */
+    private function boardStageCounts(User $user, int $funnelId, FunnelBoardFilters $filters): array
+    {
+        $rows = $this->boardChatsQuery($user, $funnelId, $filters)
+            ->reorder()
+            ->selectRaw('COALESCE(funnel_stage_id, '.self::ORPHAN_STAGE_ID.') as stage_key, COUNT(*) as cnt')
+            ->groupBy('stage_key')
+            ->pluck('cnt', 'stage_key');
+
+        $counts = [];
+        foreach ($rows as $key => $cnt) {
+            $counts[(int) $key] = (int) $cnt;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Грузит максимум CARDS_PER_STAGE карточек на этап, а не весь список.
+     *
+     * @param  list<int>  $stageIds
+     * @return array<int, Collection<int, Chat>>
+     */
+    private function loadLimitedCardsByStage(User $user, int $funnelId, FunnelBoardFilters $filters, array $stageIds): array
+    {
+        $cards = [];
+        foreach ([...$stageIds, self::ORPHAN_STAGE_ID] as $stageId) {
+            $query = $this->boardChatsQuery($user, $funnelId, $filters);
+            if ($stageId === self::ORPHAN_STAGE_ID) {
+                $query->whereNull('funnel_stage_id');
+            } else {
+                $query->where('funnel_stage_id', $stageId);
+            }
+
+            $cards[$stageId] = $query->take(self::CARDS_PER_STAGE)->get();
+        }
+
+        return $cards;
     }
 
     /**
@@ -248,7 +298,7 @@ final class FunnelBoardService
     }
 
     /**
-     * @param  Collection<int, Chat>  $funnelChats
+     * @param  array<int, Collection<int, Chat>>  $cardsByStage
      * @param  Collection<int, Chat>  $inboxChats
      * @param  array<int, array{cards_total: int, entered_7d: int, conversion_pct: float|null, avg_days: float|null}>  $stageStats
      * @return array{
@@ -258,17 +308,10 @@ final class FunnelBoardService
      */
     private function buildBoardPayload(
         Funnel $funnel,
-        Collection $funnelChats,
+        array $cardsByStage,
         Collection $inboxChats,
         array $stageStats,
     ): array {
-        $cardsByStage = [];
-        foreach ($funnelChats as $chat) {
-            $stageId = (int) ($chat->funnel_stage_id ?? self::ORPHAN_STAGE_ID);
-            $cardsByStage[$stageId] ??= collect();
-            $cardsByStage[$stageId]->push($chat);
-        }
-
         $inboxCollection = $inboxChats->values();
 
         $stages = [];
@@ -367,21 +410,15 @@ final class FunnelBoardService
     }
 
     /**
-     * @param  Collection<int, Chat>  $funnelChats
-     * @param  Collection<int, Chat>  $inboxChats
+     * @param  array<int, int>  $countsByStage
      * @return array<int, array{cards_total: int, entered_7d: int, conversion_pct: float|null, avg_days: float|null, sparkline: list<int>}>
      */
-    private function computeStageStats(Funnel $funnel, Collection $funnelChats, Collection $inboxChats): array
+    private function computeStageStats(Funnel $funnel, array $countsByStage, int $inboxCount): array
     {
         $since = now()->subDays(7);
         $funnelId = (int) $funnel->id;
 
-        $countsByStage = [];
-        foreach ($funnelChats->groupBy(fn (Chat $chat): int => (int) ($chat->funnel_stage_id ?? self::ORPHAN_STAGE_ID)) as $stageId => $group) {
-            $countsByStage[(int) $stageId] = $group->count();
-        }
-
-        $countsByStage[self::INBOX_STAGE_ID] = $inboxChats->count();
+        $countsByStage[self::INBOX_STAGE_ID] = $inboxCount;
 
         $stageIds = $funnel->stages->pluck('id')->map(fn ($id): int => (int) $id)->all();
         $sparklines = $this->sparklinesByStage($funnelId, $stageIds);

@@ -242,7 +242,12 @@ final class ChatService
 
         if ($chatModels !== []) {
             (new Collection($chatModels))
-                ->loadMissing('lastOrchestratorRun:id,confidence,status,reason,completed_at');
+                ->loadMissing([
+                    'lastOrchestratorRun:id,confidence,status,reason,completed_at',
+                    'aiFollowUpProposals' => fn ($q) => $q
+                        ->select('id', 'chat_id', 'status')
+                        ->where('status', \App\Models\AiFollowUpProposal::STATUS_NEEDS_MANAGER),
+                ]);
         }
 
         $service = app(ChatAttentionService::class);

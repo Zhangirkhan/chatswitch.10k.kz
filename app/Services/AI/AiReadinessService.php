@@ -14,10 +14,13 @@ use App\Models\Service;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Support\TenantCompany;
+use Illuminate\Support\Facades\Cache;
 
 final class AiReadinessService
 {
     public const READY_SCORE = 65;
+
+    private const COUNTS_CACHE_TTL = 60;
 
     /**
      * @return array{score: int, status: string, label: string, summary: string, checks: list<array{key: string, label: string, ok: bool, value: string, hint: string}>, next_actions: list<string>}
@@ -25,17 +28,7 @@ final class AiReadinessService
     public function evaluate(?int $companyId = null): array
     {
         $companyId ??= TenantCompany::id();
-        $counts = [
-            'whatsapp_sessions' => WhatsappSession::query()->whereIn('status', ['connected', 'ready', 'authenticated'])->count(),
-            'active_users' => User::query()->where('company_id', $companyId)->where('is_active', true)->count(),
-            'departments' => Department::query()->where('is_active', true)->count(),
-            'funnels' => Funnel::query()->where('company_id', $companyId)->where('is_active', true)->count(),
-            'enabled_scenarios' => FunnelAiScenario::query()->where('company_id', $companyId)->where('enabled', true)->count(),
-            'stage_rules' => FunnelStageAiRule::query()->where('company_id', $companyId)->count(),
-            'knowledge_rules' => KnowledgeRule::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
-            'products' => Product::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
-            'services' => Service::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
-        ];
+        $counts = $this->resolveCounts($companyId);
 
         $checks = [
             [
@@ -127,6 +120,30 @@ final class AiReadinessService
             'checks' => $checks,
             'next_actions' => $nextActions,
         ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function resolveCounts(int $companyId): array
+    {
+        $resolver = static fn (): array => [
+            'whatsapp_sessions' => WhatsappSession::query()->whereIn('status', ['connected', 'ready', 'authenticated'])->count(),
+            'active_users' => User::query()->where('company_id', $companyId)->where('is_active', true)->count(),
+            'departments' => Department::query()->where('is_active', true)->count(),
+            'funnels' => Funnel::query()->where('company_id', $companyId)->where('is_active', true)->count(),
+            'enabled_scenarios' => FunnelAiScenario::query()->where('company_id', $companyId)->where('enabled', true)->count(),
+            'stage_rules' => FunnelStageAiRule::query()->where('company_id', $companyId)->count(),
+            'knowledge_rules' => KnowledgeRule::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
+            'products' => Product::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
+            'services' => Service::query()->where('company_id', $companyId)->where('is_active', true)->where('include_in_prompt', true)->count(),
+        ];
+
+        if (app()->runningUnitTests()) {
+            return $resolver();
+        }
+
+        return Cache::remember("ai_readiness_counts:{$companyId}", self::COUNTS_CACHE_TTL, $resolver);
     }
 
     public function isReadyForEnable(?int $companyId = null): bool

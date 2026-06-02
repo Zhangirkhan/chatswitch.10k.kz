@@ -44,7 +44,7 @@ final class DialogAnalyticsService
             return $this->emptyPayload($filters);
         }
 
-        $messages = $this->loadMessagesForChats($chatIds);
+        $messages = $this->loadMessagesForChats($chatIds, $filters);
         $chats = Chat::query()
             ->whereIn('id', $chatIds)
             ->with(['contact', 'assignments.user', 'departments'])
@@ -91,11 +91,13 @@ final class DialogAnalyticsService
      * @param  array<int>  $chatIds
      * @return Collection<int, Message>
      */
-    private function loadMessagesForChats(array $chatIds): Collection
+    private function loadMessagesForChats(array $chatIds, DialogAnalyticsFilters $filters): Collection
     {
         return Message::query()
             ->whereIn('chat_id', $chatIds)
             ->whereIn('direction', ['inbound', 'outbound'])
+            ->whereRaw('COALESCE(message_timestamp, created_at) >= ?', [$filters->from])
+            ->whereRaw('COALESCE(message_timestamp, created_at) <= ?', [$filters->to])
             ->orderBy('chat_id')
             ->orderByRaw('COALESCE(message_timestamp, created_at)')
             ->orderBy('id')
