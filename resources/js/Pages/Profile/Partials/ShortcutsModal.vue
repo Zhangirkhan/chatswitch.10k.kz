@@ -1,39 +1,42 @@
 <script setup lang="ts">
 import UiModal from '@/Components/Ui/UiModal.vue';
+import { useI18n } from '@/composables/useI18n';
+import { computed } from 'vue';
 
 const emit = defineEmits<{ close: [] }>();
+const { t } = useI18n();
 
 type Shortcut = {
-    label: string;
+    labelKey: string;
     keys: string[];
 };
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const modKey = isMac ? 'Cmd' : 'Ctrl';
 
-const shortcuts: Shortcut[] = [
-    { label: 'Поиск чатов', keys: [modKey, '/'] },
-    { label: 'Поиск чатов (альтернатива)', keys: [modKey, 'K'] },
-    { label: 'Следующий чат', keys: ['Alt', '↓'] },
-    { label: 'Предыдущий чат', keys: ['Alt', '↑'] },
-    { label: 'Закрыть чат', keys: ['Escape'] },
-    { label: 'Новый чат', keys: [modKey, 'Shift', 'C'] },
-    { label: 'Новая группа', keys: [modKey, 'Shift', 'G'] },
-    { label: 'Поиск в чате', keys: [modKey, 'Shift', 'F'] },
-    { label: 'Информация о контакте', keys: [modKey, 'I'] },
-    { label: 'Панель смайликов', keys: [modKey, 'E'] },
-    { label: 'Закрепить чат', keys: [modKey, 'Shift', 'P'] },
-    { label: 'Без звука', keys: [modKey, 'Shift', 'M'] },
-    { label: 'Архивировать чат', keys: [modKey, 'Shift', 'E'] },
-    { label: 'Пометить как непрочитанное', keys: [modKey, 'Shift', 'U'] },
-    { label: 'Настройки', keys: [modKey, ','] },
-];
+const shortcuts = computed<Shortcut[]>(() => [
+    { labelKey: 'profile.shortcuts.searchChats', keys: [modKey, '/'] },
+    { labelKey: 'profile.shortcuts.searchChatsAlt', keys: [modKey, 'K'] },
+    { labelKey: 'profile.shortcuts.nextChat', keys: ['Alt', '↓'] },
+    { labelKey: 'profile.shortcuts.prevChat', keys: ['Alt', '↑'] },
+    { labelKey: 'profile.shortcuts.closeChat', keys: ['Escape'] },
+    { labelKey: 'profile.shortcuts.newChat', keys: [modKey, 'Shift', 'C'] },
+    { labelKey: 'profile.shortcuts.newGroup', keys: [modKey, 'Shift', 'G'] },
+    { labelKey: 'profile.shortcuts.searchInChat', keys: [modKey, 'Shift', 'F'] },
+    { labelKey: 'profile.shortcuts.contactInfo', keys: [modKey, 'I'] },
+    { labelKey: 'profile.shortcuts.emojiPanel', keys: [modKey, 'E'] },
+    { labelKey: 'profile.shortcuts.pinChat', keys: [modKey, 'Shift', 'P'] },
+    { labelKey: 'profile.shortcuts.mute', keys: [modKey, 'Shift', 'M'] },
+    { labelKey: 'profile.shortcuts.archiveChat', keys: [modKey, 'Shift', 'E'] },
+    { labelKey: 'profile.shortcuts.markUnread', keys: [modKey, 'Shift', 'U'] },
+    { labelKey: 'profile.shortcuts.settings', keys: [modKey, ','] },
+]);
 </script>
 
 <template>
     <UiModal
         :open="true"
-        title="Сочетания клавиш"
+        :title="t('profile.shortcuts.title')"
         max-width="2xl"
         body-class="px-5 py-4"
         @close="emit('close')"
@@ -41,10 +44,10 @@ const shortcuts: Shortcut[] = [
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
             <div
                 v-for="shortcut in shortcuts"
-                :key="shortcut.label"
+                :key="shortcut.labelKey"
                 class="flex items-center justify-between gap-3"
             >
-                <span class="text-[13px] text-[var(--wa-text)] leading-tight">{{ shortcut.label }}</span>
+                <span class="text-[13px] text-[var(--wa-text)] leading-tight">{{ t(shortcut.labelKey) }}</span>
                 <div class="flex items-center gap-1 shrink-0">
                     <kbd
                         v-for="key in shortcut.keys"
@@ -61,7 +64,7 @@ const shortcuts: Shortcut[] = [
                 class="ui-btn ui-btn--primary ui-btn--pill"
                 @click="emit('close')"
             >
-                OK
+                {{ t('profile.shortcuts.ok') }}
             </button>
         </template>
     </UiModal>

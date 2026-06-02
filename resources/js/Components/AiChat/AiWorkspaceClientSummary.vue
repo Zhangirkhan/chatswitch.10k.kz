@@ -3,6 +3,7 @@ import UserAvatar from '@/Components/UserAvatar.vue';
 import type { ClientSummary, WorkspaceContact } from '@/Components/AiChat/aiWorkspaceTypes';
 import { Link } from '@inertiajs/vue3';
 import { formatPhone } from '@/utils/phone';
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
 
 const props = withDefaults(
@@ -26,6 +27,8 @@ const props = withDefaults(
     },
 );
 
+const { t } = useI18n();
+
 type SectionSemantic = 'who' | 'preferences' | 'context' | 'agreements' | 'deal' | 'neutral';
 
 type EnrichedSection = {
@@ -39,9 +42,9 @@ const emptyMessage = computed(() => {
         return props.emptyHint;
     }
     if (props.variant === 'chat') {
-        return 'Сводка появится, когда к чату привязан контакт CRM.';
+        return t('aiChat.summaryEmptyChat');
     }
-    return 'Спросите про клиента или выберите контакт во вкладке «Контакты».';
+    return t('aiChat.summaryEmptyWorkspace');
 });
 
 const emit = defineEmits<{
@@ -51,12 +54,12 @@ const emit = defineEmits<{
 const confidenceLabel = computed(() => {
     const level = props.summary?.ai.confidence;
     if (level === 'high') {
-        return 'Много данных';
+        return t('aiChat.confidenceHigh');
     }
     if (level === 'medium') {
-        return 'Частичные данные';
+        return t('aiChat.confidenceMedium');
     }
-    return 'Мало данных';
+    return t('aiChat.confidenceLow');
 });
 
 const enrichedSections = computed((): EnrichedSection[] => {
@@ -190,7 +193,7 @@ function sectionSemantic(title: string): SectionSemantic {
             <p class="summary-insight">{{ summary.ai.headline }}</p>
 
             <section v-if="hasCrmTags" class="summary-group">
-                <h3 class="summary-group__label">Воронка и CRM</h3>
+                <h3 class="summary-group__label">{{ t('aiChat.funnelAndCrm') }}</h3>
                 <div class="summary-tags">
                     <span
                         v-if="summary.crm.deal?.funnel?.name"
@@ -220,7 +223,7 @@ function sectionSemantic(title: string): SectionSemantic {
             </section>
 
             <section v-if="profileSections.length" class="summary-group">
-                <h3 class="summary-group__label">Профиль клиента</h3>
+                <h3 class="summary-group__label">{{ t('aiChat.clientProfile') }}</h3>
                 <div class="summary-profile">
                     <div
                         v-for="section in profileSections"
@@ -250,7 +253,7 @@ function sectionSemantic(title: string): SectionSemantic {
             </section>
 
             <section v-if="activitySections.length" class="summary-group">
-                <h3 class="summary-group__label">Контекст и договорённости</h3>
+                <h3 class="summary-group__label">{{ t('aiChat.contextAgreements') }}</h3>
                 <div class="summary-activity">
                     <article
                         v-for="section in activitySections"

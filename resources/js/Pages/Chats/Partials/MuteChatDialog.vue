@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     show: boolean;
@@ -40,6 +43,12 @@ onBeforeUnmount(() => {
 function confirm() {
     emit('confirm', selected.value);
 }
+
+const durationOptions = computed(() => [
+    { value: '8h' as const, label: t('chats.mute.duration8h') },
+    { value: '1w' as const, label: t('chats.mute.duration1w') },
+    { value: 'always' as const, label: t('chats.mute.durationAlways') },
+]);
 </script>
 
 <template>
@@ -80,22 +89,17 @@ function confirm() {
                         }"
                         @click.stop
                     >
-                        <h2 class="text-[20px] font-semibold mb-3">Без звука</h2>
+                        <h2 class="text-[20px] font-semibold mb-3">{{ t('chats.mute.title') }}</h2>
                         <p
                             class="text-sm mb-5 leading-snug"
                             :style="{ color: 'var(--wa-text-secondary)' }"
                         >
-                            Никто из участников чата не увидит, что вы отключили звук чата.
-                            Если вас упомянут, вы получите уведомление.
+                            {{ t('chats.mute.description') }}
                         </p>
 
                         <div class="flex flex-col gap-1 mb-6">
                             <label
-                                v-for="opt in [
-                                    { value: '8h', label: '8 часов' },
-                                    { value: '1w', label: '1 неделю' },
-                                    { value: 'always', label: 'Всегда' },
-                                ]"
+                                v-for="opt in durationOptions"
                                 :key="opt.value"
                                 class="mute-option"
                             >
@@ -122,14 +126,14 @@ function confirm() {
                                 class="btn-text"
                                 @click="emit('close')"
                             >
-                                Отмена
+                                {{ t('common.cancel') }}
                             </button>
                             <button
                                 type="button"
                                 class="btn-primary"
                                 @click="confirm"
                             >
-                                Без звука
+                                {{ t('chats.mute.confirm') }}
                             </button>
                         </div>
                     </div>

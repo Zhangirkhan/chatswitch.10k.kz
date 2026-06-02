@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -8,6 +9,8 @@ defineProps<{
     canLogin?: boolean;
     loginUrl?: string;
 }>();
+
+const { t } = useI18n();
 
 const page = usePage();
 const flashSuccess = computed(() => {
@@ -36,9 +39,9 @@ function submit() {
         <Head title="Accel" />
 
         <div class="py-2 text-center">
-            <h2 class="mb-2 text-lg font-normal text-[var(--wa-text)]">Добро пожаловать</h2>
+            <h2 class="mb-2 text-lg font-normal text-[var(--wa-text)]">{{ t('misc.welcomeTitle') }}</h2>
             <p class="mb-6 text-sm leading-relaxed text-[var(--wa-text-secondary)]">
-                Единая платформа для WhatsApp-переписки, AI-ассистента и задач команды.
+                {{ t('misc.welcomeSubtitle') }}
             </p>
 
             <div class="flex flex-col gap-2">
@@ -48,7 +51,7 @@ function submit() {
                     class="w-full rounded-lg py-2.5 text-sm font-medium text-white transition disabled:opacity-50"
                     :style="{ background: 'var(--wa-accent)' }"
                 >
-                    Открыть чаты
+                    {{ t('misc.openChats') }}
                 </Link>
 
                 <template v-else-if="canLogin">
@@ -58,7 +61,7 @@ function submit() {
                         class="w-full rounded-lg py-2.5 text-sm font-medium text-white transition"
                         :style="{ background: 'var(--wa-accent)' }"
                     >
-                        Войти
+                        {{ t('misc.login') }}
                     </a>
                     <Link
                         v-else
@@ -66,16 +69,16 @@ function submit() {
                         class="w-full rounded-lg py-2.5 text-sm font-medium text-white transition"
                         :style="{ background: 'var(--wa-accent)' }"
                     >
-                        Войти
+                        {{ t('misc.login') }}
                     </Link>
                 </template>
             </div>
         </div>
 
         <div id="request" class="mt-8 border-t pt-8 text-left" :style="{ borderColor: 'var(--wa-border)' }">
-            <h3 class="mb-1 text-base font-medium text-[var(--wa-text)]">Оставить заявку</h3>
+            <h3 class="mb-1 text-base font-medium text-[var(--wa-text)]">{{ t('misc.requestTitle') }}</h3>
             <p class="mb-4 text-sm text-[var(--wa-text-secondary)]">
-                Расскажите о компании — мы свяжемся и поможем с подключением.
+                {{ t('misc.requestHint') }}
             </p>
 
             <p
@@ -90,7 +93,7 @@ function submit() {
             <form class="flex flex-col gap-3" @submit.prevent="submit">
                 <div>
                     <label class="mb-1 block text-xs font-medium text-[var(--wa-text-secondary)]" for="company_name">
-                        Компания
+                        {{ t('misc.company') }}
                     </label>
                     <input
                         id="company_name"
@@ -110,7 +113,7 @@ function submit() {
 
                 <div>
                     <label class="mb-1 block text-xs font-medium text-[var(--wa-text-secondary)]" for="contact_name">
-                        Контактное лицо
+                        {{ t('misc.contactName') }}
                     </label>
                     <input
                         id="contact_name"
@@ -130,7 +133,7 @@ function submit() {
 
                 <div>
                     <label class="mb-1 block text-xs font-medium text-[var(--wa-text-secondary)]" for="email">
-                        Email
+                        {{ t('misc.email') }}
                     </label>
                     <input
                         id="email"
@@ -150,7 +153,7 @@ function submit() {
 
                 <div>
                     <label class="mb-1 block text-xs font-medium text-[var(--wa-text-secondary)]" for="phone">
-                        Телефон
+                        {{ t('misc.phone') }}
                     </label>
                     <input
                         id="phone"
@@ -169,7 +172,7 @@ function submit() {
 
                 <div>
                     <label class="mb-1 block text-xs font-medium text-[var(--wa-text-secondary)]" for="message">
-                        Комментарий
+                        {{ t('misc.message') }}
                     </label>
                     <textarea
                         id="message"
@@ -191,7 +194,7 @@ function submit() {
                     :style="{ background: 'var(--wa-accent)' }"
                     :disabled="form.processing"
                 >
-                    {{ form.processing ? 'Отправка…' : 'Отправить заявку' }}
+                    {{ form.processing ? t('misc.submitting') : t('misc.submitRequest') }}
                 </button>
             </form>
         </div>

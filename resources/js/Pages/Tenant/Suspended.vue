@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 
 type Reason = 'disabled' | 'suspended' | 'canceled';
 
@@ -15,16 +16,18 @@ const props = defineProps<{
     supportEmail: string;
 }>();
 
+const { t } = useI18n();
+
 const accent = computed(() => {
     switch (props.reason) {
         case 'disabled':
-            return { color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: 'Отключено' };
+            return { color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: t('misc.tenantDisabled') };
         case 'suspended':
-            return { color: '#ef4444', glow: 'rgba(239, 68, 68, 0.4)', label: 'Приостановлено' };
+            return { color: '#ef4444', glow: 'rgba(239, 68, 68, 0.4)', label: t('misc.tenantSuspended') };
         case 'canceled':
-            return { color: '#94a3b8', glow: 'rgba(148, 163, 184, 0.35)', label: 'Отменено' };
+            return { color: '#94a3b8', glow: 'rgba(148, 163, 184, 0.35)', label: t('misc.tenantCanceled') };
         default:
-            return { color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: 'Недоступно' };
+            return { color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.4)', label: t('misc.tenantUnavailable') };
     }
 });
 
@@ -73,15 +76,15 @@ const iconPath = computed(() => {
 
                 <div class="suspended__meta">
                     <div class="suspended__meta-row">
-                        <span class="suspended__meta-label">Компания</span>
+                        <span class="suspended__meta-label">{{ t('misc.tenantCompany') }}</span>
                         <span class="suspended__meta-value">{{ companyName }}</span>
                     </div>
                     <div class="suspended__meta-row">
-                        <span class="suspended__meta-label">Поддомен</span>
+                        <span class="suspended__meta-label">{{ t('misc.tenantSubdomain') }}</span>
                         <span class="suspended__meta-value suspended__meta-mono">{{ companySlug }}.accel.kz</span>
                     </div>
                     <div class="suspended__meta-row">
-                        <span class="suspended__meta-label">Статус</span>
+                        <span class="suspended__meta-label">{{ t('misc.statusTitle') }}</span>
                         <span class="suspended__meta-value suspended__meta-mono" :style="{ color: accent.color }">
                             {{ isActive ? status : 'inactive' }}
                         </span>
@@ -94,10 +97,10 @@ const iconPath = computed(() => {
                             <path d="M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
                             <path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
-                        Написать в поддержку
+                        {{ t('misc.tenantContactSupport') }}
                     </a>
                     <a href="https://accel.kz/" class="suspended__btn suspended__btn--ghost">
-                        На accel.kz
+                        {{ t('misc.tenantBackToAccel') }}
                     </a>
                 </div>
             </div>

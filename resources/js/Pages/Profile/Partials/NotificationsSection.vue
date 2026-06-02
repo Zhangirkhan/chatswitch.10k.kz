@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import SectionHeader from './SectionHeader.vue';
+import { useI18n } from '@/composables/useI18n';
 import SettingToggle from './SettingToggle.vue';
 import { useLocalSetting } from '@/composables/useLocalSetting';
 import { computed, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 const notificationsEnabled = useLocalSetting('notifications.enabled', false);
 
@@ -14,9 +17,9 @@ const permissionLabel = computed(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
         return '';
     }
-    if (Notification.permission === 'granted') return 'Разрешено в браузере';
-    if (Notification.permission === 'denied') return 'Заблокировано в браузере — снимите запрет в настройках сайта';
-    return 'Браузер ещё не спрашивал разрешение';
+    if (Notification.permission === 'granted') return t('profile.notificationsSection.permissionGranted');
+    if (Notification.permission === 'denied') return t('profile.notificationsSection.permissionDenied');
+    return t('profile.notificationsSection.permissionDefault');
 });
 
 const showRequestPermissionButton = computed(() => {
@@ -57,13 +60,13 @@ watch(
 
 <template>
     <div class="h-full flex flex-col">
-        <SectionHeader title="Уведомления" />
+        <SectionHeader :title="t('profile.notificationsSection.title')" />
 
         <div class="flex-1 overflow-y-auto wa-scrollbar py-2">
             <SettingToggle
                 v-model="notificationsEnabled"
-                title="Уведомления в браузере"
-                description="Новые сообщения, назначения, входящие звонки (пока вкладка не на переднем плане)"
+                :title="t('profile.notificationsSection.browserNotifications')"
+                :description="t('profile.notificationsSection.browserNotificationsDesc')"
             />
 
             <div class="px-6 pt-2 text-xs text-[var(--wa-text-secondary)]">
@@ -76,19 +79,19 @@ watch(
                     class="text-sm font-medium rounded-lg px-3 py-2 bg-[var(--wa-accent)] text-white hover:opacity-90"
                     @click="requestBrowserPermission"
                 >
-                    Запросить разрешение у браузера
+                    {{ t('profile.notificationsSection.requestPermission') }}
                 </button>
             </div>
 
             <div class="px-6 pt-4 pb-6 text-xs text-[var(--wa-text-secondary)] leading-relaxed space-y-2">
                 <p>
-                    Диалог разрешения Chrome и Safari показывают только после вашего действия на сайте (переключатель выше или кнопка «Запросить…»), а не при первом открытии адреса.
+                    {{ t('profile.notificationsSection.hint1') }}
                 </p>
                 <p>
-                    Баннеры не показываются, пока вы печатаете в этой вкладке. Переключитесь на другую вкладку, сверните окно или другое приложение — тогда придёт уведомление.
+                    {{ t('profile.notificationsSection.hint2') }}
                 </p>
                 <p>
-                    Включите уведомления для этого сайта в настройках браузера и ОС, если раньше нажимали «Блокировать».
+                    {{ t('profile.notificationsSection.hint3') }}
                 </p>
             </div>
         </div>

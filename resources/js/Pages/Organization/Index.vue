@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
+
+const { t, locale } = useI18n();
 
 const props = defineProps<{
     departments: OrgDepartment[];
@@ -46,10 +49,43 @@ function setFilter(key: FilterKey) {
 function initial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
 }
+
+function deptLabel(count: number): string {
+    if (locale.value === 'ru') {
+        if (count === 1) {
+            return t('organization.deptLabelOne');
+        }
+        if (count >= 2 && count <= 4) {
+            return t('organization.deptLabelFew');
+        }
+
+        return t('organization.deptLabelMany');
+    }
+
+    return count === 1 ? t('organization.deptLabelOne') : t('organization.deptLabelMany');
+}
+
+function filterSummaryText(): string {
+    if (activeFilter.value !== 'all') {
+        const deptCount = filteredDepartments.value.length;
+
+        return t('organization.indexFilterSummary', {
+            deptCount,
+            deptLabel: deptLabel(deptCount),
+            taskCount: filteredTasksTotal.value,
+            taskLabel: t('organization.taskLabelMany'),
+        });
+    }
+
+    return t('organization.indexDeptSummary', {
+        count: props.departments.length,
+        deptLabel: deptLabel(props.departments.length),
+    });
+}
 </script>
 
 <template>
-    <Head title="Организация" />
+    <Head :title="t('organization.title')" />
     <OrganizationLayout :departments="departments" :selected-department-id="null">
         <div class="org-index">
 
@@ -67,7 +103,7 @@ function initial(name: string): string {
                         </svg>
                     </div>
                     <div class="kpi-value">{{ totalAll }}</div>
-                    <div class="kpi-label">Всего задач</div>
+                    <div class="kpi-label">{{ t('organization.indexKpiTotal') }}</div>
                 </button>
 
                 <button
@@ -82,7 +118,7 @@ function initial(name: string): string {
                         </svg>
                     </div>
                     <div class="kpi-value">{{ totalOpen }}</div>
-                    <div class="kpi-label">Открытые</div>
+                    <div class="kpi-label">{{ t('organization.indexKpiOpen') }}</div>
                 </button>
 
                 <button
@@ -97,7 +133,7 @@ function initial(name: string): string {
                         </svg>
                     </div>
                     <div class="kpi-value">{{ totalInProgress }}</div>
-                    <div class="kpi-label">В работе</div>
+                    <div class="kpi-label">{{ t('organization.indexKpiInProgress') }}</div>
                 </button>
 
                 <button
@@ -112,19 +148,11 @@ function initial(name: string): string {
                         </svg>
                     </div>
                     <div class="kpi-value">{{ totalDone }}</div>
-                    <div class="kpi-label">Завершено</div>
+                    <div class="kpi-label">{{ t('organization.indexKpiDone') }}</div>
                 </button>
             </div>
 
-            <p class="filter-result-hint m-0">
-                <span v-if="activeFilter !== 'all'">
-                    {{ filteredDepartments.length }} {{ filteredDepartments.length === 1 ? 'отдел' : filteredDepartments.length < 5 ? 'отдела' : 'отделов' }},
-                    {{ filteredTasksTotal }} задач
-                </span>
-                <span v-else>
-                    {{ departments.length }} {{ departments.length === 1 ? 'отдел' : departments.length < 5 ? 'отдела' : 'отделов' }}
-                </span>
-            </p>
+            <p class="filter-result-hint m-0">{{ filterSummaryText() }}</p>
 
             <!-- Empty state (нет отделов) -->
             <div v-if="departments.length === 0" class="empty-state">
@@ -133,7 +161,7 @@ function initial(name: string): string {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 21V12h6v9" />
                     </svg>
                 </div>
-                <p class="text-sm">Нет доступных отделов</p>
+                <p class="text-sm">{{ t('organization.noDepartmentsAvailable') }}</p>
             </div>
 
             <!-- Empty state (фильтр ничего не нашёл) -->
@@ -143,8 +171,8 @@ function initial(name: string): string {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
                     </svg>
                 </div>
-                <p class="text-sm">Нет отделов с задачами в этом статусе</p>
-                <button class="reset-filter-btn" @click="setFilter('all')">Сбросить фильтр</button>
+                <p class="text-sm">{{ t('organization.indexNoDeptsFiltered') }}</p>
+                <button class="reset-filter-btn" @click="setFilter('all')">{{ t('organization.indexResetFilter') }}</button>
             </div>
 
             <!-- ── Departments grid ───────────────────────────────────── -->
@@ -170,39 +198,39 @@ function initial(name: string): string {
                             v-if="dept.in_progress_count > 0"
                             class="task-badge task-badge-progress"
                             :class="{ 'task-badge-highlighted': activeFilter === 'in_progress' }"
-                            title="В работе"
+                            :title="t('organization.indexTitleInProgress')"
                         >
                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
                             </svg>
-                            {{ dept.in_progress_count }} в работе
+                            {{ t('organization.indexBadgeInProgress', { count: dept.in_progress_count }) }}
                         </span>
                         <span
                             v-if="dept.open_count > 0"
                             class="task-badge task-badge-open"
                             :class="{ 'task-badge-highlighted': activeFilter === 'open' }"
-                            title="Открыто"
+                            :title="t('organization.indexTitleOpen')"
                         >
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <circle cx="12" cy="12" r="9"/>
                             </svg>
-                            {{ dept.open_count }} открыто
+                            {{ t('organization.indexBadgeOpen', { count: dept.open_count }) }}
                         </span>
                         <span
                             v-if="dept.done_count > 0"
                             class="task-badge task-badge-done"
                             :class="{ 'task-badge-highlighted': activeFilter === 'done' }"
-                            title="Завершено"
+                            :title="t('organization.indexTitleDone')"
                         >
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                             </svg>
-                            {{ dept.done_count }} готово
+                            {{ t('organization.indexBadgeDone', { count: dept.done_count }) }}
                         </span>
                         <span
                             v-if="dept.open_count === 0 && dept.in_progress_count === 0 && dept.done_count === 0"
                             class="ui-tab-badge ui-tab-badge--neutral"
-                        >Нет задач</span>
+                        >{{ t('organization.indexNoTasks') }}</span>
                     </div>
 
                     <!-- Footer arrow -->

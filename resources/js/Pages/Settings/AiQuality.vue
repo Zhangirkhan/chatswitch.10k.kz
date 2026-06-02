@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref } from 'vue';
+
+const { t, locale } = useI18n();
 
 type FailedLog = {
     id: number;
@@ -104,26 +107,28 @@ const props = defineProps<{
     problem_ratings: ProblemRating[];
 }>();
 
-const ratingLabels: Record<string, string> = {
-    style: 'Стиль / тон',
-    facts: 'Факты',
-    long: 'Слишком длинно',
-    context: 'Нет в базе знаний',
-};
+const ratingLabels = computed<Record<string, string>>(() => ({
+    style: t('settings.aiQuality.ratingStyle'),
+    facts: t('settings.aiQuality.ratingFacts'),
+    long: t('settings.aiQuality.ratingLong'),
+    context: t('settings.aiQuality.ratingContext'),
+}));
 
-const simulationMessage = ref('Здравствуйте, хочу заказать кухню, можно завтра на замер?');
+const simulationMessage = ref(t('settings.aiQuality.defaultTestMessage'));
 const simulationHistory = ref('');
 const simulationLoading = ref(false);
 const simulationError = ref<string | null>(null);
 const simulationResult = ref<SimulationResult | null>(null);
 const simulationConfidence = computed(() => Math.round((simulationResult.value?.confidence ?? 0) * 100));
 
+const dateLocale = computed(() => (locale.value === 'kk' ? 'kk-KZ' : locale.value === 'en' ? 'en-GB' : 'ru-RU'));
+
 function formatWhen(iso: string | null): string {
     if (!iso) {
         return '—';
     }
     try {
-        return new Intl.DateTimeFormat('ru-RU', {
+        return new Intl.DateTimeFormat(dateLocale.value, {
             dateStyle: 'short',
             timeStyle: 'short',
         }).format(new Date(iso));
@@ -153,10 +158,12 @@ function auditColor(severity: ConfigurationAuditItem['severity']): string {
 
 function waitLabel(minutes: number | null): string {
     if (minutes === null) return '—';
-    if (minutes < 60) return `${minutes} мин`;
+    if (minutes < 60) return t('settings.aiQuality.waitMinutes', { minutes });
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
+    return rest > 0
+        ? t('settings.aiQuality.waitHoursMinutes', { hours, minutes: rest })
+        : t('settings.aiQuality.waitHours', { hours });
 }
 
 async function runSimulation(): Promise<void> {
@@ -176,7 +183,7 @@ async function runSimulation(): Promise<void> {
         });
         simulationResult.value = data.result as SimulationResult;
     } catch (e: any) {
-        simulationError.value = e?.response?.data?.message || 'Не удалось запустить симуляцию.';
+        simulationError.value = e?.response?.data?.message || t('settings.aiQuality.errorSimulation');
     } finally {
         simulationLoading.value = false;
     }
@@ -184,9 +191,9 @@ async function runSimulation(): Promise<void> {
 </script>
 
 <template>
-    <Head title="AI и качество" />
+    <Head :title="t('settings.aiQuality.title')" />
 
-    <SettingsLayout title="AI и качество" subtitle="Сбои генерации и негативные оценки ответов операторов">
+    <SettingsLayout :title="t('settings.aiQuality.title')" :subtitle="t('settings.aiQuality.subtitle')">
         <div class="w-full space-y-8 px-6 py-6">
             <section
                 class="ui-settings-section"
@@ -194,7 +201,7 @@ async function runSimulation(): Promise<void> {
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <div class="text-xs font-semibold uppercase tracking-wide" :style="{ color: readinessColor(readiness.status) }">
-                            Готовность AI · {{ readiness.score }}%
+                            {{ t('settings.aiQuality.readiness', { score: readiness.score }) }}
                         </div>
                         <h2 class="mt-1 text-lg font-semibold" :style="{ color: 'var(--ui-text)' }">{{ readiness.label }}</h2>
                         <p class="mt-1 max-w-2xl text-sm" :style="{ color: 'var(--ui-text-secondary)' }">{{ readiness.summary }}</p>
@@ -226,7 +233,7 @@ async function runSimulation(): Promise<void> {
                 </div>
 
                 <div v-if="readiness.next_actions.length" class="mt-5 rounded-lg border px-4 py-3" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
-                    <div class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Что сделать дальше</div>
+                    <div class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.nextActions') }}</div>
                     <ul class="mt-2 space-y-1.5 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
                         <li v-for="action in readiness.next_actions" :key="action">• {{ action }}</li>
                     </ul>
@@ -238,18 +245,18 @@ async function runSimulation(): Promise<void> {
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Предложения улучшений AI</h2>
+                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.improvementsTitle') }}</h2>
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Сводка по оценкам операторов: какие правила, факты или стиль стоит улучшить.
+                            {{ t('settings.aiQuality.improvementsDesc') }}
                         </p>
                     </div>
                     <div class="text-xs font-semibold" :style="{ color: 'var(--ui-text-secondary)' }">
-                        {{ improvement_suggestions.length }} направлений
+                        {{ t('settings.aiQuality.directionsCount', { count: improvement_suggestions.length }) }}
                     </div>
                 </div>
 
                 <div v-if="improvement_suggestions.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
-                    Пока нет негативных оценок AI-ответов. Когда операторы начнут отмечать проблемы, здесь появятся рекомендации.
+                    {{ t('settings.aiQuality.improvementsEmpty') }}
                 </div>
 
                 <div v-else class="mt-4 grid gap-3 lg:grid-cols-2">
@@ -280,7 +287,7 @@ async function runSimulation(): Promise<void> {
                                     <span class="font-medium" :style="{ color: 'var(--ui-text)' }">{{ example.chat }}</span>
                                     <span>{{ formatWhen(example.created_at) }}</span>
                                 </div>
-                                <div class="line-clamp-2">{{ example.preview || 'Без текста' }}</div>
+                                <div class="line-clamp-2">{{ example.preview || t('settings.aiQuality.noText') }}</div>
                             </div>
                         </div>
                     </article>
@@ -292,18 +299,18 @@ async function runSimulation(): Promise<void> {
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Автоаудит конфигурации</h2>
+                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.auditTitle') }}</h2>
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Проверяет воронки, правила, отделы и базу знаний на слабые места до того, как они ломают диалоги.
+                            {{ t('settings.aiQuality.auditDesc') }}
                         </p>
                     </div>
                     <div class="text-xs font-semibold" :style="{ color: 'var(--ui-text-secondary)' }">
-                        {{ configuration_audit.length }} рекомендаций
+                        {{ t('settings.aiQuality.recommendationsCount', { count: configuration_audit.length }) }}
                     </div>
                 </div>
 
                 <div v-if="configuration_audit.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
-                    Критичных слабых мест не найдено.
+                    {{ t('settings.aiQuality.auditEmpty') }}
                 </div>
 
                 <div v-else class="mt-4 grid gap-3 lg:grid-cols-2">
@@ -334,18 +341,18 @@ async function runSimulation(): Promise<void> {
             >
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Очередь внимания</h2>
+                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.attentionTitle') }}</h2>
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Чаты, где клиент ждёт, AI просит менеджера или оркестратор упал.
+                            {{ t('settings.aiQuality.attentionDesc') }}
                         </p>
                     </div>
                     <div class="text-xs font-semibold" :style="{ color: 'var(--ui-text-secondary)' }">
-                        {{ attention_queue.length }} активных
+                        {{ t('settings.aiQuality.attentionActive', { count: attention_queue.length }) }}
                     </div>
                 </div>
 
                 <div v-if="attention_queue.length === 0" class="ui-empty-state ui-empty-state--dashed mt-4">
-                    Очередь пустая. Критичных чатов сейчас нет.
+                    {{ t('settings.aiQuality.attentionEmpty') }}
                 </div>
 
                 <div v-else class="mt-4 grid gap-3 xl:grid-cols-2">
@@ -368,7 +375,7 @@ async function runSimulation(): Promise<void> {
 
                         <div class="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                             <span v-if="item.unread_count > 0" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text-secondary)' }">
-                                непрочитано: {{ item.unread_count }}
+                                {{ t('settings.aiQuality.unread', { count: item.unread_count }) }}
                             </span>
                             <span v-if="item.ai_status" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text-secondary)' }">
                                 AI: {{ item.ai_status }}
@@ -384,13 +391,13 @@ async function runSimulation(): Promise<void> {
             <section
                 class="ui-settings-section"
             >
-                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Guardrails AI</h2>
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.guardrailsTitle') }}</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Срабатывания защит: повторы вопросов, остановки оркестратора и сценарии, где лучше вмешаться менеджеру.
+                    {{ t('settings.aiQuality.guardrailsDesc') }}
                 </p>
 
                 <div v-if="guardrail_events.length === 0" class="mt-4 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Защитные остановки пока не срабатывали.
+                    {{ t('settings.aiQuality.guardrailsEmpty') }}
                 </div>
 
                 <ul v-else class="mt-4 grid gap-3 lg:grid-cols-2">
@@ -418,31 +425,33 @@ async function runSimulation(): Promise<void> {
                 class="ui-settings-section"
             >
                 <div class="flex flex-col gap-1">
-                    <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Симулятор клиента</h2>
+                    <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.simulatorTitle') }}</h2>
                     <p class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                        Dry-run: AI покажет предполагаемый ответ, этап, действия и риски, но ничего не запишет в чат и воронку.
+                        {{ t('settings.aiQuality.simulatorDesc') }}
                     </p>
                 </div>
 
                 <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.9fr)]">
                     <div class="space-y-3">
                         <label class="block">
-                            <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">Тестовое сообщение клиента</span>
+                            <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">{{ t('settings.aiQuality.testMessage') }}</span>
                             <textarea
                                 v-model="simulationMessage"
                                 rows="4"
                                 class="settings-input w-full"
-                                placeholder="Например: хочу шкаф, когда можно замер?"
+                                :placeholder="t('settings.aiQuality.testMessagePlaceholder')"
                             />
                         </label>
 
                         <label class="block">
-                            <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">История до сообщения <small>(необязательно)</small></span>
+                            <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">
+                                {{ t('settings.aiQuality.historyLabel') }} <small>{{ t('settings.aiQuality.historyOptional') }}</small>
+                            </span>
                             <textarea
                                 v-model="simulationHistory"
                                 rows="3"
                                 class="settings-input w-full"
-                                placeholder="Клиент: интересует кухня&#10;Менеджер: уточните размеры"
+                                :placeholder="t('settings.aiQuality.historyPlaceholder')"
                             />
                         </label>
 
@@ -452,32 +461,32 @@ async function runSimulation(): Promise<void> {
                             :disabled="simulationLoading || simulationMessage.trim().length === 0"
                             @click="runSimulation"
                         >
-                            {{ simulationLoading ? 'AI думает…' : 'Запустить симуляцию' }}
+                            {{ simulationLoading ? t('settings.aiQuality.aiThinking') : t('settings.aiQuality.runSimulation') }}
                         </button>
                     </div>
 
                     <div class="ui-panel p-4" :style="{ background: 'var(--ui-surface-muted)' }">
                         <div v-if="simulationError" class="text-sm" :style="{ color: 'var(--ui-danger)' }">{{ simulationError }}</div>
                         <div v-else-if="!simulationResult" class="text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Результат появится здесь: ответ клиенту, выбранная воронка, этап, действия и предупреждения.
+                            {{ t('settings.aiQuality.simulatorEmpty') }}
                         </div>
                         <div v-else class="space-y-4">
                             <div>
-                                <div class="mb-1 text-xs font-semibold uppercase tracking-wide" :style="{ color: 'var(--ui-accent)' }">Ответ клиенту</div>
+                                <div class="mb-1 text-xs font-semibold uppercase tracking-wide" :style="{ color: 'var(--ui-accent)' }">{{ t('settings.aiQuality.customerReply') }}</div>
                                 <div class="rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap" :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text)' }">
                                     {{ simulationResult.customer_reply }}
                                 </div>
                             </div>
 
                             <div class="grid gap-2 text-xs sm:grid-cols-2" :style="{ color: 'var(--ui-text-secondary)' }">
-                                <div><span :style="{ color: 'var(--ui-text)' }">Воронка:</span> {{ simulationResult.funnel_name || '—' }}</div>
-                                <div><span :style="{ color: 'var(--ui-text)' }">Этап:</span> {{ simulationResult.stage_name || '—' }}</div>
-                                <div><span :style="{ color: 'var(--ui-text)' }">Уверенность:</span> {{ simulationConfidence }}%</div>
-                                <div><span :style="{ color: 'var(--ui-text)' }">Менеджер:</span> {{ simulationResult.manager_needed ? 'нужен' : 'не нужен' }}</div>
+                                <div><span :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.funnel') }}</span> {{ simulationResult.funnel_name || '—' }}</div>
+                                <div><span :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.stage') }}</span> {{ simulationResult.stage_name || '—' }}</div>
+                                <div><span :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.confidence') }}</span> {{ simulationConfidence }}%</div>
+                                <div><span :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.manager') }}</span> {{ simulationResult.manager_needed ? t('settings.aiQuality.managerNeeded') : t('settings.aiQuality.managerNotNeeded') }}</div>
                             </div>
 
                             <div>
-                                <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">Почему так</div>
+                                <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.whySo') }}</div>
                                 <p class="text-sm leading-relaxed" :style="{ color: 'var(--ui-text-secondary)' }">{{ simulationResult.reason }}</p>
                             </div>
 
@@ -489,13 +498,13 @@ async function runSimulation(): Promise<void> {
 
                             <div v-if="simulationResult.missing_data.length || simulationResult.risks.length" class="grid gap-3 md:grid-cols-2">
                                 <div v-if="simulationResult.missing_data.length">
-                                    <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">Не хватает данных</div>
+                                    <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.missingData') }}</div>
                                     <ul class="space-y-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                         <li v-for="item in simulationResult.missing_data" :key="item">• {{ item }}</li>
                                     </ul>
                                 </div>
                                 <div v-if="simulationResult.risks.length">
-                                    <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">Риски</div>
+                                    <div class="mb-1 text-xs font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.risks') }}</div>
                                     <ul class="space-y-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                                         <li v-for="item in simulationResult.risks" :key="item">• {{ item }}</li>
                                     </ul>
@@ -509,13 +518,13 @@ async function runSimulation(): Promise<void> {
             <section
                 class="ui-settings-section"
             >
-                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Сбои и блокировки AI</h2>
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.failuresTitle') }}</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Последние записи со статусом «failed» или «blocked» в журнале ответов AI.
+                    {{ t('settings.aiQuality.failuresDesc') }}
                 </p>
 
                 <div v-if="failed_logs.length === 0" class="mt-4 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Записей пока нет — это хороший знак.
+                    {{ t('settings.aiQuality.failuresEmpty') }}
                 </div>
 
                 <ul v-else class="mt-4 space-y-3">
@@ -544,13 +553,13 @@ async function runSimulation(): Promise<void> {
             <section
                 class="ui-settings-section"
             >
-                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Оценки «нужно улучшить»</h2>
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.ratingsTitle') }}</h2>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Операторы отмечают AI-сообщения в чате; здесь собраны не «Ок», а проблемные категории.
+                    {{ t('settings.aiQuality.ratingsDesc') }}
                 </p>
 
                 <div v-if="problem_ratings.length === 0" class="mt-4 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Пока нет таких оценок.
+                    {{ t('settings.aiQuality.ratingsEmpty') }}
                 </div>
 
                 <ul v-else class="mt-4 space-y-3">
@@ -565,7 +574,7 @@ async function runSimulation(): Promise<void> {
                             <span class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">{{ formatWhen(row.created_at) }}</span>
                         </div>
                         <div class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            {{ row.chat }} · {{ row.user ?? 'Оператор' }}
+                            {{ row.chat }} · {{ row.user ?? t('settings.aiQuality.operator') }}
                         </div>
                         <p class="mt-2 whitespace-pre-wrap break-words text-xs opacity-90">{{ row.body_preview }}</p>
                     </li>

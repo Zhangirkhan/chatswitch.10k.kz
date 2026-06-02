@@ -17,8 +17,11 @@ interface SuperAdminCompanyUser {
     whatsapp_sessions: Array<{ id: number; session_name: string; display_name: string | null; status: string }>;
     created_at: string | null;
 }
+import { useI18n } from '@/composables/useI18n';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     companyId: number;
@@ -27,11 +30,12 @@ const props = defineProps<{
     whatsappSessions: Array<{ id: number; session_name: string; display_name: string | null; status: string }>;
 }>();
 
-const roleLabels: Record<string, string> = {
-    administrator: 'Администратор',
-    manager: 'Менеджер',
-    employee: 'Сотрудник',
-};
+function roleLabel(role: string): string {
+    if (role === 'administrator' || role === 'manager' || role === 'employee') {
+        return t(`superAdmin.companies.users.roles.${role}`);
+    }
+    return role;
+}
 
 const filterRole = ref('');
 const filterDepartmentId = ref<number | ''>('');
@@ -85,7 +89,7 @@ const activeDepartments = computed(() => props.departments.filter((d) => d.is_ac
 
 function userRoleLabel(user: SuperAdminCompanyUser): string {
     const name = user.roles?.[0]?.name;
-    return name ? (roleLabels[name] ?? name) : '—';
+    return name ? roleLabel(name) : t('superAdmin.common.emDash');
 }
 
 function departmentsLabel(user: SuperAdminCompanyUser): string {
@@ -96,18 +100,18 @@ function departmentsLabel(user: SuperAdminCompanyUser): string {
         return user.department.name;
     }
 
-    return '—';
+    return t('superAdmin.common.emDash');
 }
 
 function phonesLabel(user: SuperAdminCompanyUser): string {
     const list = user.phones.length > 0 ? user.phones : user.phone ? [user.phone] : [];
 
-    return list.map((p) => formatPhone(p) || p).join(', ') || '—';
+    return list.map((p) => formatPhone(p) || p).join(', ') || t('superAdmin.common.emDash');
 }
 
 function whatsappLabel(user: SuperAdminCompanyUser): string {
     if (user.whatsapp_sessions.length === 0) {
-        return '—';
+        return t('superAdmin.common.emDash');
     }
 
     return user.whatsapp_sessions
@@ -116,7 +120,7 @@ function whatsappLabel(user: SuperAdminCompanyUser): string {
 }
 
 function formatDateOnly(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return t('superAdmin.common.emDash');
     return new Date(iso).toLocaleDateString('ru-RU', { dateStyle: 'medium' });
 }
 
@@ -154,12 +158,12 @@ function saveEdit(userId: number): void {
 
 function resetPassword(user: SuperAdminCompanyUser): void {
     const label = user.email || user.name;
-    if (!confirm(`Сгенерировать новый пароль для ${label}?`)) return;
+    if (!confirm(t('superAdmin.companies.users.resetPasswordConfirm', { label }))) return;
     router.post(`/companies/${props.companyId}/users/${user.id}/reset-password`, {}, { preserveScroll: true });
 }
 
 function deactivate(user: SuperAdminCompanyUser): void {
-    if (!confirm(`Деактивировать ${user.name}?`)) return;
+    if (!confirm(t('superAdmin.companies.users.deactivateConfirm', { name: user.name }))) return;
     router.put(`/companies/${props.companyId}/users/${user.id}`, {
         name: user.name,
         email: user.email,
@@ -174,7 +178,7 @@ function deactivate(user: SuperAdminCompanyUser): void {
     <div class="space-y-6">
         <section v-if="departments.length > 0" class="ui-panel px-4 py-3">
             <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 class="text-sm font-semibold text-ui-text">Отделы</h2>
+                <h2 class="text-sm font-semibold text-ui-text">{{ t('superAdmin.companies.users.departmentsTitle') }}</h2>
                 <span class="text-xs text-ui-text-muted">{{ departments.length }}</span>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -185,7 +189,7 @@ function deactivate(user: SuperAdminCompanyUser): void {
                     :class="d.is_active ? 'ui-badge--neutral' : 'ui-badge--neutral opacity-60'"
                 >
                     {{ d.name }}
-                    <span v-if="!d.is_active" class="text-ui-text-muted"> · выкл</span>
+                    <span v-if="!d.is_active" class="text-ui-text-muted">{{ t('superAdmin.companies.users.departmentsInactive') }}</span>
                 </span>
             </div>
         </section>
@@ -193,35 +197,35 @@ function deactivate(user: SuperAdminCompanyUser): void {
         <div class="ui-panel company-users-table overflow-hidden p-0">
             <div class="company-users-toolbar">
                 <h2 class="company-users-toolbar__title">
-                    Пользователи
+                    {{ t('superAdmin.companies.users.title') }}
                     <span class="company-users-toolbar__count">{{ filteredUsers.length }}</span>
                     <span v-if="filteredUsers.length !== users.length" class="company-users-toolbar__count-muted">
                         / {{ users.length }}
                     </span>
                 </h2>
-                <div class="company-users-toolbar__filters" role="group" aria-label="Фильтры пользователей">
+                <div class="company-users-toolbar__filters" role="group" :aria-label="t('superAdmin.companies.users.filtersAriaLabel')">
                     <label class="company-users-toolbar__filter">
-                        <span class="company-users-toolbar__filter-label">Роль</span>
+                        <span class="company-users-toolbar__filter-label">{{ t('superAdmin.companies.users.filterRole') }}</span>
                         <select v-model="filterRole" class="ui-select">
-                            <option value="">Все роли</option>
-                            <option value="administrator">Администратор</option>
-                            <option value="manager">Менеджер</option>
-                            <option value="employee">Сотрудник</option>
+                            <option value="">{{ t('superAdmin.companies.users.filterAllRoles') }}</option>
+                            <option value="administrator">{{ t('superAdmin.companies.users.roles.administrator') }}</option>
+                            <option value="manager">{{ t('superAdmin.companies.users.roles.manager') }}</option>
+                            <option value="employee">{{ t('superAdmin.companies.users.roles.employee') }}</option>
                         </select>
                     </label>
                     <label class="company-users-toolbar__filter">
-                        <span class="company-users-toolbar__filter-label">Отдел</span>
+                        <span class="company-users-toolbar__filter-label">{{ t('superAdmin.companies.users.filterDepartment') }}</span>
                         <select v-model="filterDepartmentId" class="ui-select">
-                            <option value="">Все отделы</option>
+                            <option value="">{{ t('superAdmin.companies.users.filterAllDepartments') }}</option>
                             <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
                         </select>
                     </label>
                     <label class="company-users-toolbar__filter">
-                        <span class="company-users-toolbar__filter-label">Статус</span>
+                        <span class="company-users-toolbar__filter-label">{{ t('superAdmin.companies.users.filterStatus') }}</span>
                         <select v-model="filterStatus" class="ui-select">
-                            <option value="">Все статусы</option>
-                            <option value="active">Активные</option>
-                            <option value="inactive">Выключенные</option>
+                            <option value="">{{ t('superAdmin.companies.users.filterAllStatuses') }}</option>
+                            <option value="active">{{ t('superAdmin.companies.users.filterActive') }}</option>
+                            <option value="inactive">{{ t('superAdmin.companies.users.filterInactive') }}</option>
                         </select>
                     </label>
                 </div>
@@ -231,14 +235,14 @@ function deactivate(user: SuperAdminCompanyUser): void {
                 <table>
                     <thead>
                         <tr>
-                            <th>Пользователь</th>
+                            <th>{{ t('superAdmin.companies.users.tableUser') }}</th>
                             <th>Email</th>
-                            <th>Телефон</th>
-                            <th>Роль</th>
-                            <th>Отделы</th>
+                            <th>{{ t('superAdmin.companies.users.tablePhone') }}</th>
+                            <th>{{ t('superAdmin.companies.users.tableRole') }}</th>
+                            <th>{{ t('superAdmin.companies.users.tableDepartments') }}</th>
                             <th>WhatsApp</th>
-                            <th>Статус</th>
-                            <th class="text-right">Действия</th>
+                            <th>{{ t('superAdmin.companies.users.tableStatus') }}</th>
+                            <th class="text-right">{{ t('superAdmin.common.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -248,11 +252,11 @@ function deactivate(user: SuperAdminCompanyUser): void {
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="font-medium">{{ u.name }}</span>
                                         <span v-if="u.is_owner" class="ui-badge ui-badge--neutral text-[0.6875rem] text-ui-accent">
-                                            Владелец
+                                            {{ t('superAdmin.companies.users.ownerBadge') }}
                                         </span>
                                     </div>
                                 </td>
-                                <td>{{ u.email || '—' }}</td>
+                                <td>{{ u.email || t('superAdmin.common.emDash') }}</td>
                                 <td class="whitespace-nowrap tabular-nums">{{ phonesLabel(u) }}</td>
                                 <td>
                                     <span class="ui-badge ui-badge--neutral">{{ userRoleLabel(u) }}</span>
@@ -266,20 +270,20 @@ function deactivate(user: SuperAdminCompanyUser): void {
                                 <td>
                                     <div class="flex flex-col gap-0.5 items-start">
                                         <span class="ui-badge" :class="u.is_active ? 'ui-badge--success' : 'ui-badge--neutral'">
-                                            {{ u.is_active ? 'активен' : 'выкл' }}
+                                            {{ u.is_active ? t('superAdmin.companies.users.statusActive') : t('superAdmin.companies.users.statusInactive') }}
                                         </span>
                                         <span class="text-xs text-ui-text-muted whitespace-nowrap">
-                                            с {{ formatDateOnly(u.created_at) }}
+                                            {{ t('superAdmin.companies.users.since', { date: formatDateOnly(u.created_at) }) }}
                                         </span>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="company-users-actions">
                                         <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="startEdit(u)">
-                                            Изменить
+                                            {{ t('superAdmin.companies.users.edit') }}
                                         </button>
                                         <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="resetPassword(u)">
-                                            Пароль
+                                            {{ t('superAdmin.companies.users.password') }}
                                         </button>
                                         <button
                                             v-if="u.is_active"
@@ -287,7 +291,7 @@ function deactivate(user: SuperAdminCompanyUser): void {
                                             class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                                             @click="deactivate(u)"
                                         >
-                                            Выкл
+                                            {{ t('superAdmin.companies.users.deactivate') }}
                                         </button>
                                     </div>
                                 </td>
@@ -301,16 +305,16 @@ function deactivate(user: SuperAdminCompanyUser): void {
                                                 v-model="editForm.email"
                                                 type="email"
                                                 class="ui-input"
-                                                placeholder="Email (необязательно)"
+                                                :placeholder="t('superAdmin.companies.users.emailOptional')"
                                             />
                                         </div>
                                         <select v-model="editForm.role" class="ui-select w-full">
-                                            <option value="administrator">Администратор</option>
-                                            <option value="manager">Менеджер</option>
-                                            <option value="employee">Сотрудник</option>
+                                            <option value="administrator">{{ t('superAdmin.companies.users.roles.administrator') }}</option>
+                                            <option value="manager">{{ t('superAdmin.companies.users.roles.manager') }}</option>
+                                            <option value="employee">{{ t('superAdmin.companies.users.roles.employee') }}</option>
                                         </select>
                                         <div v-if="activeDepartments.length > 0" class="space-y-1">
-                                            <span class="text-xs text-ui-text-secondary">Отделы</span>
+                                            <span class="text-xs text-ui-text-secondary">{{ t('superAdmin.companies.users.departmentsTitle') }}</span>
                                             <div class="flex flex-wrap gap-3">
                                                 <label
                                                     v-for="d in activeDepartments"
@@ -328,15 +332,15 @@ function deactivate(user: SuperAdminCompanyUser): void {
                                         </div>
                                         <label class="flex items-center gap-2 text-sm">
                                             <UiCheckbox v-model="editForm.is_active" size="sm" />
-                                            Активен
+                                            {{ t('superAdmin.companies.users.activeCheckbox') }}
                                         </label>
-                                        <input v-model="editForm.password" type="password" class="ui-input" placeholder="Новый пароль (необязательно)" />
+                                        <input v-model="editForm.password" type="password" class="ui-input" :placeholder="t('superAdmin.companies.users.newPasswordOptional')" />
                                         <div class="flex gap-2">
                                             <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="editForm.processing">
-                                                Сохранить
+                                                {{ t('superAdmin.common.save') }}
                                             </button>
                                             <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="editingId = null">
-                                                Отмена
+                                                {{ t('superAdmin.common.cancel') }}
                                             </button>
                                         </div>
                                     </form>
@@ -346,33 +350,33 @@ function deactivate(user: SuperAdminCompanyUser): void {
                     </tbody>
                 </table>
             </div>
-            <p v-if="users.length === 0" class="company-users-table__empty">Нет пользователей</p>
+            <p v-if="users.length === 0" class="company-users-table__empty">{{ t('superAdmin.companies.users.empty') }}</p>
             <p v-else-if="filteredUsers.length === 0" class="company-users-table__empty">
-                Нет пользователей по выбранным фильтрам
+                {{ t('superAdmin.companies.users.emptyFiltered') }}
             </p>
         </div>
 
         <section class="ui-settings-section max-w-xl">
-            <h2 class="mb-3 text-base font-semibold">Добавить пользователя</h2>
+            <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.users.addTitle') }}</h2>
             <form
                 class="space-y-3"
                 @submit.prevent="userForm.post(`/companies/${companyId}/users`, { preserveScroll: true, onSuccess: () => userForm.reset() })"
             >
-                <input v-model="userForm.name" placeholder="Имя" class="ui-input" required />
+                <input v-model="userForm.name" :placeholder="t('superAdmin.companies.users.addNamePlaceholder')" class="ui-input" required />
                 <input
                     v-model="userForm.email"
                     type="email"
-                    placeholder="Email (необязательно)"
+                    :placeholder="t('superAdmin.companies.users.emailOptional')"
                     class="ui-input"
                 />
-                <input v-model="userForm.password" type="password" placeholder="Пароль" class="ui-input" required />
+                <input v-model="userForm.password" type="password" :placeholder="t('superAdmin.companies.users.addPasswordPlaceholder')" class="ui-input" required />
                 <select v-model="userForm.role" class="ui-select w-full">
-                    <option value="administrator">Администратор</option>
-                    <option value="manager">Менеджер</option>
-                    <option value="employee">Сотрудник</option>
+                    <option value="administrator">{{ t('superAdmin.companies.users.roles.administrator') }}</option>
+                    <option value="manager">{{ t('superAdmin.companies.users.roles.manager') }}</option>
+                    <option value="employee">{{ t('superAdmin.companies.users.roles.employee') }}</option>
                 </select>
                 <div v-if="activeDepartments.length > 0" class="space-y-1">
-                    <span class="text-xs text-ui-text-secondary">Отделы</span>
+                    <span class="text-xs text-ui-text-secondary">{{ t('superAdmin.companies.users.departmentsTitle') }}</span>
                     <div class="flex flex-wrap gap-3">
                         <label v-for="d in activeDepartments" :key="d.id" class="flex items-center gap-2 text-sm">
                             <UiCheckbox
@@ -384,7 +388,7 @@ function deactivate(user: SuperAdminCompanyUser): void {
                         </label>
                     </div>
                 </div>
-                <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="userForm.processing">Добавить</button>
+                <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="userForm.processing">{{ t('superAdmin.companies.users.addSubmit') }}</button>
             </form>
         </section>
     </div>

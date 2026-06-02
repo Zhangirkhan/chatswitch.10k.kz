@@ -1,58 +1,69 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
     (e: 'select', emoji: string): void;
     (e: 'close'): void;
 }>();
 
-const categories = [
+const categoryDefs = [
     {
         id: 'recent',
-        label: 'Недавние',
+        labelKey: 'chats.emoji.recent' as const,
         icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
     },
     {
         id: 'smileys',
-        label: 'Смайлы и люди',
+        labelKey: 'chats.emoji.smileys' as const,
         icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     },
     {
         id: 'nature',
-        label: 'Животные и природа',
+        labelKey: 'chats.emoji.animals' as const,
         icon: 'M7 11l5-5m0 0l5 5m-5-5v12',
     },
     {
         id: 'food',
-        label: 'Еда и напитки',
+        labelKey: 'chats.emoji.food' as const,
         icon: 'M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5z',
     },
     {
         id: 'activities',
-        label: 'Активности',
+        labelKey: 'chats.emoji.activities' as const,
         icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4',
     },
     {
         id: 'travel',
-        label: 'Путешествия',
+        labelKey: 'chats.emoji.travel' as const,
         icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     },
     {
         id: 'objects',
-        label: 'Предметы',
+        labelKey: 'chats.emoji.objects' as const,
         icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
     },
     {
         id: 'symbols',
-        label: 'Символы',
+        labelKey: 'chats.emoji.symbols' as const,
         icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
     },
     {
         id: 'flags',
-        label: 'Флаги',
+        labelKey: 'chats.emoji.flags' as const,
         icon: 'M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9',
     },
 ];
+
+const categories = computed(() =>
+    categoryDefs.map((cat) => ({
+        id: cat.id,
+        label: t(cat.labelKey),
+        icon: cat.icon,
+    })),
+);
 
 const emojiData: Record<string, string[]> = {
     smileys: [
@@ -159,8 +170,8 @@ const displayedEmojis = computed(() => {
 });
 
 const activeLabel = computed(() => {
-    if (search.value.trim()) return 'Результаты поиска';
-    return categories.find((c) => c.id === activeCategory.value)?.label || '';
+    if (search.value.trim()) return t('chats.emoji.searchResults');
+    return categories.value.find((c) => c.id === activeCategory.value)?.label || '';
 });
 
 function pick(emoji: string) {
@@ -237,7 +248,7 @@ onBeforeUnmount(() => {
                 <input
                     v-model="search"
                     type="text"
-                    placeholder="Искать"
+                    :placeholder="t('chats.emoji.searchPlaceholder')"
                     class="w-full pl-8 pr-3 py-1.5 rounded-md text-sm border-0 focus:outline-none focus:ring-0"
                     :style="{ background: 'var(--wa-panel-input)', color: 'var(--wa-text)' }"
                 />
@@ -261,7 +272,7 @@ onBeforeUnmount(() => {
                 </button>
             </div>
             <div v-if="!displayedEmojis.length" class="py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                Ничего не найдено
+                {{ t('chats.emoji.nothingFound') }}
             </div>
         </div>
 

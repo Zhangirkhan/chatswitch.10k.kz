@@ -5,9 +5,12 @@ import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
 import type { OrgPost, OrgAttachment, OrgAssignee } from './Department.vue';
+
+const { t } = useI18n();
 
 const { show: showToast } = useToastStore();
 
@@ -73,16 +76,16 @@ const postDangerAttachment = ref<OrgAttachment | null>(null);
 const postDangerBusy = ref(false);
 
 const postDangerTitle = computed(() => {
-    if (postDangerKind.value === 'post') return 'Удалить пост?';
-    if (postDangerKind.value === 'comment') return 'Удалить комментарий?';
-    return 'Удалить файл?';
+    if (postDangerKind.value === 'post') return t('organization.deletePostTitle');
+    if (postDangerKind.value === 'comment') return t('organization.deleteCommentTitle');
+    return t('organization.deleteFileTitle');
 });
 
 const postDangerDescription = computed(() => {
-    if (postDangerKind.value === 'post') return 'Пост и всё обсуждение под ним будут удалены.';
-    if (postDangerKind.value === 'comment') return 'Комментарий будет удалён без возможности восстановления.';
+    if (postDangerKind.value === 'post') return t('organization.deletePostDesc');
+    if (postDangerKind.value === 'comment') return t('organization.deleteCommentDesc');
     if (postDangerKind.value === 'attachment' && postDangerAttachment.value) {
-        return `Удалить файл «${postDangerAttachment.value.original_name}»?`;
+        return t('organization.deleteFileDesc', { name: postDangerAttachment.value.original_name });
     }
     return '';
 });
@@ -139,9 +142,9 @@ async function confirmPostDanger(): Promise<void> {
         closePostDanger();
     } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
-            showToast({ message: e.response?.data?.message || 'Не удалось выполнить действие.', type: 'warning' });
+            showToast({ message: e.response?.data?.message || t('organization.actionFailed'), type: 'warning' });
         } else {
-            showToast({ message: 'Не удалось выполнить действие.', type: 'warning' });
+            showToast({ message: t('organization.actionFailed'), type: 'warning' });
         }
     } finally {
         postDangerBusy.value = false;
@@ -159,9 +162,9 @@ function toLocalDateTime(iso: string): string {
 }
 
 function statusLabel(status: OrgPost['status']): string {
-    if (status === 'in_progress') return 'В работе';
-    if (status === 'done') return 'Готово';
-    return 'Открыта';
+    if (status === 'in_progress') return t('organization.statusInProgress');
+    if (status === 'done') return t('organization.statusDone');
+    return t('organization.statusOpen');
 }
 
 function formatDate(value: string | null): string {
@@ -177,9 +180,9 @@ function formatDate(value: string | null): string {
 }
 
 function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} Б`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+    if (bytes < 1024) return t('organization.fileSizeB', { size: bytes });
+    if (bytes < 1024 * 1024) return t('organization.fileSizeKb', { size: (bytes / 1024).toFixed(1) });
+    return t('organization.fileSizeMb', { size: (bytes / (1024 * 1024)).toFixed(1) });
 }
 
 function startEdit() {
@@ -200,7 +203,7 @@ function cancelEdit() {
 async function saveEdit() {
     if (editSubmitting.value) return;
     if (editTitle.value.trim() === '') {
-        editError.value = 'Введите заголовок задачи.';
+        editError.value = t('organization.taskTitleRequired');
         return;
     }
     editSubmitting.value = true;
@@ -217,9 +220,9 @@ async function saveEdit() {
         editing.value = false;
     } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
-            editError.value = e.response?.data?.message || 'Не удалось сохранить.';
+            editError.value = e.response?.data?.message || t('organization.saveFailed');
         } else {
-            editError.value = 'Не удалось сохранить.';
+            editError.value = t('organization.saveFailed');
         }
     } finally {
         editSubmitting.value = false;
@@ -241,9 +244,9 @@ async function submitComment() {
         newComment.value = '';
     } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
-            commentError.value = e.response?.data?.message || 'Не удалось отправить комментарий.';
+            commentError.value = e.response?.data?.message || t('organization.commentFailed');
         } else {
-            commentError.value = 'Не удалось отправить комментарий.';
+            commentError.value = t('organization.commentFailed');
         }
     } finally {
         sendingComment.value = false;
@@ -287,9 +290,9 @@ async function onFilesSelected(event: Event) {
             attachments.value = [...attachments.value, data.attachment];
         } catch (e: unknown) {
             if (axios.isAxiosError(e)) {
-                uploadError.value = e.response?.data?.message || `Не удалось загрузить файл ${file.name}.`;
+                uploadError.value = e.response?.data?.message || t('organization.uploadFailed', { name: file.name });
             } else {
-                uploadError.value = `Не удалось загрузить файл ${file.name}.`;
+                uploadError.value = t('organization.uploadFailed', { name: file.name });
             }
         }
     }
@@ -315,7 +318,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                 <Link
                     :href="route('organization.departments.show', department.id)"
                     class="back-btn"
-                    aria-label="Назад к отделу"
+                    :aria-label="t('organization.backAria')"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -326,8 +329,8 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     <div class="text-base font-medium truncate text-[var(--wa-text)]">{{ localPost.title }}</div>
                 </div>
                 <div v-if="canEditPost && !editing" class="flex items-center gap-2">
-                    <button type="button" class="secondary-btn" @click="startEdit">Редактировать</button>
-                    <button type="button" class="danger-btn" @click="requestDeletePost">Удалить</button>
+                    <button type="button" class="secondary-btn" @click="startEdit">{{ t('organization.edit') }}</button>
+                    <button type="button" class="danger-btn" @click="requestDeletePost">{{ t('organization.delete') }}</button>
                 </div>
             </div>
 
@@ -338,7 +341,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                         <div class="flex items-center gap-2 mb-3">
                             <span class="status-pill" :class="`status-${localPost.status}`">{{ statusLabel(localPost.status) }}</span>
                             <span v-if="localPost.due_at" class="text-xs text-[var(--wa-text-secondary)]">
-                                Срок: {{ formatDate(localPost.due_at) }}
+                                {{ t('organization.dueLabel') }} {{ formatDate(localPost.due_at) }}
                             </span>
                         </div>
                         <div class="post-title">{{ localPost.title }}</div>
@@ -351,13 +354,13 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
 
                         <!-- ── Информационная панель: ответственные + автор ── -->
                         <div class="post-info-panel">
-                            <!-- Ответственные -->
+                            <!-- {{ t('organization.fieldAssignees') }} -->
                             <div class="post-info-row">
                                 <div class="post-info-label">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
-                                    Ответственные
+                                    {{ t('organization.fieldAssignees') }}
                                 </div>
                                 <div class="post-info-value">
                                     <template v-if="localPost.assignees?.length">
@@ -372,22 +375,22 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                                             </div>
                                         </div>
                                     </template>
-                                    <span v-else class="post-info-empty">Не назначены</span>
+                                    <span v-else class="post-info-empty">{{ t('organization.noAssignee') }}</span>
                                 </div>
                             </div>
 
-                            <!-- Автор + дата -->
+                            <!-- {{ t('organization.author') }} + дата -->
                             <div class="post-info-row">
                                 <div class="post-info-label">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
-                                    Автор
+                                    {{ t('organization.author') }}
                                 </div>
                                 <div class="post-info-value">
                                     <div class="author-chip">
                                         <span class="author-avatar">{{ authorInitial(localPost.author?.name) }}</span>
-                                        <span>{{ localPost.author?.name || 'Без автора' }}</span>
+                                        <span>{{ localPost.author?.name || t('organization.noAuthor') }}</span>
                                     </div>
                                     <span class="post-info-date">{{ formatDate(localPost.created_at) }}</span>
                                 </div>
@@ -398,35 +401,35 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     <!-- Edit form -->
                     <form v-else @submit.prevent="saveEdit" class="post-edit">
                         <label class="form-row">
-                            <span>Заголовок</span>
+                            <span>{{ t('organization.fieldTitle') }}</span>
                             <input v-model="editTitle" type="text" maxlength="255" autofocus />
                         </label>
                         <div class="form-row">
-                            <span>Описание</span>
+                            <span>{{ t('organization.fieldDescription') }}</span>
                             <RichTextEditor
                                 v-model="editBody"
-                                placeholder="Подробности задачи"
+                                :placeholder="t('organization.taskDetailsShort')"
                                 min-height="160px"
                             />
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <label class="form-row">
-                                <span>Статус</span>
+                                <span>{{ t('organization.fieldStatus') }}</span>
                                 <select v-model="editStatus">
-                                    <option value="open">Открыта</option>
-                                    <option value="in_progress">В работе</option>
-                                    <option value="done">Готово</option>
+                                    <option value="open">{{ t('organization.statusOpen') }}</option>
+                                    <option value="in_progress">{{ t('organization.statusInProgress') }}</option>
+                                    <option value="done">{{ t('organization.statusDone') }}</option>
                                 </select>
                             </label>
                             <label class="form-row">
-                                <span>Срок</span>
+                                <span>{{ t('organization.fieldDue') }}</span>
                                 <input v-model="editDue" type="datetime-local" />
                             </label>
                         </div>
 
                         <!-- Assignees picker in edit form -->
                         <div v-if="members.length > 0" class="form-row">
-                            <span>Ответственные</span>
+                            <span>{{ t('organization.fieldAssignees') }}</span>
                             <div class="assignee-picker">
                                 <button
                                     v-for="m in members"
@@ -447,8 +450,8 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
 
                         <div v-if="editError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ editError }}</div>
                         <div class="flex items-center justify-end gap-2">
-                            <button type="button" class="secondary-btn" @click="cancelEdit">Отмена</button>
-                            <button type="submit" class="primary-btn" :disabled="editSubmitting">Сохранить</button>
+                            <button type="button" class="secondary-btn" @click="cancelEdit">{{ t('organization.cancel') }}</button>
+                            <button type="submit" class="primary-btn" :disabled="editSubmitting">{{ t('organization.save') }}</button>
                         </div>
                     </form>
                 </div>
@@ -456,7 +459,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                 <!-- Attachments block -->
                 <div class="attachments-block">
                     <div class="attachments-header">
-                        <span>Вложения</span>
+                        <span>{{ t('organization.attachments') }}</span>
                         <span class="comments-count">{{ attachments.length }}</span>
                         <button
                             v-if="canEditPost"
@@ -468,7 +471,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                             </svg>
-                            {{ uploading ? 'Загрузка…' : 'Прикрепить файл' }}
+                            {{ uploading ? t('organization.uploading') : t('organization.attachFile') }}
                         </button>
                         <input
                             ref="fileInputRef"
@@ -482,7 +485,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     <div v-if="uploadError" class="text-sm mb-2" :style="{ color: 'var(--wa-danger)' }">{{ uploadError }}</div>
 
                     <div v-if="attachments.length === 0 && !uploading" class="text-sm text-[var(--wa-text-secondary)]">
-                        Нет вложений.
+                        {{ t('organization.noAttachments') }}
                     </div>
 
                     <!-- Image previews -->
@@ -499,7 +502,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                                 v-if="canDeleteAttachment(a)"
                                 type="button"
                                 class="attach-delete"
-                                title="Удалить"
+                                :title="t('organization.deleteAria')"
                                 @click="requestDeleteAttachment(a)"
                             >×</button>
                         </div>
@@ -521,7 +524,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                                 v-if="canDeleteAttachment(a)"
                                 type="button"
                                 class="attach-delete-sm"
-                                title="Удалить"
+                                :title="t('organization.deleteAria')"
                                 @click="requestDeleteAttachment(a)"
                             >×</button>
                         </div>
@@ -531,24 +534,24 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                 <!-- Comments thread -->
                 <div class="comments-block">
                     <div class="comments-header">
-                        Обсуждение
+                        {{ t('organization.discussion') }}
                         <span class="comments-count">{{ localComments.length }}</span>
                     </div>
                     <div v-if="localComments.length === 0" class="text-sm text-[var(--wa-text-secondary)]">
-                        Пока нет комментариев. Начните обсуждение задачи ниже.
+                        {{ t('organization.noComments') }}
                     </div>
                     <div v-for="c in localComments" :key="c.id" class="comment">
                         <div class="comment-avatar">{{ authorInitial(c.author?.name) }}</div>
                         <div class="comment-bubble">
                             <div class="comment-head">
-                                <span class="comment-author">{{ c.author?.name || 'Без автора' }}</span>
+                                <span class="comment-author">{{ c.author?.name || t('organization.noAuthor') }}</span>
                                 <span class="comment-time">{{ formatDate(c.created_at) }}</span>
                                 <button
                                     v-if="canDeleteComment(c)"
                                     type="button"
                                     class="comment-delete"
                                     @click="requestDeleteComment(c)"
-                                    aria-label="Удалить"
+                                    :aria-label="t('organization.deleteAria')"
                                 >×</button>
                             </div>
                             <div class="comment-body">{{ c.body }}</div>
@@ -564,7 +567,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     <textarea
                         v-model="newComment"
                         rows="2"
-                        placeholder="Написать комментарий…"
+                        :placeholder="t('organization.commentPlaceholder')"
                         maxlength="5000"
                         @keydown.enter.prevent.exact="submitComment"
                     ></textarea>
@@ -574,7 +577,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                         :disabled="sendingComment || newComment.trim() === ''"
                         @click="submitComment"
                     >
-                        Отправить
+                        {{ t('organization.sendComment') }}
                     </button>
                 </div>
             </div>
@@ -585,7 +588,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
         :open="postDangerOpen"
         :title="postDangerTitle"
         :description="postDangerDescription"
-        confirm-label="Удалить"
+        :confirm-label="t('organization.delete')"
         :busy="postDangerBusy"
         confirm-variant="danger"
         @close="closePostDanger"

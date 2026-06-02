@@ -2,6 +2,7 @@
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
+import { useI18n } from '@/composables/useI18n';
 import type { ContactFieldDefinition } from '@/utils/contactFieldTypes';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -44,7 +46,7 @@ async function loadFields(): Promise<void> {
             fields.value.map((field) => [field.id, field.is_visible]),
         );
     } catch {
-        showToast({ message: 'Не удалось загрузить поля', duration: 4000 });
+        showToast({ message: t('clients.fields.toastLoadError'), duration: 4000 });
     } finally {
         loading.value = false;
     }
@@ -99,12 +101,12 @@ async function save(): Promise<void> {
                 is_visible: draftVisibility.value[field.id] ?? field.is_visible,
             })),
         });
-        showToast({ message: 'Настройки полей сохранены', duration: 2500 });
+        showToast({ message: t('clients.fields.toastSaved'), duration: 2500 });
         emit('updated');
         emit('close');
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err.response?.data?.message || 'Не удалось сохранить', duration: 4000 });
+        showToast({ message: err.response?.data?.message || t('clients.fields.toastSaveError'), duration: 4000 });
     } finally {
         saving.value = false;
     }
@@ -120,9 +122,9 @@ function onFieldCreated(): void {
 <template>
     <UiModal
         :open="open"
-        title="Выбор полей"
+        :title="t('clients.fields.pickerTitle')"
         max-width="4xl"
-        aria-label="Выбор полей контакта"
+        :aria-label="t('clients.fields.pickerAria')"
         @close="emit('close')"
     >
         <div class="space-y-4">
@@ -134,7 +136,7 @@ function onFieldCreated(): void {
                     <input
                         v-model="search"
                         type="search"
-                        placeholder="Поиск по полям"
+                        :placeholder="t('clients.fields.searchPlaceholder')"
                         class="w-full rounded-lg border-0 py-2 pl-9 pr-3 text-sm focus:ring-0 focus:outline-none"
                         :style="{ background: 'var(--ui-surface-muted)' }"
                     />
@@ -142,16 +144,16 @@ function onFieldCreated(): void {
                 <button
                     type="button"
                     class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-base leading-none"
-                    aria-label="Добавить поле"
-                    title="Добавить поле"
+                    :aria-label="t('clients.detail.addField')"
+                    :title="t('clients.detail.addField')"
                     @click="addFieldOpen = true"
                 >
                     +
                 </button>
-                <span class="rounded-full px-3 py-1 text-xs" :style="{ background: 'var(--ui-surface-muted)' }">Контакт</span>
+                <span class="rounded-full px-3 py-1 text-xs" :style="{ background: 'var(--ui-surface-muted)' }">{{ t('clients.fields.contactBadge') }}</span>
             </div>
 
-            <div v-if="loading" class="py-10 text-center text-sm opacity-70">Загружаем поля…</div>
+            <div v-if="loading" class="py-10 text-center text-sm opacity-70">{{ t('clients.fields.loading') }}</div>
 
             <div v-else class="max-h-[52vh] space-y-5 overflow-y-auto pr-1">
                 <section v-for="group in groupedFields" :key="group.key">
@@ -169,7 +171,7 @@ function onFieldCreated(): void {
                             />
                             <span class="min-w-0 text-sm">
                                 {{ field.label }}
-                                <span v-if="!field.is_system" class="ml-1 text-[11px] opacity-50">(своё)</span>
+                                <span v-if="!field.is_system" class="ml-1 text-[11px] opacity-50">{{ t('clients.fields.customField') }}</span>
                             </span>
                         </label>
                     </div>
@@ -179,11 +181,11 @@ function onFieldCreated(): void {
             <div class="flex flex-wrap items-center justify-between gap-3 border-t pt-4" :style="{ borderColor: 'var(--ui-border)' }">
                 <label class="flex cursor-pointer items-center gap-2 text-sm">
                     <UiCheckbox v-model="allVisible" />
-                    выбрать все
+                    {{ t('clients.fields.selectAll') }}
                 </label>
                 <div class="flex gap-2">
                     <button type="button" class="ui-btn ui-btn--secondary" @click="emit('close')">
-                        Отменить
+                        {{ t('clients.fields.cancel') }}
                     </button>
                     <button
                         type="button"
@@ -191,7 +193,7 @@ function onFieldCreated(): void {
                         :disabled="saving"
                         @click="save"
                     >
-                        Выбрать
+                        {{ t('clients.fields.select') }}
                     </button>
                 </div>
             </div>

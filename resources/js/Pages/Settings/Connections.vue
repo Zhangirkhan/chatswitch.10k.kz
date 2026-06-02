@@ -249,10 +249,10 @@ function formatDateTime(value: string | null | undefined): string {
     const diffDays = Math.round((startOfToday - startOfTarget) / dayInMs);
 
     if (diffDays === 0) {
-        return `сегодня в ${timeOnlyFormatter.format(date)}`;
+        return t('settings.connectionsExtras.dateToday', { time: timeOnlyFormatter.format(date) });
     }
     if (diffDays === 1) {
-        return `вчера в ${timeOnlyFormatter.format(date)}`;
+        return t('settings.connectionsExtras.dateYesterday', { time: timeOnlyFormatter.format(date) });
     }
     if (date.getFullYear() === now.getFullYear()) {
         return dateThisYearFormatter.format(date);
@@ -330,7 +330,11 @@ async function createSession(): Promise<void> {
     }
 
     if (!props.sessionLimits.can_create) {
-        message.value = `Достигнут лимит сервера: ${props.sessionLimits.tenant_max} подключений для компании (${props.sessionLimits.global_count} / ${props.sessionLimits.global_max} на платформе).`;
+        message.value = t('settings.connectionsExtras.limitReached', {
+            tenantMax: props.sessionLimits.tenant_max,
+            globalCount: props.sessionLimits.global_count,
+            globalMax: props.sessionLimits.global_max,
+        });
         return;
     }
 
@@ -391,7 +395,7 @@ async function loadQr(session: WhatsappSession, options: { silent?: boolean } = 
         }
 
         if (!silent) {
-            message.value = data.message || data.error || 'QR-код ещё не готов. Повторите через несколько секунд.';
+            message.value = data.message || data.error || t('settings.connectionsExtras.qrNotReady');
         }
     } catch (err: unknown) {
         if (!silent) {
@@ -623,11 +627,10 @@ async function reloadPage(): Promise<void> {
                                 </p>
                                 <p class="text-xs text-[var(--ui-text-secondary)] mt-0.5 leading-relaxed">
                                     <template v-if="hasMultipleSessions">
-                                        Диалоги с этого номера — у аватарки клиента кольцо выбранного цвета (как на превью слева).
+                                        {{ t('settings.connectionsExtras.colorHintMulti') }}
                                     </template>
                                     <template v-else>
-                                        Когда подключите второй номер, у каждого будет свой цвет — диалоги не перепутаете.
-                                        Сейчас можно задать цвет заранее.
+                                        {{ t('settings.connectionsExtras.colorHintSingle') }}
                                     </template>
                                 </p>
                             </div>
@@ -636,7 +639,7 @@ async function reloadPage(): Promise<void> {
                         <div v-if="editingSessionId === session.id" class="space-y-3 pt-1 border-t" :style="{ borderColor: 'var(--ui-border)' }">
                             <div>
                                 <label class="block text-xs font-medium text-[var(--ui-text-secondary)] mb-1">
-                                    Название в системе
+                                    {{ t('settings.connectionsExtras.systemName') }}
                                 </label>
                                 <input
                                     v-model="editedDisplayName"
@@ -649,7 +652,7 @@ async function reloadPage(): Promise<void> {
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-[var(--ui-text-secondary)] mb-1">
-                                    Цвет кольца у аватарки
+                                    {{ t('settings.connectionsExtras.ringColor') }}
                                 </label>
                                 <div class="flex flex-wrap items-center gap-2">
                                     <input
@@ -659,7 +662,7 @@ async function reloadPage(): Promise<void> {
                                         :aria-label="t('settings.connections.pickRingColor')"
                                         @input="editedDisplayColor = ($event.target as HTMLInputElement).value"
                                     />
-                                    <span class="text-xs text-[var(--ui-text-secondary)]">или быстрый выбор:</span>
+                                    <span class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.orQuickPick') }}</span>
                                     <div class="flex flex-wrap gap-1.5" role="group" :aria-label="t('settings.connections.presetColors')">
                                         <button
                                             v-for="hex in WHATSAPP_SESSION_RING_PALETTE"
@@ -669,7 +672,7 @@ async function reloadPage(): Promise<void> {
                                             :class="{ 'session-color-swatch--active': editedRingPreviewColor === hex }"
                                             :style="{ background: hex }"
                                             :title="hex"
-                                            :aria-label="`Цвет ${hex}`"
+                                            :aria-label="t('settings.connectionsExtras.colorAria', { hex })"
                                             @click="pickPaletteColor(hex)"
                                         />
                                     </div>
@@ -700,25 +703,25 @@ async function reloadPage(): Promise<void> {
                             class="ui-btn ui-btn--secondary ui-btn--sm"
                             @click="startEdit(session)"
                         >
-                            Изменить название и цвет
+                            {{ t('settings.connectionsExtras.editNameAndColor') }}
                         </button>
                     </div>
 
                     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <div>
-                            <dt class="text-xs text-[var(--ui-text-secondary)]">Номер WhatsApp</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.whatsappNumber') }}</dt>
                             <dd class="text-[var(--ui-text)]">{{ session.phone_number || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--ui-text-secondary)]">Имя WhatsApp</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.whatsappName') }}</dt>
                             <dd class="text-[var(--ui-text)]">{{ session.wa_name || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--ui-text-secondary)]">Платформа</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.platform') }}</dt>
                             <dd class="text-[var(--ui-text)]">{{ session.wa_platform || '-' }}</dd>
                         </div>
                         <div>
-                            <dt class="text-xs text-[var(--ui-text-secondary)]">Подключено</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.connected') }}</dt>
                             <dd
                                 class="text-[var(--ui-text)]"
                                 :title="fullDateTimeTitle(session.connected_at)"
@@ -727,7 +730,7 @@ async function reloadPage(): Promise<void> {
                             </dd>
                         </div>
                         <div v-if="session.disconnected_at && session.status !== 'connected'">
-                            <dt class="text-xs text-[var(--ui-text-secondary)]">Отключено</dt>
+                            <dt class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.connectionsExtras.disconnected') }}</dt>
                             <dd
                                 class="text-[var(--ui-text)]"
                                 :title="fullDateTimeTitle(session.disconnected_at)"
@@ -748,10 +751,9 @@ async function reloadPage(): Promise<void> {
                             class="w-44 h-44 rounded bg-white p-2"
                         />
                         <div class="text-sm text-[var(--ui-text-secondary)] space-y-2">
-                            <p>Откройте WhatsApp на телефоне, выберите «Связанные устройства» и отсканируйте QR-код.</p>
+                            <p>{{ t('settings.connectionsExtras.qrHint') }}</p>
                             <p v-if="qrUpdatedAtBySessionId[session.id]" class="text-xs">
-                                QR обновлён: {{ qrUpdatedAtBySessionId[session.id] }}. Если телефон не принимает код,
-                                подождите 10–15 секунд или нажмите «Обновить QR».
+                                {{ t('settings.connectionsExtras.qrUpdated', { time: qrUpdatedAtBySessionId[session.id] }) }}
                             </p>
                         </div>
                     </div>
@@ -763,7 +765,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="initialize(session)"
                         >
-                            Подключить
+                            {{ t('settings.connectionsExtras.connect') }}
                         </button>
                         <button
                             type="button"
@@ -771,7 +773,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="loadQr(session)"
                         >
-                            Обновить QR
+                            {{ t('settings.connectionsExtras.refreshQr') }}
                         </button>
                         <button
                             type="button"
@@ -779,7 +781,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="refreshStatus(session)"
                         >
-                            Статус
+                            {{ t('settings.connectionsExtras.status') }}
                         </button>
                         <button
                             type="button"
@@ -787,7 +789,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id || !whatsappServiceReachable"
                             @click="verify(session)"
                         >
-                            Проверить
+                            {{ t('settings.connectionsExtras.verify') }}
                         </button>
                         <button
                             type="button"
@@ -795,7 +797,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id"
                             @click="requestLogout(session)"
                         >
-                            Выйти
+                            {{ t('settings.connectionsExtras.logout') }}
                         </button>
                         <button
                             type="button"
@@ -803,7 +805,7 @@ async function reloadPage(): Promise<void> {
                             :disabled="busySessionId === session.id"
                             @click="requestRemove(session)"
                         >
-                            Удалить
+                            {{ t('common.delete') }}
                         </button>
                     </div>
                 </div>
@@ -814,7 +816,7 @@ async function reloadPage(): Promise<void> {
                 class="text-xs text-[var(--ui-text-secondary)] hover:underline"
                 @click="reloadPage"
             >
-                Обновить данные страницы
+                {{ t('settings.connectionsExtras.refreshPage') }}
             </button>
             </template>
         </div>

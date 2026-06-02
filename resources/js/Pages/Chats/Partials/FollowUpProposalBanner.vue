@@ -2,6 +2,9 @@
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 export type FollowUpProposalVariant = {
     id: string;
@@ -66,13 +69,13 @@ async function sendNow(): Promise<void> {
                 body: bodyDraft.value.trim() || undefined,
             },
         );
-        showToast({ message: 'Сообщение отправлено клиенту.', duration: 3500 });
+        showToast({ message: t('chats.followUp.sent'), duration: 3500 });
         emit('sent');
         emit('cleared');
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось отправить.',
+            message: err?.response?.data?.message ?? err?.message ?? t('chats.followUp.sendFailed'),
             duration: 4500,
         });
     } finally {
@@ -93,11 +96,11 @@ async function dismiss(): Promise<void> {
             }),
         );
         emit('cleared');
-        showToast({ message: 'Предложения дожима скрыты.', duration: 3000 });
+        showToast({ message: t('chats.followUp.hidden'), duration: 3000 });
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось скрыть.',
+            message: err?.response?.data?.message ?? err?.message ?? t('chats.followUp.hideFailed'),
             duration: 4500,
         });
     } finally {
@@ -115,9 +118,9 @@ async function dismiss(): Promise<void> {
             color: var(--wa-text);
         "
         role="region"
-        aria-label="Варианты дожима от AI"
+        :aria-label="t('chats.followUp.aria')"
     >
-        <p class="font-medium" style="color: var(--wa-accent)">AI: варианты дожима</p>
+        <p class="font-medium" style="color: var(--wa-accent)">{{ t('chats.followUp.title') }}</p>
         <p v-if="pending.context_summary" class="mt-1 opacity-85">{{ pending.context_summary }}</p>
         <p v-if="pending.manager_note" class="mt-1 opacity-80">{{ pending.manager_note }}</p>
 
@@ -146,14 +149,14 @@ async function dismiss(): Promise<void> {
                 />
                 <span class="min-w-0">
                     <span class="font-medium">{{ variant.label }}</span>
-                    <span v-if="variant.uses_promo" class="ml-1 text-[11px] opacity-70">(со скидкой)</span>
+                    <span v-if="variant.uses_promo" class="ml-1 text-[11px] opacity-70">{{ t('chats.followUp.withPromo') }}</span>
                     <span class="mt-0.5 block text-[12px] opacity-80 line-clamp-3">{{ variant.body }}</span>
                 </span>
             </label>
         </div>
 
         <label class="mt-2.5 block space-y-1">
-            <span class="text-[12px] opacity-70">Текст перед отправкой</span>
+            <span class="text-[12px] opacity-70">{{ t('chats.followUp.editBeforeSend') }}</span>
             <textarea
                 v-model="bodyDraft"
                 rows="3"
@@ -170,7 +173,7 @@ async function dismiss(): Promise<void> {
                 :disabled="submitting || selectedId === ''"
                 @click="sendNow"
             >
-                {{ submitting ? 'Отправляем…' : 'Отправить клиенту' }}
+                {{ submitting ? t('chats.followUp.sending') : t('chats.followUp.sendToClient') }}
             </button>
             <button
                 type="button"
@@ -179,7 +182,7 @@ async function dismiss(): Promise<void> {
                 :disabled="dismissing"
                 @click="dismiss"
             >
-                {{ dismissing ? '…' : 'Скрыть' }}
+                {{ dismissing ? '…' : t('chats.followUp.hide') }}
             </button>
         </div>
     </div>

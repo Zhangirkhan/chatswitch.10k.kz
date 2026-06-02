@@ -7,9 +7,11 @@ import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -142,7 +144,7 @@ function closeModal() {
 
 async function saveEvent() {
     if (saving.value) return;
-    if (!form.value.title.trim()) { formError.value = 'Введите название.'; return; }
+    if (!form.value.title.trim()) { formError.value = t('calendar.errorTitleRequired'); return; }
     saving.value = true;
     formError.value = null;
 
@@ -162,7 +164,7 @@ async function saveEvent() {
         closeModal();
         await loadEvents();
     } catch (e: any) {
-        formError.value = e?.response?.data?.message || 'Ошибка сохранения.';
+        formError.value = e?.response?.data?.message || t('calendar.errorSave');
     } finally {
         saving.value = false;
     }
@@ -182,14 +184,16 @@ async function confirmDeleteEvent(): Promise<void> {
         closeModal();
         await loadEvents();
     } catch {
-        showToast({ message: 'Не удалось удалить запись.', type: 'warning' });
+        showToast({ message: t('calendar.errorDelete'), type: 'warning' });
     }
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const DAYS_SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
+const MONTHS = computed(() => MONTH_KEYS.map((key) => t(`calendar.months.${key}`)));
+const DAY_SHORT_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const DAYS_SHORT = computed(() => DAY_SHORT_KEYS.map((key) => t(`calendar.daysShort.${key}`)));
 
 function isSameDay(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -217,7 +221,7 @@ function formatHour(h: number): string {
 
 // ─── Month view ───────────────────────────────────────────────────────────────
 
-const monthTitle = computed(() => `${MONTHS_RU[cursor.value.getMonth()]} ${cursor.value.getFullYear()}`);
+const monthTitle = computed(() => `${MONTHS.value[cursor.value.getMonth()]} ${cursor.value.getFullYear()}`);
 
 const monthDays = computed<Date[]>(() => {
     const year = cursor.value.getFullYear();
@@ -291,9 +295,9 @@ const weekTitle = computed(() => {
     const s = weekDays.value[0];
     const e = weekDays.value[6];
     if (s.getMonth() === e.getMonth()) {
-        return `${s.getDate()}–${e.getDate()} ${MONTHS_RU[s.getMonth()]} ${s.getFullYear()}`;
+        return `${s.getDate()}–${e.getDate()} ${MONTHS.value[s.getMonth()]} ${s.getFullYear()}`;
     }
-    return `${s.getDate()} ${MONTHS_RU[s.getMonth()]} – ${e.getDate()} ${MONTHS_RU[e.getMonth()]} ${e.getFullYear()}`;
+    return `${s.getDate()} ${MONTHS.value[s.getMonth()]} – ${e.getDate()} ${MONTHS.value[e.getMonth()]} ${e.getFullYear()}`;
 });
 
 function prevWeek() {
@@ -419,23 +423,23 @@ function switchView(v: ViewMode) {
 }
 
 // Recurrence label
-const recurrenceLabels: Record<string, string> = {
-    daily: 'Каждый день',
-    weekly: 'Каждую неделю',
-    monthly: 'Каждый месяц',
-    yearly: 'Каждый год',
-};
+const recurrenceLabels = computed<Record<string, string>>(() => ({
+    daily: t('calendar.recurrenceDaily'),
+    weekly: t('calendar.recurrenceWeekly'),
+    monthly: t('calendar.recurrenceMonthly'),
+    yearly: t('calendar.recurrenceYearly'),
+}));
 </script>
 
 <template>
-    <Head title="Календарь" />
+    <Head :title="t('nav.calendar')" />
     <AuthenticatedLayout>
         <div class="app-page cal-wrapper">
 
             <!-- ── Toolbar ───────────────────────────────────────────── -->
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">
-                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="goToday">Сегодня</button>
+                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="goToday">{{ t('calendar.today') }}</button>
                     <button class="cal-nav-btn" @click="view === 'month' ? prevMonth() : prevWeek()">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -461,7 +465,7 @@ const recurrenceLabels: Record<string, string> = {
                             :class="{ 'is-active': view === 'month' }"
                             @click="switchView('month')"
                         >
-                            Месяц
+                            {{ t('calendar.month') }}
                         </button>
                         <button
                             type="button"
@@ -469,38 +473,38 @@ const recurrenceLabels: Record<string, string> = {
                             :class="{ 'is-active': view === 'week' }"
                             @click="switchView('week')"
                         >
-                            Неделя
+                            {{ t('calendar.week') }}
                         </button>
                     </UiPillNav>
                     <button type="button" class="ui-btn ui-btn--primary ui-btn--sm gap-1.5" @click="openCreate()">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
                         </svg>
-                        Запись
+                        {{ t('calendar.newEvent') }}
                     </button>
                 </div>
             </div>
 
             <div class="cal-filters">
                 <label class="cal-filter">
-                    <span class="cal-filter-label">Обзор</span>
+                    <span class="cal-filter-label">{{ t('calendar.filterOverview') }}</span>
                     <select v-model="listFilter" class="settings-input cal-filter-select">
-                        <option value="all">Все доступные</option>
-                        <option value="mine">Мои записи</option>
-                        <option value="assigned_to_me">Я ответственный</option>
+                        <option value="all">{{ t('calendar.filterAll') }}</option>
+                        <option value="mine">{{ t('calendar.filterMine') }}</option>
+                        <option value="assigned_to_me">{{ t('calendar.filterAssignedToMe') }}</option>
                     </select>
                 </label>
                 <label class="cal-filter">
-                    <span class="cal-filter-label">Автор</span>
+                    <span class="cal-filter-label">{{ t('calendar.filterAuthor') }}</span>
                     <select v-model="filterAuthorId" class="settings-input cal-filter-select">
-                        <option value="">Все авторы</option>
+                        <option value="">{{ t('calendar.filterAllAuthors') }}</option>
                         <option v-for="u in assignableUsers" :key="'af-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
                 </label>
                 <label class="cal-filter">
-                    <span class="cal-filter-label">Ответственный</span>
+                    <span class="cal-filter-label">{{ t('calendar.filterAssignee') }}</span>
                     <select v-model="filterAssigneeId" class="settings-input cal-filter-select">
-                        <option value="">Все</option>
+                        <option value="">{{ t('calendar.filterAllAssignees') }}</option>
                         <option v-for="u in assignableUsers" :key="'gf-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
                 </label>
@@ -537,7 +541,7 @@ const recurrenceLabels: Record<string, string> = {
                             >
                                 <span class="cal-event-dot" :style="{ background: ev.color }"></span>
                                 <span class="cal-event-chip-title">
-                                    <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge" title="Запись из WhatsApp (AI)">AI</span>
+                                    <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge" :title="t('calendar.aiBadgeTitle')">AI</span>
                                     <template v-if="!ev.all_day">{{ formatTime(ev.starts_at) }} </template>{{ ev.title }}
                                     <span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
                                 </span>
@@ -546,7 +550,7 @@ const recurrenceLabels: Record<string, string> = {
                                 </svg>
                             </div>
                             <div v-if="eventsOnDay(day).length > 3" class="cal-event-more">
-                                +{{ eventsOnDay(day).length - 3 }} ещё
+                                {{ t('calendar.moreEvents', { count: eventsOnDay(day).length - 3 }) }}
                             </div>
                         </div>
                     </div>
@@ -571,7 +575,7 @@ const recurrenceLabels: Record<string, string> = {
 
                 <!-- All-day events row -->
                 <div class="cal-week-allday-row">
-                    <div class="cal-week-gutter cal-allday-label">Весь день</div>
+                    <div class="cal-week-gutter cal-allday-label">{{ t('calendar.allDay') }}</div>
                     <div v-for="day in weekDays" :key="`ad-${day.toISOString()}`" class="cal-week-allday-cell" @click="openCreate(day)">
                         <div
                             v-for="ev in events.filter(e => e.all_day && isSameDay(new Date(e.starts_at), day))"
@@ -579,7 +583,7 @@ const recurrenceLabels: Record<string, string> = {
                             class="cal-allday-chip"
                             :style="{ background: ev.color + '33', borderColor: ev.color, color: ev.color }"
                             @click.stop="openEdit(ev)"
-                        ><span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" title="Запись из WhatsApp (AI)">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
+                        ><span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" :title="t('calendar.aiBadgeTitle')">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span></div>
                     </div>
                 </div>
 
@@ -613,7 +617,7 @@ const recurrenceLabels: Record<string, string> = {
                                     @click.stop="openEdit(ev)"
                                 >
                                     <div class="cal-week-event-title">
-                                        <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" title="Запись из WhatsApp (AI)">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
+                                        <span v-if="ev.source === 'ai_auto'" class="cal-ai-badge cal-ai-badge-sm" :title="t('calendar.aiBadgeTitle')">AI</span>{{ ev.title }}<span v-if="ev.assignee" class="cal-event-assignee"> · {{ ev.assignee.name }}</span>
                                     </div>
                                     <div class="cal-week-event-time">{{ formatTime(ev.starts_at) }}–{{ formatTime(ev.ends_at) }}</div>
                                 </div>
@@ -629,7 +633,7 @@ const recurrenceLabels: Record<string, string> = {
         <!-- ── Event modal ───────────────────────────────────────────── -->
         <UiModal
             :open="showModal"
-            :title="editingId ? 'Редактировать запись' : 'Новая запись'"
+            :title="editingId ? t('calendar.modalEdit') : t('calendar.modalNew')"
             max-width="sm"
             panel-class="max-w-[480px]"
             body-class="px-5 py-4"
@@ -637,27 +641,27 @@ const recurrenceLabels: Record<string, string> = {
         >
             <form id="cal-event-form" @submit.prevent="saveEvent" class="cal-modal-form">
                 <div v-if="editingMeta?.source === 'ai_auto'" class="cal-ai-hint">
-                    <strong>Запись из чата (AI).</strong>
-                    <span v-if="editingMeta.contact"> Клиент: {{ editingMeta.contact.name || '—' }}<template v-if="editingMeta.contact.phone_number">, {{ editingMeta.contact.phone_number }}</template>.</span>
-                    <span v-else-if="editingMeta.chat?.name"> Чат: {{ editingMeta.chat.name }}.</span>
-                    Клиенту уйдёт напоминание в WhatsApp от имени ответственного сотрудника (по настройкам напоминаний).
+                    <strong>{{ t('calendar.aiHint') }}</strong>
+                    <span v-if="editingMeta.contact"> {{ t('calendar.aiHintClient', { info: `${editingMeta.contact.name || '—'}${editingMeta.contact.phone_number ? `, ${editingMeta.contact.phone_number}` : ''}` }) }}</span>
+                    <span v-else-if="editingMeta.chat?.name"> {{ t('calendar.aiHintChat', { name: editingMeta.chat.name }) }}</span>
+                    {{ t('calendar.aiHintReminder') }}
                 </div>
 
                 <label class="form-row">
-                    <span>Название</span>
-                    <input v-model="form.title" type="text" maxlength="255" placeholder="Название записи" autofocus />
+                    <span>{{ t('calendar.fieldTitle') }}</span>
+                    <input v-model="form.title" type="text" maxlength="255" :placeholder="t('calendar.titlePlaceholder')" autofocus />
                 </label>
 
                 <label class="form-row">
-                    <span>Ответственный</span>
+                    <span>{{ t('calendar.fieldAssignee') }}</span>
                     <select v-model="form.assignee_user_id" class="settings-input w-full">
-                        <option value="">Не назначен</option>
+                        <option value="">{{ t('calendar.notAssigned') }}</option>
                         <option v-for="u in assignableUsers" :key="'as-' + u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
                 </label>
 
                 <div class="form-row">
-                    <span>Цвет</span>
+                    <span>{{ t('calendar.fieldColor') }}</span>
                     <div class="color-palette">
                         <button
                             v-for="c in PALETTE"
@@ -672,7 +676,7 @@ const recurrenceLabels: Record<string, string> = {
                 </div>
 
                 <label class="form-row form-row-inline">
-                    <span>Весь день</span>
+                    <span>{{ t('calendar.fieldAllDay') }}</span>
                     <div class="toggle" :class="{ 'toggle-on': form.all_day }" @click="form.all_day = !form.all_day">
                         <div class="toggle-thumb"></div>
                     </div>
@@ -680,14 +684,14 @@ const recurrenceLabels: Record<string, string> = {
 
                 <div class="grid grid-cols-2 gap-3">
                     <label class="form-row">
-                        <span>Начало</span>
+                        <span>{{ t('calendar.fieldStart') }}</span>
                         <input
                             v-model="form.starts_at"
                             :type="form.all_day ? 'date' : 'datetime-local'"
                         />
                     </label>
                     <label class="form-row">
-                        <span>Конец</span>
+                        <span>{{ t('calendar.fieldEnd') }}</span>
                         <input
                             v-model="form.ends_at"
                             :type="form.all_day ? 'date' : 'datetime-local'"
@@ -696,23 +700,23 @@ const recurrenceLabels: Record<string, string> = {
                 </div>
 
                 <label class="form-row">
-                    <span>Повторение</span>
+                    <span>{{ t('calendar.fieldRecurrence') }}</span>
                     <select v-model="form.recurrence">
-                        <option value="">Без повторения</option>
-                        <option value="daily">Каждый день</option>
-                        <option value="weekly">Каждую неделю</option>
-                        <option value="monthly">Каждый месяц</option>
-                        <option value="yearly">Каждый год</option>
+                        <option value="">{{ t('calendar.noRecurrence') }}</option>
+                        <option value="daily">{{ t('calendar.recurrenceDaily') }}</option>
+                        <option value="weekly">{{ t('calendar.recurrenceWeekly') }}</option>
+                        <option value="monthly">{{ t('calendar.recurrenceMonthly') }}</option>
+                        <option value="yearly">{{ t('calendar.recurrenceYearly') }}</option>
                     </select>
                 </label>
                 <label v-if="form.recurrence" class="form-row">
-                    <span>Повторять до (необязательно)</span>
+                    <span>{{ t('calendar.recurrenceUntil') }}</span>
                     <input v-model="form.recurrence_ends_at" type="date" />
                 </label>
 
                 <label class="form-row">
-                    <span>Описание</span>
-                    <textarea v-model="form.description" rows="3" maxlength="5000" placeholder="Заметки к записи"></textarea>
+                    <span>{{ t('calendar.fieldDescription') }}</span>
+                    <textarea v-model="form.description" rows="3" maxlength="5000" :placeholder="t('calendar.descriptionPlaceholder')"></textarea>
                 </label>
 
                 <div v-if="formError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ formError }}</div>
@@ -721,17 +725,17 @@ const recurrenceLabels: Record<string, string> = {
             <template #footer>
                 <div class="flex items-center w-full gap-2">
                     <button
-                        v-if="editingId && !form.title.includes('(копия)')"
+                        v-if="editingId && !form.title.includes(t('calendar.copySuffix'))"
                         type="button"
                         class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                         @click="requestDeleteEvent"
                     >
-                        Удалить
+                        {{ t('common.delete') }}
                     </button>
                     <div class="flex gap-2 ml-auto">
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="closeModal">Отмена</button>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="closeModal">{{ t('common.cancel') }}</button>
                         <button type="submit" form="cal-event-form" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="saving">
-                            {{ saving ? 'Сохранение…' : (editingId ? 'Сохранить' : 'Создать') }}
+                            {{ saving ? t('calendar.saving') : (editingId ? t('common.save') : t('calendar.create')) }}
                         </button>
                     </div>
                 </div>
@@ -740,9 +744,9 @@ const recurrenceLabels: Record<string, string> = {
 
         <DangerConfirmModal
             :open="deleteDialogOpen"
-            title="Удалить запись?"
-            description="Событие будет удалено из календаря без возможности восстановления."
-            confirm-label="Удалить"
+            :title="t('calendar.deleteTitle')"
+            :description="t('calendar.deleteDescription')"
+            :confirm-label="t('common.delete')"
             confirm-variant="danger"
             @close="deleteDialogOpen = false"
             @confirm="confirmDeleteEvent"

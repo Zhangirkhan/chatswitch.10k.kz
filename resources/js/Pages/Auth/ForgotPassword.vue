@@ -5,6 +5,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import { useI18n } from '@/composables/useI18n';
 import { useRecaptcha } from '@/composables/useRecaptcha';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
@@ -13,6 +14,7 @@ defineProps<{
     status?: string;
 }>();
 
+const { t } = useI18n();
 const { enabled: recaptchaEnabled } = useRecaptcha();
 const recaptchaRef = ref<InstanceType<typeof AuthRecaptcha> | null>(null);
 
@@ -26,12 +28,12 @@ const submit = async () => {
         try {
             form.recaptcha_token = (await recaptchaRef.value?.resolveToken('forgot_password')) ?? '';
         } catch {
-            form.setError('recaptcha_token', 'Не удалось загрузить reCAPTCHA. Обновите страницу.');
+            form.setError('recaptcha_token', t('auth.recaptchaLoadError'));
             return;
         }
 
         if (!form.recaptcha_token) {
-            form.setError('recaptcha_token', 'Подтвердите, что вы не робот.');
+            form.setError('recaptcha_token', t('auth.recaptchaRequired'));
             return;
         }
     }
@@ -44,12 +46,10 @@ const submit = async () => {
 
 <template>
     <GuestLayout>
-        <Head title="Forgot Password" />
+        <Head :title="t('auth.forgotTitle')" />
 
         <div class="mb-4 text-sm text-gray-600">
-            Forgot your password? No problem. Just let us know your email
-            address and we will email you a password reset link that will allow
-            you to choose a new one.
+            {{ t('auth.forgotIntro') }}
         </div>
 
         <div
@@ -61,7 +61,7 @@ const submit = async () => {
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="email" value="Email" />
+                <InputLabel for="email" :value="t('auth.emailLabel')" />
 
                 <TextInput
                     id="email"
@@ -86,7 +86,7 @@ const submit = async () => {
                     :class="{ 'opacity-25': form.processing }"
                     :disabled="form.processing"
                 >
-                    Email Password Reset Link
+                    {{ t('auth.forgotSubmit') }}
                 </PrimaryButton>
             </div>
         </form>

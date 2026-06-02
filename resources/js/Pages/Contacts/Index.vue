@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Avatar from '@/Components/Avatar.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
@@ -11,6 +12,8 @@ const props = defineProps<{
     contacts: Contact[];
     search?: string;
 }>();
+
+const { t } = useI18n();
 
 const q = ref((props.search || '').toString());
 const savingId = ref<number | null>(null);
@@ -24,12 +27,12 @@ watch(
     },
 );
 
-let t: ReturnType<typeof setTimeout> | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 watch(q, (val) => {
-    if (t) {
-        clearTimeout(t);
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
     }
-    t = setTimeout(() => {
+    debounceTimer = setTimeout(() => {
         router.get(route('contacts.index'), { search: val || undefined }, { preserveState: true, preserveScroll: true, replace: true });
     }, 250);
 });
@@ -57,7 +60,7 @@ async function saveName(c: Contact, name: string): Promise<void> {
         }
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string; error?: string } } };
-        error.value = err?.response?.data?.message || err?.response?.data?.error || 'Не удалось сохранить';
+        error.value = err?.response?.data?.message || err?.response?.data?.error || t('misc.contactsSaveError');
     } finally {
         savingId.value = null;
     }
@@ -65,11 +68,11 @@ async function saveName(c: Contact, name: string): Promise<void> {
 </script>
 
 <template>
-    <Head title="Контакты" />
+    <Head :title="t('misc.contactsTitle')" />
     <AuthenticatedLayout>
         <div class="ui-tool-list-page">
             <header class="ui-tool-list-page__header">
-                <div class="text-base font-medium text-[var(--wa-text)]">Контакты</div>
+                <div class="text-base font-medium text-[var(--wa-text)]">{{ t('misc.contactsTitle') }}</div>
                 <div class="ui-tool-list-page__search">
                     <svg class="ui-tool-list-page__search-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -77,7 +80,7 @@ async function saveName(c: Contact, name: string): Promise<void> {
                     <input
                         v-model="q"
                         type="search"
-                        placeholder="Поиск контактов…"
+                        :placeholder="t('misc.contactsSearch')"
                         class="ui-tool-list-page__search-input"
                     />
                 </div>
@@ -90,7 +93,7 @@ async function saveName(c: Contact, name: string): Promise<void> {
 
                 <div class="px-5 py-4">
                     <div class="mb-3 text-xs text-[var(--wa-text-secondary)]">
-                        {{ rows.length }} контактов
+                        {{ rows.length }}
                     </div>
 
                     <div v-if="rows.length === 0" class="ui-empty-state ui-empty-state--dashed mx-auto max-w-md">
@@ -109,7 +112,7 @@ async function saveName(c: Contact, name: string): Promise<void> {
                             class="ui-empty-state__action mt-4 inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white"
                             :style="{ background: 'var(--wa-accent)' }"
                         >
-                            Подключить WhatsApp
+                            {{ t('misc.channelsConnectWhatsapp') }}
                         </Link>
                     </div>
 
@@ -131,7 +134,7 @@ async function saveName(c: Contact, name: string): Promise<void> {
                                     />
                                     <div class="min-w-0">
                                         <div class="truncate text-sm font-medium text-[var(--wa-text)]">
-                                            {{ label(c) || 'Без имени' }}
+                                            {{ label(c) || t('clients.noName') }}
                                         </div>
                                         <div class="mt-1 text-xs text-[var(--wa-text-secondary)]">
                                             {{ formatPhone(c.phone_number) || '' }}
@@ -143,15 +146,14 @@ async function saveName(c: Contact, name: string): Promise<void> {
                                 </div>
 
                                 <div class="w-[260px] shrink-0">
-                                    <label class="mb-1 block text-[11px] text-[var(--wa-text-secondary)]">Имя (сохранённое)</label>
+                                    <label class="mb-1 block text-[11px] text-[var(--wa-text-secondary)]">{{ t('clients.detail.savedName') }}</label>
                                     <input
                                         :value="c.name || ''"
                                         class="ui-search-input--boxed w-full"
-                                        placeholder="Введите имя…"
                                         @change="saveName(c, ($event.target as HTMLInputElement).value)"
                                     />
-                                    <div class="mt-1 text-[11px] text-[var(--wa-text-secondary)]">
-                                        {{ savingId === c.id ? 'Сохранение…' : 'Изменение сохраняется по потере фокуса' }}
+                                    <div v-if="savingId === c.id" class="mt-1 text-[11px] text-[var(--wa-text-secondary)]">
+                                        {{ t('common.wait') }}
                                     </div>
                                 </div>
                             </div>

@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
+
 const props = defineProps<{
     modelValue: boolean;
     title: string;
     description?: string;
     helpLink?: string;
 }>();
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
     'update:modelValue': [value: boolean];
@@ -29,7 +33,7 @@ function toggle() {
                     class="font-medium"
                     :style="{ color: 'var(--wa-accent)' }"
                 >
-                    Подробнее
+                    {{ t('common.learnMore') }}
                 </a>
             </div>
         </div>

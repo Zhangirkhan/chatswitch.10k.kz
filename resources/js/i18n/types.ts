@@ -1,3 +1,37 @@
+import type { aiChatRu } from './messages/domains/aiChat.ru';
+import type { analyticsRu } from './messages/domains/analytics.ru';
+import type { authRu } from './messages/domains/auth.ru';
+import type { broadcastsRu } from './messages/domains/broadcasts.ru';
+import type { calendarRu } from './messages/domains/calendar.ru';
+import type { chats as chatsRu } from './messages/domains/chats.ru';
+import type { clientsRu } from './messages/domains/clients.ru';
+import type { funnelsRu } from './messages/domains/funnels.ru';
+import type { landingRu } from './messages/domains/landing.ru';
+import type { miscRu } from './messages/domains/misc.ru';
+import type { organizationRu } from './messages/domains/organization.ru';
+import type { profileRu } from './messages/domains/profile.ru';
+import type { settingsExtrasRu } from './messages/domains/settingsExtras.ru';
+import type { superAdminRu } from './messages/domains/superAdmin.ru';
+
+type StringifyLeaves<T> = {
+    [K in keyof T]: T[K] extends string ? string : T[K] extends object ? StringifyLeaves<T[K]> : T[K];
+};
+
+export type AiChatMessages = StringifyLeaves<typeof aiChatRu>;
+export type AnalyticsMessages = StringifyLeaves<typeof analyticsRu>;
+export type AuthMessages = StringifyLeaves<typeof authRu>;
+export type BroadcastsMessages = StringifyLeaves<typeof broadcastsRu>;
+export type CalendarMessages = StringifyLeaves<typeof calendarRu>;
+export type ChatsMessages = StringifyLeaves<typeof chatsRu>;
+export type ClientsMessages = StringifyLeaves<typeof clientsRu>;
+export type FunnelsMessages = StringifyLeaves<typeof funnelsRu>;
+export type LandingMessages = StringifyLeaves<typeof landingRu>;
+export type MiscMessages = StringifyLeaves<typeof miscRu>;
+export type OrganizationMessages = StringifyLeaves<typeof organizationRu>;
+export type ProfileMessages = StringifyLeaves<typeof profileRu>;
+export type SettingsExtrasMessages = StringifyLeaves<typeof settingsExtrasRu>;
+export type SuperAdminMessages = StringifyLeaves<typeof superAdminRu>;
+
 export const APP_LOCALES = ['ru', 'kk', 'en'] as const;
 
 export type AppLocale = (typeof APP_LOCALES)[number];
@@ -684,6 +718,14 @@ export interface MessageCatalog {
                 errorPreview: string;
             };
         };
+        clients: SettingsExtrasMessages['clients'];
+        contactFields: SettingsExtrasMessages['contactFields'];
+        aiQuality: SettingsExtrasMessages['aiQuality'];
+        toneProfile: SettingsExtrasMessages['toneProfile'];
+        funnelAiWizard: SettingsExtrasMessages['funnelAiWizard'];
+        usersForm: SettingsExtrasMessages['usersForm'];
+        departmentsForm: SettingsExtrasMessages['departmentsForm'];
+        connectionsExtras: SettingsExtrasMessages['connectionsExtras'];
         connections: {
             title: string;
             subtitle: string;
@@ -732,6 +774,19 @@ export interface MessageCatalog {
             dark: string;
         };
     };
+    profile: ProfileMessages;
+    chats: ChatsMessages;
+    clients: ClientsMessages;
+    calendar: CalendarMessages;
+    broadcasts: BroadcastsMessages;
+    analytics: AnalyticsMessages;
+    funnels: FunnelsMessages;
+    aiChat: AiChatMessages;
+    auth: AuthMessages;
+    landing: LandingMessages;
+    organization: OrganizationMessages;
+    misc: MiscMessages;
+    superAdmin: SuperAdminMessages;
     common: {
         cancel: string;
         save: string;
@@ -739,6 +794,18 @@ export interface MessageCatalog {
         done: string;
         delete: string;
         saved: string;
+        back: string;
+        forward: string;
+        edit: string;
+        optional: string;
+        yes: string;
+        no: string;
+        update: string;
+        ok: string;
+        inactive: string;
+        learnMore: string;
+        confirm: string;
+        wait: string;
     };
 }
 

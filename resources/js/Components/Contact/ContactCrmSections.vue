@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 
 const page = usePage();
@@ -62,15 +65,15 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function taskStatusLabel(status: string): string {
-    if (status === 'in_progress') return 'В работе';
-    if (status === 'open') return 'Открыта';
+    if (status === 'in_progress') return t('misc.components.contactCrm.statusInProgress');
+    if (status === 'open') return t('misc.components.contactCrm.statusOpen');
     return status;
 }
 
 function aiModeLabel(mode: string | null, enabled: boolean): string {
-    if (!enabled) return 'Выключен';
-    if (mode === 'draft') return 'Черновик';
-    return 'Автоответ';
+    if (!enabled) return t('misc.components.contactCrm.aiOff');
+    if (mode === 'draft') return t('misc.components.contactCrm.aiDraft');
+    return t('misc.components.contactCrm.aiAuto');
 }
 </script>
 
@@ -83,11 +86,11 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
         >
             <div class="flex items-start justify-between gap-2">
                 <div>
-                    <div class="text-xs uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">Сделка</div>
+                    <div class="text-xs uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.contactCrm.deal') }}</div>
                     <div class="text-sm font-medium mt-0.5 flex items-center gap-1.5" :style="{ color: 'var(--wa-text)' }">
                         <FunnelStageIcon v-if="crm.deal.stage" :type="crm.deal.stage.stage_type" :size="16" />
                         <span>
-                            {{ crm.deal.funnel?.name || 'Воронка не выбрана' }}
+                            {{ crm.deal.funnel?.name || t('misc.components.contactCrm.funnelNotSelected') }}
                             <span v-if="crm.deal.stage"> · {{ crm.deal.stage.name }}</span>
                         </span>
                     </div>
@@ -113,12 +116,12 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
                     <div>{{ aiModeLabel(crm.deal.ai_mode, crm.deal.ai_enabled) }}</div>
                 </div>
                 <div>
-                    <span :style="{ color: 'var(--wa-text)' }">Ответственные</span>
+                    <span :style="{ color: 'var(--wa-text)' }">{{ t('misc.components.contactCrm.assignees') }}</span>
                     <div>
                         {{
                             crm.deal.assignees.length
                                 ? crm.deal.assignees.map((a) => a.name).filter(Boolean).join(', ')
-                                : 'Не назначены'
+                                : t('misc.components.contactCrm.notAssigned')
                         }}
                     </div>
                 </div>
@@ -142,12 +145,12 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
                 class="mt-3 inline-flex text-xs font-medium hover:underline"
                 :style="{ color: 'var(--wa-accent)' }"
             >
-                Открыть чат сделки
+                {{ t('misc.components.contactCrm.openDealChat') }}
             </Link>
         </div>
 
         <div v-if="crm.companies.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
-            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Компании</div>
+            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.contactCrm.companies') }}</div>
             <ul class="space-y-1.5 text-sm">
                 <li v-for="company in crm.companies" :key="company.id" :style="{ color: 'var(--wa-text)' }">
                     <span class="font-medium">{{ company.name }}</span>
@@ -157,7 +160,7 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
         </div>
 
         <div v-if="crm.upcoming_events.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
-            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Ближайшие события</div>
+            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.contactCrm.upcomingEvents') }}</div>
             <ul class="space-y-2 text-sm">
                 <li v-for="event in crm.upcoming_events" :key="event.id">
                     <div class="font-medium" :style="{ color: 'var(--wa-text)' }">{{ event.title }}</div>
@@ -167,7 +170,7 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
                         <span v-if="event.source === 'ai_auto'"> · AI</span>
                     </div>
                     <Link v-if="event.open_url" :href="event.open_url" class="text-xs hover:underline" :style="{ color: 'var(--wa-accent)' }">
-                        К чату
+                        {{ t('misc.components.contactCrm.toChat') }}
                     </Link>
                 </li>
             </ul>
@@ -178,7 +181,7 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
             class="rounded-xl border p-3"
             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
         >
-            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Открытые задачи</div>
+            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.contactCrm.openTasks') }}</div>
             <ul class="space-y-2 text-sm">
                 <li v-for="task in crm.open_tasks" :key="task.id">
                     <div class="font-medium" :style="{ color: 'var(--wa-text)' }">{{ task.title }}</div>
@@ -192,7 +195,7 @@ function aiModeLabel(mode: string | null, enabled: boolean): string {
         </div>
 
         <div v-if="crm.facts.length" class="rounded-xl border p-3" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
-            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Важные факты</div>
+            <div class="text-xs uppercase tracking-wide mb-2" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.contactCrm.keyFacts') }}</div>
             <ul class="space-y-2 text-xs">
                 <li v-for="(fact, index) in crm.facts" :key="`${fact.label}-${index}`">
                     <div :style="{ color: 'var(--wa-text-secondary)' }">{{ fact.label }}</div>

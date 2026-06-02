@@ -6,6 +6,7 @@ import type { Message, MessageProductAttachment } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
+import { useI18n } from '@/composables/useI18n';
 
 const props = defineProps<{
     chatId: number;
@@ -20,6 +21,7 @@ const emit = defineEmits<{
     (e: 'cancelReply'): void;
 }>();
 
+const { t } = useI18n();
 const { show: showToast } = useToastStore();
 
 // Plain text that will be sent to backend/WhatsApp.
@@ -67,7 +69,7 @@ async function loadProducts(): Promise<void> {
         productItems.value = Array.isArray(data?.products) ? data.products : [];
     } catch {
         productItems.value = [];
-        productsError.value = 'Не удалось загрузить каталог товаров';
+        productsError.value = t('chats.input.productsLoadFailed');
     } finally {
         productsLoading.value = false;
     }
@@ -113,12 +115,12 @@ watch(
 
 type AiInputAction = 'reply' | 'improve' | 'shorter' | 'polite';
 
-const aiInputActions: ReadonlyArray<{ key: AiInputAction; label: string; requiresText: boolean }> = [
-    { key: 'reply', label: 'AI ответить', requiresText: false },
-    { key: 'improve', label: 'AI улучшить текст', requiresText: true },
-    { key: 'shorter', label: 'AI сделать короче', requiresText: true },
-    { key: 'polite', label: 'AI сделать вежливее', requiresText: true },
-];
+const aiInputActions = computed<ReadonlyArray<{ key: AiInputAction; label: string; requiresText: boolean }>>(() => [
+    { key: 'reply', label: t('chats.input.aiReply'), requiresText: false },
+    { key: 'improve', label: t('chats.input.aiImprove'), requiresText: true },
+    { key: 'shorter', label: t('chats.input.aiShorter'), requiresText: true },
+    { key: 'polite', label: t('chats.input.aiPolite'), requiresText: true },
+]);
 
 type GroupParticipant = {
     id: string;
@@ -348,7 +350,7 @@ async function loadParticipants(): Promise<void> {
         participants.value = Array.isArray(data?.participants) ? data.participants : [];
         participantsRetryCount.value = 0;
     } catch {
-        participantsLoadError.value = 'Не удалось загрузить участников';
+        participantsLoadError.value = t('chats.input.participantsLoadFailed');
         participants.value = participants.value || [];
 
         // Retry: session can be "not ready" for a moment right after reconnect/restart.
@@ -470,18 +472,18 @@ function aiPromptFor(action: AiInputAction): string {
     const currentText = messageText.value.trim();
 
     if (action === 'reply') {
-        return 'Подготовь один готовый ответ клиенту по текущему чату. Пиши от лица оператора, без объяснений и без вариантов.';
+        return t('chats.input.aiPromptReply');
     }
 
     if (action === 'shorter') {
-        return `Сделай этот текст короче, сохрани смысл и дружелюбный тон. Верни только готовый текст:\n\n${currentText}`;
+        return t('chats.input.aiPromptShorter', { text: currentText });
     }
 
     if (action === 'polite') {
-        return `Сделай этот текст более вежливым и спокойным, без лишней официальности. Верни только готовый текст:\n\n${currentText}`;
+        return t('chats.input.aiPromptPolite', { text: currentText });
     }
 
-    return `Улучши этот ответ оператору: исправь формулировку, сохрани смысл, сделай текст ясным и естественным. Верни только готовый текст:\n\n${currentText}`;
+    return t('chats.input.aiPromptImprove', { text: currentText });
 }
 
 async function runAiInputAction(action: AiInputAction): Promise<void> {
@@ -489,9 +491,9 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
         return;
     }
 
-    const config = aiInputActions.find((item) => item.key === action);
+    const config = aiInputActions.value.find((item) => item.key === action);
     if (config?.requiresText && !hasText.value) {
-        aiActionError.value = 'Сначала напишите текст, который нужно улучшить.';
+        aiActionError.value = t('chats.input.aiNeedText');
         return;
     }
 
@@ -505,7 +507,7 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
         });
         const reply = String(data?.reply ?? '').trim();
         if (reply === '') {
-            aiActionError.value = 'AI вернул пустой ответ. Попробуйте ещё раз.';
+            aiActionError.value = t('chats.input.aiEmptyResponse');
             return;
         }
 
@@ -517,7 +519,7 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
         setEditorPlainText(reply);
         editorRef.value?.focus();
     } catch (e: any) {
-        aiActionError.value = e?.response?.data?.message || 'Не удалось выполнить AI-действие.';
+        aiActionError.value = e?.response?.data?.message || t('chats.input.aiActionFailed');
     } finally {
         aiActionLoading.value = null;
     }
@@ -525,15 +527,15 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
 
 function replyPreviewText(msg: Message): string {
     if (msg.body) return msg.body;
-    if (msg.media?.length) return '[Медиа]';
-    return '[Сообщение]';
+    if (msg.media?.length) return t('chats.input.mediaPlaceholder');
+    return t('chats.input.messagePlaceholder');
 }
 
 function replyAuthor(msg: Message): string {
-    if (msg.direction === 'outbound') return msg.sent_by_user?.name || 'Вы';
+    if (msg.direction === 'outbound') return msg.sent_by_user?.name || t('chats.input.replyYou');
     const ph = msg.sender_phone?.trim();
     const phoneOk = ph && isPlausibleInboundSenderPhone(ph) ? formatPhone(ph) : '';
-    return msg.sender_name || phoneOk || 'Контакт';
+    return msg.sender_name || phoneOk || t('chats.contact');
 }
 
 async function sendMessage() {
@@ -590,10 +592,10 @@ async function sendMessage() {
             const kind = data.draft_edit_kind as string | null | undefined;
             const message =
                 kind === 'punctuation'
-                    ? 'Правки пунктуации в черновике учтены — профиль тона обновится в фоне.'
+                    ? t('chats.input.tonePunctuation')
                     : kind === 'light'
-                      ? 'Черновик слегка изменён — профиль тона обновится в фоне.'
-                      : 'Черновик AI был заметно изменён — профиль тона обновится в фоне.';
+                      ? t('chats.input.toneLight')
+                      : t('chats.input.toneHeavy');
             showToast({ message, duration: 5000 });
         }
     } catch (err) {
@@ -823,7 +825,7 @@ function pickSticker() {
 
 function stubAction(name: string) {
     showAttach.value = false;
-    showToast({ message: `«${name}» — скоро будет доступно.`, type: 'info' });
+    showToast({ message: t('chats.featureComingSoonShort', { name }), type: 'info' });
 }
 
 async function uploadFile(file: File, type?: string) {
@@ -838,7 +840,7 @@ async function uploadFile(file: File, type?: string) {
         if (data.message) emit('messageSent', data.message);
     } catch (err) {
         console.error('Upload failed:', err);
-        showToast({ message: 'Не удалось загрузить файл', type: 'warning' });
+        showToast({ message: t('chats.input.fileLoadFailed'), type: 'warning' });
     }
 }
 
@@ -889,7 +891,7 @@ function formatRecordTime(sec: number): string {
 
 async function startRecording() {
     if (!navigator.mediaDevices?.getUserMedia) {
-        showToast({ message: 'Запись голосовых недоступна в этом браузере', type: 'warning' });
+        showToast({ message: t('chats.input.voiceNotSupported'), type: 'warning' });
         return;
     }
     try {
@@ -926,7 +928,7 @@ async function startRecording() {
         recordInterval = setInterval(() => recordingTime.value++, 1000);
     } catch (err) {
         console.error('Mic error:', err);
-        showToast({ message: 'Нет доступа к микрофону', type: 'warning' });
+        showToast({ message: t('chats.input.micDenied'), type: 'warning' });
     }
 }
 
@@ -1061,7 +1063,7 @@ async function confirmSendAttachments() {
         clearPendingAttachments();
     } catch (err) {
         console.error('Upload failed:', err);
-        showToast({ message: 'Не удалось загрузить файл', type: 'warning' });
+        showToast({ message: t('chats.input.fileLoadFailed'), type: 'warning' });
     } finally {
         isUploadingAttachments.value = false;
     }
@@ -1115,7 +1117,7 @@ const contactPickerOpen = computed(
 );
 
 function contactDisplayName(c: ContactListItem): string {
-    return (c.name || c.push_name || formatPhone(c.phone_number) || formatPhone(c.whatsapp_id) || 'Контакт').toString();
+    return (c.name || c.push_name || formatPhone(c.phone_number) || formatPhone(c.whatsapp_id) || t('chats.contact')).toString();
 }
 
 function contactDisplayPhone(c: ContactListItem): string {
@@ -1156,7 +1158,7 @@ function closeContactPicker() {
 
 function pickContact(contact: ContactListItem) {
     if (!contact.phone_number && !contact.whatsapp_id) {
-        showToast({ message: 'У этого контакта нет номера телефона и его нельзя отправить.', type: 'warning' });
+        showToast({ message: t('chats.input.contactNoPhone'), type: 'warning' });
         return;
     }
     pendingContact.value = contact;
@@ -1180,7 +1182,7 @@ async function confirmSendContact() {
 
     const phone = (contact.phone_number || contact.whatsapp_id || '').toString();
     if (!phone.replace(/\D/g, '')) {
-        showToast({ message: 'У контакта не указан номер — отправка невозможна.', type: 'warning' });
+        showToast({ message: t('chats.input.contactPhoneMissing'), type: 'warning' });
         return;
     }
 
@@ -1201,7 +1203,7 @@ async function confirmSendContact() {
         showContactPicker.value = false;
     } catch (err) {
         console.error('Send contact failed:', err);
-        showToast({ message: 'Не удалось отправить контакт.', type: 'warning' });
+        showToast({ message: t('chats.input.contactSendFailed'), type: 'warning' });
     } finally {
         isSendingContact.value = false;
     }
@@ -1264,7 +1266,7 @@ async function submitPoll() {
         showPollModal.value = false;
     } catch (err) {
         console.error('Send poll failed:', err);
-        showToast({ message: 'Не удалось создать опрос.', type: 'warning' });
+        showToast({ message: t('chats.input.pollCreateFailed'), type: 'warning' });
     } finally {
         isSendingPoll.value = false;
     }
@@ -1289,8 +1291,8 @@ watch(anyOverlayOpen, (open) => {
         <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"/>
         </svg>
-        <span>Номер WhatsApp отключён. Подключите новый номер в</span>
-        <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">настройках</a>.
+        <span>{{ t('chats.input.whatsappDisconnected') }}</span>
+        <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">{{ t('chats.input.settingsLink') }}</a>.
     </div>
 
     <div v-else class="relative shrink-0">
@@ -1310,7 +1312,7 @@ watch(anyOverlayOpen, (open) => {
                     class="w-12 h-12 rounded object-cover shrink-0"
                 />
                 <div class="flex-1 min-w-0">
-                    <div class="text-xs font-medium" :style="{ color: 'var(--wa-accent)' }">Товар</div>
+                    <div class="text-xs font-medium" :style="{ color: 'var(--wa-accent)' }">{{ t('chats.input.product') }}</div>
                     <div class="text-sm font-medium truncate" :style="{ color: 'var(--wa-text)' }">
                         {{ selectedProduct.name }}
                     </div>
@@ -1321,7 +1323,7 @@ watch(anyOverlayOpen, (open) => {
                 <button
                     type="button"
                     class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[var(--wa-panel-hover)]"
-                    title="Убрать товар"
+                    :title="t('chats.input.removeProduct')"
                     @click="clearSelectedProduct"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1353,7 +1355,7 @@ watch(anyOverlayOpen, (open) => {
                     @click="emit('cancelReply')"
                     class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[var(--wa-panel-hover)]"
                     type="button"
-                    title="Отменить"
+                    :title="t('chats.input.cancel')"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1369,11 +1371,11 @@ watch(anyOverlayOpen, (open) => {
                 type="button"
                 class="wa-ai-input-chip"
                 :disabled="aiActionBusy || (action.requiresText && !hasText)"
-                :title="action.requiresText && !hasText ? 'Сначала напишите текст в поле ввода' : action.label"
+                :title="action.requiresText && !hasText ? t('chats.input.requiresText') : action.label"
                 @click="runAiInputAction(action.key)"
             >
                 <span v-if="aiActionLoading === action.key" class="wa-ai-dot" aria-hidden="true"></span>
-                {{ aiActionLoading === action.key ? 'AI думает' : action.label }}
+                {{ aiActionLoading === action.key ? t('chats.input.aiThinking') : action.label }}
             </button>
             <span v-if="aiActionError" class="wa-ai-input-error">
                 {{ aiActionError }}
@@ -1384,18 +1386,18 @@ watch(anyOverlayOpen, (open) => {
         <div class="wa-input-bar">
             <!-- Recording state -->
             <template v-if="recording">
-                <button @click="cancelRecording" class="wa-input-btn text-red-500" title="Отменить">
+                <button @click="cancelRecording" class="wa-input-btn text-red-500" :title="t('chats.input.cancel')">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                     </svg>
                 </button>
                 <div class="wa-input-pill flex-1 flex items-center gap-3 px-3">
                     <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-                    <span class="text-sm" :style="{ color: 'var(--wa-text)' }">Запись… {{ formatRecordTime(recordingTime) }}</span>
+                    <span class="text-sm" :style="{ color: 'var(--wa-text)' }">{{ t('chats.input.recording', { time: formatRecordTime(recordingTime) }) }}</span>
                     <div class="flex-1"></div>
-                    <span class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Отпустите «✕» чтобы отменить</span>
+                    <span class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.input.releaseToCancel') }}</span>
                 </div>
-                <button @click="stopRecording" class="wa-input-btn" title="Отправить">
+                <button @click="stopRecording" class="wa-input-btn" :title="t('chats.send')">
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" :style="{ color: 'var(--wa-accent)' }">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                     </svg>
@@ -1410,7 +1412,7 @@ watch(anyOverlayOpen, (open) => {
                         @click="toggleAttach"
                         class="wa-input-btn"
                         :class="{ 'wa-input-btn-active': showAttach }"
-                        title="Прикрепить"
+                        :title="t('chats.input.attach')"
                         type="button"
                     >
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1431,7 +1433,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </span>
-                                Фото или видео
+                                {{ t('chats.input.photoOrVideo') }}
                             </button>
                             <button class="attach-item" @click="pickDocument" type="button">
                                 <span class="attach-icon" style="background: #5f66cd;">
@@ -1439,7 +1441,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </span>
-                                Документ
+                                {{ t('chats.input.document') }}
                             </button>
                             <button class="attach-item" @click="pickSticker" type="button">
                                 <span class="attach-icon" style="background: #02a698;">
@@ -1447,7 +1449,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M14 2l6 6v10a4 4 0 01-4 4H8a4 4 0 01-4-4V6a4 4 0 014-4h6zm0 0v6h6" />
                                     </svg>
                                 </span>
-                                Стикер
+                                {{ t('chats.input.sticker') }}
                             </button>
                             <button class="attach-item" @click="openContactPicker" type="button">
                                 <span class="attach-icon" style="background: #0099ff;">
@@ -1455,7 +1457,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
                                 </span>
-                                Контакт
+                                {{ t('chats.input.contact') }}
                             </button>
                             <button class="attach-item" @click="openPollModal" type="button">
                                 <span class="attach-icon" style="background: #ffa115;">
@@ -1463,7 +1465,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-4" />
                                     </svg>
                                 </span>
-                                Опрос
+                                {{ t('chats.input.poll') }}
                             </button>
                             <button class="attach-item" @click="openProductPicker" type="button">
                                 <span class="attach-icon" style="background: var(--wa-accent);">
@@ -1471,7 +1473,7 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                     </svg>
                                 </span>
-                                Товар из каталога
+                                {{ t('chats.input.catalogProduct') }}
                             </button>
                         </div>
                     </transition>
@@ -1487,7 +1489,7 @@ watch(anyOverlayOpen, (open) => {
                     @click="toggleEmoji"
                     class="wa-input-btn"
                     :class="{ 'wa-input-btn-active': showEmoji }"
-                    title="Эмодзи"
+                    :title="t('chats.input.emoji')"
                     type="button"
                 >
                     <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1502,7 +1504,7 @@ watch(anyOverlayOpen, (open) => {
                         contenteditable="true"
                         role="textbox"
                         aria-multiline="true"
-                        data-placeholder="Введите сообщение"
+                        :data-placeholder="t('chats.input.placeholder')"
                         @keydown.capture="handleKeydown"
                         @input="onInput"
                         @copy="onCopy"
@@ -1537,13 +1539,13 @@ watch(anyOverlayOpen, (open) => {
                         </div>
                         <div v-else class="px-3 py-2 text-[12px] opacity-70">
                             <template v-if="participantsLoading">
-                                Загружаем участников...
+                                {{ t('chats.input.loadingParticipants') }}
                             </template>
                             <template v-else-if="participantsLoadError">
-                                Не удалось загрузить участников
+                                {{ t('chats.input.participantsLoadFailed') }}
                             </template>
                             <template v-else>
-                                Нет участников для упоминания
+                                {{ t('chats.input.noMentionTargets') }}
                             </template>
                         </div>
                     </div>
@@ -1561,7 +1563,7 @@ watch(anyOverlayOpen, (open) => {
                     @click="sendMessage"
                     :disabled="isSending"
                     class="wa-input-btn"
-                    title="Отправить"
+                    :title="t('chats.send')"
                     type="button"
                 >
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -1572,7 +1574,7 @@ watch(anyOverlayOpen, (open) => {
                     v-else
                     @click="startRecording"
                     class="wa-input-btn"
-                    title="Голосовое сообщение"
+                    :title="t('chats.input.voiceMessage')"
                     type="button"
                 >
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -1589,39 +1591,39 @@ watch(anyOverlayOpen, (open) => {
                 class="wa-formatbar"
                 :style="{ left: formatBarX + 'px', top: formatBarY + 'px' }"
             >
-                <button type="button" class="wa-fbtn" title="Жирный" @mousedown.prevent @click="applyFormat('bold')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.bold')" @mousedown.prevent @click="applyFormat('bold')">
                     <span class="wa-fbtn-txt wa-fbtn-txt--bold">B</span>
                 </button>
-                <button type="button" class="wa-fbtn" title="Курсив" @mousedown.prevent @click="applyFormat('italic')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.italic')" @mousedown.prevent @click="applyFormat('italic')">
                     <span class="wa-fbtn-txt wa-fbtn-txt--italic">I</span>
                 </button>
-                <button type="button" class="wa-fbtn" title="Зачёркнутый" @mousedown.prevent @click="applyFormat('strikeThrough')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.strike')" @mousedown.prevent @click="applyFormat('strikeThrough')">
                     <span class="wa-fbtn-txt wa-fbtn-txt--strike">S</span>
                 </button>
                 <div class="wa-fsep"></div>
-                <button type="button" class="wa-fbtn" title="Код" @mousedown.prevent @click="applyFormat('formatBlock', 'pre')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.code')" @mousedown.prevent @click="applyFormat('formatBlock', 'pre')">
                     <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M8.7 16.7 4 12l4.7-4.7 1.4 1.4L6.8 12l3.3 3.3-1.4 1.4zm6.6 0-1.4-1.4L17.2 12l-3.3-3.3 1.4-1.4L20 12l-4.7 4.7z"/>
                     </svg>
                 </button>
-                <button type="button" class="wa-fbtn" title="Цитата" @mousedown.prevent @click="applyFormat('formatBlock', 'blockquote')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.quote')" @mousedown.prevent @click="applyFormat('formatBlock', 'blockquote')">
                     <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M7 17h4V7H5v6h2v4zm10 0h4V7h-6v6h2v4z"/>
                     </svg>
                 </button>
                 <div class="wa-fsep"></div>
-                <button type="button" class="wa-fbtn" title="Маркированный список" @mousedown.prevent @click="applyFormat('insertUnorderedList')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.bulletList')" @mousedown.prevent @click="applyFormat('insertUnorderedList')">
                     <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M4 10.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM4 17.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM4 3.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM9 4h12v2H9V4zm0 7h12v2H9v-2zm0 7h12v2H9v-2z"/>
                     </svg>
                 </button>
-                <button type="button" class="wa-fbtn" title="Нумерованный список" @mousedown.prevent @click="applyFormat('insertOrderedList')">
+                <button type="button" class="wa-fbtn" :title="t('chats.input.orderedList')" @mousedown.prevent @click="applyFormat('insertOrderedList')">
                     <svg class="wa-ficon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M6 5H4V4h3v4H4V7h2V5zm0 8H4v-1h1v-1H4v-1h2a1 1 0 011 1v1a1 1 0 01-1 1zm0 6H4v-1h2v-1H4v-1h2a1 1 0 011 1v1a1 1 0 01-1 1zM9 4h12v2H9V4zm0 7h12v2H9v-2zm0 7h12v2H9v-2z"/>
                     </svg>
                 </button>
                 <div class="wa-fsep"></div>
-                <span class="wa-fcount" title="Длина текста">{{ messageText.length }}</span>
+                <span class="wa-fcount" :title="t('chats.input.textLength')">{{ messageText.length }}</span>
             </div>
         </teleport>
 
@@ -1640,7 +1642,7 @@ watch(anyOverlayOpen, (open) => {
                             class="att-tool-btn"
                             type="button"
                             :disabled="isUploadingAttachments"
-                            title="Закрыть"
+                            :title="t('common.close')"
                             @click="closeAttachmentPreview"
                         >
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1656,7 +1658,7 @@ watch(anyOverlayOpen, (open) => {
                             <button
                                 class="att-tool-btn"
                                 type="button"
-                                title="Удалить файл"
+                                :title="t('chats.input.removeFile')"
                                 :disabled="isUploadingAttachments"
                                 @click="removePendingAttachment(activeAttachmentIndex)"
                             >
@@ -1694,7 +1696,7 @@ watch(anyOverlayOpen, (open) => {
                                     ref="attachmentCaptionRef"
                                     v-model="activeAttachmentCaption"
                                     rows="1"
-                                    :placeholder="pendingAttachments.length > 1 ? `Подпись к файлу ${activeAttachmentIndex + 1}…` : 'Добавьте подпись…'"
+                                    :placeholder="pendingAttachments.length > 1 ? t('chats.input.captionMulti', { index: activeAttachmentIndex + 1 }) : t('chats.input.captionSingle')"
                                     class="att-preview-caption-input wa-scrollbar"
                                     :disabled="isUploadingAttachments"
                                     @keydown="onCaptionKeydown"
@@ -1705,7 +1707,7 @@ watch(anyOverlayOpen, (open) => {
                                 class="att-send-btn"
                                 type="button"
                                 :disabled="isUploadingAttachments"
-                                title="Отправить"
+                                :title="t('chats.send')"
                                 @click="confirmSendAttachments"
                             >
                                 <svg v-if="!isUploadingAttachments" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -1738,7 +1740,7 @@ watch(anyOverlayOpen, (open) => {
                                 type="button"
                                 class="att-preview-thumb att-preview-thumb-add"
                                 :disabled="isUploadingAttachments"
-                                title="Добавить ещё"
+                                :title="t('chats.input.addMore')"
                                 @click="addMoreAttachments"
                             >
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1766,14 +1768,14 @@ watch(anyOverlayOpen, (open) => {
                                 <button
                                     class="att-tool-btn"
                                     type="button"
-                                    title="Закрыть"
+                                    :title="t('common.close')"
                                     @click="closeContactPicker"
                                 >
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                 </button>
-                                <h3 class="contact-picker-title">Отправить контакт</h3>
+                                <h3 class="contact-picker-title">{{ t('chats.input.sendContact') }}</h3>
                             </div>
 
                             <div class="contact-picker-search">
@@ -1783,7 +1785,7 @@ watch(anyOverlayOpen, (open) => {
                                 <input
                                     v-model="contactPickerSearch"
                                     type="text"
-                                    placeholder="Поиск контактов"
+                                    :placeholder="t('chats.input.searchContacts')"
                                     class="contact-picker-search-input"
                                     autocomplete="off"
                                 />
@@ -1791,13 +1793,13 @@ watch(anyOverlayOpen, (open) => {
 
                             <div class="contact-picker-list wa-scrollbar">
                                 <div v-if="contactPickerLoading" class="contact-picker-empty">
-                                    Загрузка…
+                                    {{ t('chats.loading') }}
                                 </div>
                                 <div
                                     v-else-if="contactPickerList.length === 0"
                                     class="contact-picker-empty"
                                 >
-                                    Контакты не найдены.
+                                    {{ t('chats.input.contactsNotFound') }}
                                 </div>
                                 <button
                                     v-for="c in contactPickerList"
@@ -1830,7 +1832,7 @@ watch(anyOverlayOpen, (open) => {
                                 <button
                                     class="att-tool-btn"
                                     type="button"
-                                    title="Назад"
+                                    :title="t('common.back')"
                                     :disabled="isSendingContact"
                                     @click="backToContactList"
                                 >
@@ -1838,11 +1840,11 @@ watch(anyOverlayOpen, (open) => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                                     </svg>
                                 </button>
-                                <h3 class="contact-picker-title">Отправить контакт?</h3>
+                                <h3 class="contact-picker-title">{{ t('chats.input.confirmSendContact') }}</h3>
                                 <button
                                     class="att-tool-btn contact-picker-header-close"
                                     type="button"
-                                    title="Закрыть"
+                                    :title="t('common.close')"
                                     :disabled="isSendingContact"
                                     @click="closeContactPicker"
                                 >
@@ -1878,7 +1880,7 @@ watch(anyOverlayOpen, (open) => {
                                     :disabled="isSendingContact"
                                     @click="closeContactPicker"
                                 >
-                                    Отмена
+                                    {{ t('common.cancel') }}
                                 </button>
                                 <button
                                     type="button"
@@ -1887,7 +1889,7 @@ watch(anyOverlayOpen, (open) => {
                                     @click="confirmSendContact"
                                 >
                                     <span v-if="isSendingContact" class="att-spinner" aria-hidden="true"></span>
-                                    <span v-else>Отправить</span>
+                                    <span v-else>{{ t('chats.send') }}</span>
                                 </button>
                             </div>
                         </template>
@@ -1909,7 +1911,7 @@ watch(anyOverlayOpen, (open) => {
                             <button
                                 class="att-tool-btn"
                                 type="button"
-                                title="Закрыть"
+                                :title="t('common.close')"
                                 :disabled="isSendingPoll"
                                 @click="closePollModal"
                             >
@@ -1917,21 +1919,21 @@ watch(anyOverlayOpen, (open) => {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
-                            <h3 class="contact-picker-title">Создать опрос</h3>
+                            <h3 class="contact-picker-title">{{ t('chats.input.createPoll') }}</h3>
                         </div>
 
                         <div class="poll-body wa-scrollbar">
-                            <label class="poll-label">Вопрос</label>
+                            <label class="poll-label">{{ t('chats.input.pollQuestion') }}</label>
                             <input
                                 v-model="pollQuestion"
                                 type="text"
                                 class="poll-input"
-                                placeholder="О чём хотите спросить?"
+                                :placeholder="t('chats.input.pollQuestionPlaceholder')"
                                 maxlength="255"
                                 :disabled="isSendingPoll"
                             />
 
-                            <label class="poll-label poll-label-spaced">Варианты ответа</label>
+                            <label class="poll-label poll-label-spaced">{{ t('chats.input.pollOptions') }}</label>
                             <div class="poll-options">
                                 <div
                                     v-for="(_, idx) in pollOptions"
@@ -1942,7 +1944,7 @@ watch(anyOverlayOpen, (open) => {
                                         v-model="pollOptions[idx]"
                                         type="text"
                                         class="poll-input"
-                                        :placeholder="`Вариант ${idx + 1}`"
+                                        :placeholder="t('chats.input.pollOption', { number: idx + 1 })"
                                         maxlength="100"
                                         :disabled="isSendingPoll"
                                     />
@@ -1950,7 +1952,7 @@ watch(anyOverlayOpen, (open) => {
                                         type="button"
                                         class="poll-option-remove"
                                         :disabled="isSendingPoll || pollOptions.length <= 2"
-                                        title="Удалить вариант"
+                                        :title="t('chats.input.removeOption')"
                                         @click="removePollOption(idx)"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1969,13 +1971,13 @@ watch(anyOverlayOpen, (open) => {
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                                     </svg>
-                                    Добавить вариант
+                                    {{ t('chats.input.addOption') }}
                                 </button>
                             </div>
 
                             <label class="poll-check">
                                 <UiCheckbox v-model="pollAllowMultiple" size="sm" :disabled="isSendingPoll" />
-                                <span>Разрешить несколько ответов</span>
+                                <span>{{ t('chats.input.pollMultiple') }}</span>
                             </label>
                         </div>
 
@@ -1986,7 +1988,7 @@ watch(anyOverlayOpen, (open) => {
                                 :disabled="isSendingPoll"
                                 @click="closePollModal"
                             >
-                                Отмена
+                                {{ t('common.cancel') }}
                             </button>
                             <button
                                 type="button"
@@ -1995,7 +1997,7 @@ watch(anyOverlayOpen, (open) => {
                                 @click="submitPoll"
                             >
                                 <span v-if="isSendingPoll" class="att-spinner" aria-hidden="true"></span>
-                                <span v-else>Создать</span>
+                                <span v-else>{{ t('chats.input.create') }}</span>
                             </button>
                         </div>
                     </div>
@@ -2015,8 +2017,8 @@ watch(anyOverlayOpen, (open) => {
                         :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-border)' }"
                     >
                         <div class="px-4 py-3 border-b flex items-center justify-between gap-3" :style="{ borderColor: 'var(--wa-border)' }">
-                            <div class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">Товар из каталога</div>
-                            <button type="button" class="wa-input-btn" title="Закрыть" @click="closeProductPicker">
+                            <div class="text-sm font-semibold" :style="{ color: 'var(--wa-text)' }">{{ t('chats.input.catalogTitle') }}</div>
+                            <button type="button" class="wa-input-btn" :title="t('common.close')" @click="closeProductPicker">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -2026,16 +2028,16 @@ watch(anyOverlayOpen, (open) => {
                             <input
                                 v-model="productSearch"
                                 type="search"
-                                placeholder="Поиск по названию, артикулу…"
+                                :placeholder="t('chats.input.catalogSearch')"
                                 class="w-full rounded-lg px-3 py-2 text-sm border outline-none"
                                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)', color: 'var(--wa-text)' }"
                                 @input="scheduleProductSearch"
                             />
                         </div>
                         <div class="flex-1 overflow-y-auto wa-scrollbar px-2 py-2">
-                            <div v-if="productsLoading" class="px-3 py-6 text-sm text-center opacity-70">Загрузка…</div>
+                            <div v-if="productsLoading" class="px-3 py-6 text-sm text-center opacity-70">{{ t('chats.loading') }}</div>
                             <div v-else-if="productsError" class="px-3 py-6 text-sm text-center text-red-400">{{ productsError }}</div>
-                            <div v-else-if="productItems.length === 0" class="px-3 py-6 text-sm text-center opacity-70">Товары не найдены</div>
+                            <div v-else-if="productItems.length === 0" class="px-3 py-6 text-sm text-center opacity-70">{{ t('chats.input.productsNotFound') }}</div>
                             <button
                                 v-for="item in productItems"
                                 :key="item.id"

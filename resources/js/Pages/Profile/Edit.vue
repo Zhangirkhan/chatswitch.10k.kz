@@ -7,6 +7,7 @@ import ChatsSection from './Partials/ChatsSection.vue';
 import NotificationsSection from './Partials/NotificationsSection.vue';
 import ShortcutsModal from './Partials/ShortcutsModal.vue';
 import SettingsEmpty from './Partials/SettingsEmpty.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -14,6 +15,8 @@ defineProps<{
     mustVerifyEmail?: boolean;
     status?: string;
 }>();
+
+const { t } = useI18n();
 
 type Section =
     | 'profile'
@@ -48,7 +51,7 @@ function closeShortcuts() {
 </script>
 
 <template>
-    <Head title="Настройки" />
+    <Head :title="t('profile.pageTitle')" />
     <AuthenticatedLayout>
         <div class="app-page flex-row">
             <!-- Left panel: either the settings list or an active sub-section. -->

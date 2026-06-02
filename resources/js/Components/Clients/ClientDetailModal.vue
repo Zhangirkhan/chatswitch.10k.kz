@@ -9,6 +9,7 @@ import { mergeSummaryIntoProfile } from '@/Components/Clients/clientProfileMerge
 import UserAvatar from '@/Components/UserAvatar.vue';
 import { useContactFieldActions } from '@/composables/useContactFieldActions';
 import { setContactProfileCache, useContactProfile } from '@/composables/useContactProfile';
+import { useI18n } from '@/composables/useI18n';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 const {
     profile,
     summary,
@@ -47,14 +49,14 @@ const addFieldOpen = ref(false);
 
 const displayName = computed(() => {
     if (!props.client) {
-        return 'Клиент';
+        return t('clients.detail.fallbackName');
     }
     return (
         (props.client.name || '').trim()
         || (props.client.push_name || '').trim()
         || (props.client.last_chat_name || '').trim()
         || formatPhone(props.client.phone_display || props.client.phone_number)
-        || 'Без имени'
+        || t('clients.noName')
     );
 });
 
@@ -126,13 +128,13 @@ async function saveName(): Promise<void> {
         if (data?.success) {
             invalidateContactProfileCache(props.client.id);
             emit('saved', props.client.id, name !== '' ? name : null);
-            showToast({ message: 'Имя клиента обновлено' });
+            showToast({ message: t('clients.detail.toastNameUpdated') });
             return;
         }
-        showToast({ message: data?.error || 'Не удалось обновить имя' });
+        showToast({ message: data?.error || t('clients.detail.toastNameError') });
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err.response?.data?.message || 'Не удалось обновить имя' });
+        showToast({ message: err.response?.data?.message || t('clients.detail.toastNameError') });
     } finally {
         saving.value = false;
     }
@@ -172,7 +174,7 @@ function clearCustomField(field: ClientProfileField): void {
                 :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
                 role="dialog"
                 aria-modal="true"
-                :aria-label="`Профиль клиента ${displayName}`"
+                :aria-label="t('clients.detail.profileAria', { name: displayName })"
                 @click.stop
             >
                     <header class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
@@ -195,16 +197,16 @@ function clearCustomField(field: ClientProfileField): void {
                                 <button
                                     type="button"
                                     class="ui-btn ui-btn--secondary ui-btn--sm"
-                                    title="Выбор полей"
+                                    :title="t('clients.detail.fieldsTitle')"
                                     @click="fieldPickerOpen = true"
                                 >
-                                    Поля
+                                    {{ t('clients.detail.fieldsButton') }}
                                 </button>
                                 <button
                                     type="button"
                                     class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-base leading-none"
-                                    aria-label="Добавить поле"
-                                    title="Добавить поле"
+                                    :aria-label="t('clients.detail.addField')"
+                                    :title="t('clients.detail.addField')"
                                     @click="addFieldOpen = true"
                                 >
                                     +
@@ -213,7 +215,7 @@ function clearCustomField(field: ClientProfileField): void {
                             <button
                                 type="button"
                                 class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm text-base leading-none"
-                                aria-label="Закрыть"
+                                :aria-label="t('common.close')"
                                 @click="emit('close')"
                             >
                                 ✕
@@ -239,7 +241,7 @@ function clearCustomField(field: ClientProfileField): void {
                             class="client-detail-modal__aside hidden min-h-0 w-[300px] shrink-0 border-l lg:flex lg:flex-col"
                             :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }"
                         >
-                            <div class="shrink-0 px-4 py-3 text-xs font-medium uppercase tracking-wide opacity-70">AI-сводка</div>
+                            <div class="shrink-0 px-4 py-3 text-xs font-medium uppercase tracking-wide opacity-70">{{ t('clients.detail.aiSummary') }}</div>
                             <div class="client-detail-modal__aside-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
                                 <AiWorkspaceClientSummary
                                     :summary="summary"
@@ -257,7 +259,7 @@ function clearCustomField(field: ClientProfileField): void {
                             v-model="editingName"
                             type="text"
                             class="ui-input min-w-[140px] flex-1 !min-h-[30px] !py-0 text-sm"
-                            placeholder="Сохранённое имя"
+                            :placeholder="t('clients.detail.savedName')"
                         />
                         <button
                             type="button"
@@ -265,17 +267,17 @@ function clearCustomField(field: ClientProfileField): void {
                             :disabled="saving"
                             @click="saveName"
                         >
-                            Сохранить имя
+                            {{ t('clients.detail.saveName') }}
                         </button>
                         <Link
                             v-if="chatUrl"
                             :href="chatUrl"
                             class="ui-btn ui-btn--secondary ui-btn--sm"
                         >
-                            Открыть чат
+                            {{ t('clients.detail.openChat') }}
                         </Link>
                         <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="emit('close')">
-                            Закрыть
+                            {{ t('common.close') }}
                         </button>
                     </footer>
             </div>

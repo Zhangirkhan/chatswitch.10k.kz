@@ -9,8 +9,11 @@ import TeamChatHeader, { type TeamConversationHeader } from './Partials/TeamChat
 import ShareMessageModal, { type ShareModalSource } from '@/Components/ShareMessageModal.vue';
 import type { OrgDepartment } from '../Partials/OrganizationSidebar.vue';
 import type { MessageReaction, PageProps } from '@/types';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import { extractTeamMentionIdsFromBody } from '@/utils/teamChatMentions';
+
+const { t } = useI18n();
 
 const { show: showToast } = useToastStore();
 
@@ -72,9 +75,10 @@ const typingLabel = computed((): string => {
         return '';
     }
     if (names.length === 1) {
-        return `${names[0]} печатает…`;
+        return t('organization.typingOne', { name: names[0]! });
     }
-    return `${names.join(', ')} печатают…`;
+
+    return t('organization.typingMany', { names: names.join(', ') });
 });
 
 const canPinRoomMessage = ref(false);
@@ -122,7 +126,7 @@ async function toggleConversationPin(): Promise<void> {
         headerState.value = { ...h, is_pinned: nextPinned };
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showToast({ message: msg || 'Не удалось изменить закрепление беседы.', type: 'warning' });
+        showToast({ message: msg || t('organization.pinConversationFailed'), type: 'warning' });
     } finally {
         headerPinBusy.value = false;
     }
@@ -693,7 +697,7 @@ async function send() {
         await postMessage(buildMessagePayload(text, clientMessageId));
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showToast({ message: msg || 'Не удалось отправить сообщение.', type: 'warning' });
+        showToast({ message: msg || t('organization.sendFailed'), type: 'warning' });
     } finally {
         sending.value = false;
     }
@@ -719,7 +723,7 @@ async function sendVoice(file: File): Promise<void> {
         await postMessage(fd);
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showToast({ message: msg || 'Не удалось отправить голосовое сообщение.', type: 'warning' });
+        showToast({ message: msg || t('organization.voiceFailed'), type: 'warning' });
     } finally {
         sending.value = false;
     }
@@ -743,7 +747,7 @@ function openCalendarFromChat(): void {
     const names = participants.value.map((p) => p.name).filter(Boolean).join(', ');
     const params = new URLSearchParams({ create: '1' });
     if (names) {
-        params.set('title', `Встреча: ${names.slice(0, 80)}`);
+        params.set('title', t('organization.meetingTitlePrefix', { names: names.slice(0, 80) }));
     }
     const mine = myUserId();
     const others = participants.value.filter((p) => p.id !== mine);
@@ -758,11 +762,14 @@ async function createTaskFromMessage(m: TeamMsg): Promise<void> {
     if (!deptId || taskFromMessageSending.value) return;
     const cid = props.selectedConversationId;
     const bodyText = (m.body ?? '').trim();
-    const quote = bodyText !== '' ? bodyText.slice(0, 500) : 'Сообщение без текста';
-    const titleSource = bodyText !== '' ? bodyText : (m.sender?.name ?? 'Задача из чата');
+    const quote = bodyText !== '' ? bodyText.slice(0, 500) : t('organization.messageNoText');
+    const titleSource = bodyText !== '' ? bodyText : (m.sender?.name ?? t('organization.createTaskFromChat'));
     const title = titleSource.slice(0, 120);
     const chatUrl = cid ? route('organization.team-chat.show', cid) : '';
-    const body = `<p>Из внутреннего чата${chatUrl ? ` (<a href="${chatUrl}">открыть беседу</a>)` : ''}:</p><blockquote>${quote.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>`;
+    const linkPart = chatUrl
+        ? ` (<a href="${chatUrl}">${t('organization.openConversationLink')}</a>)`
+        : '';
+    const body = `<p>${t('organization.taskFromChatHtmlIntro', { link: linkPart })}</p><blockquote>${quote.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>`;
     taskFromMessageSending.value = true;
     try {
         const { data } = await axios.post(route('organization.posts.store', deptId), {
@@ -776,7 +783,7 @@ async function createTaskFromMessage(m: TeamMsg): Promise<void> {
         }
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showToast({ message: msg || 'Не удалось создать задачу.', type: 'warning' });
+        showToast({ message: msg || t('organization.taskCreateFailed'), type: 'warning' });
     } finally {
         taskFromMessageSending.value = false;
     }
@@ -831,9 +838,7 @@ async function scrollToQuotedParent(parentMessageId: number): Promise<void> {
         }, 1600);
         return;
     }
-    showReplyJumpNotice(
-        'Исходное сообщение не в загруженной части истории. Прокрутите вверх и подгрузите сообщения.',
-    );
+    showReplyJumpNotice(t('organization.quoteNotLoaded'));
 }
 
 async function clearRoomPinned(): Promise<void> {
@@ -848,7 +853,7 @@ async function clearRoomPinned(): Promise<void> {
         });
         roomPinnedMessage.value = null;
     } catch {
-        showToast({ message: 'Не удалось снять закрепление в чате.', type: 'warning' });
+        showToast({ message: t('organization.unpinMessageFailed'), type: 'warning' });
     } finally {
         roomPinSending.value = false;
     }
@@ -867,7 +872,7 @@ async function setRoomPinnedForMessage(messageId: number): Promise<void> {
         const p = data.room_pinned_message as TeamRoomPinned | null | undefined;
         roomPinnedMessage.value = p && typeof p.id === 'number' ? p : null;
     } catch {
-        showToast({ message: 'Не удалось закрепить сообщение в чате.', type: 'warning' });
+        showToast({ message: t('organization.pinMessageFailed'), type: 'warning' });
     } finally {
         roomPinSending.value = false;
     }
@@ -896,8 +901,8 @@ function closeShareModal() {
 }
 
 async function onShareSent(payload: { tab: 'clients' | 'colleagues'; count: number }): Promise<void> {
-    const label = payload.tab === 'clients' ? 'клиентам' : 'сотрудникам';
-    showToast({ message: `Отправлено ${label}: ${payload.count}`, type: 'info' });
+    const label = payload.tab === 'clients' ? t('organization.sentToLabelClients') : t('organization.sentToLabelEmployees');
+    showToast({ message: t('organization.sentToToast', { label, count: payload.count }), type: 'info' });
     if (props.selectedConversationId) {
         await fetchMessages();
         await nextTick(() => scrollToBottom());
@@ -920,17 +925,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Чат организации" />
+    <Head :title="t('organization.teamChatTitle')" />
     <OrganizationLayout :departments="departments" :selected-department-id="null">
         <div class="team-chat-main flex h-full min-h-0 flex-col bg-[var(--wa-page-bg)]">
             <div
                 v-if="!selectedConversationId"
                 class="flex flex-1 flex-col items-center justify-center px-4 sm:px-6 text-center text-[var(--wa-text-secondary)]"
             >
-                <p class="text-lg text-[var(--wa-text)] m-0 mb-2">Внутренний чат</p>
+                <p class="text-lg text-[var(--wa-text)] m-0 mb-2">{{ t('organization.internalChat') }}</p>
                 <p class="text-sm m-0 max-w-md">
-                    Выберите беседу слева или откройте вкладку «Сотрудники», чтобы написать коллеге.
-                    Чаты отделов создаются автоматически; покинуть группу отдела нельзя — состав меняет администратор.
+                    {{ t('organization.selectConversation') }}
+                    {{ t('organization.deptChatHint') }}
                 </p>
             </div>
             <template v-else>
@@ -953,7 +958,7 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 class="min-w-0 flex-1 text-left rounded-lg px-2 py-1 -mx-2 -my-1 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                                title="Перейти к сообщению"
+                                :title="t('organization.goToMessageTitle')"
                                 @click="scrollToQuotedParent(roomPinnedMessage.id)"
                             >
                                 <div class="font-semibold text-[var(--wa-accent)]">{{ roomPinnedMessage.sender_name }}</div>
@@ -966,7 +971,7 @@ onBeforeUnmount(() => {
                                 :disabled="roomPinSending"
                                 @click="clearRoomPinned()"
                             >
-                                Снять
+                                {{ t('organization.dismiss') }}
                             </button>
                         </div>
                     </div>
@@ -1030,13 +1035,13 @@ onBeforeUnmount(() => {
                             class="ui-result-card flex items-start gap-2 border-[color-mix(in_srgb,var(--wa-accent)_40%,var(--wa-border))] bg-[var(--wa-selected)]/25 text-xs text-[var(--wa-text)]"
                         >
                             <div class="min-w-0 flex-1">
-                                <div class="text-[var(--wa-text-secondary)] font-medium">Ответ на {{ replyToMessage.sender?.name ?? '…' }}</div>
+                                <div class="text-[var(--wa-text-secondary)] font-medium">{{ t('organization.replyTo', { name: replyToMessage.sender?.name ?? '…' }) }}</div>
                                 <div class="truncate opacity-90 mt-0.5">{{ replyDraftPreview(replyToMessage) }}</div>
                             </div>
                             <button
                                 type="button"
                                 class="shrink-0 text-lg leading-none opacity-60 hover:opacity-100 px-1"
-                                aria-label="Отменить ответ"
+                                :aria-label="t('organization.cancelReplyAria')"
                                 @click="clearReplyTo"
                             >×</button>
                         </div>
@@ -1045,7 +1050,7 @@ onBeforeUnmount(() => {
                             v-model:attachments="pendingAttachments"
                             :disabled="sending"
                             :mention-candidates="teamMentionCandidates"
-                            placeholder="Введите сообщение"
+                            :placeholder="t('organization.messagePlaceholder')"
                             @typing="onDraftInput"
                             @submit="send"
                             @voice="sendVoice"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
@@ -6,6 +7,8 @@ import MessageReactions from '@/Pages/Chats/Partials/MessageReactions.vue';
 import MessageStatus from '@/Pages/Chats/Partials/MessageStatus.vue';
 import LinkPreview from '@/Components/LinkPreview.vue';
 import type { MessageReaction, PageProps } from '@/types';
+
+const { t } = useI18n();
 
 export type TeamForward = {
     from_message_id: number;
@@ -204,9 +207,9 @@ function messageTime(): string {
 }
 
 const receiptAriaLabel = computed(() => {
-    if (props.receiptLabel === 'read') return 'Прочитано';
-    if (props.receiptLabel === 'delivered') return 'Доставлено';
-    if (props.receiptLabel === 'sent') return 'Отправлено';
+    if (props.receiptLabel === 'read') return t('organization.receiptRead');
+    if (props.receiptLabel === 'delivered') return t('organization.receiptDelivered');
+    if (props.receiptLabel === 'sent') return t('organization.receiptSent');
     return '';
 });
 
@@ -407,7 +410,7 @@ onBeforeUnmount(() => {
                 class="wa-msg-emoji-trigger absolute top-1 z-[60] flex h-7 w-7 items-center justify-center rounded-full text-base shadow-lg transition hover:scale-105"
                 :class="isOutbound ? '-left-9' : '-right-9'"
                 :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-icon)' }"
-                title="Добавить/изменить реакцию"
+                :title="t('organization.addReaction')"
                 @click.stop.prevent
                 @pointerdown.stop.prevent="togglePickerFromTrigger"
             >
@@ -419,7 +422,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="msg-hover-menu-btn"
                 :class="isOutbound ? 'msg-hover-menu-btn-out' : 'msg-hover-menu-btn-in'"
-                title="Меню"
+                :title="t('organization.menu')"
                 @click="openMenuFromButton"
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -440,7 +443,7 @@ onBeforeUnmount(() => {
                 class="mb-1 rounded border-l-2 pl-2 py-0.5 pr-1 text-[12px] leading-snug"
                 :style="{ borderColor: 'var(--wa-accent)', color: 'var(--wa-text-secondary)' }"
             >
-                <div class="font-medium">Переслано из «{{ message.forward.source_title }}»</div>
+                <div class="font-medium">{{ t('organization.forwardedFromTitle', { title: message.forward.source_title }) }}</div>
                 <div v-if="message.forward.quote_body" class="mt-0.5 opacity-90">
                     <span class="font-semibold" :style="{ color: 'var(--wa-accent)' }">{{ message.forward.quote_sender_name }}:</span>
                     {{ message.forward.quote_body }}
@@ -452,11 +455,11 @@ onBeforeUnmount(() => {
                 type="button"
                 class="mb-1 w-full rounded border-l-2 pl-2 py-0.5 pr-1 text-left text-[12px] leading-snug cursor-pointer transition-colors hover:opacity-90"
                 :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
-                title="Перейти к сообщению"
+                :title="t('organization.goToMessageTitle')"
                 @click.stop="emit('jump-to-reply', message.reply_to!.id)"
             >
                 <div>
-                    Ответ на
+                    {{ t('organization.replyOn') }}
                     <span class="font-medium" :style="{ color: 'var(--wa-accent)' }">{{ message.reply_to.sender_name }}</span>
                 </div>
                 <div v-if="message.reply_to.body_preview" class="mt-0.5 truncate opacity-90">{{ message.reply_to.body_preview }}</div>
@@ -524,7 +527,7 @@ onBeforeUnmount(() => {
                 class="text-[11px] mt-0.5 opacity-80"
                 :style="{ color: 'var(--wa-accent)' }"
             >
-                Упомянуты: {{ mentionedUsersNotInBody.map((u) => u.name).join(', ') }}
+                {{ t('organization.mentioned', { names: mentionedUsersNotInBody.map((u) => u.name).join(', ') }) }}
             </div>
 
             <div class="float-right -mb-1 -mt-1 ml-2 flex items-center gap-0.5 text-[11px] opacity-80">
@@ -569,7 +572,7 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a6 6 0 016 6v1M3 10l6 6M3 10l6-6" />
                     </svg>
-                    Ответить
+                    {{ t('organization.reply') }}
                 </button>
 
                 <button
@@ -581,21 +584,21 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
-                    Копировать
+                    {{ t('organization.copy') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" @click="closeMenu(); openFullPickerFromMenu()">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Отреагировать
+                    {{ t('organization.react') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" @click="closeMenu(); emit('forward', message)">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 8l5 4-5 4M4 12h16" />
                     </svg>
-                    Переслать
+                    {{ t('organization.forward') }}
                 </button>
 
                 <template v-if="canPinRoom">
@@ -609,7 +612,7 @@ onBeforeUnmount(() => {
                         <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 5h14v14H5V5zm4 0V3h6v2" />
                         </svg>
-                        {{ isRoomPinned ? 'Снять закреп в чате отдела' : 'Закрепить в чате отдела' }}
+                        {{ isRoomPinned ? t('organization.unpinInRoom') : t('organization.pinInRoom') }}
                     </button>
                 </template>
 
@@ -624,7 +627,7 @@ onBeforeUnmount(() => {
                         <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 11l3 3L22 4M2 12a10 10 0 1010-10" />
                         </svg>
-                        Создать задачу
+                        {{ t('organization.createTask') }}
                     </button>
                 </template>
             </div>
@@ -652,7 +655,7 @@ onBeforeUnmount(() => {
                 <button
                     type="button"
                     class="wa-quick-reaction-btn wa-quick-reaction-btn--plus"
-                    title="Больше эмодзи"
+                    :title="t('organization.moreEmoji')"
                     @click="openFullPickerFromQuickBar"
                 >
                     +

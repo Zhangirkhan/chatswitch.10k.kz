@@ -2,6 +2,9 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 export type PendingOrchestratorApproval = {
     run_id: number;
@@ -39,10 +42,10 @@ async function approve(): Promise<void> {
             ai_orchestrator_last_summary: chat?.ai_orchestrator_last_summary ?? null,
         });
         emit('cleared');
-        showToast({ message: 'Действие AI подтверждено: запись и этап применены.', duration: 3500 });
+        showToast({ message: t('chats.orchestrator.approved'), duration: 3500 });
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
-        const msg = err?.response?.data?.message ?? err?.message ?? 'Не удалось подтвердить.';
+        const msg = err?.response?.data?.message ?? err?.message ?? t('chats.orchestrator.approveFailed');
         showToast({ message: msg, duration: 4500 });
     } finally {
         submitting.value = false;
@@ -60,7 +63,7 @@ async function approve(): Promise<void> {
         "
         role="status"
     >
-        <p class="font-medium" style="color: var(--wa-accent)">Нужно подтверждение менеджера</p>
+        <p class="font-medium" style="color: var(--wa-accent)">{{ t('chats.orchestrator.title') }}</p>
         <p class="mt-1">{{ pending.summary }}</p>
         <p v-if="pending.manager_note" class="mt-1 opacity-80">{{ pending.manager_note }}</p>
         <div class="mt-2.5 flex flex-wrap gap-2">
@@ -71,11 +74,11 @@ async function approve(): Promise<void> {
                 :disabled="submitting"
                 @click="approve"
             >
-                {{ submitting ? 'Подтверждаем…' : 'Подтвердить запись и действия AI' }}
+                {{ submitting ? t('chats.orchestrator.approving') : t('chats.orchestrator.approve') }}
             </button>
         </div>
         <p class="mt-2 text-[12px] opacity-70">
-            До подтверждения в календарь запись не попадает. Задача также может быть в разделе «Организация» у отдела-ответственного.
+            {{ t('chats.orchestrator.hint') }}
         </p>
     </div>
 </template>

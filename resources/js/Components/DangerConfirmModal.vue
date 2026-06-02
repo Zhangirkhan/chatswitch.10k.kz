@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 
 /**
@@ -16,8 +17,6 @@ const props = withDefaults(
         confirmVariant?: 'danger' | 'primary';
     }>(),
     {
-        confirmLabel: 'Подтвердить',
-        cancelLabel: 'Отмена',
         busy: false,
         confirmVariant: 'danger',
     },
@@ -27,6 +26,13 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'confirm'): void;
 }>();
+
+const { t } = useI18n();
+
+const effectiveConfirmLabel = computed(() => props.confirmLabel ?? t('common.confirm'));
+const effectiveCancelLabel = computed(() => props.cancelLabel ?? t('common.cancel'));
+const closeAriaLabel = computed(() => t('common.close'));
+const busyLabel = computed(() => t('common.wait'));
 
 const panelRef = ref<HTMLElement | null>(null);
 let previousFocus: HTMLElement | null = null;
@@ -144,7 +150,7 @@ const confirmButtonClass = computed(() =>
                     <button
                         type="button"
                         class="danger-confirm-close w-9 h-9 shrink-0 rounded-full flex items-center justify-center disabled:opacity-40"
-                        aria-label="Закрыть"
+                        :aria-label="closeAriaLabel"
                         :disabled="busy"
                         @click="emit('close')"
                     >
@@ -166,7 +172,7 @@ const confirmButtonClass = computed(() =>
                         :disabled="busy"
                         @click="emit('close')"
                     >
-                        {{ cancelLabel }}
+                        {{ effectiveCancelLabel }}
                     </button>
                     <button
                         type="button"
@@ -175,7 +181,7 @@ const confirmButtonClass = computed(() =>
                         :disabled="busy"
                         @click="emit('confirm')"
                     >
-                        {{ busy ? 'Подождите…' : confirmLabel }}
+                        {{ busy ? busyLabel : effectiveConfirmLabel }}
                     </button>
                 </div>
             </div>

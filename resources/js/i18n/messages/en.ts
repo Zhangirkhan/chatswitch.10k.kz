@@ -1,4 +1,18 @@
 import type { MessageCatalog } from '../types';
+import { aiChatEn } from './domains/aiChat.en';
+import { analyticsEn } from './domains/analytics.en';
+import { authEn } from './domains/auth.en';
+import { broadcastsEn } from './domains/broadcasts.en';
+import { calendarEn } from './domains/calendar.en';
+import { chats as chatsEn } from './domains/chats.en';
+import { clientsEn } from './domains/clients.en';
+import { funnelsEn } from './domains/funnels.en';
+import { landingEn } from './domains/landing.en';
+import { miscEn } from './domains/misc.en';
+import { organizationEn } from './domains/organization.en';
+import { profileEn } from './domains/profile.en';
+import { settingsExtrasEn } from './domains/settingsExtras.en';
+import { superAdminEn } from './domains/superAdmin.en';
 
 export const en: MessageCatalog = {
     nav: {
@@ -746,6 +760,14 @@ export const en: MessageCatalog = {
             errorDisplayNameRequired: 'Enter a connection name.',
             errorSaveName: 'Could not save name',
         },
+        clients: settingsExtrasEn.clients,
+        contactFields: settingsExtrasEn.contactFields,
+        aiQuality: settingsExtrasEn.aiQuality,
+        toneProfile: settingsExtrasEn.toneProfile,
+        funnelAiWizard: settingsExtrasEn.funnelAiWizard,
+        usersForm: settingsExtrasEn.usersForm,
+        departmentsForm: settingsExtrasEn.departmentsForm,
+        connectionsExtras: settingsExtrasEn.connectionsExtras,
         interface: {
             language: 'Interface language',
             languageHint: 'Changes menu labels and shared UI text on this device.',
@@ -755,6 +777,19 @@ export const en: MessageCatalog = {
             dark: 'Dark',
         },
     },
+    profile: profileEn,
+    chats: chatsEn,
+    clients: clientsEn,
+    calendar: calendarEn,
+    broadcasts: broadcastsEn,
+    analytics: analyticsEn,
+    funnels: funnelsEn,
+    aiChat: aiChatEn,
+    auth: authEn,
+    landing: landingEn,
+    organization: organizationEn,
+    misc: miscEn,
+    superAdmin: superAdminEn,
     common: {
         cancel: 'Cancel',
         save: 'Save',
@@ -762,5 +797,17 @@ export const en: MessageCatalog = {
         done: 'Done',
         delete: 'Delete',
         saved: 'Saved!',
+        back: 'Back',
+        forward: 'Next',
+        edit: 'Edit',
+        optional: 'optional',
+        yes: 'Yes',
+        no: 'No',
+        update: 'Update',
+        ok: 'OK',
+        inactive: '(inactive)',
+        learnMore: 'Learn more',
+        confirm: 'Confirm',
+        wait: 'Please wait…',
     },
 };

@@ -3,6 +3,7 @@ import AuthRecaptcha from '@/Components/Recaptcha/AuthRecaptcha.vue';
 import PinLoginPad from '@/Components/Auth/PinLoginPad.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import { useI18n } from '@/composables/useI18n';
 import { useRecaptcha } from '@/composables/useRecaptcha';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
+const { t } = useI18n();
 const flashError = computed(() => {
     const flash = page.props.flash as { error?: string } | undefined;
     return flash?.error ?? null;
@@ -32,7 +34,7 @@ const loginAction = computed(() => {
 
     const slug = (page.props as { tenantSlug?: string | null }).tenantSlug;
     if (!slug) {
-        throw new Error('Не удалось определить поддомен тенанта для входа.');
+        throw new Error(t('auth.tenantSlugError'));
     }
 
     return route('login', { tenant: slug });
@@ -41,7 +43,7 @@ const loginAction = computed(() => {
 const pinLoginAction = computed(() => {
     const slug = (page.props as { tenantSlug?: string | null }).tenantSlug;
     if (!slug) {
-        throw new Error('Не удалось определить поддомен тенанта для входа.');
+        throw new Error(t('auth.tenantSlugError'));
     }
 
     return route('login.pin', { tenant: slug });
@@ -67,12 +69,12 @@ const submit = async () => {
         try {
             form.recaptcha_token = (await recaptchaRef.value?.resolveToken('login')) ?? '';
         } catch {
-            form.setError('recaptcha_token', 'Не удалось загрузить reCAPTCHA. Обновите страницу.');
+            form.setError('recaptcha_token', t('auth.recaptchaLoadError'));
             return;
         }
 
         if (!form.recaptcha_token) {
-            form.setError('recaptcha_token', 'Подтвердите, что вы не робот.');
+            form.setError('recaptcha_token', t('auth.recaptchaRequired'));
             return;
         }
     }
@@ -106,7 +108,7 @@ function switchMode(mode: 'email' | 'pin'): void {
 
 <template>
     <GuestLayout>
-        <Head title="Вход" />
+        <Head :title="t('auth.loginTitle')" />
 
         <div v-if="status" class="mb-4 text-sm font-medium text-[var(--wa-accent)]">
             {{ status }}
@@ -131,7 +133,7 @@ function switchMode(mode: 'email' | 'pin'): void {
                 :aria-selected="loginMode === 'email'"
                 @click="switchMode('email')"
             >
-                Email
+                {{ t('auth.emailTab') }}
             </button>
             <button
                 type="button"
@@ -142,13 +144,13 @@ function switchMode(mode: 'email' | 'pin'): void {
                 :aria-selected="loginMode === 'pin'"
                 @click="switchMode('pin')"
             >
-                PIN
+                {{ t('auth.pinTab') }}
             </button>
         </div>
 
         <form v-if="loginMode === 'email' || isSuperAdminHost || !props.pinLoginAvailable" class="space-y-5" @submit.prevent="submit">
             <div>
-                <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">Электронная почта</label>
+                <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">{{ t('auth.emailLabel') }}</label>
                 <input
                     id="email"
                     type="email"
@@ -170,7 +172,7 @@ function switchMode(mode: 'email' | 'pin'): void {
             </div>
 
             <div>
-                <label for="password" class="block text-sm text-[var(--wa-text-secondary)] mb-1">Пароль</label>
+                <label for="password" class="block text-sm text-[var(--wa-text-secondary)] mb-1">{{ t('auth.passwordLabel') }}</label>
                 <input
                     id="password"
                     type="password"
@@ -185,7 +187,7 @@ function switchMode(mode: 'email' | 'pin'): void {
                     }"
                     :aria-invalid="form.errors.password ? 'true' : undefined"
                     :aria-describedby="form.errors.password ? 'password-error' : undefined"
-                    placeholder="Введите пароль"
+                    :placeholder="t('auth.passwordPlaceholder')"
                 />
                 <p v-if="form.errors.password" id="password-error" role="alert" class="mt-1 text-xs text-red-400">{{ form.errors.password }}</p>
             </div>
@@ -193,7 +195,7 @@ function switchMode(mode: 'email' | 'pin'): void {
             <div class="flex items-center justify-between">
                 <label class="flex items-center gap-2 cursor-pointer">
                     <UiCheckbox v-model="form.remember" size="sm" />
-                    <span class="text-sm text-[var(--wa-text-secondary)]">Запомнить</span>
+                    <span class="text-sm text-[var(--wa-text-secondary)]">{{ t('auth.remember') }}</span>
                 </label>
             </div>
 
@@ -208,8 +210,8 @@ function switchMode(mode: 'email' | 'pin'): void {
                 class="w-full py-2.5 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
                 :style="{ background: 'var(--wa-accent)' }"
             >
-                <span v-if="form.processing">Загрузка...</span>
-                <span v-else>Войти</span>
+                <span v-if="form.processing">{{ t('auth.loading') }}</span>
+                <span v-else>{{ t('auth.submit') }}</span>
             </button>
         </form>
 
@@ -223,7 +225,7 @@ function switchMode(mode: 'email' | 'pin'): void {
 
             <label class="flex items-center justify-center gap-2 cursor-pointer">
                 <UiCheckbox v-model="pinForm.remember" size="sm" />
-                <span class="text-sm text-[var(--wa-text-secondary)]">Запомнить</span>
+                <span class="text-sm text-[var(--wa-text-secondary)]">{{ t('auth.remember') }}</span>
             </label>
         </div>
     </GuestLayout>

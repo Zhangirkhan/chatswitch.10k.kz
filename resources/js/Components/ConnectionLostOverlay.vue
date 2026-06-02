@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useConnectionStatus, type ConnectionOverlayMode } from '@/composables/useConnectionStatus';
+import { useI18n } from '@/composables/useI18n';
 
 const { visible, mode, retrying, retry } = useConnectionStatus();
+const { t } = useI18n();
 
 const copy = computed(() => {
     const texts: Record<
@@ -10,22 +12,19 @@ const copy = computed(() => {
         { title: string; description: string; hint: string }
     > = {
         offline: {
-            title: 'Нет подключения к интернету',
-            description:
-                'Проверьте Wi‑Fi или мобильную сеть. Пока связи нет, новые сообщения и обновления могут не доходить.',
-            hint: 'Соединение восстановится автоматически, когда сеть появится снова.',
+            title: t('chats.connection.offlineTitle'),
+            description: t('chats.connection.offlineDescription'),
+            hint: t('chats.connection.offlineHint'),
         },
         reconnecting: {
-            title: 'Восстанавливаем соединение…',
-            description:
-                'Связь с сервером прервалась. Мы уже пытаемся переподключиться — обычно это занимает несколько секунд.',
-            hint: 'Не закрывайте вкладку. Если долго не помогает — нажмите «Повторить».',
+            title: t('chats.connection.reconnectingTitle'),
+            description: t('chats.connection.reconnectingDescription'),
+            hint: t('chats.connection.reconnectingHint'),
         },
         server: {
-            title: 'Соединение с сервером потеряно',
-            description:
-                'Realtime-обновления временно недоступны. Проверьте интернет или подождите — переподключение идёт автоматически.',
-            hint: 'Можно обновить страницу, если проблема не исчезает.',
+            title: t('chats.connection.serverTitle'),
+            description: t('chats.connection.serverDescription'),
+            hint: t('chats.connection.serverHint'),
         },
     };
 
@@ -111,7 +110,7 @@ const copy = computed(() => {
                                 class="connection-overlay__spinner"
                                 aria-hidden="true"
                             ></span>
-                            {{ retrying ? 'Подключение…' : 'Повторить' }}
+                            {{ retrying ? t('chats.connection.connecting') : t('chats.connection.retry') }}
                         </button>
                     </div>
 

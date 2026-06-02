@@ -13,6 +13,7 @@ import LinkPreview from '@/Components/LinkPreview.vue';
 import ChatMessageProductCard from '@/Components/ChatMessageProductCard.vue';
 import type { MessageProductAttachment } from '@/types';
 import { useTranslationLang } from '@/composables/useTranslationLang';
+import { useI18n } from '@/composables/useI18n';
 
 const props = defineProps<{
     message: Message;
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 }>();
 
 const page = usePage<any>();
+const { t } = useI18n();
 const { show: showToast } = useToastStore();
 const currentUserId = computed<number | undefined>(() => page.props.auth?.user?.id);
 
@@ -104,13 +106,13 @@ const aiQualityModuleEnabled = computed<boolean>(() => Boolean(page.props.module
 
 type AiFeedbackRating = 'good' | 'style' | 'facts' | 'long' | 'context';
 
-const aiFeedbackOptions: { id: AiFeedbackRating; label: string; title: string }[] = [
-    { id: 'good', label: 'Хорошо', title: 'AI-ответ подходит, правки не нужны' },
-    { id: 'style', label: 'Не тот тон', title: 'Ответ звучит не так: слишком сухо, грубо или не в стиле компании' },
-    { id: 'facts', label: 'Ошибка', title: 'В ответе есть неверная информация' },
-    { id: 'long', label: 'Длинно', title: 'Ответ слишком длинный, нужно короче' },
-    { id: 'context', label: 'Нет данных', title: 'AI не хватило информации из базы знаний' },
-];
+const aiFeedbackOptions = computed<{ id: AiFeedbackRating; label: string; title: string }[]>(() => [
+    { id: 'good', label: t('chats.message.aiFeedbackGood'), title: t('chats.message.aiFeedbackGoodTitle') },
+    { id: 'style', label: t('chats.message.aiFeedbackStyle'), title: t('chats.message.aiFeedbackStyleTitle') },
+    { id: 'facts', label: t('chats.message.aiFeedbackFacts'), title: t('chats.message.aiFeedbackFactsTitle') },
+    { id: 'long', label: t('chats.message.aiFeedbackLong'), title: t('chats.message.aiFeedbackLongTitle') },
+    { id: 'context', label: t('chats.message.aiFeedbackContext'), title: t('chats.message.aiFeedbackContextTitle') },
+]);
 
 const aiFeedbackSubmitting = ref(false);
 const canShowAiFeedback = computed(() => showMessageBody.value && isAiGenerated.value && isInternalUser.value && aiQualityModuleEnabled.value);
@@ -147,10 +149,10 @@ async function submitAiFeedback(rating: AiFeedbackRating): Promise<void> {
     aiFeedbackSubmitting.value = true;
     try {
         await axios.post(route('messages.ai-feedback', props.message.id), { rating });
-        showToast({ message: 'Оценка сохранена', duration: 2500 });
+        showToast({ message: t('chats.message.feedbackSaved'), duration: 2500 });
     } catch (e: any) {
-        const raw = e?.response?.data?.message ?? e?.message ?? 'Не удалось сохранить оценку';
-        showToast({ message: typeof raw === 'string' ? raw : 'Не удалось сохранить оценку', duration: 4000 });
+        const raw = e?.response?.data?.message ?? e?.message ?? t('chats.message.feedbackSaveFailed');
+        showToast({ message: typeof raw === 'string' ? raw : t('chats.message.feedbackSaveFailed'), duration: 4000 });
     } finally {
         aiFeedbackSubmitting.value = false;
     }
@@ -241,7 +243,7 @@ const quotedPreview = computed(() => {
     if (!q) return '';
     const text = q.body ? String(q.body).trim() : '';
     if (text) return text;
-    if (q.type && q.type !== 'chat') return 'Медиа';
+    if (q.type && q.type !== 'chat') return t('chats.message.media');
     return '';
 });
 
@@ -317,13 +319,13 @@ const voiceTranscriptStatus = computed((): string | null => {
 const voiceTranscriptStatusLabel = computed((): string | null => {
     switch (voiceTranscriptStatus.value) {
         case 'pending':
-            return 'Расшифровка в очереди…';
+            return t('chats.message.transcriptQueued');
         case 'processing':
-            return 'Расшифровка…';
+            return t('chats.message.transcriptProcessing');
         case 'failed':
-            return 'Не удалось расшифровать';
+            return t('chats.message.transcriptFailed');
         case 'skipped':
-            return props.message.transcript?.error_message?.trim() || 'Расшифровка пропущена';
+            return props.message.transcript?.error_message?.trim() || t('chats.message.transcriptSkipped');
         default:
             return null;
     }
@@ -401,8 +403,8 @@ const aiBadgeLabel = computed(() => {
     const replyAsCompany = meta?.ai?.reply_as_company === true
         || ((props.chat?.assignments?.length ?? 0) === 0);
     if (replyAsCompany) {
-        const companyName = (props.chat?.company?.name || page.props.auth?.user?.company?.name || 'Компания').trim();
-        return `${companyName !== '' ? companyName : 'Компания'} (AI)`;
+        const companyName = (props.chat?.company?.name || page.props.auth?.user?.company?.name || t('chats.company')).trim();
+        return t('chats.companyAi', { name: companyName !== '' ? companyName : t('chats.company') });
     }
     return `${operatorDisplayName.value} (AI)`;
 });
@@ -1043,8 +1045,8 @@ async function react(emoji: string): Promise<void> {
     } catch (e) {
         console.error('React failed', e);
         const message = axios.isAxiosError(e)
-            ? (e.response?.data?.message ?? e.response?.data?.error ?? 'Не удалось отправить реакцию.')
-            : 'Не удалось отправить реакцию.';
+            ? (e.response?.data?.message ?? e.response?.data?.error ?? t('chats.message.reactionFailed'))
+            : t('chats.message.reactionFailed');
         showToast({ message: String(message), duration: 5000 });
     } finally {
         isReacting.value = false;
@@ -1287,7 +1289,7 @@ onBeforeUnmount(() => {
                     borderColor: selected ? 'transparent' : 'var(--wa-border-strong)',
                     color: selected ? 'white' : 'var(--wa-text-secondary)',
                 }"
-                :title="selected ? 'Снять выбор' : 'Выбрать'"
+                :title="selected ? t('chats.message.deselect') : t('chats.message.select')"
                 @click.stop="emit('toggle-select', message.id)"
             >
                 <svg v-if="selected" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1334,7 +1336,7 @@ onBeforeUnmount(() => {
                     color: 'var(--wa-text)',
                 }"
                 role="note"
-                aria-label="Подсказка AI для сотрудника"
+                :aria-label="t('chats.message.aiHintAria')"
                 @click.stop
             >
                 <div class="flex items-center gap-1.5 mb-1">
@@ -1344,7 +1346,7 @@ onBeforeUnmount(() => {
                     >
                         AI
                     </span>
-                    <span class="text-[10px] font-medium opacity-80">Клиент не видит</span>
+                    <span class="text-[10px] font-medium opacity-80">{{ t('chats.message.clientCantSee') }}</span>
                     <span
                         v-if="aiDecisionConfidenceLabel"
                         class="ml-auto text-[10px] tabular-nums opacity-70"
@@ -1371,7 +1373,7 @@ onBeforeUnmount(() => {
                     :style="{ color: 'var(--wa-accent)' }"
                     @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
                 >
-                    {{ aiDecisionPlanOpen ? 'Скрыть план AI' : 'Показать план AI' }}
+                    {{ aiDecisionPlanOpen ? t('chats.message.hideAiPlan') : t('chats.message.showAiPlan') }}
                 </button>
                 <pre
                     v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
@@ -1409,7 +1411,7 @@ onBeforeUnmount(() => {
                     borderColor: selected ? 'transparent' : 'var(--wa-border-strong)',
                     color: selected ? 'white' : 'var(--wa-text-secondary)',
                 }"
-                :title="selected ? 'Снять выбор' : 'Выбрать'"
+                :title="selected ? t('chats.message.deselect') : t('chats.message.select')"
                 @click.stop="emit('toggle-select', message.id)"
             >
                 <svg v-if="selected" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1428,7 +1430,7 @@ onBeforeUnmount(() => {
                 class="wa-msg-emoji-trigger absolute top-1 z-[60] flex h-7 w-7 items-center justify-center rounded-full text-base shadow-lg transition hover:scale-105"
                 :class="isOutbound ? '-left-9' : '-right-9'"
                 :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-icon)' }"
-                title="Добавить/изменить реакцию"
+                :title="t('chats.message.addReaction')"
                 data-emoji-trigger
                 @click.stop.prevent
                 @pointerdown.stop.prevent="togglePickerFromTrigger"
@@ -1442,7 +1444,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="msg-hover-menu-btn"
                 :class="isOutbound ? 'msg-hover-menu-btn-out' : 'msg-hover-menu-btn-in'"
-                title="Меню"
+                :title="t('chats.message.menu')"
                 @click="openMenuFromButton"
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -1458,7 +1460,7 @@ onBeforeUnmount(() => {
                 <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M14 7l5 5-5 5v-3H5v-4h9V7z" />
                 </svg>
-                <span>Переслано</span>
+                <span>{{ t('chats.message.forwarded') }}</span>
             </div>
 
             <div v-if="contactCard" class="wa-contact-card mb-1" :class="fullBleedVisualBubble ? '' : 'pr-14'">
@@ -1469,7 +1471,7 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
-                <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
+                <span v-if="isAiGenerated" class="ai-message-badge" :title="t('chats.message.aiBadgeTitle')">
                     {{ aiBadgeLabel }}
                 </span>
                 <div class="wa-contact-card-main">
@@ -1493,7 +1495,7 @@ onBeforeUnmount(() => {
                     class="wa-contact-action"
                     @click.stop="openChatForContactCard(contactCard)"
                 >
-                    Сообщение
+                    {{ t('chats.message.messageText') }}
                 </button>
             </div>
 
@@ -1509,7 +1511,7 @@ onBeforeUnmount(() => {
                         : 'var(--wa-bubble-quote-author-in, var(--wa-accent))',
                 }"
                 @click.stop="jumpToQuoted"
-                title="Перейти к сообщению"
+                :title="t('chats.message.goToMessage')"
             >
                 <div
                     class="text-[12px] font-medium truncate"
@@ -1559,7 +1561,7 @@ onBeforeUnmount(() => {
                 >
                     {{ groupSenderLabel }}
                 </span>
-                <span v-if="isAiGenerated" class="ai-message-badge" title="Ответ подготовлен AI">
+                <span v-if="isAiGenerated" class="ai-message-badge" :title="t('chats.message.aiBadgeTitle')">
                     {{ aiBadgeLabel }}
                 </span>
                 <template v-if="showMainBodyText">
@@ -1570,7 +1572,7 @@ onBeforeUnmount(() => {
                             type="button"
                             class="wa-mention-link"
                             @click.stop="openChatForMention(seg)"
-                            :title="`Открыть чат: ${seg.text}`"
+                            :title="t('chats.message.openChat', { name: seg.text })"
                         >
                             {{ seg.text }}
                         </button>
@@ -1586,7 +1588,7 @@ onBeforeUnmount(() => {
                     :class="{ 'translate-btn-active': translationVisible }"
                     @click.stop="toggleTranslation"
                     :disabled="translationLoading"
-                    :title="translationVisible ? 'Скрыть перевод' : `Перевести на ${translateCurrent().label}`"
+                    :title="translationVisible ? t('chats.message.hideTranslation') : t('chats.message.translateTo', { language: translateCurrent().label })"
                 >
                     <svg class="translate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
@@ -1600,8 +1602,8 @@ onBeforeUnmount(() => {
                 </button>
 
                 <div v-if="translationVisible" class="translate-result">
-                    <div v-if="translationLoading" class="translate-loading">Переводим…</div>
-                    <div v-else-if="translationError" class="translate-error">Не удалось перевести</div>
+                    <div v-if="translationLoading" class="translate-loading">{{ t('chats.message.translating') }}</div>
+                    <div v-else-if="translationError" class="translate-error">{{ t('chats.message.translateFailed') }}</div>
                     <p v-else-if="translationText" class="translate-text whitespace-pre-wrap break-words" style="word-break: break-word">
                         {{ translationText }}
                     </p>
@@ -1668,7 +1670,7 @@ onBeforeUnmount(() => {
                         </span>
                     </div>
                 </div>
-                <p class="wa-voice-fallback-hint">Медиа не загрузилось — откройте в WhatsApp на телефоне.</p>
+                <p class="wa-voice-fallback-hint">{{ t('chats.message.mediaFallback') }}</p>
             </div>
 
             <div
@@ -1692,7 +1694,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="block w-full cursor-zoom-in border-0 bg-transparent p-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wa-accent)] focus-visible:ring-offset-1"
                         :class="fullBleedVisualBubble ? '' : 'overflow-hidden rounded-md'"
-                        title="Открыть"
+                        :title="t('chats.message.open')"
                         @click.stop="openImageLightbox(m.id)"
                     >
                         <img
@@ -1724,7 +1726,7 @@ onBeforeUnmount(() => {
                                     <button
                                         type="button"
                                         class="wa-voice-speed-btn wa-voice-speed-btn--active"
-                                        title="Скорость: нажмите, чтобы переключить 1x → 1.5x → 2x"
+                                        :title="t('chats.message.speedToggle')"
                                         @click.stop="cycleVoicePlaybackRate(m.id)"
                                     >
                                         {{ voicePlaybackRateButtonLabel(m.id) }}
@@ -1744,7 +1746,7 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 class="wa-voice-play"
-                                :title="playingVoiceMediaId === m.id ? 'Пауза' : 'Воспроизвести'"
+                                :title="playingVoiceMediaId === m.id ? t('chats.message.pause') : t('chats.message.play')"
                                 @click.stop="toggleVoicePlay(m.id)"
                             >
                                 <svg
@@ -1785,7 +1787,7 @@ onBeforeUnmount(() => {
                                     <button
                                         type="button"
                                         class="wa-voice-speed-btn wa-voice-speed-btn--active"
-                                        title="Скорость: нажмите, чтобы переключить 1x → 1.5x → 2x"
+                                        :title="t('chats.message.speedToggle')"
                                         @click.stop="cycleVoicePlaybackRate(m.id)"
                                     >
                                         {{ voicePlaybackRateButtonLabel(m.id) }}
@@ -1835,7 +1837,7 @@ onBeforeUnmount(() => {
                                         clip-rule="evenodd"
                                     />
                                 </svg>
-                                {{ voiceTranscriptExpanded ? 'Скрыть расшифровку' : 'Показать расшифровку' }}
+                                {{ voiceTranscriptExpanded ? t('chats.message.hideTranscript') : t('chats.message.showTranscript') }}
                             </button>
                             <p
                                 v-if="voiceTranscriptExpanded"
@@ -1882,7 +1884,7 @@ onBeforeUnmount(() => {
                         class="inline-flex items-center gap-1 break-all underline"
                         :style="{ color: 'var(--wa-accent)' }"
                     >
-                        {{ m.filename || 'Файл' }}
+                        {{ m.filename || t('chats.message.file') }}
                     </a>
                 </template>
                 <template v-if="fullBleedVisualBubble">
@@ -1943,33 +1945,33 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a6 6 0 016 6v1M3 10l6 6M3 10l6-6" />
                     </svg>
-                    Ответить
+                    {{ t('chats.message.reply') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" :disabled="!message.body" @click="closeMenu(); copyMessage()">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
-                    Копировать
+                    {{ t('chats.message.copy') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" @click="closeMenu(); openFullPickerFromMenu()">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Отреагировать
+                    {{ t('chats.message.react') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" @click="closeMenu(); emit('forward', message)">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 8l5 4-5 4M4 12h16" />
                     </svg>
-                    Переслать
+                    {{ t('chats.message.forward') }}
                 </button>
 
                 <template v-if="canShowAiFeedback">
                     <div class="msg-menu-divider"></div>
-                    <div class="msg-menu-section-label">Оценить AI-ответ</div>
+                    <div class="msg-menu-section-label">{{ t('chats.message.rateAi') }}</div>
                     <button
                         v-for="opt in aiFeedbackOptions"
                         :key="opt.id"
@@ -1995,7 +1997,7 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                     </svg>
-                    Удалить
+                    {{ t('common.delete') }}
                 </button>
 
                 <div class="msg-menu-divider"></div>
@@ -2009,7 +2011,7 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
                     </svg>
-                    Скачать
+                    {{ t('chats.message.download') }}
                 </button>
 
                 <button
@@ -2021,14 +2023,14 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Данные о сообщении
+                    {{ t('chats.message.messageInfo') }}
                 </button>
 
                 <button class="msg-menu-item" type="button" @click="closeMenu(); emit('toggle-select', message.id)">
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 11l3 3L22 4M2 12a10 10 0 1010-10" />
                     </svg>
-                    Выбрать
+                    {{ t('chats.message.select') }}
                 </button>
 
                 <button
@@ -2040,7 +2042,7 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5m7 7l-3.5-3.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Ответить лично
+                    {{ t('chats.message.replyPrivately') }}
                 </button>
 
                 <button
@@ -2052,7 +2054,7 @@ onBeforeUnmount(() => {
                     <svg class="msg-menu-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zM12 14c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z" />
                     </svg>
-                    Написать контакту {{ formatPhone(senderPhoneDigits) || senderPhoneDigits }}
+                    {{ t('chats.message.writeToContact', { phone: formatPhone(senderPhoneDigits) || senderPhoneDigits }) }}
                 </button>
             </div>
         </div>
@@ -2079,7 +2081,7 @@ onBeforeUnmount(() => {
                 <button
                     type="button"
                     class="wa-quick-reaction-btn wa-quick-reaction-btn--plus"
-                    title="Больше эмодзи"
+                    :title="t('chats.message.moreEmoji')"
                     @click="openFullPickerFromQuickBar"
                 >
                     +
@@ -2105,13 +2107,13 @@ onBeforeUnmount(() => {
             class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/88 p-4"
             role="dialog"
             aria-modal="true"
-            aria-label="Просмотр изображения"
+            :aria-label="t('chats.message.imageViewerAria')"
             @click.self="closeImageLightbox"
         >
             <button
                 type="button"
                 class="absolute right-3 top-3 z-[1] flex h-10 w-10 items-center justify-center rounded-full text-white transition hover:bg-white/15"
-                aria-label="Закрыть"
+                :aria-label="t('common.close')"
                 @click="closeImageLightbox"
             >
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

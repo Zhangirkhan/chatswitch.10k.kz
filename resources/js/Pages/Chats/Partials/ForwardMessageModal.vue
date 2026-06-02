@@ -3,6 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import type { Contact, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     open: boolean;
@@ -44,10 +47,10 @@ async function loadContacts(): Promise<void> {
     }
 }
 
-let t: ReturnType<typeof setTimeout> | null = null;
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
 watch(q, () => {
-    if (t) clearTimeout(t);
-    t = setTimeout(() => void loadContacts(), 250);
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => void loadContacts(), 250);
 });
 
 watch(
@@ -98,7 +101,7 @@ async function send(): Promise<void> {
                 url = typeof mid === 'number' ? `/messages/${mid}/forward` : '';
             }
             if (!url) {
-                error.value = String(routeErr?.message || routeErr || 'Не удалось построить URL для пересылки');
+                error.value = String(routeErr?.message || routeErr || t('chats.forward.errorRoute'));
                 return;
             }
         }
@@ -118,7 +121,7 @@ async function send(): Promise<void> {
             emit('close');
             return;
         }
-        error.value = data?.error || 'Не удалось переслать';
+        error.value = data?.error || t('chats.forward.errorForward');
     } catch (e: any) {
         const status = e?.response?.status;
         const resp = e?.response?.data;
@@ -127,7 +130,7 @@ async function send(): Promise<void> {
             resp?.error ||
             (typeof resp === 'string' ? resp.slice(0, 180) : '') ||
             e?.message ||
-            'Не удалось переслать';
+            t('chats.forward.errorForward');
         error.value = status ? `[${status}] ${msg}` : msg;
     } finally {
         sending.value = false;
@@ -147,9 +150,9 @@ onMounted(() => {
             >
                 <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--wa-panel-header)' }">
                     <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
-                        Переслать сообщение
+                        {{ t('chats.forward.title') }}
                     </div>
-                    <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="emit('close')">
+                    <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" :aria-label="t('common.close')" @click="emit('close')">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -164,14 +167,14 @@ onMounted(() => {
                         <input
                             v-model="q"
                             type="text"
-                            placeholder="Поиск контактов…"
+                            :placeholder="t('chats.forward.searchContacts')"
                             class="w-full pl-10 pr-3 py-2 rounded-full text-sm border-0 focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
                         />
                     </div>
 
                     <div v-if="selectedContacts.length" class="mt-3">
-                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Кому:</div>
+                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.toWhom') }}</div>
                         <div class="flex flex-wrap gap-2">
                             <button
                                 v-for="c in selectedContacts"
@@ -180,9 +183,9 @@ onMounted(() => {
                                 class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs"
                                 :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
                                 @click="removeSelected(c.id)"
-                                :title="`Убрать ${contactLabel(c) || 'контакт'}`"
+                                :title="t('chats.forward.removeContactTitle', { name: contactLabel(c) || t('chats.contact') })"
                             >
-                                <span class="max-w-[180px] truncate">{{ contactLabel(c) || 'Без имени' }}</span>
+                                <span class="max-w-[180px] truncate">{{ contactLabel(c) || t('chats.noName') }}</span>
                                 <span aria-hidden="true">×</span>
                             </button>
                         </div>
@@ -193,7 +196,7 @@ onMounted(() => {
                     </div>
 
                     <div class="mt-4 max-h-[360px] overflow-y-auto wa-scrollbar">
-                        <div v-if="loading" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">Загрузка…</div>
+                        <div v-if="loading" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.loading') }}</div>
                         <button
                             v-for="c in contacts"
                             :key="c.id"
@@ -209,7 +212,7 @@ onMounted(() => {
                             </span>
                             <div class="flex-1 min-w-0 text-left">
                                 <div class="text-sm truncate" :style="{ color: 'var(--wa-text)' }">
-                                    {{ contactLabel(c) || 'Без имени' }}
+                                    {{ contactLabel(c) || t('chats.noName') }}
                                 </div>
                                 <div class="text-xs truncate" :style="{ color: 'var(--wa-text-secondary)' }">
                                     {{ formatPhone(c.phone_number) || '' }}
@@ -217,17 +220,17 @@ onMounted(() => {
                             </div>
                         </button>
                         <div v-if="!loading && contacts.length === 0" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Контакты не найдены
+                            {{ t('chats.share.contactsNotFound') }}
                         </div>
                     </div>
 
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Выбрано: {{ selectedCount }}
+                            {{ t('chats.selected', { count: selectedCount }) }}
                         </div>
                         <div class="flex gap-2">
                             <button type="button" class="px-4 py-2 rounded-xl hover:bg-[var(--wa-panel-hover)]" :style="{ color: 'var(--wa-text)' }" @click="emit('close')">
-                                Отмена
+                                {{ t('common.cancel') }}
                             </button>
                             <button
                                 type="button"
@@ -236,7 +239,7 @@ onMounted(() => {
                                 :style="{ background: 'var(--wa-accent)', color: '#fff', opacity: sending || selectedCount === 0 ? 0.6 : 1 }"
                                 @click="send"
                             >
-                                Переслать
+                                {{ t('chats.show.forward') }}
                             </button>
                         </div>
                     </div>

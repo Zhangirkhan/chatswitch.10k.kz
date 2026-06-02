@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
 import AiWorkspaceResultTabs from '@/Components/AiChat/AiWorkspaceResultTabs.vue';
+import { useI18n } from '@/composables/useI18n';
 import type {
     ClientSummary,
     ResultTabId,
@@ -26,19 +27,21 @@ const emit = defineEmits<{
     'update:activeTab': [tab: ResultTabId];
     selectContact: [contactId: number];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <template>
     <aside class="ai-workspace__results" :class="{ 'is-open': open }">
         <div class="ai-workspace__results-head">
             <div>
-                <h2 class="ai-workspace__results-title">Панель</h2>
-                <p class="ai-workspace__results-sub">{{ resultsCount }} результатов</p>
+                <h2 class="ai-workspace__results-title">{{ t('aiChat.panel') }}</h2>
+                <p class="ai-workspace__results-sub">{{ t('aiChat.resultsCount', { count: resultsCount }) }}</p>
             </div>
             <button
                 type="button"
                 class="ai-workspace__icon-btn lg:hidden"
-                aria-label="Скрыть панель"
+                :aria-label="t('aiChat.hidePanel')"
                 @click="emit('close')"
             >
                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -82,20 +85,21 @@ const emit = defineEmits<{
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
-    padding: 12px 14px 8px;
-    flex-shrink: 0;
+    gap: 0.75rem;
+    padding: 1rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--wa-sidebar-divider);
 }
 
 .ai-workspace__results-title {
     margin: 0;
-    font-size: 0.875rem;
-    font-weight: 700;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--wa-text);
 }
 
 .ai-workspace__results-sub {
-    margin: 2px 0 0;
-    font-size: 0.6875rem;
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
     color: var(--wa-text-secondary);
 }
 
@@ -105,28 +109,33 @@ const emit = defineEmits<{
     justify-content: center;
     width: 2rem;
     height: 2rem;
-    border: 0;
-    border-radius: 8px;
+    border: none;
+    border-radius: 999px;
     background: transparent;
     color: var(--wa-text-secondary);
     cursor: pointer;
 }
 
+.ai-workspace__icon-btn:hover {
+    background: var(--wa-panel-hover);
+    color: var(--wa-text);
+}
+
 .ai-workspace__icon-btn svg {
-    width: 1.125rem;
-    height: 1.125rem;
+    width: 1.1rem;
+    height: 1.1rem;
 }
 
 @media (max-width: 1023px) {
     .ai-workspace__results {
-        position: absolute;
+        position: fixed;
         top: 0;
         right: 0;
         bottom: 0;
-        width: min(100%, 22rem);
+        width: min(100vw, var(--ai-results-width, 340px));
         transform: translateX(100%);
         transition: transform 0.22s ease;
-        box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.25);
     }
 
     .ai-workspace__results.is-open {

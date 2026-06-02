@@ -3,6 +3,7 @@ import InputError from '@/Components/InputError.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput } from '@/utils/inputMasks';
+import { useI18n } from '@/composables/useI18n';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -18,6 +19,7 @@ const props = defineProps<{
 const rootDomain = computed(() => props.rootDomain ?? 'accel.kz');
 
 const page = usePage();
+const { t } = useI18n();
 const requestModalOpen = ref(false);
 
 const flashSuccess = computed(() => {
@@ -25,23 +27,11 @@ const flashSuccess = computed(() => {
     return flash?.success ?? null;
 });
 
-const features = [
-    {
-        icon: 'chat',
-        title: 'Несколько WhatsApp',
-        text: 'Все номера и диалоги в одном окне — без переключения между телефонами.',
-    },
-    {
-        icon: 'ai',
-        title: 'AI в переписке',
-        text: 'Подсказки, автоответы и разбор обращений, чтобы быстрее отвечать клиентам.',
-    },
-    {
-        icon: 'team',
-        title: 'Команда и воронки',
-        text: 'Задачи, статусы сделок и чаты отделов рядом с WhatsApp.',
-    },
-];
+const features = computed(() => [
+    { icon: 'chat', title: t('landing.featureMultiTitle'), text: t('landing.featureMultiText') },
+    { icon: 'ai', title: t('landing.featureAiTitle'), text: t('landing.featureAiText') },
+    { icon: 'team', title: t('landing.featureTeamTitle'), text: t('landing.featureTeamText') },
+]);
 
 const form = useForm({
     company_name: '',
@@ -68,17 +58,17 @@ let slugCheckAbort: AbortController | null = null;
 const slugStatusMessage = computed(() => {
     switch (slugStatus.value) {
         case 'checking':
-            return 'Проверяем адрес…';
+            return t('landing.slugChecking');
         case 'available':
-            return `Адрес ${form.desired_slug}.${rootDomain.value} свободен`;
+            return t('landing.slugAvailable', { slug: form.desired_slug, domain: rootDomain.value });
         case 'taken':
-            return 'Этот поддомен уже занят — выберите другой';
+            return t('landing.slugTaken');
         case 'reserved':
-            return 'Поддомен зарезервирован системой';
+            return t('landing.slugReserved');
         case 'invalid':
-            return 'Только латиница, цифры и дефис (например my-company)';
+            return t('landing.slugInvalid');
         case 'error':
-            return 'Не удалось проверить адрес — попробуйте ещё раз';
+            return t('landing.slugError');
         default:
             return '';
     }
@@ -227,22 +217,22 @@ onMounted(() => {
 
 <template>
     <div class="landing">
-        <Head title="Accel — WhatsApp для команды" />
+        <Head :title="t('landing.pageTitle')" />
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
                 Accel
             </a>
             <nav class="landing__nav">
-                <a href="/calculator" class="landing__nav-link">Калькулятор AI</a>
+                <a href="/calculator" class="landing__nav-link">{{ t('landing.calculatorLink') }}</a>
             </nav>
         </header>
 
         <main class="landing__main">
             <section class="landing__hero">
-                <h1 class="landing__title">WhatsApp для всей команды</h1>
+                <h1 class="landing__title">{{ t('landing.heroTitle') }}</h1>
                 <p class="landing__tagline">
-                    Переписка, AI-ассистент и задачи в одной платформе — без хаоса в личных телефонах.
+                    {{ t('landing.heroTaglineLong') }}
                 </p>
             </section>
 
@@ -266,10 +256,10 @@ onMounted(() => {
 
             <section id="request" class="landing__cta">
                 <button type="button" class="landing__cta-btn" @click="openRequestModal">
-                    Оставить заявку
+                    {{ t('landing.ctaButton') }}
                 </button>
                 <p class="landing__cta-hint">
-                    Заявка на проверку — рабочее пространство на {{ rootDomain }} создаётся после одобрения
+                    {{ t('landing.homeCtaHint', { domain: rootDomain }) }}
                 </p>
             </section>
         </main>
@@ -278,15 +268,15 @@ onMounted(() => {
 
         <UiModal
             :open="requestModalOpen"
-            title="Заявка на подключение"
-            subtitle="Заявка попадёт в обработку — после одобрения создадим ваш поддомен и пришлём доступ на email"
+            :title="t('landing.requestTitle')"
+            :subtitle="t('landing.requestSubtitle')"
             max-width="md"
             body-class="px-5 py-4"
             @close="closeRequestModal"
         >
             <form id="landing-request-form" class="landing-modal-form" @submit.prevent="submit">
                 <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="company_name">Компания</label>
+                    <label class="landing-modal-form__label" for="company_name">{{ t('landing.company') }}</label>
                     <input
                         id="company_name"
                         v-model="form.company_name"
@@ -300,7 +290,7 @@ onMounted(() => {
                 </div>
 
                 <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="bin">БИН</label>
+                    <label class="landing-modal-form__label" for="bin">{{ t('landing.bin') }}</label>
                     <input
                         id="bin"
                         :value="form.bin"
@@ -313,12 +303,12 @@ onMounted(() => {
                         maxlength="14"
                         @input="onBinInput"
                     />
-                    <p class="landing-modal-form__hint">12 цифр бизнес-идентификационного номера</p>
+                    <p class="landing-modal-form__hint">{{ t('landing.binHint') }}</p>
                     <InputError :message="form.errors.bin" />
                 </div>
 
                 <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="desired_slug">Желаемый поддомен</label>
+                    <label class="landing-modal-form__label" for="desired_slug">{{ t('landing.subdomain') }}</label>
                     <div class="landing-modal-form__slug" :class="slugFieldClass">
                         <input
                             id="desired_slug"
@@ -335,7 +325,7 @@ onMounted(() => {
                         />
                         <span class="landing-modal-form__slug-suffix">.{{ rootDomain }}</span>
                     </div>
-                    <p class="landing-modal-form__hint">Только латиница, цифры и дефис. Будет адрес вида <strong>my-company.{{ rootDomain }}</strong></p>
+                    <p class="landing-modal-form__hint">{{ t('landing.subdomainHint', { domain: rootDomain }) }}</p>
                     <p
                         v-if="slugStatusMessage"
                         class="landing-modal-form__slug-status"
@@ -352,7 +342,7 @@ onMounted(() => {
                 </div>
 
                 <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="contact_name">Контактное лицо</label>
+                    <label class="landing-modal-form__label" for="contact_name">{{ t('landing.contactName') }}</label>
                     <input
                         id="contact_name"
                         v-model="form.contact_name"
@@ -380,7 +370,7 @@ onMounted(() => {
                 </div>
 
                 <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="phone">Телефон</label>
+                    <label class="landing-modal-form__label" for="phone">{{ t('landing.phone') }}</label>
                     <input
                         id="phone"
                         :value="form.phone"
@@ -397,7 +387,7 @@ onMounted(() => {
 
                 <div class="landing-modal-form__field">
                     <label class="landing-modal-form__label" for="message">
-                        Комментарий <span class="landing-modal-form__optional">необязательно</span>
+                        {{ t('landing.comment') }} <span class="landing-modal-form__optional">{{ t('landing.optional') }}</span>
                     </label>
                     <textarea
                         id="message"
@@ -405,18 +395,16 @@ onMounted(() => {
                         rows="3"
                         maxlength="2000"
                         class="landing-modal-form__input landing-modal-form__textarea"
-                        placeholder="Сколько менеджеров, какие номера WhatsApp…"
+                        :placeholder="t('landing.commentPlaceholder')"
                     />
                     <InputError :message="form.errors.message" />
                 </div>
 
                 <div class="landing-modal-form__legal">
                     <div class="landing-modal-form__notice" role="note">
-                        <p class="landing-modal-form__notice-title">После одобрения заявки</p>
+                        <p class="landing-modal-form__notice-title">{{ t('landing.afterApprovalTitle') }}</p>
                         <p class="landing-modal-form__notice-text">
-                            Мы проверим данные и создадим рабочее пространство на выбранном поддомене. С момента
-                            подключения у вас будет <strong>14 календарных дней</strong> пробного периода. По их
-                            окончании выставим счёт на оплату подписки; без оплаты доступ может быть ограничен.
+                            {{ t('landing.afterApprovalText', { trialDays: t('landing.trialDaysBold') }) }}
                         </p>
                     </div>
 
@@ -424,8 +412,7 @@ onMounted(() => {
                         <label class="landing-modal-form__terms">
                             <UiCheckbox v-model="form.terms_accepted" size="sm" />
                             <span class="landing-modal-form__terms-text">
-                                Согласен с условиями: проверка заявки, создание рабочего пространства после
-                                одобрения, пробный период 14&nbsp;дней и выставление счёта
+                                {{ t('landing.termsText') }}
                             </span>
                         </label>
                         <InputError
@@ -438,7 +425,7 @@ onMounted(() => {
 
             <template #footer>
                 <button type="button" class="landing-modal-form__btn landing-modal-form__btn--ghost" @click="closeRequestModal">
-                    Отмена
+                    {{ t('landing.cancel') }}
                 </button>
                 <button
                     type="submit"
@@ -446,7 +433,7 @@ onMounted(() => {
                     class="landing-modal-form__btn landing-modal-form__btn--primary"
                     :disabled="!canSubmit"
                 >
-                    {{ form.processing ? 'Отправка…' : 'Отправить' }}
+                    {{ form.processing ? t('landing.submitting') : t('landing.submit') }}
                 </button>
             </template>
         </UiModal>

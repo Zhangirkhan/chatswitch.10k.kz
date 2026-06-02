@@ -3,6 +3,9 @@ import { computed, nextTick, ref, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { ScheduledMessage } from '@/types';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     open: boolean;
@@ -31,10 +34,10 @@ const sentItems = computed(() => items.value.filter((m) => m.status === 'sent'))
 const archiveItems = computed(() => items.value.filter((m) => m.status === 'cancelled' || m.status === 'failed'));
 
 const tabs = computed(() => [
-    { id: 'create' as const, label: editingId.value ? 'Редактировать' : 'Создать', count: null },
-    { id: 'pending' as const, label: 'Ожидают', count: pendingItems.value.length },
-    { id: 'sent' as const, label: 'Отправленные', count: sentItems.value.length },
-    { id: 'archive' as const, label: 'Архив', count: archiveItems.value.length },
+    { id: 'create' as const, label: editingId.value ? t('chats.scheduled.tabEdit') : t('chats.scheduled.tabCreate'), count: null },
+    { id: 'pending' as const, label: t('chats.scheduled.tabPending'), count: pendingItems.value.length },
+    { id: 'sent' as const, label: t('chats.scheduled.tabSent'), count: sentItems.value.length },
+    { id: 'archive' as const, label: t('chats.scheduled.tabArchive'), count: archiveItems.value.length },
 ]);
 
 function almatyDateTimeInput(date = new Date()): string {
@@ -69,7 +72,7 @@ async function load(): Promise<void> {
         const { data } = await axios.get(route('chats.scheduled-messages.index', props.chatId));
         items.value = Array.isArray(data?.scheduled_messages) ? data.scheduled_messages : [];
     } catch (e: any) {
-        error.value = e?.response?.data?.message || 'Не удалось загрузить отложенные сообщения.';
+        error.value = e?.response?.data?.message || t('chats.scheduled.loadFailed');
     } finally {
         loading.value = false;
     }
@@ -96,7 +99,7 @@ async function submit(): Promise<void> {
         await load();
         activeTab.value = 'pending';
     } catch (e: any) {
-        error.value = e?.response?.data?.message || 'Не удалось сохранить отложенное сообщение.';
+        error.value = e?.response?.data?.message || t('chats.scheduled.saveFailed');
     } finally {
         saving.value = false;
     }
@@ -130,7 +133,7 @@ async function confirmCancelScheduled(): Promise<void> {
         cancelDialogOpen.value = false;
         cancelTarget.value = null;
     } catch (e: any) {
-        error.value = e?.response?.data?.message || 'Не удалось отменить сообщение.';
+        error.value = e?.response?.data?.message || t('chats.scheduled.cancelFailed');
     } finally {
         cancelBusy.value = false;
     }
@@ -147,11 +150,11 @@ function close(): void {
 }
 
 function statusLabel(status: ScheduledMessage['status']): string {
-    if (status === 'pending') return 'Ожидает';
-    if (status === 'sending') return 'Отправляется';
-    if (status === 'sent') return 'Отправлено';
-    if (status === 'failed') return 'Ошибка';
-    return 'Отменено';
+    if (status === 'pending') return t('chats.scheduled.statusPending');
+    if (status === 'sending') return t('chats.scheduled.statusSending');
+    if (status === 'sent') return t('chats.scheduled.statusSent');
+    if (status === 'failed') return t('chats.scheduled.statusFailed');
+    return t('chats.scheduled.statusCancelled');
 }
 
 watch(
@@ -177,18 +180,18 @@ watch(
             >
                 <div class="sched-sheet" role="dialog" aria-modal="true">
                     <div class="sched-header">
-                        <button class="sched-icon-btn" type="button" title="Закрыть" @click="close">
+                        <button class="sched-icon-btn" type="button" :title="t('common.close')" @click="close">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                         <div>
-                            <h3 class="sched-title">Отложенные сообщения</h3>
-                            <p class="sched-subtitle">Время отправки: UTC+5 / Алматы</p>
+                            <h3 class="sched-title">{{ t('chats.scheduled.title') }}</h3>
+                            <p class="sched-subtitle">{{ t('chats.scheduled.subtitle') }}</p>
                         </div>
                     </div>
 
-                    <div class="sched-tabs" role="tablist" aria-label="Разделы отложенных сообщений">
+                    <div class="sched-tabs" role="tablist" :aria-label="t('chats.scheduled.tabsAria')">
                         <button
                             v-for="tab in tabs"
                             :key="tab.id"
@@ -212,12 +215,12 @@ watch(
                                 class="sched-textarea wa-scrollbar"
                                 rows="4"
                                 maxlength="4096"
-                                placeholder="Напишите сообщение..."
+                                :placeholder="t('chats.scheduled.messagePlaceholder')"
                                 :disabled="saving"
                             ></textarea>
                             <div class="sched-form-row">
                                 <label class="sched-date-label">
-                                    <span>Когда отправить</span>
+                                    <span>{{ t('chats.scheduled.whenSend') }}</span>
                                     <input
                                         v-model="scheduledAt"
                                         class="sched-date-input"
@@ -231,7 +234,7 @@ watch(
                                     type="submit"
                                     :disabled="saving || !body.trim() || !scheduledAt"
                                 >
-                                    {{ editingId ? 'Сохранить' : 'Запланировать' }}
+                                    {{ editingId ? t('common.save') : t('chats.scheduled.schedule') }}
                                 </button>
                                 <button
                                     v-if="editingId"
@@ -240,7 +243,7 @@ watch(
                                     :disabled="saving"
                                     @click="resetForm"
                                 >
-                                    Сбросить
+                                    {{ t('chats.scheduled.reset') }}
                                 </button>
                             </div>
                         </form>
@@ -249,11 +252,11 @@ watch(
 
                         <div v-if="activeTab === 'pending'" class="sched-section sched-section-tab">
                             <div class="sched-section-title">
-                                Ожидают отправки
-                                <span v-if="loading">Загрузка...</span>
+                                {{ t('chats.scheduled.pendingTitle') }}
+                                <span v-if="loading">{{ t('chats.loading') }}</span>
                             </div>
                             <div v-if="!loading && pendingItems.length === 0" class="sched-empty">
-                                Нет отложенных сообщений.
+                                {{ t('chats.scheduled.pendingEmpty') }}
                             </div>
                             <div v-for="item in pendingItems" :key="item.id" class="sched-card">
                                 <div class="sched-card-top">
@@ -265,19 +268,19 @@ watch(
                                 <div class="sched-card-text">{{ item.body }}</div>
                                 <div v-if="item.error" class="sched-card-error">{{ item.error }}</div>
                                 <div class="sched-card-actions">
-                                    <button type="button" @click="edit(item)">Редактировать</button>
-                                    <button type="button" class="sched-danger" @click="requestCancel(item)">Отменить</button>
+                                    <button type="button" @click="edit(item)">{{ t('chats.scheduled.edit') }}</button>
+                                    <button type="button" class="sched-danger" @click="requestCancel(item)">{{ t('chats.scheduled.cancelSend') }}</button>
                                 </div>
                             </div>
                         </div>
 
                         <div v-if="activeTab === 'sent'" class="sched-section sched-section-tab">
                             <div class="sched-section-title">
-                                Недавно отправленные
-                                <span v-if="loading">Загрузка...</span>
+                                {{ t('chats.scheduled.sentTitle') }}
+                                <span v-if="loading">{{ t('chats.loading') }}</span>
                             </div>
                             <div v-if="!loading && sentItems.length === 0" class="sched-empty">
-                                Нет отправленных отложенных сообщений.
+                                {{ t('chats.scheduled.sentEmpty') }}
                             </div>
                             <div v-for="item in sentItems.slice(0, 10)" :key="item.id" class="sched-card sched-card-sent">
                                 <div class="sched-card-top">
@@ -290,11 +293,11 @@ watch(
 
                         <div v-if="activeTab === 'archive'" class="sched-section sched-section-tab">
                             <div class="sched-section-title">
-                                Отменённые и ошибки
-                                <span v-if="loading">Загрузка...</span>
+                                {{ t('chats.scheduled.archiveTitle') }}
+                                <span v-if="loading">{{ t('chats.loading') }}</span>
                             </div>
                             <div v-if="!loading && archiveItems.length === 0" class="sched-empty">
-                                Нет отменённых сообщений и ошибок.
+                                {{ t('chats.scheduled.archiveEmpty') }}
                             </div>
                             <div v-for="item in archiveItems" :key="item.id" class="sched-card" :class="{ 'sched-card-failed': item.status === 'failed' }">
                                 <div class="sched-card-top">
@@ -306,8 +309,8 @@ watch(
                                 <div class="sched-card-text">{{ item.body }}</div>
                                 <div v-if="item.error" class="sched-card-error">{{ item.error }}</div>
                                 <div v-if="item.status === 'failed'" class="sched-card-actions">
-                                    <button type="button" @click="edit(item)">Редактировать</button>
-                                    <button type="button" class="sched-danger" @click="requestCancel(item)">Отменить</button>
+                                    <button type="button" @click="edit(item)">{{ t('chats.scheduled.edit') }}</button>
+                                    <button type="button" class="sched-danger" @click="requestCancel(item)">{{ t('chats.scheduled.cancelSend') }}</button>
                                 </div>
                             </div>
                         </div>
@@ -319,9 +322,9 @@ watch(
 
     <DangerConfirmModal
         :open="cancelDialogOpen"
-        title="Отменить отложенное сообщение?"
-        description="Сообщение не будет отправлено в запланированное время."
-        confirm-label="Отменить отправку"
+        :title="t('chats.scheduled.cancelTitle')"
+        :description="t('chats.scheduled.cancelDescription')"
+        :confirm-label="t('chats.scheduled.cancelConfirm')"
         :busy="cancelBusy"
         confirm-variant="danger"
         @close="closeCancelDialog"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
@@ -8,6 +9,8 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
  */
 
 const STORAGE_KEY = 'accel:pwa-install-dismissed';
+
+const { t } = useI18n();
 
 const visible = ref(false);
 const installing = ref(false);
@@ -60,8 +63,8 @@ onBeforeUnmount(() => {
                 <img src="/icons/icon-192.png" alt="Accel" width="40" height="40" />
             </div>
             <div class="pwa-banner-text">
-                <div class="pwa-banner-title">Установить Accel</div>
-                <div class="pwa-banner-sub">Быстрый доступ с главного экрана</div>
+                <div class="pwa-banner-title">{{ t('misc.pwaTitle') }}</div>
+                <div class="pwa-banner-sub">{{ t('misc.pwaSubtitle') }}</div>
             </div>
             <button
                 type="button"
@@ -69,12 +72,12 @@ onBeforeUnmount(() => {
                 :disabled="installing"
                 @click="install"
             >
-                {{ installing ? '…' : 'Установить' }}
+                {{ installing ? '…' : t('misc.pwaInstall') }}
             </button>
             <button
                 type="button"
                 class="pwa-btn-close"
-                aria-label="Закрыть"
+                :aria-label="t('common.close')"
                 @click="dismiss()"
             >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">

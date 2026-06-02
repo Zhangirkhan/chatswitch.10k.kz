@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { ClientProfileField } from '@/Components/Clients/clientProfileTypes';
 import UserAvatar from '@/Components/UserAvatar.vue';
+import { useI18n } from '@/composables/useI18n';
 import { MONEY_CURRENCIES } from '@/utils/contactFieldTypes';
 import { computed, ref } from 'vue';
+
+const { t } = useI18n();
 
 const props = withDefaults(
     defineProps<{
@@ -58,10 +61,11 @@ function moneyDraft(): { amount: string; currency: string } {
 }
 
 function booleanDraft(): string {
-    if (props.field.value === 'Да') {
+    const raw = props.field.raw_value as unknown;
+    if (raw === true || raw === 1 || raw === '1') {
         return '1';
     }
-    if (props.field.value === 'Нет') {
+    if (raw === false || raw === 0 || raw === '0') {
         return '0';
     }
     return '';
@@ -115,7 +119,7 @@ function fileUrl(): string | null {
         <template v-if="!isEditable">
             <div v-if="fieldType === 'photo' && previewUrl" class="flex items-center gap-2">
                 <UserAvatar :name="contactName || field.label" :src="previewUrl" :size="compact ? 36 : 48" />
-                <span v-if="!compact" class="text-xs opacity-70">WhatsApp / загружено</span>
+                <span v-if="!compact" class="text-xs opacity-70">{{ t('clients.fields.whatsappLoaded') }}</span>
             </div>
             <a
                 v-else-if="fieldType === 'link' && textDraft()"
@@ -133,7 +137,7 @@ function fileUrl(): string | null {
                 rel="noopener noreferrer"
                 class="break-all text-[var(--ui-accent)] underline"
             >
-                {{ field.value !== '—' ? field.value : 'Открыть файл' }}
+                {{ field.value !== '—' ? field.value : t('clients.fields.openFile') }}
             </a>
             <div v-else class="whitespace-pre-wrap break-words">{{ field.value }}</div>
         </template>
@@ -145,12 +149,12 @@ function fileUrl(): string | null {
                 </div>
                 <div v-else-if="fileUrl() && fieldType === 'file'" class="text-sm">
                     <a :href="fileUrl()!" target="_blank" rel="noopener noreferrer" class="text-[var(--ui-accent)] underline">
-                        {{ textDraft() || 'Текущий файл' }}
+                        {{ textDraft() || t('clients.fields.currentFile') }}
                     </a>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <label class="ui-btn ui-btn--secondary ui-btn--sm cursor-pointer">
-                        {{ uploading ? 'Загрузка…' : 'Загрузить' }}
+                        {{ uploading ? t('clients.fields.uploading') : t('clients.fields.upload') }}
                         <input
                             type="file"
                             class="hidden"
@@ -165,7 +169,7 @@ function fileUrl(): string | null {
                         class="ui-btn ui-btn--ghost ui-btn--sm"
                         @click="emit('clear', field)"
                     >
-                        Удалить
+                        {{ t('common.delete') }}
                     </button>
                 </div>
             </div>
@@ -177,8 +181,8 @@ function fileUrl(): string | null {
                 @change="onBooleanChange"
             >
                 <option value="">—</option>
-                <option value="1">Да</option>
-                <option value="0">Нет</option>
+                <option value="1">{{ t('common.yes') }}</option>
+                <option value="0">{{ t('common.no') }}</option>
             </select>
 
             <select
@@ -196,7 +200,7 @@ function fileUrl(): string | null {
                     type="text"
                     class="ui-input ui-field-control min-w-0 flex-1"
                     :value="moneyDraft().amount"
-                    placeholder="Сумма"
+                    :placeholder="t('clients.fields.amountPlaceholder')"
                     @blur="onMoneyBlur(($event.target as HTMLInputElement).value, moneyDraft().currency)"
                 />
                 <select

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import type { Contact, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { useI18n } from '@/composables/useI18n';
 
 export type ShareColleagueTarget = {
     id: number;
@@ -39,6 +40,8 @@ const emit = defineEmits<{
     (e: 'sent', payload: { tab: 'clients' | 'colleagues'; count: number }): void;
 }>();
 
+const { t } = useI18n();
+
 type ShareTab = 'clients' | 'colleagues';
 
 const activeTab = ref<ShareTab>('colleagues');
@@ -74,7 +77,7 @@ const clientsTabDisabled = computed(() => {
 const clientsTabHint = computed(() => {
     if (!clientsTabDisabled.value) return '';
     if (!sessionsBootstrapped.value) return '';
-    return 'Нет доступных номеров WhatsApp для отправки клиентам';
+    return t('chats.share.noWhatsappNumbers');
 });
 
 const clientsNeedSessionPick = computed(
@@ -108,7 +111,7 @@ function sessionLabel(s: ShareWhatsappSession): string {
     const name = (s.display_name || s.session_name || '').trim();
     const phone = (s.phone_number || '').trim();
     if (name && phone) return `${name} · ${phone}`;
-    return name || phone || `Сессия #${s.id}`;
+    return name || phone || t('chats.sessionNumber', { id: s.id });
 }
 
 const filteredColleagues = computed(() => {
@@ -261,7 +264,7 @@ async function sendToColleagues(): Promise<void> {
     if (ids.length === 0) return;
 
     if (source.kind === 'whatsapp' && isBulkWhatsapp.value) {
-        error.value = 'Сотрудникам можно отправить только одно сообщение. Снимите лишние из выбора.';
+        error.value = t('chats.share.errorBulkToColleagues');
         return;
     }
 
@@ -281,7 +284,7 @@ async function sendToColleagues(): Promise<void> {
 
     const message = source.message;
     if (!message?.id) {
-        error.value = 'Сообщение не выбрано';
+        error.value = t('chats.share.errorNoMessage');
         return;
     }
 
@@ -314,7 +317,7 @@ async function sendToClients(): Promise<void> {
     const isBulk = bulkIds.length > 0;
     const messageId = source.message?.id;
     if (!isBulk && messageId == null) {
-        error.value = 'Сообщение не выбрано';
+        error.value = t('chats.share.errorNoMessage');
         return;
     }
     const url = isBulk ? route('messages.forward-bulk') : route('messages.forward', messageId!);
@@ -325,7 +328,7 @@ async function sendToClients(): Promise<void> {
             : { contact_ids: contactIds, whatsapp_session_id: sessionId },
     );
     if (!data?.success) {
-        throw new Error(data?.error || 'Не удалось отправить');
+        throw new Error(data?.error || t('chats.share.errorSendFailed'));
     }
 }
 
@@ -333,7 +336,7 @@ async function send(): Promise<void> {
     if (sending.value || selectedCount.value === 0) return;
     if (activeTab.value === 'clients' && (clientsTabDisabled.value || clientsNeedSessionPick.value)) {
         if (clientsNeedSessionPick.value) {
-            error.value = 'Выберите номер WhatsApp';
+            error.value = t('chats.share.errorPickWhatsapp');
         }
         return;
     }
@@ -356,7 +359,7 @@ async function send(): Promise<void> {
             resp?.message ||
             resp?.error ||
             err?.message ||
-            'Не удалось отправить';
+            t('chats.share.errorSendFailed');
         error.value = status ? `[${status}] ${msg}` : msg;
     } finally {
         sending.value = false;
@@ -389,12 +392,12 @@ onMounted(() => {
             >
                 <div class="px-5 py-4 flex items-center justify-between" :style="{ background: 'var(--wa-panel-header)' }">
                     <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
-                        Отправить в…
+                        {{ t('chats.share.title') }}
                     </div>
                     <button
                         type="button"
                         class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                        aria-label="Закрыть"
+                        :aria-label="t('common.close')"
                         @click="emit('close')"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -416,7 +419,7 @@ onMounted(() => {
                         :title="clientsTabHint"
                         @click="!clientsTabDisabled && (activeTab = 'clients')"
                     >
-                        Клиентам
+                        {{ t('chats.share.tabClients') }}
                     </button>
                     <button
                         type="button"
@@ -427,13 +430,13 @@ onMounted(() => {
                         }"
                         @click="activeTab = 'colleagues'"
                     >
-                        Сотрудникам
+                        {{ t('chats.share.tabColleagues') }}
                     </button>
                 </div>
 
                 <div class="p-5">
                     <div v-if="isTeamSource && activeTab === 'clients' && sessions.length > 0" class="mb-3">
-                        <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">Номер WhatsApp</label>
+                        <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.share.whatsappNumber') }}</label>
                         <select
                             v-model="selectedSessionId"
                             class="w-full rounded-xl px-3 py-2 text-sm border-0 focus:ring-0 focus:outline-none"
@@ -444,13 +447,13 @@ onMounted(() => {
                     </div>
 
                     <div class="mb-3">
-                        <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">Комментарий (необязательно)</label>
+                        <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.share.captionOptional') }}</label>
                         <textarea
                             v-model="caption"
                             rows="2"
                             class="w-full rounded-xl px-3 py-2 text-sm border-0 resize-none focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
-                            placeholder="Добавить текст к пересылке…"
+                            :placeholder="t('chats.share.captionPlaceholder')"
                         />
                     </div>
 
@@ -461,7 +464,7 @@ onMounted(() => {
                         <input
                             v-model="q"
                             type="text"
-                            :placeholder="activeTab === 'colleagues' ? 'Поиск бесед…' : 'Поиск контактов…'"
+                            :placeholder="activeTab === 'colleagues' ? t('chats.share.searchColleagues') : t('chats.share.searchContacts')"
                             class="w-full pl-10 pr-3 py-2 rounded-full text-sm border-0 focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
                         />
@@ -480,11 +483,11 @@ onMounted(() => {
                         class="text-xs mt-2"
                         :style="{ color: 'var(--wa-text-secondary)' }"
                     >
-                        Несколько сообщений можно отправить только клиентам. Для сотрудников выберите одно сообщение.
+                        {{ t('chats.share.bulkHint') }}
                     </p>
 
                     <div v-if="activeTab === 'clients' && selectedContacts.length" class="mt-3">
-                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">Кому:</div>
+                        <div class="mb-2 text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.toWhom') }}</div>
                         <div class="flex flex-wrap gap-2">
                             <button
                                 v-for="c in selectedContacts"
@@ -494,7 +497,7 @@ onMounted(() => {
                                 :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
                                 @click="removeSelectedContact(c.id)"
                             >
-                                <span class="max-w-[180px] truncate">{{ contactLabel(c) || 'Без имени' }}</span>
+                                <span class="max-w-[180px] truncate">{{ contactLabel(c) || t('chats.noName') }}</span>
                                 <span aria-hidden="true">×</span>
                             </button>
                         </div>
@@ -505,7 +508,7 @@ onMounted(() => {
                     </div>
 
                     <div class="mt-4 max-h-[320px] overflow-y-auto wa-scrollbar">
-                        <div v-if="loading" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">Загрузка…</div>
+                        <div v-if="loading" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.loading') }}</div>
 
                         <template v-else-if="activeTab === 'colleagues'">
                             <button
@@ -531,7 +534,7 @@ onMounted(() => {
                                 </div>
                             </button>
                             <div v-if="filteredColleagues.length === 0" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">
-                                Беседы не найдены
+                                {{ t('chats.share.conversationsNotFound') }}
                             </div>
                         </template>
 
@@ -555,7 +558,7 @@ onMounted(() => {
                                 </span>
                                 <div class="flex-1 min-w-0 text-left">
                                     <div class="text-sm truncate" :style="{ color: 'var(--wa-text)' }">
-                                        {{ contactLabel(c) || 'Без имени' }}
+                                        {{ contactLabel(c) || t('chats.noName') }}
                                     </div>
                                     <div class="text-xs truncate" :style="{ color: 'var(--wa-text-secondary)' }">
                                         {{ formatPhone(c.phone_number) || '' }}
@@ -563,14 +566,14 @@ onMounted(() => {
                                 </div>
                             </button>
                             <div v-if="contacts.length === 0" class="text-sm px-2 py-3" :style="{ color: 'var(--wa-text-secondary)' }">
-                                Контакты не найдены
+                                {{ t('chats.share.contactsNotFound') }}
                             </div>
                         </template>
                     </div>
 
                     <div class="mt-4 flex items-center justify-between gap-3">
                         <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Выбрано: {{ selectedCount }}
+                            {{ t('chats.selected', { count: selectedCount }) }}
                         </div>
                         <div class="flex gap-2">
                             <button
@@ -579,7 +582,7 @@ onMounted(() => {
                                 :style="{ color: 'var(--wa-text)' }"
                                 @click="emit('close')"
                             >
-                                Отмена
+                                {{ t('common.cancel') }}
                             </button>
                             <button
                                 type="button"
@@ -595,7 +598,7 @@ onMounted(() => {
                                 }"
                                 @click="send"
                             >
-                                Отправить
+                                {{ t('chats.send') }}
                             </button>
                         </div>
                     </div>

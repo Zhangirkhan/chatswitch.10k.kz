@@ -16,6 +16,7 @@ import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, MessageReaction, Paginated } from '@/types';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 
 const props = defineProps<{
     chat: Chat;
@@ -96,6 +97,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const readinessBannerDismissed = ref(false);
 const funnelRealtime = ref<Partial<Chat>>({});
@@ -327,8 +329,8 @@ function closeShare() {
 }
 
 function onShareSent(payload: { tab: 'clients' | 'colleagues'; count: number }): void {
-    const label = payload.tab === 'clients' ? 'клиентам' : 'сотрудникам';
-    showToast({ message: `Отправлено ${label}: ${payload.count}`, type: 'info' });
+    const target = payload.tab === 'clients' ? t('chats.sentToClients') : t('chats.sentToColleagues');
+    showToast({ message: t('chats.sentTo', { target, count: payload.count }), type: 'info' });
     clearSelection();
 }
 
@@ -650,7 +652,7 @@ function cleanupEcho() {
 </script>
 
 <template>
-    <Head :title="headerChat.chat_name || 'Чат'" />
+    <Head :title="headerChat.chat_name || t('chats.chatFallbackTitle')" />
     <ChatLayout
         :chats="localChats"
         :selected-chat-id="headerChat.id"
@@ -669,9 +671,9 @@ function cleanupEcho() {
                     }"
                 >
                     <div class="min-w-0">
-                        <span class="font-medium">Готовность AI: {{ aiReadinessBanner.score }}%</span>
+                        <span class="font-medium">{{ t('chats.show.aiReadiness', { score: aiReadinessBanner.score }) }}</span>
                         <span class="opacity-80">
-                            (цель {{ aiReadinessBanner.threshold }}%). Откройте чеклист — меньше сюрпризов для клиентов.
+                            {{ t('chats.show.aiReadinessHint', { threshold: aiReadinessBanner.threshold }) }}
                         </span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
@@ -680,12 +682,12 @@ function cleanupEcho() {
                             class="rounded-lg px-3 py-1.5 text-xs font-semibold no-underline"
                             :style="{ background: 'var(--wa-accent)', color: 'var(--wa-accent-on)' }"
                         >
-                            Чеклист онбординга
+                            {{ t('chats.show.onboardingChecklist') }}
                         </Link>
                         <button
                             type="button"
                             class="rounded p-1 text-xs opacity-70 hover:opacity-100"
-                            aria-label="Скрыть напоминание"
+                            :aria-label="t('chats.show.hideReminderAria')"
                             @click="readinessBannerDismissed = true"
                         >
                             <span aria-hidden="true">×</span>
@@ -720,19 +722,19 @@ function cleanupEcho() {
                         <input
                             v-model="searchQuery"
                             type="text"
-                            placeholder="Поиск в сообщениях…"
+                            :placeholder="t('chats.show.searchMessages')"
                             class="w-full pl-10 pr-3 py-2 rounded-full text-sm border-0 focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
                             autofocus
                         />
                     </div>
                     <span class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                        {{ displayedMessages.length }} найдено
+                        {{ t('chats.show.searchFound', { count: displayedMessages.length }) }}
                     </span>
                     <button
                         @click="toggleSearch"
                         class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                        title="Закрыть"
+                        :title="t('common.close')"
                         type="button"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -754,16 +756,16 @@ function cleanupEcho() {
                         </svg>
                         <button type="button" class="flex-1 min-w-0 text-left" @click="jumpToPinned">
                             <div class="text-xs font-medium truncate" :style="{ color: 'var(--wa-text)' }">
-                                Закреплено
+                                {{ t('chats.show.pinned') }}
                             </div>
                             <div class="text-xs truncate" :style="{ color: 'var(--wa-text-secondary)' }">
-                                {{ (pinned.body || '').trim() || (pinned.type && pinned.type !== 'chat' ? 'Медиа' : '') || 'Сообщение' }}
+                                {{ (pinned.body || '').trim() || (pinned.type && pinned.type !== 'chat' ? t('chats.show.media') : '') || t('chats.show.message') }}
                             </div>
                         </button>
                         <button
                             type="button"
                             class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                            title="Открепить"
+                            :title="t('chats.show.unpin')"
                             @click="unpinPinned"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -782,7 +784,7 @@ function cleanupEcho() {
                             <button
                                 type="button"
                                 class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                                title="Отменить выбор"
+                                :title="t('chats.show.cancelSelection')"
                                 @click="clearSelection"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -790,7 +792,7 @@ function cleanupEcho() {
                                 </svg>
                             </button>
                             <span class="text-sm font-medium truncate" :style="{ color: 'var(--wa-text)' }">
-                                Выбрано: {{ selectedCount }}
+                                {{ t('chats.selected', { count: selectedCount }) }}
                             </span>
                         </div>
                         <div class="flex items-center gap-2">
@@ -800,7 +802,7 @@ function cleanupEcho() {
                                 :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
                                 @click="openForwardSelected"
                             >
-                                Переслать
+                                {{ t('chats.show.forward') }}
                             </button>
                         </div>
                     </div>
@@ -821,7 +823,7 @@ function cleanupEcho() {
                                 :disabled="isLoadingMore"
                                 @click="loadMoreMessages"
                             >
-                                {{ isLoadingMore ? 'Загрузка…' : 'Загрузить ещё 50 сообщений' }}
+                                {{ isLoadingMore ? t('chats.loading') : t('chats.show.loadMore') }}
                             </button>
                         </div>
 
@@ -850,10 +852,10 @@ function cleanupEcho() {
                             :style="{ background: 'var(--wa-date-bubble)', color: 'var(--wa-date-bubble-text)' }"
                         >
                             <template v-if="searchQuery">
-                                Ничего не найдено
+                                {{ t('chats.show.noSearchResults') }}
                             </template>
                             <template v-else>
-                                Нет сообщений
+                                {{ t('chats.show.noMessages') }}
                             </template>
                         </p>
                     </div>

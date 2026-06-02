@@ -3,7 +3,8 @@ import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
-import { invoiceStatusBadgeClass, invoiceStatusLabels } from '@/utils/superAdminInvoiceBadge';
+import { useI18n } from '@/composables/useI18n';
+import { invoiceStatusBadgeClass, invoiceStatusLabel } from '@/utils/superAdminInvoiceBadge';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 interface InvoiceRow {
@@ -29,6 +30,8 @@ const props = defineProps<{
     companies: Array<{ id: number; name: string; slug: string }>;
 }>();
 
+const { t } = useI18n();
+
 const filterForm = useForm({ ...props.filters });
 
 function applyFilters(): void {
@@ -40,42 +43,42 @@ function formatPrice(cents: number): string {
 }
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return t('superAdmin.common.emDash');
     return new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 }
 </script>
 
 <template>
     <SuperAdminLayout>
-        <Head title="Все счета" />
-        <h1 class="mb-6 text-2xl font-bold">Все счета</h1>
+        <Head :title="t('superAdmin.invoices.pageTitle')" />
+        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.invoices.heading') }}</h1>
 
         <UiFilterPanel class="mb-4" @submit="applyFilters">
-            <UiFilterField label="Поиск" wide>
-                <input v-model="filterForm.q" type="search" placeholder="Номер, компания" class="ui-input" />
+            <UiFilterField :label="t('superAdmin.invoices.filterSearch')" wide>
+                <input v-model="filterForm.q" type="search" :placeholder="t('superAdmin.invoices.filterSearchPlaceholder')" class="ui-input" />
             </UiFilterField>
-            <UiFilterField label="Статус">
+            <UiFilterField :label="t('superAdmin.invoices.filterStatus')">
                 <select v-model="filterForm.status" class="ui-select">
-                    <option value="">Все</option>
-                    <option value="issued">Выставлен</option>
-                    <option value="paid">Оплачен</option>
-                    <option value="void">Аннулирован</option>
+                    <option value="">{{ t('superAdmin.common.filterAll') }}</option>
+                    <option value="issued">{{ t('superAdmin.invoice.status.issued') }}</option>
+                    <option value="paid">{{ t('superAdmin.invoice.status.paid') }}</option>
+                    <option value="void">{{ t('superAdmin.invoice.status.void') }}</option>
                 </select>
             </UiFilterField>
-            <UiFilterField label="Компания">
+            <UiFilterField :label="t('superAdmin.invoices.filterCompany')">
                 <select v-model="filterForm.company_id" class="ui-select">
-                    <option value="">Все</option>
+                    <option value="">{{ t('superAdmin.common.filterAll') }}</option>
                     <option v-for="c in companies" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
                 </select>
             </UiFilterField>
-            <UiFilterField label="С">
+            <UiFilterField :label="t('superAdmin.invoices.filterFrom')">
                 <input v-model="filterForm.from" type="date" class="ui-input" />
             </UiFilterField>
-            <UiFilterField label="По">
+            <UiFilterField :label="t('superAdmin.invoices.filterTo')">
                 <input v-model="filterForm.to" type="date" class="ui-input" />
             </UiFilterField>
             <template #actions>
-                <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">Применить</button>
+                <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">{{ t('superAdmin.common.apply') }}</button>
             </template>
         </UiFilterPanel>
 
@@ -83,12 +86,12 @@ function formatDate(iso: string | null): string {
             <table class="min-w-[720px] w-full text-left text-sm">
                 <thead>
                     <tr>
-                        <th>Номер</th>
-                        <th>Компания</th>
-                        <th>Сумма</th>
-                        <th>Статус</th>
-                        <th>Выставлен</th>
-                        <th class="text-right">Действия</th>
+                        <th>{{ t('superAdmin.invoices.tableNumber') }}</th>
+                        <th>{{ t('superAdmin.invoices.tableCompany') }}</th>
+                        <th>{{ t('superAdmin.invoices.tableAmount') }}</th>
+                        <th>{{ t('superAdmin.invoices.tableStatus') }}</th>
+                        <th>{{ t('superAdmin.invoices.tableIssued') }}</th>
+                        <th class="text-right">{{ t('superAdmin.common.actions') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -102,12 +105,12 @@ function formatDate(iso: string | null): string {
                             >
                                 {{ inv.company.name }}
                             </Link>
-                            <span v-else>—</span>
+                            <span v-else>{{ t('superAdmin.common.emDash') }}</span>
                         </td>
                         <td>{{ formatPrice(inv.amount_cents) }}</td>
                         <td>
                             <span :class="invoiceStatusBadgeClass(inv.status)">
-                                {{ invoiceStatusLabels[inv.status] ?? inv.status }}
+                                {{ invoiceStatusLabel(inv.status, t) }}
                             </span>
                         </td>
                         <td class="text-ui-text-muted">{{ formatDate(inv.issued_at) }}</td>
@@ -118,12 +121,12 @@ function formatDate(iso: string | null): string {
                                 rel="noopener"
                                 class="ui-btn ui-btn--ghost ui-btn--sm"
                             >
-                                Открыть PDF/печать
+                                {{ t('superAdmin.invoices.openPdf') }}
                             </a>
                         </td>
                     </tr>
                     <tr v-if="invoices.data.length === 0">
-                        <td colspan="6" class="py-8 text-center text-ui-text-muted">Счета не найдены</td>
+                        <td colspan="6" class="py-8 text-center text-ui-text-muted">{{ t('superAdmin.invoices.empty') }}</td>
                     </tr>
                 </tbody>
             </table>

@@ -11,6 +11,7 @@ import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -48,6 +49,7 @@ const props = defineProps<{
 
 const page = usePage<any>();
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const threads = ref<AiThread[]>([]);
 const activeThreadId = ref<string | null>(null);
@@ -142,10 +144,10 @@ const threadGroups = computed<ThreadGroup[]>(() => {
     const dayMs = 86_400_000;
 
     const buckets: Record<string, AiThread[]> = {
-        Сегодня: [],
-        Вчера: [],
-        'Последние 7 дней': [],
-        Ранее: [],
+        [t('aiChat.threadToday')]: [],
+        [t('aiChat.threadYesterday')]: [],
+        [t('aiChat.threadLast7')]: [],
+        [t('aiChat.threadEarlier')]: [],
     };
 
     for (const thread of sorted) {
@@ -153,13 +155,13 @@ const threadGroups = computed<ThreadGroup[]>(() => {
         const diffDays = Math.floor((now.getTime() - updated.getTime()) / dayMs);
 
         if (diffDays <= 0) {
-            buckets['Сегодня'].push(thread);
+            buckets[t('aiChat.threadToday')].push(thread);
         } else if (diffDays === 1) {
-            buckets['Вчера'].push(thread);
+            buckets[t('aiChat.threadYesterday')].push(thread);
         } else if (diffDays <= 7) {
-            buckets['Последние 7 дней'].push(thread);
+            buckets[t('aiChat.threadLast7')].push(thread);
         } else {
-            buckets['Ранее'].push(thread);
+            buckets[t('aiChat.threadEarlier')].push(thread);
         }
     }
 
@@ -175,7 +177,7 @@ function newThreadId(): string {
 function threadTitleFromMessage(text: string): string {
     const trimmed = text.trim().replace(/\s+/g, ' ');
     if (!trimmed) {
-        return 'Новый чат';
+        return t('aiChat.newChat');
     }
 
     return trimmed.length > 42 ? `${trimmed.slice(0, 42)}…` : trimmed;
@@ -196,7 +198,7 @@ function emptyWorkspaceResults(): WorkspaceResults {
 function createThread(): AiThread {
     const thread: AiThread = {
         id: newThreadId(),
-        title: 'Новый чат',
+        title: t('aiChat.newChat'),
         updatedAt: Date.now(),
         turns: [],
         client_summary: null,
@@ -260,7 +262,7 @@ function migrateLegacyStorage(): void {
         const firstUser = turnsLegacy.find((t) => t.role === 'user');
         const thread: AiThread = {
             id: newThreadId(),
-            title: firstUser ? threadTitleFromMessage(firstUser.content) : 'Прошлый диалог',
+            title: firstUser ? threadTitleFromMessage(firstUser.content) : t('aiChat.pastDialog'),
             updatedAt: Date.now(),
             turns: turnsLegacy,
             client_summary: null,
@@ -347,7 +349,7 @@ async function loadClientSummary(contactId: number, chatId?: number | null): Pro
             thread.focusedContactId = thread.client_summary.contact_id;
         }
     } catch {
-        showToast({ message: 'Не удалось загрузить сводку клиента', type: 'warning' });
+        showToast({ message: t('aiChat.summaryLoadFailed'), type: 'warning' });
     } finally {
         thread.summaryLoading = false;
         thread.updatedAt = Date.now();
@@ -479,9 +481,9 @@ function applySuggestion(text: string): void {
 async function copyTurn(content: string): Promise<void> {
     try {
         await navigator.clipboard.writeText(content);
-        showToast({ message: 'Скопировано', type: 'info' });
+        showToast({ message: t('aiChat.copied'), type: 'info' });
     } catch {
-        showToast({ message: 'Не удалось скопировать', type: 'warning' });
+        showToast({ message: t('aiChat.copyFailed'), type: 'warning' });
     }
 }
 
@@ -498,7 +500,7 @@ async function send(): Promise<void> {
     resizeTextarea();
 
     thread.turns.push({ role: 'user', content: text, ts: Date.now() });
-    if (thread.title === 'Новый чат') {
+    if (thread.title === t('aiChat.newChat')) {
         thread.title = threadTitleFromMessage(text);
     }
     thread.updatedAt = Date.now();
@@ -534,7 +536,7 @@ async function send(): Promise<void> {
         const msg =
             axios.isAxiosError(e) && e.response?.data && typeof e.response.data.message === 'string'
                 ? e.response.data.message
-                : 'Не удалось выполнить запрос.';
+                : t('aiChat.requestFailed');
         error.value = msg;
         thread.turns.push({
             role: 'assistant',
@@ -584,7 +586,7 @@ watch(resultsOpen, (open) => {
 
 <template>
     <AuthenticatedLayout>
-        <Head title="ИИ чат" />
+        <Head :title="t('nav.aiChat')" />
 
         <div
             class="ai-workspace"
@@ -604,13 +606,13 @@ watch(resultsOpen, (open) => {
                         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                             <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                         </svg>
-                        Новый чат
+                        {{ t('aiChat.newChat') }}
                     </button>
                 </div>
 
                 <div class="ai-workspace__thread-list wa-scrollbar">
                     <p v-if="threads.length === 0" class="ai-workspace__thread-empty">
-                        История появится после первого запроса
+                        {{ t('aiChat.historyEmpty') }}
                     </p>
 
                     <section
@@ -632,7 +634,7 @@ watch(resultsOpen, (open) => {
                                         class="ai-workspace__thread-delete"
                                         role="button"
                                         tabindex="0"
-                                        aria-label="Удалить чат"
+                                        :aria-label="t('aiChat.deleteChatAria')"
                                         @click="deleteThread(thread.id, $event)"
                                         @keydown.enter.prevent="deleteThread(thread.id, $event)"
                                     >
@@ -658,10 +660,10 @@ watch(resultsOpen, (open) => {
                     <div class="ai-workspace__topbar-left">
                         <div class="min-w-0">
                             <h1 class="ai-workspace__topbar-title">
-                                {{ activeThread?.title ?? 'ИИ чат' }}
+                                {{ activeThread?.title ?? t('nav.aiChat') }}
                             </h1>
                             <p class="ai-workspace__topbar-sub">
-                                Поиск клиентов, контактов и файлов в переписках
+                                {{ t('aiChat.subtitle') }}
                             </p>
                         </div>
                     </div>
@@ -673,7 +675,7 @@ watch(resultsOpen, (open) => {
                             :class="{ 'is-active': resultsOpen }"
                             @click="resultsOpen = !resultsOpen"
                         >
-                            Панель
+                            {{ t('aiChat.panel') }}
                         </button>
                     </div>
                 </header>
@@ -693,9 +695,9 @@ watch(resultsOpen, (open) => {
                                         />
                                     </svg>
                                 </div>
-                                <h2 class="ai-workspace__hero-title">Чем могу помочь?</h2>
+                                <h2 class="ai-workspace__hero-title">{{ t('aiChat.heroTitle') }}</h2>
                                 <p class="ai-workspace__hero-desc">
-                                    Сформулируйте запрос — найду клиентов, контакты и файлы по вашим WhatsApp-перепискам.
+                                    {{ t('aiChat.heroHint') }}
                                 </p>
                                 <div class="ai-workspace__suggestions">
                                     <button
@@ -746,7 +748,7 @@ watch(resultsOpen, (open) => {
 
                                     <div class="ai-workspace__turn-body">
                                         <div class="ai-workspace__turn-meta">
-                                            {{ turn.role === 'user' ? userName : 'Ассистент' }}
+                                            {{ turn.role === 'user' ? userName : t('aiChat.assistant') }}
                                         </div>
                                         <div class="ai-workspace__turn-bubble-wrap">
                                             <div
@@ -765,8 +767,8 @@ watch(resultsOpen, (open) => {
                                                 class="ai-workspace__copy-btn"
                                                 :class="{ 'is-visible': hoveredTurn === idx }"
                                                 tabindex="-1"
-                                                title="Копировать"
-                                                aria-label="Копировать сообщение"
+                                                :title="t('aiChat.copy')"
+                                                :aria-label="t('aiChat.copyAria')"
                                                 @click="copyTurn(turn.content)"
                                             >
                                                 <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -845,7 +847,7 @@ watch(resultsOpen, (open) => {
                                 v-model="draft"
                                 rows="1"
                                 class="ai-workspace__composer-input"
-                                placeholder="Спросите про клиентов, компании или файлы…"
+                                :placeholder="t('aiChat.inputPlaceholder')"
                                 :disabled="sending"
                                 spellcheck="false"
                                 @keydown="onKeydown"
@@ -855,7 +857,7 @@ watch(resultsOpen, (open) => {
                                 type="button"
                                 class="ai-workspace__send-btn"
                                 :disabled="sending || !draft.trim()"
-                                aria-label="Отправить"
+                                :aria-label="t('aiChat.sendAria')"
                                 @click="send"
                             >
                                 <span v-if="sending" class="ai-workspace__send-spinner" aria-hidden="true"></span>
@@ -871,7 +873,7 @@ watch(resultsOpen, (open) => {
                             </button>
                         </div>
                         <p class="ai-workspace__composer-hint">
-                            Enter — отправить · Shift+Enter — новая строка
+                            {{ t('aiChat.inputHint') }}
                         </p>
                     </div>
                 </footer>
@@ -903,9 +905,9 @@ watch(resultsOpen, (open) => {
 
         <DangerConfirmModal
             :open="pendingDeleteThreadId !== null"
-            title="Удалить чат?"
-            :description="pendingDeleteThreadTitle ? `Чат «${pendingDeleteThreadTitle}» будет удалён без возможности восстановления.` : 'Чат будет удалён без возможности восстановления.'"
-            confirm-label="Удалить"
+            :title="t('aiChat.deleteTitle')"
+            :description="pendingDeleteThreadTitle ? t('aiChat.deleteDescNamed', { title: pendingDeleteThreadTitle }) : t('aiChat.deleteDesc')"
+            :confirm-label="t('common.delete')"
             @close="pendingDeleteThreadId = null"
             @confirm="confirmDeleteThread"
         />

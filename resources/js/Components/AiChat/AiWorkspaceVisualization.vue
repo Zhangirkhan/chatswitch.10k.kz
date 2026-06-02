@@ -15,6 +15,7 @@ import {
     PointElement,
     Tooltip,
 } from 'chart.js';
+import { useI18n } from '@/composables/useI18n';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Bar, Doughnut, Line, Pie } from 'vue-chartjs';
 import { repairMermaidCode, stripMermaidFences } from '@/utils/mermaidCode';
@@ -47,6 +48,8 @@ ChartJS.register(
 const props = defineProps<{
     item: AiVisualization;
 }>();
+
+const { t } = useI18n();
 
 const { theme } = useTheme();
 const mermaidHost = ref<HTMLElement | null>(null);
@@ -111,7 +114,7 @@ async function renderMermaid(): Promise<void> {
             return;
         }
 
-        mermaidError.value = 'Не удалось отрисовать схему.';
+        mermaidError.value = t('aiChat.mermaidError');
         host.innerHTML = '';
     }
 }

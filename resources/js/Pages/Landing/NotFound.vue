@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 
 const props = defineProps<{
     attemptedHost?: string | null;
     reason?: 'unknown_tenant' | 'not_found' | null;
 }>();
 
-const isUnknownTenant = props.reason === 'unknown_tenant';
-const heading = isUnknownTenant
-    ? 'Такого рабочего пространства не существует'
-    : 'Страница не найдена';
-const subheading = isUnknownTenant && props.attemptedHost
-    ? `Адрес ${props.attemptedHost} не зарегистрирован в Accel.`
-    : 'Извините, страница, которую вы ищете, отсутствует или была перемещена.';
+const { t } = useI18n();
+
+const isUnknownTenant = computed(() => props.reason === 'unknown_tenant');
+const heading = computed(() =>
+    isUnknownTenant.value ? t('landing.notFoundUnknownTenant') : t('landing.notFoundPage'),
+);
+const subheading = computed(() => {
+    if (isUnknownTenant.value && props.attemptedHost) {
+        return t('landing.notFoundUnknownDesc', { host: props.attemptedHost });
+    }
+    return t('landing.notFoundPageDesc');
+});
 </script>
 
 <template>
@@ -29,8 +36,8 @@ const subheading = isUnknownTenant && props.attemptedHost
         <header class="not-found__header">
             <a href="/" class="not-found__brand">Accel</a>
             <nav class="not-found__nav">
-                <a href="https://app.accel.kz/login" class="not-found__nav-link">Вход</a>
-                <a href="/#request" class="not-found__nav-cta">Оставить заявку</a>
+                <a href="https://app.accel.kz/login" class="not-found__nav-link">{{ t('misc.login') }}</a>
+                <a href="/#request" class="not-found__nav-cta">{{ t('landing.notFoundRequest') }}</a>
             </nav>
         </header>
 
@@ -70,15 +77,15 @@ const subheading = isUnknownTenant && props.attemptedHost
                         <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M3 10l7-7 7 7M5 9v8h10V9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
-                        На главную
+                        {{ t('landing.notFoundBackHome') }}
                     </a>
                     <a href="/#request" class="not-found__btn not-found__btn--ghost">
-                        Оставить заявку
+                        {{ t('landing.notFoundRequest') }}
                     </a>
                 </div>
 
                 <p class="not-found__hint">
-                    Если вы&nbsp;уверены, что адрес верный — напишите нам:
+                    {{ t('landing.notFoundContactHint') }}:
                     <a href="mailto:hello@accel.kz">hello@accel.kz</a>
                 </p>
             </div>

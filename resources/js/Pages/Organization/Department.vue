@@ -2,9 +2,12 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import axios from 'axios';
+import { useI18n } from '@/composables/useI18n';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
+
+const { t } = useI18n();
 
 export interface OrgAssignee {
     id: number;
@@ -86,7 +89,7 @@ function toggleAssignee(userId: number) {
 async function submitCreate() {
     if (submitting.value) return;
     if (draftTitle.value.trim() === '') {
-        submitError.value = 'Введите заголовок задачи.';
+        submitError.value = t('organization.taskTitleRequired');
         return;
     }
     submitting.value = true;
@@ -105,9 +108,9 @@ async function submitCreate() {
         router.reload({ only: ['departments'] });
     } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
-            submitError.value = e.response?.data?.message || 'Не удалось создать задачу.';
+            submitError.value = e.response?.data?.message || t('organization.taskCreateFailed');
         } else {
-            submitError.value = 'Не удалось создать задачу.';
+            submitError.value = t('organization.taskCreateFailed');
         }
     } finally {
         submitting.value = false;
@@ -115,9 +118,9 @@ async function submitCreate() {
 }
 
 function statusLabel(status: OrgPost['status']): string {
-    if (status === 'in_progress') return 'В работе';
-    if (status === 'done') return 'Готово';
-    return 'Открыта';
+    if (status === 'in_progress') return t('organization.statusInProgress');
+    if (status === 'done') return t('organization.statusDone');
+    return t('organization.statusOpen');
 }
 
 function formatDate(value: string | null): string {
@@ -148,7 +151,7 @@ function initial(name: string): string {
 </script>
 
 <template>
-    <Head :title="`${department.name} · Организация`" />
+    <Head :title="t('organization.departmentPageTitle', { name: department.name })" />
     <OrganizationLayout
         :departments="departments"
         :selected-department-id="department.id"
@@ -173,15 +176,15 @@ function initial(name: string): string {
                     @click="openCreate"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    Создать пост
+                    {{ t('organization.createPost') }}
                 </button>
             </div>
 
             <!-- Posts list -->
             <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4">
                 <div v-if="localPosts.length === 0" class="text-sm text-[var(--wa-text-secondary)] text-center py-12">
-                    <span v-if="archived_count === 0">В этом отделе пока нет задач. Создайте первую задачу, чтобы начать обсуждение.</span>
-                    <span v-else>Все задачи завершены.</span>
+                    <span v-if="archived_count === 0">{{ t('organization.deptEmptyNoTasks') }}</span>
+                    <span v-else>{{ t('organization.deptEmptyAllDone') }}</span>
                 </div>
                 <Link
                     v-for="post in localPosts"
@@ -196,7 +199,7 @@ function initial(name: string): string {
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            До {{ formatDate(post.due_at) }}
+                            {{ t('organization.dueUntil', { date: formatDate(post.due_at) }) }}
                         </span>
                     </div>
 
@@ -227,14 +230,14 @@ function initial(name: string): string {
                                 </span>
                             </div>
                         </template>
-                        <span v-else class="post-card-no-assignee">Ответственный не назначен</span>
+                        <span v-else class="post-card-no-assignee">{{ t('organization.noAssignee') }}</span>
                     </div>
 
                     <!-- Мета: автор · дата · вложения · комментарии -->
                     <div class="post-card-meta">
                         <span class="post-card-author">
                             <span class="post-card-author-avatar">{{ initial(post.author?.name || '?') }}</span>
-                            {{ post.author?.name || 'Без автора' }}
+                            {{ post.author?.name || t('organization.noAuthor') }}
                         </span>
                         <span class="post-card-meta-sep">·</span>
                         <span>{{ formatDate(post.created_at) }}</span>
@@ -257,7 +260,7 @@ function initial(name: string): string {
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4" />
                     </svg>
-                    Архив задач отдела
+                    {{ t('organization.deptArchiveLink') }}
                     <span class="archive-link-count">{{ archived_count }}</span>
                     <svg class="w-3.5 h-3.5 ml-auto opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -271,40 +274,40 @@ function initial(name: string): string {
             <div v-if="showCreate" class="org-modal-backdrop" @click.self="closeCreate">
                 <div class="org-modal org-modal-wide">
                     <div class="org-modal-header">
-                        <h3>Новый пост-задача</h3>
-                        <button type="button" class="org-modal-close" @click="closeCreate" aria-label="Закрыть">×</button>
+                        <h3>{{ t('organization.newTaskModalTitle') }}</h3>
+                        <button type="button" class="org-modal-close" @click="closeCreate" :aria-label="t('organization.closeAria')">×</button>
                     </div>
                     <form @submit.prevent="submitCreate" class="org-modal-body">
                         <label class="form-row">
-                            <span>Заголовок</span>
-                            <input v-model="draftTitle" type="text" maxlength="255" placeholder="Что нужно сделать" autofocus />
+                            <span>{{ t('organization.fieldTitle') }}</span>
+                            <input v-model="draftTitle" type="text" maxlength="255" :placeholder="t('organization.taskTitlePlaceholder')" autofocus />
                         </label>
                         <div class="form-row">
-                            <span>Описание</span>
+                            <span>{{ t('organization.fieldDescription') }}</span>
                             <RichTextEditor
                                 v-model="draftBody"
-                                placeholder="Подробности задачи (опционально)"
+                                :placeholder="t('organization.taskDetailsPlaceholder')"
                                 min-height="160px"
                             />
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <label class="form-row">
-                                <span>Статус</span>
+                                <span>{{ t('organization.fieldStatus') }}</span>
                                 <select v-model="draftStatus">
-                                    <option value="open">Открыта</option>
-                                    <option value="in_progress">В работе</option>
-                                    <option value="done">Готово</option>
+                                    <option value="open">{{ t('organization.statusOpen') }}</option>
+                                    <option value="in_progress">{{ t('organization.statusInProgress') }}</option>
+                                    <option value="done">{{ t('organization.statusDone') }}</option>
                                 </select>
                             </label>
                             <label class="form-row">
-                                <span>Срок</span>
+                                <span>{{ t('organization.fieldDue') }}</span>
                                 <input v-model="draftDue" type="datetime-local" />
                             </label>
                         </div>
 
                         <!-- Assignees picker -->
                         <div v-if="members.length > 0" class="form-row">
-                            <span>Ответственные</span>
+                            <span>{{ t('organization.fieldAssignees') }}</span>
                             <div class="assignee-picker">
                                 <button
                                     v-for="m in members"
@@ -327,8 +330,8 @@ function initial(name: string): string {
                             {{ submitError }}
                         </div>
                         <div class="org-modal-actions">
-                            <button type="button" class="secondary-btn" @click="closeCreate">Отмена</button>
-                            <button type="submit" class="primary-btn" :disabled="submitting">Создать</button>
+                            <button type="button" class="secondary-btn" @click="closeCreate">{{ t('organization.cancel') }}</button>
+                            <button type="submit" class="primary-btn" :disabled="submitting">{{ t('organization.create') }}</button>
                         </div>
                     </form>
                 </div>

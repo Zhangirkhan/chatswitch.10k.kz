@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -33,12 +34,14 @@ const emit = defineEmits<{
     toggle: [];
 }>();
 
+const { t } = useI18n();
+
 const maxSpark = computed(() =>
     Math.max(1, ...props.billingSummary.revenue_sparkline.map((p) => p.amount_kzt)),
 );
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return t('superAdmin.common.emDash');
     return new Date(iso).toLocaleDateString('ru-RU', { dateStyle: 'medium' });
 }
 
@@ -105,7 +108,7 @@ function impersonate(): void {
                     rel="noopener noreferrer"
                     class="text-sm text-ui-accent hover:text-ui-accent-hover hover:underline"
                 >
-                    {{ company.slug }}.{{ rootDomain ?? 'accel.kz' }} — открыть
+                    {{ t('superAdmin.companies.header.openTenant', { slug: company.slug, domain: rootDomain ?? 'accel.kz' }) }}
                 </a>
                 <button
                     v-if="canPopulateSandbox"
@@ -114,7 +117,7 @@ function impersonate(): void {
                     :disabled="populating"
                     @click="populateSandbox"
                 >
-                    {{ populating ? 'Загрузка…' : 'Заполнить тестовыми данными' }}
+                    {{ populating ? t('superAdmin.companies.header.populating') : t('superAdmin.companies.header.populateSandbox') }}
                 </button>
                 <button
                     type="button"
@@ -123,7 +126,7 @@ function impersonate(): void {
                     :title="impersonateBlockedReason ?? undefined"
                     @click="impersonate"
                 >
-                    {{ impersonating ? 'Открываем…' : 'Войти как админ' }}
+                    {{ impersonating ? t('superAdmin.companies.header.impersonating') : t('superAdmin.companies.header.impersonate') }}
                 </button>
             </div>
             <p v-if="!canImpersonate && impersonateBlockedReason" class="mt-1 text-xs text-ui-text-muted">
@@ -145,7 +148,7 @@ function impersonate(): void {
                     :class="company.is_active ? 'translate-x-4' : 'translate-x-1'"
                 ></span>
             </span>
-            {{ company.is_active ? 'Тенант включён' : 'Тенант отключён' }}
+            {{ company.is_active ? t('superAdmin.companies.header.tenantEnabled') : t('superAdmin.companies.header.tenantDisabled') }}
         </button>
     </div>
 
@@ -157,7 +160,7 @@ function impersonate(): void {
             </div>
         </div>
         <div class="ui-panel px-4 py-3">
-            <div class="text-xs text-ui-text-muted">Следующий платёж</div>
+            <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.nextPayment') }}</div>
             <div class="mt-0.5 text-sm font-medium">
                 {{ formatDate(billingSummary.next_payment_at) }}
             </div>
@@ -165,11 +168,11 @@ function impersonate(): void {
                 v-if="billingSummary.trial_days_left !== null"
                 class="mt-0.5 text-xs text-ui-accent"
             >
-                Триал: {{ billingSummary.trial_days_left }} дн.
+                {{ t('superAdmin.companies.header.trialDays', { days: billingSummary.trial_days_left }) }}
             </p>
         </div>
         <div class="ui-panel px-4 py-3" :class="billingSummary.overdue_invoices > 0 ? 'ring-1 ring-ui-danger/40' : ''">
-            <div class="text-xs text-ui-text-muted">Неоплаченные счета</div>
+            <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.unpaidInvoices') }}</div>
             <div
                 class="mt-0.5 text-xl font-semibold"
                 :class="billingSummary.overdue_invoices > 0 ? 'text-ui-danger' : ''"
@@ -178,14 +181,14 @@ function impersonate(): void {
             </div>
         </div>
         <div class="ui-panel px-4 py-3">
-            <div class="mb-2 text-xs text-ui-text-muted">Оплаты за 6 мес.</div>
+            <div class="mb-2 text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.paymentsSparkline') }}</div>
             <div class="flex h-10 items-end gap-1">
                 <div
                     v-for="p in billingSummary.revenue_sparkline"
                     :key="p.label"
                     class="min-h-[4px] flex-1 rounded-t bg-ui-accent/50 transition-all"
                     :style="{ height: `${Math.max(12, (p.amount_kzt / maxSpark) * 100)}%` }"
-                    :title="`${p.label}: ${p.amount_kzt.toLocaleString('ru-RU')} ₸`"
+                    :title="t('superAdmin.companies.header.sparklineTooltip', { label: p.label, amount: p.amount_kzt.toLocaleString('ru-RU') })"
                 />
             </div>
         </div>

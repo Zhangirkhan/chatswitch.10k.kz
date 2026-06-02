@@ -16,6 +16,7 @@ import { formatPhone } from '@/utils/phone';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch, Transition, type ComponentPublicInstance } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 
 type BoardScope = 'all' | 'mine' | 'department';
@@ -93,6 +94,7 @@ const props = defineProps<{
 
 const page = usePage<any>();
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const funnelsModuleEnabled = computed(() => Boolean(page.props.modules?.funnels ?? true));
 const analyticsEnabled = computed(() => Boolean(page.props.modules?.analytics ?? true));
@@ -169,13 +171,13 @@ useFunnelBoardRealtime({
     },
     onExternalMove: (card, _stageId, actorName) => {
         showToast({
-            message: `${actorName || 'Коллега'} переместил «${card.name}»`,
+            message: t('funnels.colleagueMoved', { actor: actorName || t('funnels.colleagueDefault'), card: card.name }),
             type: 'info',
         });
     },
     onConflict: (card, actorName) => {
         showToast({
-            message: `${actorName || 'Коллега'} тоже переместил «${card.name}» — применена его версия`,
+            message: t('funnels.colleagueOverride', { actor: actorName || t('funnels.colleagueDefault'), card: card.name }),
             type: 'warning',
         });
     },
@@ -268,7 +270,7 @@ function canAcceptCardsOnStage(stage: BoardStage, incomingCount = 1): boolean {
 }
 
 function wipBlockedMessage(stage: BoardStage): string {
-    return `Лимит WIP на этапе «${stage.name}»: ${stage.wip_limit}`;
+    return t('funnels.wipLimit', { stage: stage.name, limit: stage.wip_limit ?? 0 });
 }
 
 function isCardSelected(cardId: number): boolean {
@@ -336,10 +338,10 @@ async function assignCardToMe(card: BoardCard, event: MouseEvent): Promise<void>
             .map((row: { user?: { id: number; name: string } }) => row.user)
             .filter(Boolean);
         updateCardAssignees(card.id, assignees);
-        showToast({ message: `«${card.name}» назначен вам`, type: 'info' });
+        showToast({ message: t('funnels.assignedToYou', { name: card.name }), type: 'info' });
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err?.response?.data?.message || 'Не удалось назначить', type: 'warning' });
+        showToast({ message: err?.response?.data?.message || t('funnels.assignFailed'), type: 'warning' });
     }
 }
 
@@ -424,7 +426,7 @@ async function reloadBoard(silent = false): Promise<void> {
         stages.value = data.stages ?? [];
     } catch {
         if (!silent) {
-            showToast({ message: 'Не удалось загрузить доску воронки', type: 'warning' });
+            showToast({ message: t('funnels.loadBoardFailed'), type: 'warning' });
         }
     } finally {
         if (!silent) {
@@ -469,21 +471,21 @@ function formatRelativeTime(iso: string | null): string {
     const diffMs = now - date.getTime();
     const diffMin = Math.floor(diffMs / 60_000);
     if (diffMin < 1) {
-        return 'сейчас';
+        return t('funnels.now');
     }
     if (diffMin < 60) {
-        return `${diffMin} мин`;
+        return t('funnels.minutesAgo', { count: diffMin });
     }
     const diffH = Math.floor(diffMin / 60);
     if (diffH < 24) {
-        return `${diffH} ч`;
+        return t('funnels.hoursShort', { count: diffH });
     }
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }
 
 function assigneeLabel(card: BoardCard): string {
     if (card.assignees.length === 0) {
-        return 'Не назначен';
+        return t('funnels.notAssigned');
     }
     if (card.assignees.length === 1) {
         return card.assignees[0].name;
@@ -580,7 +582,7 @@ async function performMove(cardId: number, targetStageId: number): Promise<void>
         stages.value[targetStageIndex].cards = stages.value[targetStageIndex].cards.filter((c) => c.id !== cardId);
         sourceStage.cards.splice(location.cardIndex, 0, card);
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err?.response?.data?.message || 'Не удалось переместить карточку', type: 'warning' });
+        showToast({ message: err?.response?.data?.message || t('funnels.moveFailed'), type: 'warning' });
         await reloadBoard(true);
     } finally {
         movingCardId.value = null;
@@ -606,7 +608,7 @@ async function bulkMoveSelected(): Promise<void> {
             chat_ids: [...selectedCardIds.value],
         });
         showToast({
-            message: `Перемещено: ${data.moved ?? 0}${data.skipped ? `, пропущено: ${data.skipped}` : ''}`,
+            message: t('funnels.bulkMoved', { moved: data.moved ?? 0, skipped: data.skipped ? t('funnels.bulkSkippedSuffix', { skipped: data.skipped }) : '' }),
             type: data.moved > 0 ? 'info' : 'warning',
         });
         clearSelection();
@@ -614,7 +616,7 @@ async function bulkMoveSelected(): Promise<void> {
         await reloadBoard(true);
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err?.response?.data?.message || 'Не удалось выполнить массовый перенос', type: 'warning' });
+        showToast({ message: err?.response?.data?.message || t('funnels.bulkMoveFailed'), type: 'warning' });
     } finally {
         bulkMoving.value = false;
     }
@@ -643,7 +645,7 @@ async function loadMoreCards(stage: BoardStage): Promise<void> {
             target.has_more = false;
         }
     } catch {
-        showToast({ message: 'Не удалось загрузить карточки', type: 'warning' });
+        showToast({ message: t('funnels.loadCardsFailed'), type: 'warning' });
     } finally {
         loadingStageId.value = null;
     }
@@ -662,7 +664,7 @@ async function openHistoryPanel(card: BoardCard, event: MouseEvent): Promise<voi
         historyItems.value = Array.isArray(data.data) ? data.data : [];
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        historyError.value = err?.response?.data?.message || 'Не удалось загрузить историю';
+        historyError.value = err?.response?.data?.message || t('funnels.historyFailed');
     } finally {
         historyLoading.value = false;
     }
@@ -677,13 +679,13 @@ function closeHistoryPanel(): void {
 
 function formatHistorySource(source: string): string {
     if (source === 'manual') {
-        return 'Вручную';
+        return t('funnels.sourceManual');
     }
     if (source === 'ai') {
         return 'AI';
     }
     if (source === 'system') {
-        return 'Система';
+        return t('funnels.sourceSystem');
     }
     return source;
 }
@@ -744,13 +746,13 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
 </script>
 
 <template>
-    <Head title="Воронки" />
+    <Head :title="t('nav.funnels')" />
     <AuthenticatedLayout>
         <div v-if="!funnelsModuleEnabled" class="flex h-full items-center justify-center p-8">
             <div class="ui-empty-state ui-empty-state--dashed max-w-md text-center">
-                <p class="text-sm font-medium text-[var(--wa-text)] m-0">Модуль воронок отключён</p>
+                <p class="text-sm font-medium text-[var(--wa-text)] m-0">{{ t('funnels.moduleDisabled') }}</p>
                 <p class="text-xs text-[var(--wa-text-secondary)] mt-2 mb-0">
-                    Включите «Воронки продаж» в настройках системы.
+                    {{ t('funnels.moduleDisabledHint') }}
                 </p>
             </div>
         </div>
@@ -759,10 +761,10 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
             <header class="funnel-board__header shrink-0 border-b px-5 py-4" :style="{ borderColor: 'var(--wa-border)' }">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="min-w-0">
-                        <h1 class="m-0 text-lg font-semibold text-[var(--wa-text)]">Воронки</h1>
+                        <h1 class="m-0 text-lg font-semibold text-[var(--wa-text)]">{{ t('nav.funnels') }}</h1>
                         <p class="mt-1 mb-0 text-xs text-[var(--wa-text-secondary)]">
-                            Рабочая доска: перетаскивайте контакты между этапами ·
-                            <span class="opacity-80">←→↑↓ навигация, Enter — чат, Пробел — выбор</span>
+                            {{ t('funnels.boardHint') }}
+                            <span class="opacity-80">{{ t('funnels.keyboardHint') }}</span>
                         </p>
                     </div>
 
@@ -772,15 +774,15 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                             :href="route('analytics.dialogs')"
                             class="funnel-board__link-btn"
                         >
-                            Аналитика
+                            {{ t('funnels.analytics') }}
                         </Link>
 
                         <div
                             v-if="otherViewers.length"
                             class="funnel-board__presence"
-                            :title="`На доске: ${otherViewers.map((v) => v.name).join(', ')}`"
+                            :title="t('funnels.boardViewersTitle', { names: otherViewers.map((v) => v.name).join(', ') })"
                         >
-                            <span class="funnel-board__presence-label">На доске</span>
+                            <span class="funnel-board__presence-label">{{ t('funnels.onBoard') }}</span>
                             <div class="funnel-board__presence-avatars">
                                 <Avatar
                                     v-for="viewer in otherViewers.slice(0, 4)"
@@ -804,7 +806,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                 :class="{ 'is-active': scope === 'all' }"
                                 @click="selectScope('all')"
                             >
-                                {{ canFilterAll ? 'Все' : 'Доступные' }}
+                                {{ canFilterAll ? t('funnels.filterAll') : t('funnels.filterAvailable') }}
                             </button>
                             <button
                                 type="button"
@@ -812,7 +814,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                 :class="{ 'is-active': scope === 'mine' }"
                                 @click="selectScope('mine')"
                             >
-                                Мои
+                                {{ t('funnels.filterMine') }}
                             </button>
                             <button
                                 type="button"
@@ -820,7 +822,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                 :class="{ 'is-active': scope === 'department' }"
                                 @click="selectScope('department')"
                             >
-                                Мой отдел
+                                {{ t('funnels.filterMyDept') }}
                             </button>
                         </UiPillNav>
 
@@ -831,7 +833,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                             <input
                                 v-model="searchQuery"
                                 type="search"
-                                placeholder="Поиск контакта…"
+                                :placeholder="t('funnels.searchPlaceholder')"
                                 class="funnel-board__search-input"
                             />
                         </label>
@@ -845,7 +847,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         class="funnel-board__select"
                         @change="onAdvancedFilterChange"
                     >
-                        <option value="">Все ответственные</option>
+                        <option value="">{{ t('funnels.allAssignees') }}</option>
                         <option v-for="u in filterAssignees" :key="u.id" :value="String(u.id)">{{ u.name }}</option>
                     </select>
                     <select
@@ -854,7 +856,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         class="funnel-board__select"
                         @change="onAdvancedFilterChange"
                     >
-                        <option value="">Все отделы</option>
+                        <option value="">{{ t('funnels.allDepartments') }}</option>
                         <option v-for="d in filterDepartments" :key="d.id" :value="String(d.id)">{{ d.name }}</option>
                     </select>
                     <select
@@ -863,7 +865,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         class="funnel-board__select"
                         @change="onAdvancedFilterChange"
                     >
-                        <option value="">Все WhatsApp</option>
+                        <option value="">{{ t('funnels.allWhatsapp') }}</option>
                         <option v-for="s in filterWhatsappSessions" :key="s.id" :value="String(s.id)">{{ s.label }}</option>
                     </select>
                 </div>
@@ -871,18 +873,18 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                 <div v-if="funnels.length" class="mt-3 flex flex-wrap items-center gap-3">
                     <label class="funnel-board__toggle">
                         <UiCheckbox v-model="hideEmptyColumns" size="sm" />
-                        <span>Скрыть пустые</span>
+                        <span>{{ t('funnels.hideEmpty') }}</span>
                     </label>
                     <label class="funnel-board__toggle">
                         <UiCheckbox v-model="hideDoneColumns" size="sm" />
-                        <span>Скрыть закрытые/отказ</span>
+                        <span>{{ t('funnels.hideClosed') }}</span>
                     </label>
                     <label class="funnel-board__toggle">
                         <UiCheckbox v-model="selectionMode" size="sm" />
-                        <span>Режим выбора</span>
+                        <span>{{ t('funnels.selectionMode') }}</span>
                     </label>
                     <span v-if="selectedCount > 0" class="text-xs text-[var(--wa-text-secondary)]">
-                        Выбрано: {{ selectedCount }} · Shift+клик
+                        {{ t('funnels.selectedHint', { count: selectedCount }) }}
                     </span>
                 </div>
 
@@ -906,9 +908,9 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
 
             <div v-if="funnels.length === 0" class="flex flex-1 items-center justify-center p-8">
                 <div class="ui-empty-state ui-empty-state--dashed max-w-md text-center">
-                    <p class="text-sm font-medium text-[var(--wa-text)] m-0">Нет активных воронок</p>
+                    <p class="text-sm font-medium text-[var(--wa-text)] m-0">{{ t('funnels.noActiveFunnels') }}</p>
                     <p class="text-xs text-[var(--wa-text-secondary)] mt-2 mb-4">
-                        Создайте воронку в настройках, затем назначьте её чатам.
+                        {{ t('funnels.noActiveHint') }}
                     </p>
                     <Link
                         v-if="route().has('settings.funnels')"
@@ -916,7 +918,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium text-white"
                         :style="{ background: 'var(--wa-accent)' }"
                     >
-                        Настройки воронок
+                        {{ t('funnels.funnelSettings') }}
                     </Link>
                 </div>
             </div>
@@ -933,7 +935,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                 class="funnel-board__canvas flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-5 wa-scrollbar"
                 tabindex="0"
                 role="application"
-                aria-label="Доска воронки"
+                :aria-label="t('funnels.boardAria')"
             >
                 <div class="flex h-full min-w-max gap-4 items-stretch">
                     <section
@@ -941,7 +943,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         :key="stage.id"
                         class="funnel-column"
                         :class="stageColumnClass(stage)"
-                        :aria-label="`Колонка ${stage.name}`"
+                        :aria-label="t('funnels.columnAria', { name: stage.name })"
                     >
                         <header class="funnel-column__head">
                             <div class="flex min-w-0 items-center gap-2">
@@ -955,7 +957,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                         {{ stage.name }}
                                     </div>
                                     <div class="text-[0.65rem] text-[var(--wa-text-secondary)]">
-                                        {{ stage.is_inbox ? 'Без воронки' : funnelStageTypeLabel(stage.stage_type) }}
+                                        {{ stage.is_inbox ? t('funnels.noInbox') : funnelStageTypeLabel(stage.stage_type) }}
                                     </div>
                                 </div>
                             </div>
@@ -983,9 +985,9 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                             v-if="stage.stats && !stage.is_inbox && (stage.stats.entered_7d > 0 || stage.stats.conversion_pct != null || stage.stats.avg_days != null)"
                             class="funnel-column__kpi"
                         >
-                            <span v-if="stage.stats.entered_7d > 0">+{{ stage.stats.entered_7d }} за 7д</span>
+                            <span v-if="stage.stats.entered_7d > 0">{{ t('funnels.statsEntered7d', { count: stage.stats.entered_7d }) }}</span>
                             <span v-if="stage.stats.conversion_pct != null">{{ stage.stats.conversion_pct }}% →</span>
-                            <span v-if="stage.stats.avg_days != null">~{{ stage.stats.avg_days }} д</span>
+                            <span v-if="stage.stats.avg_days != null">{{ t('funnels.statsAvgDays', { days: stage.stats.avg_days }) }}</span>
                         </div>
 
                         <div class="funnel-column__body wa-scrollbar">
@@ -1007,7 +1009,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                     :data-card-id="card.id"
                                     role="button"
                                     :tabindex="isFocusedCard(stageIdx, cardIdx) ? 0 : -1"
-                                    :aria-label="`Контакт ${card.name}`"
+                                    :aria-label="t('funnels.contactAria', { name: card.name })"
                                     @click="onCardClick(card, $event)"
                                     @focus="focusStageIdx = stageIdx; focusCardIdx = cardIdx"
                                     @keydown.enter="openChat(card)"
@@ -1042,8 +1044,8 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                                         <button
                                                             type="button"
                                                             class="funnel-card__actions-btn"
-                                                            title="Действия"
-                                                            aria-label="Действия"
+                                                            :title="t('funnels.actions')"
+                                                            :aria-label="t('funnels.actions')"
                                                             @click="toggleCardActions(card.id, $event)"
                                                         >
                                                             ⋮
@@ -1054,25 +1056,25 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                                             @click.stop
                                                         >
                                                             <button type="button" @click="openChat(card); closeCardActions()">
-                                                                Открыть чат
+                                                                {{ t('funnels.openChat') }}
                                                             </button>
                                                             <button type="button" @click="assignCardToMe(card, $event)">
-                                                                Назначить мне
+                                                                {{ t('funnels.assignToMe') }}
                                                             </button>
                                                             <button
                                                                 v-if="!stage.is_inbox"
                                                                 type="button"
                                                                 @click="moveCardToInbox(card, $event)"
                                                             >
-                                                                Во входящие
+                                                                {{ t('funnels.moveToInbox') }}
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <button
                                                         type="button"
                                                         class="funnel-card__history-btn"
-                                                        title="История воронки"
-                                                        aria-label="История воронки"
+                                                        :title="t('funnels.funnelHistory')"
+                                                        :aria-label="t('funnels.funnelHistory')"
                                                         @click="openHistoryPanel(card, $event)"
                                                     >
                                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -1082,7 +1084,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                                     <span
                                                         v-if="card.funnel_stage_locked"
                                                         class="funnel-card__lock"
-                                                        title="Этап закреплён"
+                                                        :title="t('funnels.stagePinned')"
                                                     >🔒</span>
                                                     <span
                                                         v-if="card.unread_count > 0"
@@ -1124,14 +1126,14 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                 :disabled="loadingStageId === stage.id"
                                 @click="loadMoreCards(stage)"
                             >
-                                {{ loadingStageId === stage.id ? 'Загрузка…' : 'Показать ещё' }}
+                                {{ loadingStageId === stage.id ? t('funnels.loading') : t('funnels.showMore') }}
                             </button>
 
                             <div
                                 v-if="stage.cards.length === 0"
                                 class="funnel-column__empty"
                             >
-                                {{ stage.is_inbox ? 'Нет входящих контактов' : 'Перетащите контакт сюда' }}
+                                {{ stage.is_inbox ? t('funnels.emptyInbox') : t('funnels.emptyStage') }}
                             </div>
                         </div>
                     </section>
@@ -1142,9 +1144,9 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                 v-if="selectedCount > 0"
                 class="funnel-board__bulk-bar"
             >
-                <span class="text-sm font-medium text-[var(--wa-text)]">{{ selectedCount }} выбрано</span>
+                <span class="text-sm font-medium text-[var(--wa-text)]">{{ t('funnels.bulkSelected', { count: selectedCount }) }}</span>
                 <select v-model="bulkTargetStageId" class="funnel-board__select">
-                    <option value="">Этап для переноса…</option>
+                    <option value="">{{ t('funnels.bulkStagePlaceholder') }}</option>
                     <option v-for="opt in bulkStageOptions" :key="opt.id" :value="String(opt.id)">
                         {{ opt.name }}
                     </option>
@@ -1155,14 +1157,14 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                     :disabled="bulkMoving || bulkTargetStageId === ''"
                     @click="bulkMoveSelected"
                 >
-                    {{ bulkMoving ? 'Перенос…' : 'Переместить' }}
+                    {{ bulkMoving ? t('funnels.bulkMoving') : t('funnels.bulkMove') }}
                 </button>
                 <button
                     type="button"
                     class="funnel-board__bulk-btn"
                     @click="clearSelection"
                 >
-                    Снять выбор
+                    {{ t('funnels.clearSelection') }}
                 </button>
             </div>
 
@@ -1171,14 +1173,14 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                 class="shrink-0 border-t px-5 py-2 text-xs text-[var(--wa-text-secondary)]"
                 :style="{ borderColor: 'var(--wa-border)' }"
             >
-                {{ board.funnel.name }} · {{ totalCards }} контактов
+                {{ t('funnels.footerStats', { funnel: board.funnel.name, count: totalCards }) }}
             </footer>
 
             <DangerConfirmModal
                 :open="lockedConfirmOpen"
-                title="Этап закреплён"
-                description="У этого чата этап воронки закреплён. Переместить контакт на другой этап?"
-                confirm-label="Переместить"
+                :title="t('funnels.stagePinned')"
+                :description="t('funnels.pinStageDesc')"
+                :confirm-label="t('funnels.moveConfirm')"
                 confirm-variant="primary"
                 @confirm="confirmLockedMove"
                 @close="lockedConfirmOpen = false; pendingDrop = null"
@@ -1194,7 +1196,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                     <header class="funnel-history-panel__head">
                         <div class="min-w-0">
                             <h2 id="funnel-history-title" class="m-0 text-sm font-semibold text-[var(--wa-text)]">
-                                История воронки
+                                {{ t('funnels.historyTitle') }}
                             </h2>
                             <p v-if="historyCard" class="mt-1 mb-0 truncate text-xs text-[var(--wa-text-secondary)]">
                                 {{ historyCard.name }}
@@ -1203,14 +1205,14 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                         <button
                             type="button"
                             class="funnel-history-panel__close"
-                            aria-label="Закрыть"
+                            :aria-label="t('funnels.close')"
                             @click="closeHistoryPanel"
                         >
                             ×
                         </button>
                     </header>
                     <div class="funnel-history-panel__body wa-scrollbar">
-                        <div v-if="historyLoading" class="text-sm text-[var(--wa-text-secondary)]">Загрузка…</div>
+                        <div v-if="historyLoading" class="text-sm text-[var(--wa-text-secondary)]">{{ t('funnels.loading') }}</div>
                         <div v-else-if="historyError" class="text-sm text-[var(--wa-danger)]">{{ historyError }}</div>
                         <ul v-else-if="historyItems.length" class="funnel-history-panel__list">
                             <li v-for="item in historyItems" :key="item.id" class="funnel-history-panel__item">
@@ -1219,7 +1221,7 @@ function stageColumnClass(stage: BoardStage): Record<string, boolean> {
                                 <div class="mt-0.5 text-[var(--wa-text-secondary)]">{{ formatHistoryDate(item.created_at) }}</div>
                             </li>
                         </ul>
-                        <div v-else class="text-sm text-[var(--wa-text-secondary)]">История пуста</div>
+                        <div v-else class="text-sm text-[var(--wa-text-secondary)]">{{ t('funnels.historyEmpty') }}</div>
                     </div>
                 </aside>
             </Transition>

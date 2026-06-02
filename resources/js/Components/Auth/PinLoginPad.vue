@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     modelValue: string;
@@ -57,9 +60,9 @@ function clear(): void {
         </div>
 
         <p v-if="error" class="pin-login__error">{{ error }}</p>
-        <p v-else class="pin-login__hint">Введите PIN из 4–6 цифр</p>
+        <p v-else class="pin-login__hint">{{ t('misc.components.pinLogin.hint') }}</p>
 
-        <div class="pin-login__pad" role="group" aria-label="Цифровая клавиатура">
+        <div class="pin-login__pad" role="group" :aria-label="t('misc.components.pinLogin.padAria')">
             <button
                 v-for="n in 9"
                 :key="n"
@@ -87,7 +90,7 @@ function clear(): void {
             :disabled="disabled || modelValue.length < 4"
             @click="emit('submit')"
         >
-            Войти по PIN
+            {{ t('auth.pinSubmit') }}
         </button>
     </div>
 </template>

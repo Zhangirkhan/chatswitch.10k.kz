@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { Link, router } from '@inertiajs/vue3';
 
@@ -24,14 +25,17 @@ const emit = defineEmits<{
     (e: 'toggle', company: CompanyIndexRow): void;
 }>();
 
+const { t } = useI18n();
+
 function statusLabel(s: string): string {
-    return {
-        trial: 'триал',
-        active: 'активна',
-        past_due: 'просрочена',
-        suspended: 'приостановлена',
-        canceled: 'отменена',
-    }[s] ?? s;
+    const map: Record<string, string> = {
+        trial: t('superAdmin.companies.row.statusTrial'),
+        active: t('superAdmin.companies.row.statusActive'),
+        past_due: t('superAdmin.companies.row.statusPastDue'),
+        suspended: t('superAdmin.companies.row.statusSuspended'),
+        canceled: t('superAdmin.companies.row.statusCanceled'),
+    };
+    return map[s] ?? s;
 }
 
 function impersonate(c: CompanyIndexRow, event: Event): void {
@@ -76,15 +80,15 @@ function impersonate(c: CompanyIndexRow, event: Event): void {
                 {{ statusLabel(company.subscription_status) }}
             </span>
         </td>
-        <td class="text-ui-text">{{ company.plan?.name ?? '—' }}</td>
+        <td class="text-ui-text">{{ company.plan?.name ?? t('superAdmin.common.emDash') }}</td>
         <td class="text-ui-text-muted text-xs">
             <template v-if="company.subscription_status === 'trial' && company.trial_ends_at">
                 {{ new Date(company.trial_ends_at).toLocaleDateString('ru-RU') }}
             </template>
             <template v-else-if="company.subscription_status === 'past_due'">
-                <span class="text-ui-accent">просрочен</span>
+                <span class="text-ui-accent">{{ t('superAdmin.companies.row.trialOverdue') }}</span>
             </template>
-            <template v-else>—</template>
+            <template v-else>{{ t('superAdmin.common.emDash') }}</template>
         </td>
         <td class="text-right">
             <button
@@ -92,16 +96,16 @@ function impersonate(c: CompanyIndexRow, event: Event): void {
                 type="button"
                 class="ui-btn ui-btn--ghost ui-btn--sm"
                 :disabled="!company.can_impersonate"
-                :title="company.impersonate_blocked_reason ?? 'Войти в тенант как администратор'"
+                :title="company.impersonate_blocked_reason ?? t('superAdmin.companies.row.impersonateTitle')"
                 @click="impersonate(company, $event)"
             >
-                Войти
+                {{ t('superAdmin.companies.row.enter') }}
             </button>
         </td>
         <td class="text-right">
             <button
                 type="button"
-                :title="company.is_active ? 'Отключить тенанта' : 'Включить тенанта'"
+                :title="company.is_active ? t('superAdmin.companies.row.disableTitle') : t('superAdmin.companies.row.enableTitle')"
                 class="group inline-flex items-center"
                 :aria-pressed="company.is_active"
                 @click="emit('toggle', company)"

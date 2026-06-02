@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 import axios from 'axios';
+
+const { t } = useI18n();
 
 export interface AiStageDraft {
     name: string;
@@ -29,16 +32,20 @@ const emit = defineEmits<{
     (e: 'select', suggestion: AiFunnelSuggestion): void;
 }>();
 
-const INDUSTRY_PRESETS = [
-    'Ритейл и e-commerce',
-    'Услуги для частных клиентов',
-    'B2B SaaS / IT',
-    'Производство',
-    'Строительство и ремонт',
-    'Образование',
-    'Медицина и красота',
-    'Логистика',
-];
+const INDUSTRY_PRESET_KEYS = [
+    'industryRetail',
+    'industryServices',
+    'industryB2bSaas',
+    'industryManufacturing',
+    'industryConstruction',
+    'industryEducation',
+    'industryBeauty',
+    'industryLogistics',
+] as const;
+
+const industryPresets = computed(() =>
+    INDUSTRY_PRESET_KEYS.map((key) => t(`settings.funnelAiWizard.${key}`)),
+);
 
 const TOTAL_INPUT_STEPS = 6;
 
@@ -93,9 +100,9 @@ function applyIndustryPreset(preset: string): void {
 
 function buildTargetAudience(): string {
     const typeLabels: Record<string, string> = {
-        b2c: 'B2C — частные клиенты',
-        b2b: 'B2B — бизнес-клиенты',
-        mixed: 'Смешанный (B2C и B2B)',
+        b2c: t('settings.funnelAiWizard.audienceB2cLabel'),
+        b2b: t('settings.funnelAiWizard.audienceB2bLabel'),
+        mixed: t('settings.funnelAiWizard.audienceMixedLabel'),
     };
     const typePart = form.value.target_audience_type
         ? typeLabels[form.value.target_audience_type] ?? form.value.target_audience_type
@@ -111,32 +118,32 @@ function validateCurrentStep(): string | null {
     switch (wizardStep.value) {
         case 0:
             if (!form.value.target_audience_type && form.value.target_audience.trim().length < 10) {
-                return 'Укажите тип аудитории или опишите её подробнее (минимум 10 символов).';
+                return t('settings.funnelAiWizard.errorAudience');
             }
             return null;
         case 1:
             if (form.value.industry.trim().length < 3) {
-                return 'Укажите сферу деятельности.';
+                return t('settings.funnelAiWizard.errorIndustry');
             }
             return null;
         case 2:
             if (form.value.business_description.trim().length < 10) {
-                return 'Опишите бизнес подробнее — минимум 10 символов.';
+                return t('settings.funnelAiWizard.errorBusiness');
             }
             return null;
         case 3:
             if (form.value.clients_description.trim().length < 10) {
-                return 'Опишите клиентов подробнее — минимум 10 символов.';
+                return t('settings.funnelAiWizard.errorClients');
             }
             return null;
         case 4:
             if (form.value.products_description.trim().length < 10) {
-                return 'Опишите товары или услуги — минимум 10 символов.';
+                return t('settings.funnelAiWizard.errorProducts');
             }
             return null;
         case 5:
             if (form.value.sales_process.trim().length < 10) {
-                return 'Опишите процесс продаж — минимум 10 символов.';
+                return t('settings.funnelAiWizard.errorSales');
             }
             return null;
         default:
@@ -187,7 +194,7 @@ async function generateVariants(): Promise<void> {
 
         const items = data?.suggestions;
         if (!Array.isArray(items) || items.length === 0) {
-            error.value = 'AI вернул пустой результат. Попробуйте уточнить ответы.';
+            error.value = t('settings.funnelAiWizard.errorEmptyResult');
             return;
         }
 
@@ -209,7 +216,7 @@ async function generateVariants(): Promise<void> {
         wizardStep.value = TOTAL_INPUT_STEPS;
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        error.value = e.response?.data?.message || 'Не удалось сгенерировать варианты. Попробуйте ещё раз.';
+        error.value = e.response?.data?.message || t('settings.funnelAiWizard.errorGenerate');
     } finally {
         generating.value = false;
     }
@@ -226,7 +233,7 @@ defineExpose({ resetWizard });
     <div class="space-y-4">
         <div v-if="!isVariantsStep" class="space-y-2">
             <div class="flex items-center justify-between text-xs text-[var(--ui-text-secondary)]">
-                <span>Шаг {{ inputStepNumber }} из {{ TOTAL_INPUT_STEPS }}</span>
+                <span>{{ t('settings.funnelAiWizard.stepOf', { current: inputStepNumber, total: TOTAL_INPUT_STEPS }) }}</span>
                 <span>{{ progressPercent }}%</span>
             </div>
             <div
@@ -242,7 +249,7 @@ defineExpose({ resetWizard });
 
         <div v-if="wizardStep === 0" class="space-y-3">
             <div>
-                <label class="block text-sm text-[var(--ui-text-secondary)] mb-2">На кого направлен бизнес?</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-2">{{ t('settings.funnelAiWizard.audienceQuestion') }}</label>
                 <div class="ui-toggle-group">
                     <button
                         v-for="type in (['b2c', 'b2b', 'mixed'] as const)"
@@ -252,34 +259,34 @@ defineExpose({ resetWizard });
                         :class="{ 'is-active': form.target_audience_type === type }"
                         @click="selectAudienceType(type)"
                     >
-                        {{ type === 'b2c' ? 'B2C' : type === 'b2b' ? 'B2B' : 'Смешанный' }}
+                        {{ type === 'b2c' ? t('settings.funnelAiWizard.audienceB2c') : type === 'b2b' ? t('settings.funnelAiWizard.audienceB2b') : t('settings.funnelAiWizard.audienceMixed') }}
                     </button>
                 </div>
             </div>
             <div>
-                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Уточнение (необязательно)</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.audienceDetail') }}</label>
                 <textarea
                     v-model="form.target_audience"
                     class="settings-input min-h-[80px]"
                     rows="3"
-                    placeholder="Например: семьи со средним доходом, владельцы квартир 30–55 лет"
+                    :placeholder="t('settings.funnelAiWizard.audiencePlaceholder')"
                 />
             </div>
         </div>
 
         <div v-else-if="wizardStep === 1" class="space-y-3">
             <div>
-                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Сфера деятельности</label>
+                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.industry') }}</label>
                 <input
                     v-model="form.industry"
                     type="text"
                     class="settings-input"
-                    placeholder="Например: установка пластиковых окон"
+                    :placeholder="t('settings.funnelAiWizard.industryPlaceholder')"
                 />
             </div>
             <div class="flex flex-wrap gap-1.5">
                 <button
-                    v-for="preset in INDUSTRY_PRESETS"
+                    v-for="preset in industryPresets"
                     :key="preset"
                     type="button"
                     class="ui-btn ui-btn--ghost ui-btn--sm"
@@ -291,48 +298,48 @@ defineExpose({ resetWizard });
         </div>
 
         <div v-else-if="wizardStep === 2">
-            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Опишите свой бизнес</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.businessDescription') }}</label>
             <textarea
                 v-model="form.business_description"
                 class="settings-input min-h-[120px]"
                 rows="5"
-                placeholder="Чем занимаетесь, в чём отличие от конкурентов, география работы"
+                :placeholder="t('settings.funnelAiWizard.businessPlaceholder')"
             />
         </div>
 
         <div v-else-if="wizardStep === 3">
-            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Кто ваши клиенты?</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.clientsDescription') }}</label>
             <textarea
                 v-model="form.clients_description"
                 class="settings-input min-h-[100px]"
                 rows="4"
-                placeholder="Портрет клиента, типичные запросы, откуда приходят"
+                :placeholder="t('settings.funnelAiWizard.clientsPlaceholder')"
             />
         </div>
 
         <div v-else-if="wizardStep === 4">
-            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Товары и услуги</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.productsDescription') }}</label>
             <textarea
                 v-model="form.products_description"
                 class="settings-input min-h-[100px]"
                 rows="4"
-                placeholder="Что продаёте, средний чек, пакеты и варианты"
+                :placeholder="t('settings.funnelAiWizard.productsPlaceholder')"
             />
         </div>
 
         <div v-else-if="wizardStep === 5">
-            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Как проходят продажи?</label>
+            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnelAiWizard.salesProcess') }}</label>
             <textarea
                 v-model="form.sales_process"
                 class="settings-input min-h-[120px]"
                 rows="5"
-                placeholder="От первого контакта до оплаты: каналы, этапы, средняя длительность сделки"
+                :placeholder="t('settings.funnelAiWizard.salesPlaceholder')"
             />
         </div>
 
         <div v-else-if="isVariantsStep" class="space-y-3">
             <div class="text-sm text-[var(--ui-text-secondary)]">
-                AI предложил {{ suggestions.length }} вариант(а). Выберите подходящий — его можно отредактировать перед сохранением.
+                {{ t('settings.funnelAiWizard.variantsIntro', { count: suggestions.length }) }}
             </div>
 
             <div
@@ -374,7 +381,7 @@ defineExpose({ resetWizard });
                     :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     @click="pickSuggestion(suggestion)"
                 >
-                    Выбрать этот вариант
+                    {{ t('settings.funnelAiWizard.pickVariant') }}
                 </button>
             </div>
         </div>
@@ -390,7 +397,7 @@ defineExpose({ resetWizard });
                 :disabled="wizardStep === 0 || generating"
                 @click="goBack"
             >
-                Назад
+                {{ t('settings.funnelAiWizard.back') }}
             </button>
             <button
                 type="button"
@@ -408,9 +415,9 @@ defineExpose({ resetWizard });
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
-                <template v-if="generating">Генерация…</template>
-                <template v-else-if="wizardStep === 5">Сгенерировать варианты</template>
-                <template v-else>Далее</template>
+                <template v-if="generating">{{ t('settings.funnelAiWizard.generating') }}</template>
+                <template v-else-if="wizardStep === 5">{{ t('settings.funnelAiWizard.generateVariants') }}</template>
+                <template v-else>{{ t('settings.funnelAiWizard.next') }}</template>
             </button>
         </div>
 
@@ -421,7 +428,7 @@ defineExpose({ resetWizard });
                 :disabled="generating"
                 @click="generateVariants"
             >
-                Сгенерировать заново
+                {{ t('settings.funnelAiWizard.regenerate') }}
             </button>
         </div>
     </div>

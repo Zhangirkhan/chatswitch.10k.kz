@@ -6,6 +6,7 @@ import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSumma
 import UserAvatar from '@/Components/UserAvatar.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 import type { Message } from '@/types';
 
 type AiStatus = {
@@ -76,6 +77,7 @@ type AiTurn = {
     ts: number;
 };
 
+const { t } = useI18n();
 const { show: showToast } = useToastStore();
 
 const turns = ref<AiTurn[]>([]);
@@ -94,17 +96,17 @@ const clientSummary = ref<ClientSummary | null>(null);
 const summaryLoading = ref(false);
 let autoDraftTimer: number | null = null;
 
-const PANEL_TABS: ReadonlyArray<{ id: PanelTab; label: string }> = [
-    { id: 'assistant', label: 'Ассистент' },
-    { id: 'ai-status', label: 'Решения AI' },
-    { id: 'draft', label: 'Черновик' },
-];
+const panelTabs = computed<ReadonlyArray<{ id: PanelTab; label: string }>>(() => [
+    { id: 'assistant', label: t('chats.aiAssistant.tabAssistant') },
+    { id: 'ai-status', label: t('chats.aiAssistant.tabAiStatus') },
+    { id: 'draft', label: t('chats.aiAssistant.tabDraft') },
+]);
 
 const summaryEmptyHint = computed(() => {
     if (props.contactId) {
         return null;
     }
-    return 'К этому чату не привязан контакт CRM — сводка недоступна.';
+    return t('chats.aiAssistant.noCrmContact');
 });
 
 const isOverviewMode = computed(() => panelMode.value === 'overview');
@@ -114,29 +116,29 @@ const summaryChipName = computed(() => {
     if (clientSummary.value) {
         return clientSummary.value.identity.display_name;
     }
-    return props.chatName ?? 'Клиент';
+    return props.chatName ?? t('chats.client');
 });
 
 const summaryChipHeadline = computed(() => {
     if (summaryLoading.value) {
-        return 'Собираем профиль…';
+        return t('chats.aiAssistant.buildingProfile');
     }
     if (clientSummary.value) {
         return clientSummary.value.ai.headline;
     }
-    return summaryEmptyHint.value ?? 'Сводка недоступна';
+    return summaryEmptyHint.value ?? t('chats.aiAssistant.summaryUnavailable');
 });
 
 const summaryChipConfidence = computed(() => {
     const level = clientSummary.value?.ai.confidence;
     if (level === 'high') {
-        return 'Много данных';
+        return t('chats.aiAssistant.dataRich');
     }
     if (level === 'medium') {
-        return 'Частичные данные';
+        return t('chats.aiAssistant.dataPartial');
     }
     if (level === 'low') {
-        return 'Мало данных';
+        return t('chats.aiAssistant.dataSparse');
     }
     return null;
 });
@@ -220,34 +222,37 @@ const aiStatusUpdatedAt = computed(() => {
 const aiKnowledgeContextLabel = computed(() => {
     const context = props.aiStatus?.knowledge_context;
     if (!context) {
-        return 'База знаний: компания не определена';
+        return t('chats.aiAssistant.kbNoCompany');
     }
 
-    return `База знаний: правил ${context.rules}, товаров ${context.products}, услуг ${context.services}`;
+    return t('chats.aiAssistant.kbStats', {
+        rules: context.rules,
+        products: context.products,
+        services: context.services,
+    });
 });
-const aiToneSourceLabel = computed(() => props.aiStatus?.tone_source?.label || 'Тон: не собран');
+const aiToneSourceLabel = computed(() => props.aiStatus?.tone_source?.label || t('chats.aiAssistant.toneNotBuilt'));
 const aiStatusHistory = computed(() => props.aiStatus?.history ?? []);
 const aiOrchestratorHistory = computed(() => props.aiStatus?.orchestrator_history ?? []);
 
-const QUICK_ACTIONS: ReadonlyArray<{ label: string; prompt: string }> = [
+const quickActions = computed<ReadonlyArray<{ label: string; prompt: string }>>(() => [
     {
-        label: 'Подскажи ответ клиенту',
-        prompt: 'Проанализируй последнюю реплику клиента и предложи готовый ответ в стиле наших операторов из этого чата. Дай 1–2 варианта формулировки.',
+        label: t('chats.aiAssistant.suggestReply'),
+        prompt: t('chats.aiAssistant.promptSuggestReply'),
     },
     {
-        label: 'О чём этот диалог?',
-        prompt: 'Кратко (3–5 пунктов) перескажи суть переписки: что хочет клиент, что уже ответили, какие есть открытые вопросы.',
+        label: t('chats.aiAssistant.dialogSummary'),
+        prompt: t('chats.aiAssistant.promptDialogSummary'),
     },
     {
-        label: 'Возражения клиента',
-        prompt: 'Выпиши все возражения и сомнения клиента в этом чате и предложи, как их закрыть в нашем стиле.',
+        label: t('chats.aiAssistant.objections'),
+        prompt: t('chats.aiAssistant.promptObjections'),
     },
     {
-        label: 'Календарь и договорённости',
-        prompt:
-            'По переписке: есть ли повод занести что-то в календарь (звонок, встреча, дедлайн, перезвон)? Учти уже запланированные события из контекста календаря. Предложи конкретную запись: заголовок, дата/время, ответственный, описание; отметь конфликты со слотами, если есть.',
+        label: t('chats.aiAssistant.calendar'),
+        prompt: t('chats.aiAssistant.promptCalendar'),
     },
-];
+]);
 
 async function generateFollowUpProposals(): Promise<void> {
     try {
@@ -256,15 +261,15 @@ async function generateFollowUpProposals(): Promise<void> {
         showToast({
             message:
                 count > 0
-                    ? `Готово: ${count} вариант(ов) дожима — смотрите баннер над полем ввода.`
-                    : 'Варианты дожима подготовлены.',
+                    ? t('chats.aiAssistant.followUpReady', { count })
+                    : t('chats.aiAssistant.followUpPrepared'),
             duration: 4000,
         });
         window.location.reload();
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } }; message?: string };
         showToast({
-            message: err?.response?.data?.message ?? err?.message ?? 'Не удалось сгенерировать варианты.',
+            message: err?.response?.data?.message ?? err?.message ?? t('chats.aiAssistant.followUpFailed'),
             duration: 4500,
         });
     }
@@ -312,13 +317,13 @@ async function send(prompt?: string): Promise<void> {
         });
         const reply: string = String(res.data?.reply ?? '').trim();
         if (reply === '') {
-            throw new Error('Пустой ответ');
+            throw new Error(t('chats.aiAssistant.emptyResponse'));
         }
         turns.value.push({ role: 'assistant', content: reply, ts: Date.now() });
     } catch (e: any) {
         const msg: string =
             e?.response?.data?.message ||
-            'Не удалось получить ответ AI.';
+            t('chats.aiAssistant.aiFailed');
         turns.value.push({ role: 'assistant', content: `⚠ ${msg}`, ts: Date.now() });
         showToast({ message: msg });
     } finally {
@@ -363,8 +368,8 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
     try {
         const body = normalizeMessageBody(message);
         const prompt = body
-            ? `Клиент написал: "${body}". Подготовь один готовый черновик ответа клиенту в стиле операторов этого чата. Верни только текст ответа без пояснений.`
-            : 'Подготовь один готовый черновик ответа на последнее сообщение клиента в стиле операторов этого чата. Верни только текст ответа без пояснений.';
+            ? t('chats.aiAssistant.promptDraftWithBody', { body })
+            : t('chats.aiAssistant.promptDraftGeneric');
 
         const res = await axios.post(route('chats.ai.chat', { chat: props.chatId }), {
             message: prompt,
@@ -372,14 +377,14 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
         });
         const reply: string = String(res.data?.reply ?? '').trim();
         if (reply === '') {
-            throw new Error('Пустой ответ');
+            throw new Error(t('chats.aiAssistant.emptyResponse'));
         }
         autoDraft.value = reply;
     } catch (e: any) {
         autoDraft.value = '';
         autoDraftError.value =
             e?.response?.data?.message ||
-            'Не удалось подготовить черновик.';
+            t('chats.aiAssistant.draftFailed');
     } finally {
         autoDraftLoading.value = false;
         if ((latestClientMessage.value?.id ?? null) !== autoDraftMessageId.value) {
@@ -408,9 +413,9 @@ function copyToClipboard(text: string): void {
     if (!text) return;
     try {
         navigator.clipboard?.writeText(text);
-        showToast({ message: 'Скопировано' });
+        showToast({ message: t('chats.copied') });
     } catch {
-        showToast({ message: 'Не удалось скопировать' });
+        showToast({ message: t('chats.copyFailed') });
     }
 }
 
@@ -421,11 +426,15 @@ function normalizeMessageBody(message: Message): string {
     }
 
     const type = String(message.type ?? 'chat');
-    return type !== 'chat' ? `<сообщение типа "${type}" без текста>` : '';
+    return type !== 'chat' ? t('chats.message.emptyMessageType', { type }) : '';
 }
 
 function messageAuthor(message: Message): string {
-    return message.sender_name || message.sender_phone || 'Клиент';
+    return message.sender_name || message.sender_phone || t('chats.client');
+}
+
+function aiStatusModeLabel(mode: string): string {
+    return mode === 'draft' ? t('chats.aiAssistant.modeDraft') : t('chats.aiAssistant.modeAuto');
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -513,7 +522,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 <button
                     type="button"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                    title="Закрыть"
+                    :title="t('common.close')"
                     @click="emit('close')"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -522,14 +531,14 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </button>
                 <div class="flex-1 min-w-0 leading-tight">
                     <h2 class="text-base leading-tight truncate font-normal" :style="{ color: 'var(--wa-text)' }">
-                        AI-ассистент
+                        {{ t('chats.aiAssistant.title') }}
                     </h2>
                     <p
                         v-if="chatName && isOverviewMode"
                         class="text-[11px] leading-tight truncate opacity-80"
                         :style="{ color: 'var(--wa-text-secondary)' }"
                     >
-                        по чату с {{ chatName }}
+                        {{ t('chats.aiAssistant.forChat', { name: chatName }) }}
                     </p>
                 </div>
                 <button
@@ -537,10 +546,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     type="button"
                     class="text-xs px-2.5 py-1.5 rounded-md hover:bg-[var(--wa-panel-hover)]"
                     :style="{ color: 'var(--wa-text-secondary)' }"
-                    title="Очистить переписку с AI"
+                    :title="t('chats.aiAssistant.clearHistoryTitle')"
                     @click="requestClearConversation"
                 >
-                    Очистить
+                    {{ t('chats.aiAssistant.clearHistory') }}
                 </button>
             </div>
 
@@ -548,7 +557,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 v-if="isChatMode"
                 type="button"
                 class="ai-summary-chip"
-                title="Развернуть сводку клиента"
+                :title="t('chats.aiAssistant.expandSummary')"
                 @click="exitChatMode"
             >
                 <UserAvatar
@@ -603,7 +612,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             role="tablist"
         >
             <button
-                v-for="tab in PANEL_TABS"
+                v-for="tab in panelTabs"
                 :key="tab.id"
                 type="button"
                 role="tab"
@@ -628,10 +637,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide">
-                            Последнее решение AI
+                            {{ t('chats.aiAssistant.lastAiDecision') }}
                         </p>
                         <p class="mt-1 text-sm font-semibold">
-                            {{ aiStatus?.label || 'AI ещё не отвечал автоматически' }}
+                            {{ aiStatus?.label || t('chats.aiAssistant.aiNotAnsweredYet') }}
                         </p>
                     </div>
                     <span v-if="aiStatusUpdatedAt" class="shrink-0 text-[11px] opacity-70">
@@ -640,7 +649,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </div>
 
                 <p class="mt-2 text-[12.5px] leading-5 opacity-90">
-                    {{ aiStatus?.message || 'Когда AI обработает сообщение клиента, здесь появится причина и результат.' }}
+                    {{ aiStatus?.message || t('chats.aiAssistant.aiDecisionHint') }}
                 </p>
                 <p v-if="aiStatus?.hint" class="mt-1 text-[12px] leading-5 opacity-75">
                     {{ aiStatus.hint }}
@@ -668,7 +677,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     :style="{ background: 'var(--wa-panel)', border: '1px solid var(--wa-border)' }"
                 >
                     <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
-                        Системный AI-черновик
+                        {{ t('chats.aiAssistant.systemDraft') }}
                     </p>
                     <div class="whitespace-pre-wrap break-words">{{ aiStatus.draft_reply }}</div>
                     <div class="mt-2 flex justify-end">
@@ -677,23 +686,22 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             class="text-[11px] hover:underline"
                             @click="copyToClipboard(aiStatus.draft_reply || '')"
                         >
-                            Копировать черновик
+                            {{ t('chats.aiAssistant.copyDraft') }}
                         </button>
                     </div>
                     <p class="mt-2 text-[11px] leading-4 opacity-70">
-                        Даже лёгкие правки (пунктуация, формулировки) учитываются при обучении тона; сильные изменения
-                        обновляют профиль быстрее.
+                        {{ t('chats.aiAssistant.toneLearningHint') }}
                     </p>
                 </div>
 
                 <details v-if="aiStatus?.technical_error" class="mt-2 text-[11.5px] opacity-80">
-                    <summary class="cursor-pointer font-medium">Технические детали для администратора</summary>
+                    <summary class="cursor-pointer font-medium">{{ t('chats.aiAssistant.techDetails') }}</summary>
                     <pre class="mt-1 whitespace-pre-wrap break-words">{{ aiStatus.technical_error }}</pre>
                 </details>
 
                 <details v-if="aiStatusHistory.length > 1" class="mt-3 text-[11.5px] opacity-85">
                     <summary class="cursor-pointer font-semibold">
-                        История AI-решений: {{ aiStatusHistory.length }}
+                        {{ t('chats.aiAssistant.aiHistory', { count: aiStatusHistory.length }) }}
                     </summary>
                     <div class="mt-2 space-y-2">
                         <div
@@ -710,10 +718,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             </div>
                             <p class="mt-1 leading-4 opacity-80">{{ item.message }}</p>
                             <p class="mt-1 opacity-60">
-                                Режим: {{ item.mode === 'draft' ? 'черновик' : 'автоответ' }}
+                                {{ t('chats.aiAssistant.modeLabel', { mode: aiStatusModeLabel(item.mode) }) }}
                             </p>
                             <details v-if="item.technical_error" class="mt-1 opacity-80">
-                                <summary class="cursor-pointer">Технически</summary>
+                                <summary class="cursor-pointer">{{ t('chats.aiAssistant.technical') }}</summary>
                                 <pre class="mt-1 whitespace-pre-wrap break-words">{{ item.technical_error }}</pre>
                             </details>
                         </div>
@@ -722,7 +730,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 
                 <details v-if="aiOrchestratorHistory.length > 0" class="mt-3 text-[11.5px] opacity-85">
                     <summary class="cursor-pointer font-semibold">
-                        История оркестратора: {{ aiOrchestratorHistory.length }}
+                        {{ t('chats.aiAssistant.orchestratorHistory', { count: aiOrchestratorHistory.length }) }}
                     </summary>
                     <div class="mt-2 space-y-2">
                         <div
@@ -740,13 +748,13 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             <p v-if="item.reason" class="mt-1 leading-4 opacity-80">{{ item.reason }}</p>
                             <div class="mt-1 flex flex-wrap gap-1.5 opacity-75">
                                 <span v-if="item.target_stage" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
-                                    Этап: {{ item.target_stage }}
+                                    {{ t('chats.aiAssistant.stage', { name: item.target_stage }) }}
                                 </span>
                                 <span v-if="item.task_title" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
-                                    Задача: {{ item.task_title }}
+                                    {{ t('chats.aiAssistant.task', { title: item.task_title }) }}
                                 </span>
                                 <span v-if="item.confidence !== null" class="rounded-full px-2 py-0.5" :style="{ background: 'var(--wa-panel)' }">
-                                    Уверенность: {{ Math.round(item.confidence * 100) }}%
+                                    {{ t('chats.aiAssistant.confidence', { percent: Math.round(item.confidence * 100) }) }}
                                 </span>
                             </div>
                             <p v-if="item.customer_reply" class="mt-2 whitespace-pre-wrap rounded-lg px-2 py-1.5 leading-4" :style="{ background: 'var(--wa-panel)' }">
@@ -770,10 +778,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 <div class="flex items-center justify-between gap-3">
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide" :style="{ color: 'var(--wa-accent)' }">
-                            Live-черновик
+                            {{ t('chats.aiAssistant.liveDraft') }}
                         </p>
                         <p class="text-[11px] opacity-70" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Работает даже когда автоответы AI выключены
+                            {{ t('chats.aiAssistant.liveDraftHint') }}
                         </p>
                     </div>
                     <button
@@ -782,13 +790,13 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         :disabled="autoDraftLoading || !latestClientMessage"
                         @click="generateAutoDraft()"
                     >
-                        Обновить
+                        {{ t('common.update') }}
                     </button>
                 </div>
 
                 <div v-if="hasClientMessages" class="space-y-2">
                     <p class="text-[11px] font-medium opacity-70" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Последние сообщения клиента
+                        {{ t('chats.aiAssistant.recentClientMessages') }}
                     </p>
                     <div
                         v-for="message in clientMessages"
@@ -801,12 +809,12 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             <span>{{ formatTime(new Date(message.message_timestamp || message.created_at || Date.now()).getTime()) }}</span>
                         </div>
                         <div class="whitespace-pre-wrap break-words">
-                            {{ normalizeMessageBody(message) || 'Сообщение без текста' }}
+                            {{ normalizeMessageBody(message) || t('chats.aiAssistant.messageWithoutText') }}
                         </div>
                     </div>
                 </div>
                 <p v-else class="text-[12.5px] opacity-75" :style="{ color: 'var(--wa-text-secondary)' }">
-                    В этом чате пока нет входящих сообщений клиента.
+                    {{ t('chats.aiAssistant.noInboundMessages') }}
                 </p>
 
                 <div
@@ -814,7 +822,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     :style="{ background: 'var(--wa-bubble-in)', color: 'var(--wa-bubble-text)' }"
                 >
                     <template v-if="autoDraftLoading">
-                        AI готовит черновик…
+                        {{ t('chats.aiAssistant.preparingDraft') }}
                     </template>
                     <template v-else-if="autoDraft">
                         <div class="whitespace-pre-wrap break-words">{{ autoDraft }}</div>
@@ -824,7 +832,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                                 class="text-[11px] hover:underline"
                                 @click="copyToClipboard(autoDraft)"
                             >
-                                Копировать черновик
+                                {{ t('chats.aiAssistant.copyDraft') }}
                             </button>
                         </div>
                     </template>
@@ -832,7 +840,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         {{ autoDraftError }}
                     </template>
                     <template v-else>
-                        Черновик появится после сообщения клиента.
+                        {{ t('chats.aiAssistant.draftAfterClient') }}
                     </template>
                 </div>
             </section>
@@ -848,11 +856,9 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     border: '1px solid color-mix(in srgb, var(--wa-accent) 25%, var(--wa-border))',
                 }"
             >
-                <p class="font-medium mb-1">Привет! Я ассистент оператора.</p>
+                <p class="font-medium mb-1">{{ t('chats.aiAssistant.greetingTitle') }}</p>
                 <p class="opacity-80">
-                    Я уже вижу всю переписку этого чата и стиль ваших ответов.
-                    Спросите меня — подскажу, как лучше ответить клиенту, в каком тоне,
-                    или разберу диалог по шагам.
+                    {{ t('chats.aiAssistant.greetingBody') }}
                 </p>
                 <div class="mt-3 flex flex-wrap gap-2">
                     <button
@@ -861,10 +867,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         :disabled="sending"
                         @click="generateFollowUpProposals"
                     >
-                        Варианты дожима
+                        {{ t('chats.aiAssistant.followUpVariants') }}
                     </button>
                     <button
-                        v-for="(action, idx) in QUICK_ACTIONS"
+                        v-for="(action, idx) in quickActions"
                         :key="idx"
                         type="button"
                         class="ai-quick-chip"
@@ -891,10 +897,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             v-if="turn.role === 'assistant'"
                             type="button"
                             class="hover:underline"
-                            title="Скопировать ответ"
+                            :title="t('chats.aiAssistant.copyAnswerTitle')"
                             @click="copyToClipboard(turn.content)"
                         >
-                            Копировать
+                            {{ t('chats.aiAssistant.copyAnswer') }}
                         </button>
                         <span>{{ formatTime(turn.ts) }}</span>
                     </div>
@@ -909,7 +915,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 <span class="ai-typing-dot" />
                 <span class="ai-typing-dot" />
                 <span class="ai-typing-dot" />
-                <span class="opacity-70 text-[12px] ml-1">AI думает…</span>
+                <span class="opacity-70 text-[12px] ml-1">{{ t('chats.aiAssistant.aiThinking') }}</span>
             </div>
             </template>
         </div>
@@ -929,10 +935,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     :disabled="sending"
                     @click="generateFollowUpProposals"
                 >
-                    Варианты дожима
+                    {{ t('chats.aiAssistant.followUpVariants') }}
                 </button>
                 <button
-                    v-for="(action, idx) in QUICK_ACTIONS"
+                    v-for="(action, idx) in quickActions"
                     :key="idx"
                     type="button"
                     class="ai-quick-chip ai-quick-chip-sm"
@@ -948,7 +954,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     ref="textareaEl"
                     v-model="draft"
                     :rows="isOverviewMode ? 1 : 2"
-                    placeholder="Спросите AI про этот диалог…"
+                    :placeholder="t('chats.aiAssistant.askPlaceholder')"
                     class="flex-1 resize-none rounded-lg px-3 py-2 text-[13.5px] outline-none transition-[border-color,box-shadow] duration-200"
                     :style="{
                         background: 'var(--wa-panel)',
@@ -969,7 +975,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         color: 'white',
                     }"
                     :disabled="!canSend"
-                    title="Отправить (Enter)"
+                    :title="t('chats.aiAssistant.sendTitle')"
                     @click="send()"
                 >
                     <svg v-if="!sending" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -982,10 +988,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             </div>
             <p class="mt-1.5 text-[10.5px] opacity-60" :style="{ color: 'var(--wa-text-secondary)' }">
                 <template v-if="isOverviewMode">
-                    Нажмите на поле — откроется чат с AI. Escape — закрыть панель.
+                    {{ t('chats.aiAssistant.hintCollapsed') }}
                 </template>
                 <template v-else>
-                    Enter — отправить, Shift+Enter — перенос строки. Escape — свернуть к сводке.
+                    {{ t('chats.aiAssistant.hintExpanded') }}
                 </template>
             </p>
         </div>
@@ -993,9 +999,9 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 
     <DangerConfirmModal
         :open="clearAiDialogOpen"
-        title="Очистить переписку с AI?"
-        description="История в этой панели исчезнет. Сообщения в чате не удаляются."
-        confirm-label="Очистить"
+        :title="t('chats.aiAssistant.clearConfirmTitle')"
+        :description="t('chats.aiAssistant.clearConfirmDescription')"
+        :confirm-label="t('chats.aiAssistant.clearConfirm')"
         confirm-variant="danger"
         @close="clearAiDialogOpen = false"
         @confirm="doClearConversation"

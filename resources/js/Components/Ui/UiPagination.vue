@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     links: Array<{ url: string | null; label: string; active: boolean }>;
@@ -20,9 +23,9 @@ const pageLinks = computed(() =>
 </script>
 
 <template>
-    <nav v-if="links.length > 3 || total > 0" class="ui-pagination" aria-label="Пагинация">
+    <nav v-if="links.length > 3 || total > 0" class="ui-pagination" :aria-label="t('misc.components.pagination.ariaLabel')">
         <p v-if="showSummary" class="ui-pagination__summary text-sm text-ui-text-secondary">
-            {{ from }}–{{ to }} из {{ total }}
+            {{ t('misc.components.pagination.summary', { from: from ?? 0, to: to ?? 0, total }) }}
         </p>
         <div class="ui-pagination__links">
             <Link

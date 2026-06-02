@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
 import type { OrgPost } from './Department.vue';
+
+const { t } = useI18n();
 
 interface ArchivePost extends OrgPost {
     department_name?: string;
@@ -50,7 +53,7 @@ function bodyPreview(body: string | null): string {
 </script>
 
 <template>
-    <Head title="Архив задач · Организация" />
+    <Head :title="t('organization.archiveTitle')" />
     <OrganizationLayout :departments="departments" :selected-department-id="null" archive-active>
         <div class="flex flex-col h-full min-h-0">
             <!-- Header -->
@@ -64,8 +67,8 @@ function bodyPreview(body: string | null): string {
                     </svg>
                 </div>
                 <div class="min-w-0 flex-1">
-                    <div class="text-base font-medium text-[var(--wa-text)]">Архив задач</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ total_archived }} завершённых задач</div>
+                    <div class="text-base font-medium text-[var(--wa-text)]">{{ t('organization.archiveHeading') }}</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('organization.archiveCompletedCount', { count: total_archived }) }}</div>
                 </div>
             </div>
 
@@ -80,7 +83,7 @@ function bodyPreview(body: string | null): string {
                     <input
                         v-model="search"
                         type="text"
-                        placeholder="Поиск по задачам, отделу, автору…"
+                        :placeholder="t('organization.archiveSearch')"
                         class="w-full pl-11 pr-4 py-2 bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                     />
                 </div>
@@ -89,7 +92,7 @@ function bodyPreview(body: string | null): string {
             <!-- Posts list -->
             <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-3">
                 <div v-if="filtered.length === 0" class="text-sm text-[var(--wa-text-secondary)] text-center py-12">
-                    {{ search ? 'Ничего не найдено.' : 'Архив пустой. Завершённые задачи появятся здесь.' }}
+                    {{ search ? t('organization.archiveNotFound') : t('organization.archiveEmpty') }}
                 </div>
 
                 <Link
@@ -99,18 +102,18 @@ function bodyPreview(body: string | null): string {
                     class="archive-card"
                 >
                     <div class="archive-card-top">
-                        <span class="done-pill">Готово</span>
+                        <span class="done-pill">{{ t('organization.donePill') }}</span>
                         <span v-if="post.department_name" class="dept-label">{{ post.department_name }}</span>
                         <span v-if="post.due_at" class="text-xs text-[var(--wa-text-secondary)] ml-auto">
-                            Срок: {{ formatDate(post.due_at) }}
+                            {{ t('organization.dueDateLabel', { date: formatDate(post.due_at) }) }}
                         </span>
                     </div>
                     <div class="archive-card-title">{{ post.title }}</div>
                     <div v-if="post.body" class="archive-card-body">{{ bodyPreview(post.body) }}</div>
                     <div class="archive-card-meta">
-                        <span>{{ post.author?.name || 'Без автора' }}</span>
+                        <span>{{ post.author?.name || t('organization.noAuthor') }}</span>
                         <span>·</span>
-                        <span>Завершено {{ formatDate(post.updated_at) }}</span>
+                        <span>{{ t('organization.completedAt', { date: formatDate(post.updated_at) }) }}</span>
                         <span v-if="post.attachments?.length" class="inline-flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />

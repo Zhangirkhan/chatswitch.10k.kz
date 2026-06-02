@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
 
 defineProps<{ plans: Array<{ id: number; name: string }>; reservedSlugs: string[] }>();
+
+const { t } = useI18n();
 
 const form = useForm({
     name: '',
@@ -16,20 +19,20 @@ const form = useForm({
 
 <template>
     <SuperAdminLayout>
-        <Head title="Новая компания" />
-        <h1 class="mb-6 text-xl font-bold sm:text-2xl">Создать компанию</h1>
+        <Head :title="t('superAdmin.companies.create.pageTitle')" />
+        <h1 class="mb-6 text-xl font-bold sm:text-2xl">{{ t('superAdmin.companies.create.heading') }}</h1>
         <form class="ui-settings-section ui-settings-section--narrow mx-auto w-full space-y-4" @submit.prevent="form.post('/companies')">
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Название</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.name') }}</span>
                 <input v-model="form.name" class="ui-input mt-1" required />
             </label>
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Slug (поддомен)</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.slug') }}</span>
                 <input v-model="form.slug" class="ui-input mt-1" pattern="[a-z0-9-]+" required />
                 <p v-if="form.errors.slug" class="mt-1 text-xs text-ui-danger">{{ form.errors.slug }}</p>
             </label>
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Телефон</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.phone') }}</span>
                 <input
                     v-model="form.phone"
                     type="tel"
@@ -41,21 +44,21 @@ const form = useForm({
                 <p v-if="form.errors.phone" class="mt-1 text-xs text-ui-danger">{{ form.errors.phone }}</p>
             </label>
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Тариф</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.plan') }}</span>
                 <select v-model="form.plan_id" class="ui-select mt-1">
-                    <option :value="null">По умолчанию</option>
+                    <option :value="null">{{ t('superAdmin.companies.planDefault') }}</option>
                     <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
             </label>
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Владелец — имя</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.ownerName') }}</span>
                 <input v-model="form.owner_name" class="ui-input mt-1" required />
             </label>
             <label class="block">
-                <span class="text-sm text-ui-text-secondary">Владелец — email</span>
+                <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.ownerEmail') }}</span>
                 <input v-model="form.owner_email" type="email" class="ui-input mt-1" required />
             </label>
-            <button type="submit" class="ui-btn ui-btn--primary" :disabled="form.processing">Создать</button>
+            <button type="submit" class="ui-btn ui-btn--primary" :disabled="form.processing">{{ t('superAdmin.common.create') }}</button>
         </form>
     </SuperAdminLayout>
 </template>

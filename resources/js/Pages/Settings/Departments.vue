@@ -721,7 +721,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 :key="f.id"
                                 class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full"
                                 :style="{ background: 'var(--ui-surface-muted)', color: 'var(--ui-text)' }"
-                                :title="`${f.name}: этапов ${f.stagesPicked} из ${f.stagesTotal}`"
+                                :title="t('settings.departmentsForm.funnelStagesTitle', { name: f.name, picked: f.stagesPicked, total: f.stagesTotal })"
                             >
                                 <span
                                     class="w-1.5 h-1.5 rounded-full"
@@ -734,9 +734,9 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         <p
                             v-if="scheduleSummary(node.dept)"
                             class="text-[11px] text-[var(--ui-text-secondary)] mt-1"
-                            title="Рабочий график для автоответов вне смены"
+                            :title="t('settings.departmentsForm.scheduleTitle')"
                         >
-                            График: {{ scheduleSummary(node.dept) }}
+                            {{ t('settings.departmentsForm.scheduleLabel') }} {{ scheduleSummary(node.dept) }}
                             <span v-if="node.dept.work_schedule_timezone" class="opacity-80">
                                 ({{ node.dept.work_schedule_timezone }})
                             </span>
@@ -746,10 +746,10 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         <button
                             type="button"
                             class="px-3 py-1.5 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
-                            title="Создать дочерний отдел"
+                            :title="t('settings.departmentsForm.addSubdeptTitle')"
                             @click="openCreate(node.dept.id)"
                         >
-                            + Подотдел
+                            {{ t('settings.departmentsForm.addSubdept') }}
                         </button>
                         <button
                             type="button"
@@ -757,14 +757,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                             :style="{ borderColor: 'var(--ui-border-strong)', color: 'var(--ui-text)' }"
                             @click="openEdit(node.dept)"
                         >
-                            Редактировать
+                            {{ t('common.edit') }}
                         </button>
                         <button
                             type="button"
                             class="px-3 py-1.5 text-sm rounded-lg text-red-400 border border-red-500/30 hover:bg-red-500/10"
                             @click="requestRemoveDepartment(node.dept)"
                         >
-                            Удалить
+                            {{ t('common.delete') }}
                         </button>
                     </div>
                 </div>
@@ -793,7 +793,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-4">
                         <div>
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Название</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.departmentsForm.name') }}</label>
                             <input
                                 v-model="form.name"
                                 type="text"
@@ -808,14 +808,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
                         <div>
                             <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
-                                Родительский отдел
+                                {{ t('settings.departmentsForm.parentDept') }}
                             </label>
                             <select
                                 v-model="form.parent_id"
                                 class="settings-input"
                                 :class="{ 'settings-input-error': validationErrors.parent_id }"
                             >
-                                <option :value="null">— Нет (корневой отдел) —</option>
+                                <option :value="null">{{ t('settings.departmentsForm.noParent') }}</option>
                                 <option
                                     v-for="node in eligibleParents"
                                     :key="node.dept.id"
@@ -828,12 +828,12 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 {{ validationErrors.parent_id }}
                             </p>
                             <p class="text-[11px] text-[var(--ui-text-secondary)] mt-1">
-                                В списке нельзя выбрать сам редактируемый отдел и его дочерние — это создаст цикл.
+                                {{ t('settings.departmentsForm.parentHint') }}
                             </p>
                         </div>
 
                         <div>
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Описание</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.departmentsForm.description') }}</label>
                             <textarea
                                 v-model="form.description"
                                 rows="3"
@@ -844,7 +844,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
                         <label class="flex items-center gap-2 cursor-pointer">
                             <UiCheckbox v-model="form.is_active" />
-                            <span class="text-sm text-[var(--ui-text)]">Отдел активен (участвует в чатах и списках)</span>
+                            <span class="text-sm text-[var(--ui-text)]">{{ t('settings.departmentsForm.deptActive') }}</span>
                         </label>
 
                         <div class="pt-2 border-t" :style="{ borderColor: 'var(--ui-border)' }">
@@ -858,7 +858,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     }"
                                     @click="modalTab = 'members'"
                                 >
-                                    Сотрудники отдела
+                                    {{ t('settings.departmentsForm.tabMembers') }}
                                     <span class="opacity-80">({{ selectedMemberIds.length }})</span>
                                 </button>
                                 <button
@@ -870,7 +870,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     }"
                                     @click="modalTab = 'funnels'"
                                 >
-                                    Воронки продаж
+                                    {{ t('settings.departmentsForm.tabFunnels') }}
                                     <span class="opacity-80">({{ selectedFunnelIds.size }})</span>
                                 </button>
                                 <button
@@ -882,23 +882,22 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     }"
                                     @click="modalTab = 'schedule'"
                                 >
-                                    График
+                                    {{ t('settings.departmentsForm.tabSchedule') }}
                                 </button>
                             </div>
                         </div>
 
                         <div v-if="modalTab === 'schedule'" class="pt-2 space-y-4">
                             <p class="text-xs text-[var(--ui-text-secondary)]">
-                                Вне рабочего времени бот вежливо сообщит клиенту, что отдел не на связи, и когда ждать ответ.
-                                Пока график выключен — отдел считается доступным круглосуточно.
+                                {{ t('settings.departmentsForm.scheduleHint') }}
                             </p>
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <UiCheckbox v-model="form.work_schedule_enabled" />
-                                <span class="text-sm text-[var(--ui-text)]">Использовать рабочий график для автоответов</span>
+                                <span class="text-sm text-[var(--ui-text)]">{{ t('settings.departmentsForm.useSchedule') }}</span>
                             </label>
                             <div v-if="form.work_schedule_enabled" class="space-y-3">
                                 <div>
-                                    <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Часовой пояс</label>
+                                    <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.departmentsForm.timezone') }}</label>
                                     <select v-model="form.work_schedule_timezone" class="settings-input">
                                         <option v-for="tz in TIMEZONE_OPTIONS" :key="tz" :value="tz">{{ tz }}</option>
                                     </select>
@@ -935,18 +934,16 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <div v-if="modalTab === 'funnels'" class="pt-2">
-                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">Воронки продаж</p>
+                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">{{ t('settings.departmentsForm.funnelsTitle') }}</p>
                             <p class="text-xs text-[var(--ui-text-secondary)] mb-3">
-                                Подключите одну или несколько воронок и отметьте этапы, с которыми
-                                работает этот отдел. По умолчанию при включении воронки выбираются
-                                все её этапы — снимите ненужные.
+                                {{ t('settings.departmentsForm.funnelsHint') }}
                             </p>
 
                             <div
                                 v-if="localFunnels.length === 0"
                                 class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
-                                Воронок пока нет. Создайте их в разделе «Воронки продаж».
+                                {{ t('settings.departmentsForm.noFunnels') }}
                             </div>
 
                             <div
@@ -969,7 +966,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     >
                                         <UiCheckbox
                                             :model-value="isFunnelChecked(funnel)"
-                                            :aria-label="`Воронка ${funnel.name}`"
+                                            :aria-label="t('settings.departmentsForm.funnelAria', { name: funnel.name })"
                                             @update:model-value="toggleFunnel(funnel)"
                                             @click.stop
                                         />
@@ -982,13 +979,13 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                             <span
                                                 v-if="!funnel.is_active"
                                                 class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 ml-1"
-                                            >неактивна</span>
+                                            >{{ t('settings.departmentsForm.inactiveFunnel') }}</span>
                                         </span>
                                         <span
                                             v-if="isFunnelChecked(funnel) && funnel.stages.length > 0"
                                             class="text-[11px] text-[var(--ui-text-secondary)] shrink-0"
                                         >
-                                            этапов: {{ selectedStageCount(funnel) }} / {{ funnel.stages.length }}
+                                            {{ t('settings.departmentsForm.stagesCount', { picked: selectedStageCount(funnel), total: funnel.stages.length }) }}
                                         </span>
                                     </div>
 
@@ -1000,7 +997,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                             v-if="funnel.stages.length === 0"
                                             class="text-[11px] text-[var(--ui-text-secondary)] italic"
                                         >
-                                            У воронки нет этапов — добавьте их в «Воронках продаж».
+                                            {{ t('settings.departmentsForm.noStages') }}
                                         </div>
                                         <div
                                             v-for="stage in funnel.stages"
@@ -1015,7 +1012,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                             <UiCheckbox
                                                 size="sm"
                                                 :model-value="isStageChecked(stage)"
-                                                :aria-label="`Этап ${stage.name}`"
+                                                :aria-label="t('settings.departmentsForm.stageAria', { name: stage.name })"
                                                 @update:model-value="toggleStage(funnel, stage)"
                                                 @click.stop
                                             />
@@ -1027,7 +1024,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                             <span
                                                 v-if="stage.is_active === false"
                                                 class="text-[10px] text-[var(--ui-text-secondary)]"
-                                            >(неактивен)</span>
+                                            >{{ t('settings.departmentsForm.inactiveStage') }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1042,17 +1039,16 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         </div>
 
                         <div v-if="modalTab === 'members'" class="pt-2">
-                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">Сотрудники отдела</p>
+                            <p class="text-sm font-medium text-[var(--ui-text)] mb-1">{{ t('settings.departmentsForm.membersTitle') }}</p>
                             <p class="text-xs text-[var(--ui-text-secondary)] mb-3">
-                                Отмеченные пользователи входят в этот отдел. Один сотрудник может состоять
-                                одновременно в нескольких отделах.
+                                {{ t('settings.departmentsForm.membersHint') }}
                             </p>
 
                             <div v-if="showMemberSearch" class="mb-3">
                                 <input
                                     v-model="memberSearch"
                                     type="search"
-                                    placeholder="Поиск по имени или email…"
+                                    :placeholder="t('settings.departmentsForm.memberSearch')"
                                     class="settings-input"
                                     autocomplete="off"
                                 />
@@ -1075,7 +1071,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                     <UiCheckbox
                                         class="mt-0.5"
                                         :model-value="selectedMemberIds.includes(u.id)"
-                                        :aria-label="`Сотрудник ${u.name}`"
+                                        :aria-label="t('settings.departmentsForm.memberAria', { name: u.name })"
                                         @update:model-value="toggleMember(u.id)"
                                         @click.stop
                                     />
@@ -1087,7 +1083,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                             class="text-[10px] mt-0.5"
                                             :style="{ color: 'var(--ui-text-secondary)' }"
                                         >
-                                            Также состоит в: {{ otherDeptNamesFor(u).join(', ') }}
+                                            {{ t('settings.departmentsForm.alsoIn', { names: otherDeptNamesFor(u).join(', ') }) }}
                                         </div>
                                     </div>
                                 </div>
@@ -1104,7 +1100,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                             class="ui-btn ui-btn--secondary"
                             @click="closeModal"
                         >
-                            Отмена
+                            {{ t('common.cancel') }}
                         </button>
                         <button
                             type="button"

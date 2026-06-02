@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 export type StagePreviewStage = {
     id: number;
@@ -43,10 +46,10 @@ const caption = computed(() => {
         return `${from} → ${to}`;
     }
     if (to) {
-        return `Целевой этап: ${to}`;
+        return t('misc.components.funnelStageSim.targetStage', { name: to });
     }
     if (from) {
-        return `Текущий этап: ${from}`;
+        return t('misc.components.funnelStageSim.currentStage', { name: from });
     }
     return null;
 });

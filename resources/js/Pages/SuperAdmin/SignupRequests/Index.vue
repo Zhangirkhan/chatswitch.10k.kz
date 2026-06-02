@@ -8,6 +8,9 @@ import InputError from '@/Components/InputError.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 type SignupRequestRow = {
     id: number;
@@ -50,11 +53,11 @@ function applyFilter(): void {
 
 const createCompanyById = reactive<Record<number, boolean>>({});
 
-const statusLabel: Record<string, string> = {
-    pending: 'Ожидает',
-    processed: 'Одобрена',
-    rejected: 'Отклонена',
-};
+const statusLabel = computed(() => ({
+    pending: t('superAdmin.signupRequests.statusPending'),
+    processed: t('superAdmin.signupRequests.statusProcessed'),
+    rejected: t('superAdmin.signupRequests.statusRejected'),
+}));
 
 function approve(id: number) {
     router.post(
@@ -86,29 +89,29 @@ function confirmReject(): void {
 
 <template>
     <SuperAdminLayout>
-        <Head title="Заявки" />
-        <h1 class="mb-6 text-2xl font-bold">Заявки с лендинга</h1>
+        <Head :title="t('superAdmin.signupRequests.pageTitle')" />
+        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.signupRequests.heading') }}</h1>
 
         <InputError class="mb-4" :message="formErrors.create_company" />
 
         <UiFilterPanel class="mb-6" compact @submit="applyFilter">
-            <UiFilterField label="Статус">
+            <UiFilterField :label="t('superAdmin.signupRequests.filterStatus')">
                 <select v-model="filterForm.status" class="ui-select">
-                    <option value="">Все</option>
-                    <option value="pending">Ожидает</option>
-                    <option value="processed">Одобрена</option>
-                    <option value="rejected">Отклонена</option>
+                    <option value="">{{ t('superAdmin.common.filterAll') }}</option>
+                    <option value="pending">{{ t('superAdmin.signupRequests.statusPending') }}</option>
+                    <option value="processed">{{ t('superAdmin.signupRequests.statusProcessed') }}</option>
+                    <option value="rejected">{{ t('superAdmin.signupRequests.statusRejected') }}</option>
                 </select>
             </UiFilterField>
             <template #actions>
                 <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="filterForm.processing">
-                    Применить
+                    {{ t('superAdmin.common.apply') }}
                 </button>
             </template>
         </UiFilterPanel>
 
         <div v-if="requests.data.length === 0" class="ui-empty-state ui-empty-state--dashed">
-            Заявок нет
+            {{ t('superAdmin.signupRequests.empty') }}
         </div>
 
         <div v-else class="space-y-3">
@@ -116,9 +119,9 @@ function confirmReject(): void {
                 <div class="flex flex-col gap-4 sm:flex-row sm:justify-between">
                     <div class="min-w-0 flex-1">
                         <div class="font-medium">{{ r.company_name }}</div>
-                        <div v-if="r.bin" class="text-sm text-ui-text-secondary">БИН: {{ r.bin }}</div>
+                        <div v-if="r.bin" class="text-sm text-ui-text-secondary">{{ t('superAdmin.signupRequests.bin') }} {{ r.bin }}</div>
                         <div v-if="r.desired_slug" class="text-sm text-ui-text-secondary">
-                            Поддомен:
+                            {{ t('superAdmin.signupRequests.subdomain') }}
                             <span class="font-mono text-ui-text">{{ r.desired_slug }}.{{ rootDomain }}</span>
                         </div>
                         <div class="text-sm text-ui-text-secondary">{{ r.contact_name }} — {{ r.email }}</div>
@@ -126,22 +129,22 @@ function confirmReject(): void {
                         <p v-if="r.message" class="mt-2 text-sm text-ui-text-secondary">{{ r.message }}</p>
                         <p v-if="r.company" class="mt-2 text-sm">
                             <Link :href="`/companies/${r.company.id}`" class="text-ui-accent hover:underline">
-                                Компания: {{ r.company.name }} ({{ r.company.slug }})
+                                {{ t('superAdmin.signupRequests.linkedCompany', { name: r.company.name, slug: r.company.slug }) }}
                             </Link>
                         </p>
                         <p v-if="r.processed_at" class="mt-1 text-xs text-ui-text-muted">
-                            Обработано: {{ new Date(r.processed_at).toLocaleString('ru-RU') }}
+                            {{ t('superAdmin.signupRequests.processedAt') }} {{ new Date(r.processed_at).toLocaleString('ru-RU') }}
                             <span v-if="r.processed_by"> · {{ r.processed_by.name }}</span>
                         </p>
                     </div>
                     <div class="flex shrink-0 flex-col gap-3 sm:items-end">
                         <span class="ui-badge ui-badge--neutral text-xs uppercase">
-                            {{ statusLabel[r.status] ?? r.status }}
+                            {{ statusLabel[r.status as 'pending' | 'processed' | 'rejected'] ?? r.status }}
                         </span>
                         <template v-if="r.status === 'pending'">
                             <label class="flex cursor-pointer items-center gap-2 text-sm text-ui-text-secondary">
                                 <UiCheckbox v-model="createCompanyById[r.id]" size="sm" />
-                                <span>Создать компанию (тенант)</span>
+                                <span>{{ t('superAdmin.signupRequests.createTenantCheckbox') }}</span>
                             </label>
                             <div class="flex flex-wrap gap-2">
                                 <button
@@ -150,10 +153,10 @@ function confirmReject(): void {
                                     :disabled="!createCompanyById[r.id]"
                                     @click="approve(r.id)"
                                 >
-                                    Подтвердить и создать
+                                    {{ t('superAdmin.signupRequests.approveAndCreate') }}
                                 </button>
                                 <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="requestReject(r.id)">
-                                    Отклонить
+                                    {{ t('superAdmin.signupRequests.reject') }}
                                 </button>
                             </div>
                         </template>
@@ -173,9 +176,9 @@ function confirmReject(): void {
 
         <DangerConfirmModal
             :open="showRejectConfirm"
-            title="Отклонить заявку?"
-            description="Заявка будет отмечена отклонённой без создания компании."
-            confirm-label="Отклонить"
+            :title="t('superAdmin.signupRequests.rejectModalTitle')"
+            :description="t('superAdmin.signupRequests.rejectModalDescription')"
+            :confirm-label="t('superAdmin.signupRequests.rejectModalConfirm')"
             @close="showRejectConfirm = false"
             @confirm="confirmReject"
         />

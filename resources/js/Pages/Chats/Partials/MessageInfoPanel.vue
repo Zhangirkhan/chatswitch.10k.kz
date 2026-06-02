@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue';
 import type { Message } from '@/types';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     message: Message;
@@ -56,7 +59,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
             <button
                 @click="emit('close')"
                 class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                title="Закрыть"
+                :title="t('common.close')"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -64,7 +67,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                 </svg>
             </button>
             <h2 class="text-base flex-1" :style="{ color: 'var(--wa-text)' }">
-                Данные о сообщении
+                {{ t('chats.messageInfo.title') }}
             </h2>
         </div>
 
@@ -101,7 +104,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                         <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/>
                     </svg>
                     <div class="min-w-0">
-                        <div class="font-medium" :style="{ color: 'var(--wa-text)' }">Прочитано</div>
+                        <div class="font-medium" :style="{ color: 'var(--wa-text)' }">{{ t('chats.messageInfo.read') }}</div>
                         <div class="text-[13px]" :style="{ color: 'var(--wa-text-secondary)' }">
                             {{ formatDateTime(baseTs) }}
                         </div>
@@ -113,7 +116,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                         <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/>
                     </svg>
                     <div class="min-w-0">
-                        <div class="font-medium" :style="{ color: 'var(--wa-text)' }">Доставлено</div>
+                        <div class="font-medium" :style="{ color: 'var(--wa-text)' }">{{ t('chats.messageInfo.delivered') }}</div>
                         <div class="text-[13px]" :style="{ color: 'var(--wa-text-secondary)' }">
                             {{ formatDateTime(baseTs) }}
                         </div>
@@ -126,7 +129,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape));
                     </svg>
                     <div class="min-w-0">
                         <div class="font-medium" :style="{ color: 'var(--wa-text)' }">
-                            {{ showReceived ? 'Получено' : 'Отправлено' }}
+                            {{ showReceived ? t('chats.messageInfo.received') : t('chats.messageInfo.sent') }}
                         </div>
                         <div class="text-[13px]" :style="{ color: 'var(--wa-text-secondary)' }">
                             {{ formatDateTime(baseTs) }}

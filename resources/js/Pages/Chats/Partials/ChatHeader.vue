@@ -15,8 +15,10 @@ import { stageIdAtPreservedIndex } from '@/utils/funnelStageMapping';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 type MenuPos = { top: number; right: number };
 type AiRiskyEnableModalState = {
@@ -83,7 +85,7 @@ const canEditChatDepartments = computed(() => {
 /** Подпись для сотрудника: только свой отдел из профиля. */
 const employeeOwnDepartmentLabel = computed(() => {
     const name = page.props.auth?.user?.department?.name?.trim();
-    return name && name.length > 0 ? name : 'Без отдела';
+    return name && name.length > 0 ? name : t('chats.noDepartment');
 });
 
 const emit = defineEmits<{
@@ -168,7 +170,7 @@ async function loadDepartmentHistory() {
         departmentHistory.value = data.history ?? [];
         currentDepartmentsHistory.value = data.current ?? [];
     } catch (e: any) {
-        departmentHistoryError.value = e?.response?.data?.message || e?.message || 'Не удалось загрузить историю отделов';
+        departmentHistoryError.value = e?.response?.data?.message || e?.message || t('chats.header.loadDepartmentHistoryFailed');
     } finally {
         departmentHistoryLoading.value = false;
     }
@@ -277,7 +279,7 @@ const aiSettingsMenuPanelRef = ref<HTMLElement | null>(null);
 const aiResponderName = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
-        return 'не выбран';
+        return t('chats.notSelected');
     }
 
     return assignableUsersList.value.find((user) => user.id === id)?.name
@@ -286,24 +288,24 @@ const aiResponderName = computed(() => {
 });
 const aiStatusLabel = computed(() => {
     if (!props.aiStatus) {
-        return 'AI ещё не отвечал';
+        return t('chats.header.aiNotAnswered');
     }
     return props.aiStatus.label || props.aiStatus.status;
 });
 
 const aiModeLabel = computed(() => {
     if (!aiEnabled.value) {
-        return 'AI';
+        return t('chats.header.aiAutoShort');
     }
 
-    return aiMode.value === 'draft' ? 'Черн.' : 'AI';
+    return aiMode.value === 'draft' ? t('chats.header.aiDraftShort') : t('chats.header.aiAutoShort');
 });
 
 const aiSettingsSummary = computed(() => {
     if (!aiEnabled.value) {
         return '';
     }
-    const mode = aiMode.value === 'draft' ? 'Черновик' : 'Авто';
+    const mode = aiMode.value === 'draft' ? t('chats.header.draft') : t('chats.header.aiAuto');
     const who = aiResponderMenuButtonLabel.value;
 
     return `${mode} · ${who}`;
@@ -312,13 +314,13 @@ const aiSettingsSummary = computed(() => {
 /** Единый компактный статус AI в шапке (5 состояний). */
 const aiHeaderBadge = computed(() => {
     if (!aiEnabled.value) {
-        return { label: 'Выкл', tone: 'off' as const, title: 'AI выключен для этого чата' };
+        return { label: t('chats.header.aiOff'), tone: 'off' as const, title: t('chats.header.aiDisabledForChat') };
     }
     if (props.chat.ai_orchestrator_status === 'failed' || props.aiStatus?.status === 'failed') {
-        return { label: 'Ошибка', tone: 'error' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
+        return { label: t('chats.header.aiError'), tone: 'error' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
     }
     if (props.chat.ai_orchestrator_status === 'needs_manager' || props.aiStatus?.status === 'blocked') {
-        return { label: 'Ждёт вас', tone: 'warning' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
+        return { label: t('chats.header.aiWaiting'), tone: 'warning' as const, title: orchestratorStatusTitle.value || aiStatusTitle.value };
     }
     if (
         props.chat.ai_orchestrator_status === 'running'
@@ -326,10 +328,10 @@ const aiHeaderBadge = computed(() => {
         || props.aiStatus?.status === 'generating'
         || props.aiStatus?.status === 'pending'
     ) {
-        return { label: 'Думает', tone: 'busy' as const, title: aiStatusTitle.value };
+        return { label: t('chats.header.aiThinking'), tone: 'busy' as const, title: aiStatusTitle.value };
     }
     if (props.aiStatus?.status === 'drafted' || aiMode.value === 'draft') {
-        return { label: 'Черновик', tone: 'idle' as const, title: aiStatusTitle.value };
+        return { label: t('chats.header.draft'), tone: 'idle' as const, title: aiStatusTitle.value };
     }
     if (orchestratorStatusLabel.value) {
         return {
@@ -340,7 +342,7 @@ const aiHeaderBadge = computed(() => {
     }
 
     return {
-        label: 'Авто',
+        label: t('chats.header.aiAuto'),
         tone: 'idle' as const,
         title: aiStatusTitle.value,
     };
@@ -348,7 +350,7 @@ const aiHeaderBadge = computed(() => {
 
 const aiAssistantButtonTitle = computed(() => {
     const status = aiHeaderBadge.value.label;
-    const lines = ['Открыть AI-чат с ассистентом', `Статус: ${status}`];
+    const lines = [t('chats.header.aiAssistantOpen'), t('chats.header.aiStatusLine', { status })];
     const detail = aiHeaderBadge.value.title?.trim();
     if (detail) {
         lines.push(detail);
@@ -357,19 +359,23 @@ const aiAssistantButtonTitle = computed(() => {
     return lines.join('\n');
 });
 
-const aiAssistantAriaLabel = computed(() => `Открыть AI-чат, статус: ${aiHeaderBadge.value.label}`);
+const aiAssistantAriaLabel = computed(() =>
+    t('chats.header.aiAssistantOpenWithStatus', { status: aiHeaderBadge.value.label }),
+);
 
 const aiAssistantNeedsAttention = computed(() => {
     const tone = aiHeaderBadge.value.tone;
     return tone === 'busy' || tone === 'warning' || tone === 'error';
 });
 
-const aiModePickerLabel = computed(() => (aiMode.value === 'draft' ? 'Черновик' : 'Автоответ'));
+const aiModePickerLabel = computed(() =>
+    aiMode.value === 'draft' ? t('chats.header.draft') : t('chats.header.aiAutoReplyLabel'),
+);
 
 const aiResponderMenuButtonLabel = computed(() => {
     const id = props.chat.ai_responder_user_id;
     if (id == null) {
-        return 'Авто';
+        return t('chats.header.aiAuto');
     }
 
     const name = assignableUsersList.value.find((user) => user.id === id)?.name
@@ -382,16 +388,16 @@ const aiResponderMenuButtonLabel = computed(() => {
 
 const aiStatusTitle = computed(() => {
     const lines = [
-        `AI-ассистент: ${aiStatusLabel.value}.`,
+        t('chats.header.aiAssistantStatusLine', { label: aiStatusLabel.value }),
         props.aiStatus?.message,
         props.aiStatus?.hint,
         props.aiStatus?.tone_source?.label,
-        `Режим: ${aiModeLabel.value}.`,
-        `Ответчик: ${aiResponderName.value}.`,
+        t('chats.header.aiModeLine', { mode: aiModeLabel.value }),
+        t('chats.header.aiResponderLine', { name: aiResponderName.value }),
     ].filter(Boolean);
 
     if (isAdministrator.value && props.aiStatus?.technical_error) {
-        lines.push(`Технически: ${props.aiStatus.technical_error}`);
+        lines.push(t('chats.header.aiTechnicalLine', { error: props.aiStatus.technical_error }));
     }
 
     return lines.join('\n');
@@ -399,17 +405,19 @@ const aiStatusTitle = computed(() => {
 
 const orchestratorStatusLabel = computed(() => {
     const status = props.chat.ai_orchestrator_status;
-    if (status === 'running' || status === 'pending') return 'AI ведёт';
-    if (status === 'needs_manager') return 'Нужен менеджер';
-    if (status === 'completed') return 'AI шаг';
-    if (status === 'failed') return 'AI ошибка';
-    if (status === 'skipped') return 'AI пропуск';
+    if (status === 'running' || status === 'pending') return t('chats.header.orchestratorRunning');
+    if (status === 'needs_manager') return t('chats.header.orchestratorNeedsManager');
+    if (status === 'completed') return t('chats.header.orchestratorCompleted');
+    if (status === 'failed') return t('chats.header.orchestratorFailed');
+    if (status === 'skipped') return t('chats.header.orchestratorSkipped');
     return '';
 });
 
 const orchestratorStatusTitle = computed(() => {
     const lines = [
-        orchestratorStatusLabel.value ? `AI-оркестратор: ${orchestratorStatusLabel.value}` : '',
+        orchestratorStatusLabel.value
+            ? t('chats.header.orchestratorLine', { status: orchestratorStatusLabel.value })
+            : '',
         props.chat.ai_orchestrator_last_summary,
     ].filter(Boolean);
 
@@ -428,11 +436,11 @@ const assignUsersDisabled = computed(() => assignableUsersList.value.length === 
 
 const assignUsersButtonTitle = computed(() => {
     if (assignableUsersList.value.length === 0) {
-        return 'Нет активных пользователей в системе.';
+        return t('chats.header.noActiveUsers');
     }
     return selectedUserIds.value.length
         ? selectedUsers.value.map((u) => u.name).join(', ')
-        : 'Назначить сотрудников на чат';
+        : t('chats.header.assignEmployees');
 });
 const usersMenuOpen = ref(false);
 const usersBtnRef = ref<HTMLButtonElement | null>(null);
@@ -471,20 +479,20 @@ const aiResponderPickerSource = computed<AssignableUser[]>(() =>
 
 const usersLabel = computed<string>(() => {
     const count = selectedUserIds.value.length;
-    if (count === 0) return 'Назначить сотрудников';
-    if (count === 1) return selectedUsers.value[0]?.name ?? 'Сотрудник';
-    return `Сотрудники: ${count}`;
+    if (count === 0) return t('chats.header.assignEmployeesShort');
+    if (count === 1) return selectedUsers.value[0]?.name ?? t('chats.employee');
+    return t('chats.header.assignEmployeesCount', { count });
 });
 
 function roleLabel(roles: string[]): string {
-    if (roles.includes('administrator')) return 'Администратор';
-    if (roles.includes('manager')) return 'Руководитель';
-    if (roles.includes('employee')) return 'Сотрудник';
+    if (roles.includes('administrator')) return t('settings.roles.administrator');
+    if (roles.includes('manager')) return t('settings.roles.manager');
+    if (roles.includes('employee')) return t('settings.roles.employee');
     return '';
 }
 
 function userInitials(name?: string | null): string {
-    return initialsFromName(name, 'С');
+    return initialsFromName(name, t('chats.employee').charAt(0));
 }
 
 async function patchAiSettings(payload: Record<string, unknown>): Promise<void> {
@@ -521,7 +529,7 @@ async function toggleAi(): Promise<void> {
             const message =
                 typeof data.message === 'string' && data.message.trim() !== ''
                     ? data.message
-                    : 'Перед включением AI проверьте готовность.';
+                    : t('chats.header.checkReadinessBeforeAi');
             openAiRiskyEnableModal({
                 message,
                 warnings,
@@ -530,7 +538,7 @@ async function toggleAi(): Promise<void> {
             });
             return;
         }
-        showToast({ message: data?.message || 'Не удалось переключить AI.', type: 'warning' });
+        showToast({ message: data?.message || t('chats.header.toggleAiFailed'), type: 'warning' });
     } finally {
         aiSaving.value = false;
     }
@@ -566,7 +574,7 @@ async function confirmAiRiskyEnable(): Promise<void> {
         aiRiskyEnableModalOpen.value = false;
         aiRiskyEnableModal.value = null;
     } catch (retryError: any) {
-        showToast({ message: retryError?.response?.data?.message || 'Не удалось включить AI.', type: 'warning' });
+        showToast({ message: retryError?.response?.data?.message || t('chats.header.enableAiFailed'), type: 'warning' });
     } finally {
         aiRiskyEnableConfirming.value = false;
     }
@@ -579,12 +587,12 @@ async function createQuickTask(): Promise<void> {
     quickTaskLoading.value = true;
     try {
         await axios.post(route('chats.quick-task', props.chat.id), {
-            title: 'Проверить следующий шаг по клиенту',
-            body: 'Создано из шапки чата. Проверьте переписку, статус воронки и следующий шаг.',
+            title: t('chats.header.quickTaskTitle'),
+            body: t('chats.header.quickTaskBody'),
         });
         router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось создать задачу.', type: 'warning' });
+        showToast({ message: e?.response?.data?.message || t('chats.header.createTaskFailed'), type: 'warning' });
     } finally {
         quickTaskLoading.value = false;
     }
@@ -599,7 +607,7 @@ async function updateAiSettings(payload: Record<string, unknown>): Promise<void>
     try {
         await patchAiSettings(payload);
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось обновить настройки AI.', type: 'warning' });
+        showToast({ message: e?.response?.data?.message || t('chats.header.updateAiFailed'), type: 'warning' });
     } finally {
         aiSaving.value = false;
     }
@@ -767,7 +775,7 @@ async function loadAssignmentHistory() {
         assignmentHistory.value = data.history ?? [];
         currentAssignmentsHistory.value = data.current ?? [];
     } catch (e: any) {
-        assignmentHistoryError.value = e?.response?.data?.message || e?.message || 'Не удалось загрузить историю';
+        assignmentHistoryError.value = e?.response?.data?.message || e?.message || t('chats.header.loadHistoryFailed');
     } finally {
         assignmentHistoryLoading.value = false;
     }
@@ -996,7 +1004,7 @@ async function archiveAndCloseChat(): Promise<void> {
         }
         await router.visit(route('chats.archived'));
     } catch {
-        showToast({ message: 'Не удалось отправить чат в архив.', type: 'warning' });
+        showToast({ message: t('chats.header.archiveFailed'), type: 'warning' });
     } finally {
         archivingChat.value = false;
     }
@@ -1004,7 +1012,7 @@ async function archiveAndCloseChat(): Promise<void> {
 
 function notImplemented(name: string) {
     closeMenu();
-    showToast({ message: `«${name}» — функция скоро будет доступна.`, type: 'info' });
+    showToast({ message: t('chats.featureComingSoon', { name }), type: 'info' });
 }
 
 const displayName = computed(
@@ -1019,8 +1027,8 @@ const displayName = computed(
 function getTypingText(): string {
     const names = [...props.typingUsers.values()];
     if (names.length === 0) return '';
-    if (names.length === 1) return `${names[0]} печатает...`;
-    return `${names.join(', ')} печатают...`;
+    if (names.length === 1) return t('chats.header.typingOne', { name: names[0] });
+    return t('chats.header.typingMany', { names: names.join(', ') });
 }
 
 /**
@@ -1037,6 +1045,21 @@ const sessionLine = computed<{ phone: string; name: string } | null>(() => {
     if (!phone && !name) return null;
     return { phone, name };
 });
+
+const sessionLineTitle = computed(() => {
+    const line = sessionLine.value;
+    if (!line) return '';
+    const nameSuffix = line.name ? ` (${line.name})` : '';
+    return t('chats.header.sessionLineTitle', { phone: line.phone, nameSuffix });
+});
+
+const departmentsButtonTitle = computed(() =>
+    selectedDepartmentIds.value.length
+        ? t('chats.header.departmentsTitle', {
+              names: selectedDepartments.value.map((d) => d.name).join(', '),
+          })
+        : t('chats.header.attachDepartments'),
+);
 
 const funnelCatalogList = computed(() => props.funnelCatalog ?? []);
 
@@ -1092,7 +1115,7 @@ const funnelBarCells = computed(() => {
 
     return Array.from({ length: count }, (_, index) => ({
         id: index,
-        name: `Этап ${index + 1}`,
+        name: t('chats.header.stageDefault', { number: index + 1 }),
         color: funnelBarColor.value,
         index,
     }));
@@ -1117,14 +1140,18 @@ const funnelBarTitle = computed(() => {
     const total = funnelBarCells.value.length;
     const pos = funnelBarCurrentIndex.value;
     const stepLabel =
-        total > 0 && pos >= 0 ? `Этап ${pos + 1} из ${total}` : total > 0 ? `${total} этапов` : '';
+        total > 0 && pos >= 0
+            ? t('chats.header.stageOf', { current: pos + 1, total })
+            : total > 0
+              ? t('chats.header.stagesCount', { count: total })
+              : '';
     if (fn && st) {
         const base = stepLabel ? `${fn} — ${st} (${stepLabel})` : `${fn} — ${st}`;
         return reason ? `${base}. ${reason}` : base;
     }
     return stepLabel
-        ? `Воронка продаж: ${stepLabel}. Нажмите, чтобы изменить`
-        : 'Воронка продаж: нажмите, чтобы выбрать этап';
+        ? t('chats.header.funnelBarTitle', { label: stepLabel })
+        : t('chats.header.funnelBarEmpty');
 });
 
 const funnelProgressPercent = computed(() => {
@@ -1137,7 +1164,7 @@ const funnelProgressPercent = computed(() => {
     return Math.round(((current + 1) / total) * 100);
 });
 
-const funnelSnapshotTitle = computed(() => props.chat.funnel_stage?.name || 'Воронка не выбрана');
+const funnelSnapshotTitle = computed(() => props.chat.funnel_stage?.name || t('chats.header.funnelNotSelected'));
 
 const nextFunnelStageName = computed(() => {
     const next = funnelBarStages.value[funnelBarCurrentIndex.value + 1];
@@ -1191,7 +1218,7 @@ const aiSnapshotLabel = computed(() => {
         return props.aiStatus.label;
     }
 
-    return aiEnabled.value ? aiModeLabel.value : 'AI выключен';
+    return aiEnabled.value ? aiModeLabel.value : t('chats.header.aiDisabled');
 });
 
 const funnelModalOpen = ref(false);
@@ -1295,7 +1322,7 @@ async function loadFunnelHistory() {
         const { data } = await axios.get(route('chats.funnel.history', props.chat.id));
         funnelHistory.value = Array.isArray(data.data) ? data.data : [];
     } catch (e: any) {
-        funnelHistoryError.value = e?.response?.data?.message || 'Не удалось загрузить историю';
+        funnelHistoryError.value = e?.response?.data?.message || t('chats.header.loadFunnelHistoryFailed');
     } finally {
         funnelHistoryLoading.value = false;
     }
@@ -1332,8 +1359,8 @@ async function saveFunnelModal() {
         closeFunnelModal();
         await router.reload({ only: ['chat', 'funnelCatalog'] });
     } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.response?.data?.errors?.funnel_id?.[0] || 'Не удалось сохранить';
-        showToast({ message: typeof msg === 'string' ? msg : 'Ошибка сохранения', type: 'warning' });
+        const msg = e?.response?.data?.message || e?.response?.data?.errors?.funnel_id?.[0] || t('chats.header.saveFailed');
+        showToast({ message: typeof msg === 'string' ? msg : t('chats.header.saveError'), type: 'warning' });
     } finally {
         funnelSaving.value = false;
     }
@@ -1403,7 +1430,7 @@ provide(
 
 <template>
     <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative overflow-hidden">
-        <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]" aria-label="Назад к списку чатов">
+        <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]" :aria-label="t('chats.header.backToListAria')">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -1412,7 +1439,7 @@ provide(
         <div
             role="button"
             tabindex="0"
-            aria-label="Информация о контакте"
+            :aria-label="t('chats.header.contactInfoAria')"
             @click="openContactInfo"
             @keydown.enter.prevent="openContactInfo"
             @keydown.space.prevent="openContactInfo"
@@ -1429,29 +1456,29 @@ provide(
         <div
             role="button"
             tabindex="0"
-            aria-label="Информация о контакте"
+            :aria-label="t('chats.header.contactInfoAria')"
             @click="openContactInfo"
             @keydown.enter.prevent="openContactInfo"
             @keydown.space.prevent="openContactInfo"
             class="flex-1 min-w-0 cursor-pointer"
         >
             <h2 class="text-base text-[var(--wa-text)] truncate font-normal">
-                {{ chat.chat_name || chat.contact?.push_name || formatPhone(chat.contact?.phone_number) || 'Без имени' }}
+                {{ chat.chat_name || chat.contact?.push_name || formatPhone(chat.contact?.phone_number) || t('chats.noName') }}
             </h2>
             <p class="text-xs text-[var(--wa-text-secondary)] truncate">
                 <template v-if="typingUsers.size > 0">
                     <span class="text-[var(--wa-accent)]">{{ getTypingText() }}</span>
                 </template>
                 <template v-else>
-                    в сети
+                    {{ t('chats.online') }}
                 </template>
             </p>
             <p
                 v-if="sessionLine"
                 class="text-[11px] leading-tight text-[var(--wa-text-secondary)] truncate opacity-80"
-                :title="`Чат ведётся через ваш номер ${sessionLine.phone}${sessionLine.name ? ` (${sessionLine.name})` : ''}`"
+                :title="sessionLineTitle"
             >
-                <span class="opacity-60">через</span>
+                <span class="opacity-60">{{ t('chats.via') }}</span>
                 <span v-if="sessionLine.phone" class="ml-1 font-medium tabular-nums">{{ sessionLine.phone }}</span>
                 <span v-if="sessionLine.name" class="ml-1">· {{ sessionLine.name }}</span>
             </p>
@@ -1489,7 +1516,7 @@ provide(
                     v-if="!canEditChatDepartments"
                     class="label-pill label-pill-dept label-pill-dept-static cursor-default opacity-95"
                     :class="{ 'label-pill-dept-active': (page.props.auth?.user?.department_id ?? null) !== null }"
-                    title="Ваш отдел. Изменить отделы чата могут только руководитель или администратор."
+                    :title="t('chats.header.yourDepartmentTitle')"
                 >
                     <span class="truncate">{{ employeeOwnDepartmentLabel }}</span>
                 </div>
@@ -1500,8 +1527,8 @@ provide(
                         type="button"
                         class="label-pill label-pill-dept label-pill-icon label-pill-icon-badge"
                         :class="{ 'label-pill-dept-active': selectedDepartmentIds.length > 0 }"
-                        :title="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
-                        :aria-label="selectedDepartmentIds.length ? `Отделы: ${selectedDepartments.map((d) => d.name).join(', ')}` : 'Прикрепить отделы к чату'"
+                        :title="departmentsButtonTitle"
+                        :aria-label="departmentsButtonTitle"
                         @click="openDepartmentModal"
                     >
                         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -1555,7 +1582,7 @@ provide(
                                     class="text-xs self-center"
                                     :style="{ color: 'var(--wa-text-secondary)' }"
                                 >
-                                    Сохранение...
+                                    {{ t('chats.savingEllipsis') }}
                                 </span>
                             </div>
 
@@ -1571,7 +1598,7 @@ provide(
                                         v-model="departmentSearchQuery"
                                         type="search"
                                         autocomplete="off"
-                                        placeholder="Поиск..."
+                                        :placeholder="t('chats.searchPlaceholder')"
                                         class="assign-search"
                                     />
                                 </label>
@@ -1605,7 +1632,7 @@ provide(
                                     v-if="filteredDepartments.length === 0"
                                     class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-none text-left"
                                 >
-                                    {{ departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
+                                    {{ departmentSearchQuery.trim() ? t('chats.nothingFound') : t('chats.header.noDepartments') }}
                                 </div>
                             </div>
                         </div>
@@ -1622,8 +1649,8 @@ provide(
                     type="button"
                     class="header-ai-toggle"
                     :class="{ 'header-ai-toggle-on': aiEnabled }"
-                    :title="aiEnabled ? 'AI сам отвечает на новые сообщения клиента. Нажмите, чтобы выключить.' : 'AI не отвечает автоматически. Нажмите, чтобы включить автоответы.'"
-                    :aria-label="aiEnabled ? 'Выключить AI-автоответы' : 'Включить AI-автоответы'"
+                    :title="aiEnabled ? t('chats.header.aiEnableTitle') : t('chats.header.aiDisableTitle')"
+                    :aria-label="aiEnabled ? t('chats.header.aiEnableAria') : t('chats.header.aiDisableAria')"
                     :disabled="aiSaving"
                     @click="toggleAi"
                 >
@@ -1637,7 +1664,7 @@ provide(
                     type="button"
                     class="ai-menu-trigger ai-settings-trigger"
                     :disabled="aiSaving"
-                    :title="`Настройки AI: ${aiSettingsSummary}`"
+                    :title="t('chats.header.aiSettingsTitle', { summary: aiSettingsSummary })"
                     aria-haspopup="dialog"
                     :aria-expanded="aiSettingsMenuOpen"
                     @click="toggleAiSettingsMenu"
@@ -1663,7 +1690,7 @@ provide(
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3.5 3.5V16z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 3.5l.75 1.5 1.5.75-1.5.75-.75 1.5-.75-1.5-1.5-.75 1.5-.75.75-1.5z" />
                     </svg>
-                    <span class="header-ai-assistant-btn__label hidden xl:inline">AI-чат</span>
+                    <span class="header-ai-assistant-btn__label hidden xl:inline">{{ t('chats.header.aiChat') }}</span>
                     <span
                         v-if="aiAssistantNeedsAttention"
                         class="header-ai-assistant-btn__status-dot"
@@ -1704,14 +1731,14 @@ provide(
                             background: 'var(--wa-panel-header)',
                             borderColor: 'var(--wa-control-border)',
                         }"
-                        aria-label="Настройки AI"
+                        :aria-label="t('chats.header.aiSettingsAria')"
                         @click.stop
                     >
                         <div
                             class="border-b px-3 py-2 text-xs font-semibold"
                             :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                         >
-                            Режим ответа
+                            {{ t('chats.header.responseMode') }}
                         </div>
                         <div class="wa-scrollbar py-1">
                             <button
@@ -1723,9 +1750,9 @@ provide(
                                 @click="pickAiMode('auto')"
                             >
                                 <span class="flex-1 min-w-0 text-left">
-                                    <span class="block truncate assign-name">Автоответ</span>
+                                    <span class="block truncate assign-name">{{ t('chats.header.autoReply') }}</span>
                                     <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
-                                        Отправлять ответ клиенту автоматически
+                                        {{ t('chats.header.autoReplyHint') }}
                                     </span>
                                 </span>
                                 <svg
@@ -1749,9 +1776,9 @@ provide(
                                 @click="pickAiMode('draft')"
                             >
                                 <span class="flex-1 min-w-0 text-left">
-                                    <span class="block truncate assign-name">Черновик</span>
+                                    <span class="block truncate assign-name">{{ t('chats.header.draft') }}</span>
                                     <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
-                                        Подставлять текст в поле ввода без отправки
+                                        {{ t('chats.header.draftHint') }}
                                     </span>
                                 </span>
                                 <svg
@@ -1772,7 +1799,7 @@ provide(
                             class="border-t border-b px-3 py-2 text-xs font-semibold"
                             :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                         >
-                            От чьего имени AI
+                            {{ t('chats.header.aiResponder') }}
                         </div>
                         <div
                             class="assign-search-wrap"
@@ -1786,7 +1813,7 @@ provide(
                                     v-model="aiResponderSearchQuery"
                                     type="search"
                                     autocomplete="off"
-                                    placeholder="Поиск..."
+                                    :placeholder="t('chats.searchPlaceholder')"
                                     class="assign-search"
                                 />
                             </label>
@@ -1802,9 +1829,9 @@ provide(
                             >
                                 <span class="assign-avatar assign-avatar-staff" aria-hidden="true">AI</span>
                                 <span class="flex-1 min-w-0 text-left">
-                                    <span class="block truncate assign-name">Автовыбор</span>
+                                    <span class="block truncate assign-name">{{ t('chats.header.autoPick') }}</span>
                                     <span class="block truncate text-[11px] assign-role" :style="{ color: 'var(--wa-text-secondary)' }">
-                                        Система выберет ответчика из назначенных на чат
+                                        {{ t('chats.header.autoPickHint') }}
                                     </span>
                                 </span>
                                 <svg
@@ -1857,7 +1884,7 @@ provide(
                                 class="px-5 py-4 text-sm"
                                 :style="{ color: 'var(--wa-text-secondary)' }"
                             >
-                                Ничего не найдено
+                                {{ t('chats.nothingFound') }}
                             </div>
                         </div>
                         </template>
@@ -1951,7 +1978,7 @@ provide(
                                 class="text-xs self-center"
                                 :style="{ color: 'var(--wa-text-secondary)' }"
                             >
-                                Сохранение...
+                                {{ t('chats.savingEllipsis') }}
                             </span>
                         </div>
 
@@ -1967,7 +1994,7 @@ provide(
                                     v-model="userSearchQuery"
                                     type="search"
                                     autocomplete="off"
-                                    placeholder="Поиск..."
+                                    :placeholder="t('chats.searchPlaceholder')"
                                     class="assign-search"
                                 />
                             </label>
@@ -2009,7 +2036,7 @@ provide(
                                 v-if="filteredAssignableUsers.length === 0"
                                 class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-none text-left"
                             >
-                                {{ userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для списка' }}
+                                {{ userSearchQuery.trim() ? t('chats.nothingFound') : t('chats.header.noUsersForAssign') }}
                             </div>
                         </div>
                     </div>
@@ -2019,7 +2046,7 @@ provide(
             <div
                 v-else-if="chat.assignments?.length"
                 class="header-staff-control label-pill label-pill-staff label-pill-staff-static label-pill-staff-avatars"
-                title="Ответственные за этот чат"
+                :title="t('chats.header.assigneesTitle')"
             >
                 <div class="header-staff-avatar-stack shrink-0" aria-hidden="true">
                     <UserAvatar
@@ -2039,7 +2066,7 @@ provide(
             </div>
 
             <div class="header-menu-control flex items-center gap-1 shrink-0">
-                <button type="button" class="wa-header-btn shrink-0 hidden xl:flex" title="Поиск" @click="openSearch">
+                <button type="button" class="wa-header-btn shrink-0 hidden xl:flex" :title="t('chats.header.search')" @click="openSearch">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -2049,7 +2076,7 @@ provide(
                     <button
                         ref="menuBtnRef"
                         class="wa-header-btn shrink-0"
-                        title="Меню"
+                        :title="t('chats.header.menu')"
                         @click="toggleMenu"
                         type="button"
                     >
@@ -2082,19 +2109,19 @@ provide(
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Данные контакта
+                        {{ t('chats.header.contactData') }}
                     </button>
                     <button class="menu-item" @click="openSearch" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        Поиск
+                        {{ t('chats.header.search') }}
                     </button>
                     <button class="menu-item" @click="scheduledMessagesOpen = true; closeMenu()" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Отложенные сообщения
+                        {{ t('chats.header.scheduledMessages') }}
                     </button>
                     <button
                         v-if="funnelModuleVisible"
@@ -2105,7 +2132,7 @@ provide(
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
                         </svg>
-                        Этап воронки
+                        {{ t('chats.header.funnelStage') }}
                     </button>
                     <button
                         v-if="page.props.modules?.org_tasks"
@@ -2117,7 +2144,7 @@ provide(
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        {{ quickTaskLoading ? 'Создание задачи…' : 'Задача по чату' }}
+                        {{ quickTaskLoading ? t('chats.header.quickTaskCreating') : t('chats.header.quickTask') }}
                     </button>
                     <button
                         v-if="canManageAi"
@@ -2128,7 +2155,7 @@ provide(
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17.25a2.25 2.25 0 01-2.25 2.25H7.25A2.25 2.25 0 015 17.25V14.5" />
                         </svg>
-                        Симулятор AI
+                        {{ t('chats.header.aiSimulator') }}
                     </button>
                     <button
                         class="menu-item menu-item-danger"
@@ -2139,13 +2166,13 @@ provide(
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        Закрыть чат и в архив
+                        {{ t('chats.header.closeAndArchive') }}
                     </button>
                     <button class="menu-item" @click="closeChatWindow" type="button">
                         <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        Закрыть окно чата
+                        {{ t('chats.header.closeChatWindow') }}
                     </button>
                     </div>
                 </Teleport>
@@ -2160,7 +2187,7 @@ provide(
             type="button"
             class="absolute inset-x-0 bottom-0 z-[5] h-3 w-full border-0 p-0 m-0 bg-transparent cursor-pointer group"
             :title="funnelBarTitle"
-            :aria-label="funnelBarTitle || 'Воронка продаж — открыть настройку'"
+            :aria-label="funnelBarTitle || t('chats.header.funnelBarAria')"
             :aria-valuenow="funnelBarCurrentIndex >= 0 ? funnelBarCurrentIndex + 1 : 0"
             :aria-valuemin="0"
             :aria-valuemax="funnelBarCells.length"

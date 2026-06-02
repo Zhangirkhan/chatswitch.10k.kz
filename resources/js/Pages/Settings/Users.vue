@@ -334,7 +334,7 @@ async function save() {
         const hasPassword = form.value.password.trim() !== '';
         const hasPin = form.value.pin.trim() !== '';
         if (!hasPassword && !hasPin) {
-            formError.value = 'Укажите пароль или PIN — без них сотрудник не сможет войти';
+            formError.value = t('settings.usersForm.errorCredentials');
             return;
         }
     }
@@ -571,7 +571,7 @@ const userDeleteDescription = computed(() => {
                     :disabled="props.users.current_page <= 1"
                     @click="goToPage(props.users.current_page - 1)"
                 >
-                    Назад
+                    {{ t('common.back') }}
                 </button>
                 <div class="text-sm text-[var(--ui-text-secondary)]">
                     {{ props.users.current_page }} / {{ props.users.last_page }}
@@ -583,7 +583,7 @@ const userDeleteDescription = computed(() => {
                     :disabled="props.users.current_page >= props.users.last_page"
                     @click="goToPage(props.users.current_page + 1)"
                 >
-                    Вперёд
+                    {{ t('common.forward') }}
                 </button>
             </div>
         </div>
@@ -609,7 +609,7 @@ const userDeleteDescription = computed(() => {
                         <button
                             type="button"
                             class="text-sm text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)] px-2 py-1 rounded"
-                            aria-label="Закрыть"
+                            :aria-label="t('settings.usersForm.closeAria')"
                             @click="closeModal"
                         >
                             ✕
@@ -631,20 +631,20 @@ const userDeleteDescription = computed(() => {
                         </p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="sm:col-span-2">
-                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Имя</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.name') }}</label>
                                 <input v-model="form.name" type="text" class="settings-input" autocomplete="name" />
                             </div>
                             <div>
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
-                                    Email <span class="text-[var(--ui-text-muted)]">необязательно</span>
+                                    Email <span class="text-[var(--ui-text-muted)]">{{ t('settings.usersForm.emailOptional') }}</span>
                                 </label>
                                 <input v-model="form.email" type="email" class="settings-input" autocomplete="email" />
                                 <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
-                                    Без email вход только по PIN. Email можно добавить позже.
+                                    {{ t('settings.usersForm.emailHint') }}
                                 </p>
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Телефон</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.phone') }}</label>
                                 <input
                                     v-model="form.phone"
                                     type="tel"
@@ -655,15 +655,15 @@ const userDeleteDescription = computed(() => {
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
-                                    Пароль
-                                    <span v-if="!editingId" class="text-[var(--ui-text-muted)]">или PIN ниже</span>
-                                    <span v-else class="text-[var(--ui-text-muted)]">(оставьте пустым, если не меняете)</span>
+                                    {{ t('settings.usersForm.password') }}
+                                    <span v-if="!editingId" class="text-[var(--ui-text-muted)]">{{ t('settings.usersForm.passwordOrPin') }}</span>
+                                    <span v-else class="text-[var(--ui-text-muted)]">{{ t('settings.usersForm.passwordLeaveEmpty') }}</span>
                                 </label>
                                 <input v-model="form.password" type="password" class="settings-input" autocomplete="new-password" />
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">
-                                    PIN для быстрого входа
+                                    {{ t('settings.usersForm.pinLabel') }}
                                 </label>
                                 <input
                                     v-model="form.pin"
@@ -672,20 +672,20 @@ const userDeleteDescription = computed(() => {
                                     pattern="[0-9]*"
                                     maxlength="6"
                                     class="settings-input font-mono tracking-widest"
-                                    placeholder="4–6 цифр"
+                                    :placeholder="t('settings.usersForm.pinPlaceholder')"
                                     autocomplete="off"
                                 />
                                 <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
                                     <template v-if="editingId && editingHasPin">
-                                        PIN установлен. Введите новый или оставьте пустым, чтобы отключить вход по PIN.
+                                        {{ t('settings.usersForm.pinSetHint') }}
                                     </template>
                                     <template v-else>
-                                        Необязательно. Сотрудник сможет войти на вкладке «PIN» без email и пароля.
+                                        {{ t('settings.usersForm.pinOptionalHint') }}
                                     </template>
                                 </p>
                             </div>
                             <div>
-                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Роль</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.role') }}</label>
                                 <select v-model="form.role" class="settings-input">
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
                                 </select>
@@ -693,15 +693,15 @@ const userDeleteDescription = computed(() => {
                         </div>
 
                         <div class="pt-1">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Отделы</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.departments') }}</label>
                             <p class="text-xs text-[var(--ui-text-secondary)] mb-2">
-                                Сотрудник может состоять в нескольких отделах одновременно — отметьте все нужные.
+                                {{ t('settings.usersForm.departmentsHint') }}
                             </p>
                             <div
                                 v-if="departmentTree.length === 0"
                                 class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
-                                Отделов пока нет. Создайте их в разделе «Отделы».
+                                {{ t('settings.usersForm.noDepartments') }}
                             </div>
                             <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto wa-scrollbar pr-1">
                                 <label
@@ -724,7 +724,7 @@ const userDeleteDescription = computed(() => {
                                             v-if="node.dept.is_active === false"
                                             class="text-xs text-[var(--ui-text-secondary)]"
                                         >
-                                            (неактивен)
+                                            {{ t('settings.usersForm.inactive') }}
                                         </span>
                                     </span>
                                 </label>
@@ -732,15 +732,15 @@ const userDeleteDescription = computed(() => {
                         </div>
 
                         <div class="pt-1">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Подключения WhatsApp</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.whatsappConnections') }}</label>
                             <p class="text-xs text-[var(--ui-text-secondary)] mb-2">
-                                Названия из раздела «Подключения». Номер аккаунта WhatsApp здесь не показывается.
+                                {{ t('settings.usersForm.whatsappHint') }}
                             </p>
                             <div
                                 v-if="whatsappSessions.length === 0"
                                 class="text-xs text-[var(--ui-text-secondary)] italic"
                             >
-                                Пока нет сессий. Добавьте их в «Подключения».
+                                {{ t('settings.usersForm.noSessions') }}
                             </div>
                             <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto wa-scrollbar pr-1">
                                 <label
@@ -773,7 +773,7 @@ const userDeleteDescription = computed(() => {
 
                         <div v-if="editingId" class="flex items-center gap-2 pt-1">
                             <UiCheckbox id="user-active" v-model="form.is_active" size="sm" />
-                            <label for="user-active" class="text-sm text-[var(--ui-text)] cursor-pointer">Активен (может входить в систему)</label>
+                            <label for="user-active" class="text-sm text-[var(--ui-text)] cursor-pointer">{{ t('settings.usersForm.activeLabel') }}</label>
                         </div>
                     </div>
 
@@ -783,7 +783,7 @@ const userDeleteDescription = computed(() => {
                             class="px-4 py-2 text-sm rounded-lg text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)]"
                             @click="closeModal"
                         >
-                            Отмена
+                            {{ t('common.cancel') }}
                         </button>
                         <button
                             type="button"

@@ -3,7 +3,10 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
+import { useI18n } from '@/composables/useI18n';
 import { watch, onBeforeUnmount } from 'vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     modelValue: string;
@@ -20,7 +23,7 @@ const editor = useEditor({
     extensions: [
         StarterKit,
         Placeholder.configure({
-            placeholder: props.placeholder ?? 'Введите текст…',
+            placeholder: props.placeholder ?? t('misc.components.richText.placeholder'),
         }),
         Link.configure({
             openOnClick: false,
@@ -52,7 +55,7 @@ watch(
 onBeforeUnmount(() => editor.value?.destroy());
 
 function setLink() {
-    const url = window.prompt('URL ссылки:', editor.value?.getAttributes('link').href ?? '');
+    const url = window.prompt(t('misc.components.richText.linkPrompt'), editor.value?.getAttributes('link').href ?? '');
     if (url === null) return;
     if (url === '') {
         editor.value?.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -70,7 +73,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('bold') }"
-                title="Жирный (Ctrl+B)"
+                :title="t('misc.components.richText.bold')"
                 @click="editor.chain().focus().toggleBold().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.79A4.001 4.001 0 0013 5H7v14h7a4.5 4.5 0 001.6-8.21zM9 7h4a2 2 0 010 4H9V7zm4.5 10H9v-4h4.5a2.5 2.5 0 010 5z"/></svg>
@@ -79,7 +82,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('italic') }"
-                title="Курсив (Ctrl+I)"
+                :title="t('misc.components.richText.italic')"
                 @click="editor.chain().focus().toggleItalic().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 5v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V5z"/></svg>
@@ -88,7 +91,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('strike') }"
-                title="Зачёркнутый"
+                :title="t('misc.components.richText.strike')"
                 @click="editor.chain().focus().toggleStrike().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M10 19h4v-3h-4v3zM5 4v3h5v3h4V7h5V4H5zM3 14h18v-2H3v2z"/></svg>
@@ -98,7 +101,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('heading', { level: 2 }) }"
-                title="Заголовок H2"
+                :title="t('misc.components.richText.h2')"
                 @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
             >
                 <span class="text-xs font-bold">H2</span>
@@ -107,7 +110,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('heading', { level: 3 }) }"
-                title="Заголовок H3"
+                :title="t('misc.components.richText.h3')"
                 @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
             >
                 <span class="text-xs font-bold">H3</span>
@@ -117,7 +120,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('bulletList') }"
-                title="Маркированный список"
+                :title="t('misc.components.richText.bulletList')"
                 @click="editor.chain().focus().toggleBulletList().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
@@ -126,7 +129,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('orderedList') }"
-                title="Нумерованный список"
+                :title="t('misc.components.richText.orderedList')"
                 @click="editor.chain().focus().toggleOrderedList().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-7v2h14V4H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
@@ -135,7 +138,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('blockquote') }"
-                title="Цитата"
+                :title="t('misc.components.richText.quote')"
                 @click="editor.chain().focus().toggleBlockquote().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/></svg>
@@ -144,7 +147,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('code') }"
-                title="Код"
+                :title="t('misc.components.richText.code')"
                 @click="editor.chain().focus().toggleCode().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
@@ -154,7 +157,7 @@ function setLink() {
                 type="button"
                 class="tb-btn"
                 :class="{ 'tb-active': editor.isActive('link') }"
-                title="Ссылка"
+                :title="t('misc.components.richText.link')"
                 @click="setLink"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
@@ -163,7 +166,7 @@ function setLink() {
             <button
                 type="button"
                 class="tb-btn"
-                title="Горизонтальная линия"
+                :title="t('misc.components.richText.hr')"
                 @click="editor.chain().focus().setHorizontalRule().run()"
             >
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H5v-2h14v2z"/></svg>
@@ -171,7 +174,7 @@ function setLink() {
             <button
                 type="button"
                 class="tb-btn"
-                title="Отменить (Ctrl+Z)"
+                :title="t('misc.components.richText.undo')"
                 :disabled="!editor.can().undo()"
                 @click="editor.chain().focus().undo().run()"
             >
@@ -180,7 +183,7 @@ function setLink() {
             <button
                 type="button"
                 class="tb-btn"
-                title="Повторить (Ctrl+Y)"
+                :title="t('misc.components.richText.redo')"
                 :disabled="!editor.can().redo()"
                 @click="editor.chain().focus().redo().run()"
             >

@@ -8,8 +8,11 @@ import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import Avatar from '@/Components/Avatar.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import type { PageProps } from '@/types';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import { initialsFromName } from '@/utils/initials';
+
+const { t } = useI18n();
 
 const { show: showToast } = useToastStore();
 
@@ -143,8 +146,8 @@ const teamConversationSections = computed((): TeamConversationSection[] => {
     }
 
     return [
-        { key: 'department', label: 'Отделы', items: teamDepartmentConversations.value },
-        { key: 'direct', label: 'Личные', items: teamDirectConversations.value },
+        { key: 'department', label: t('organization.filterDepartment'), items: teamDepartmentConversations.value },
+        { key: 'direct', label: t('organization.filterDirect'), items: teamDirectConversations.value },
     ];
 });
 
@@ -238,7 +241,7 @@ async function openContactDm(userId: number) {
         }
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        showToast({ message: msg || 'Не удалось открыть личный чат.', type: 'warning' });
+        showToast({ message: msg || t('organization.openDmFailed'), type: 'warning' });
     }
 }
 
@@ -252,15 +255,15 @@ function notifyTeamMentionIfNeeded(e: any): void {
     const ids = idsRaw.map((x: unknown) => Number(x)).filter((n) => n > 0);
     if (!ids.includes(Number(uid))) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const senderName = e?.message?.sender?.name ? String(e.message.sender.name) : 'Сотрудник';
+    const senderName = e?.message?.sender?.name ? String(e.message.sender.name) : t('organization.employeeFallback');
     const bodyRaw = typeof e?.message?.body === 'string' ? e.message.body : '';
-    const body = bodyRaw.trim() ? bodyRaw.slice(0, 140) : 'Вас упомянули во внутреннем чате.';
+    const body = bodyRaw.trim() ? bodyRaw.slice(0, 140) : t('organization.mentionFallback');
     const convId = Number(e?.conversation_id);
     const mid = Number(e?.message?.id);
     const tag =
         Number.isFinite(convId) && Number.isFinite(mid) && mid > 0 ? `team-mention-${convId}-${mid}` : undefined;
     try {
-        new Notification(`${senderName} упомянул(а) вас`, { body, tag });
+        new Notification(t('organization.mentionNotificationTitle', { sender: senderName }), { body, tag });
     } catch {
         /* ignore */
     }
@@ -471,7 +474,7 @@ function clearSearch() {
                     <input
                         v-model="search"
                         type="text"
-                        placeholder="Поиск отдела"
+                        :placeholder="t('organization.searchDept')"
                         class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                     />
                     <button
@@ -479,7 +482,7 @@ function clearSearch() {
                         @click="clearSearch"
                         class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
                         type="button"
-                        title="Очистить"
+                        :title="t('organization.clearSearch')"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -503,13 +506,13 @@ function clearSearch() {
                         v-model="teamGlobalSearch"
                         type="search"
                         autocomplete="off"
-                        placeholder="Поиск по чатам, сообщениям и людям"
+                        :placeholder="t('organization.searchTeamChat')"
                         class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                     />
                     <button
                         v-if="teamGlobalSearch"
                         type="button"
-                        title="Очистить"
+                        :title="t('organization.clearSearch')"
                         class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
                         @click="clearTeamGlobalSearch"
                     >
@@ -530,18 +533,18 @@ function clearSearch() {
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': !teamChatActive }"
                     >
-                        Задачи
+                        {{ t('organization.tasksTab') }}
                     </Link>
                     <Link
                         :href="route('organization.team-chat.index')"
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': teamChatActive }"
                     >
-                        <span class="truncate">Чат</span>
+                        <span class="truncate">{{ t('organization.chatTab') }}</span>
                         <span
                             v-if="teamChatUnread > 0"
                             class="ui-pill-nav__badge"
-                            :title="`Непрочитанных в чате: ${teamChatUnread}`"
+                            :title="t('organization.teamChatUnread', { count: teamChatUnread })"
                         >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
                     </Link>
                 </UiPillNav>
@@ -549,7 +552,7 @@ function clearSearch() {
                     v-else
                     class="m-0 px-1 text-xs text-[var(--wa-text-secondary)] leading-snug"
                 >
-                    Внутренний чат команды
+                    {{ t('organization.internalChat') }}
                 </p>
                     <template v-if="teamChatActive">
                         <UiPillNav>
@@ -559,7 +562,7 @@ function clearSearch() {
                                 :class="{ 'is-active': chatSidebarMode === 'chats' }"
                                 @click="chatSidebarMode = 'chats'"
                             >
-                                Беседы
+                                {{ t('organization.conversations') }}
                             </button>
                             <button
                                 type="button"
@@ -567,7 +570,7 @@ function clearSearch() {
                                 :class="{ 'is-active': chatSidebarMode === 'contacts' }"
                                 @click="chatSidebarMode = 'contacts'"
                             >
-                                Сотрудники
+                                {{ t('organization.people') }}
                             </button>
                         </UiPillNav>
                         <div
@@ -580,7 +583,7 @@ function clearSearch() {
                                 :class="{ 'is-active': conversationFilter === '' }"
                                 @click="setConvFilter('')"
                             >
-                                Все
+                                {{ t('organization.filterAll') }}
                             </button>
                             <button
                                 type="button"
@@ -588,7 +591,7 @@ function clearSearch() {
                                 :class="{ 'is-active': conversationFilter === 'unread' }"
                                 @click="setConvFilter('unread')"
                             >
-                                Непрочит.
+                                {{ t('organization.filterUnread') }}
                             </button>
                             <button
                                 type="button"
@@ -596,7 +599,7 @@ function clearSearch() {
                                 :class="{ 'is-active': conversationFilter === 'department' }"
                                 @click="setConvFilter('department')"
                             >
-                                Отделы
+                                {{ t('organization.filterDepartment') }}
                             </button>
                             <button
                                 type="button"
@@ -604,7 +607,7 @@ function clearSearch() {
                                 :class="{ 'is-active': conversationFilter === 'direct' }"
                                 @click="setConvFilter('direct')"
                             >
-                                Личные
+                                {{ t('organization.filterDirect') }}
                             </button>
                         </div>
                     </template>
@@ -619,7 +622,7 @@ function clearSearch() {
                     v-if="flat.length === 0"
                     class="py-6 text-sm text-[var(--wa-text-secondary)] px-6 text-center"
                 >
-                    Нет доступных отделов
+                    {{ t('organization.noDepartmentsAvailable') }}
                 </div>
                 <Link
                     v-for="dept in flat"
@@ -638,12 +641,12 @@ function clearSearch() {
                         <span
                             v-if="dept.in_progress_count > 0"
                             class="ui-tab-badge ui-tab-badge--warn"
-                            :title="`В работе: ${dept.in_progress_count}`"
+                            :title="t('organization.inProgress', { count: dept.in_progress_count })"
                         >{{ dept.in_progress_count > 99 ? '99+' : dept.in_progress_count }}</span>
                         <span
                             v-if="dept.open_count > 0"
                             class="ui-tab-badge ui-tab-badge--team"
-                            :title="`Открыто: ${dept.open_count}`"
+                            :title="t('organization.openCount', { count: dept.open_count })"
                         >{{ dept.open_count > 99 ? '99+' : dept.open_count }}</span>
                     </div>
                 </Link>
@@ -660,10 +663,10 @@ function clearSearch() {
                         </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <div class="dept-name truncate">Архив задач</div>
-                        <div class="dept-meta">Завершённые задачи</div>
+                        <div class="dept-name truncate">{{ t('organization.archiveTasks') }}</div>
+                        <div class="dept-meta">{{ t('organization.archiveMeta') }}</div>
                     </div>
-                    <span v-if="totalArchived > 0" class="ui-tab-badge ui-tab-badge--neutral" :title="`Архивных задач: ${totalArchived}`">
+                    <span v-if="totalArchived > 0" class="ui-tab-badge ui-tab-badge--neutral" :title="t('organization.archivedCount', { count: totalArchived })">
                         {{ totalArchived > 99 ? '99+' : totalArchived }}
                     </span>
                 </Link>
@@ -678,7 +681,7 @@ function clearSearch() {
                 >
                 <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
                     <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
-                        Сначала чаты отделов, ниже — личные переписки
+                        {{ t('organization.deptChatsFirst') }}
                     </p>
                     <button
                         v-if="showTeamMentionNotifPrompt"
@@ -686,18 +689,18 @@ function clearSearch() {
                         class="mt-1.5 text-left text-[0.65rem] text-[var(--wa-accent)] underline decoration-dotted hover:opacity-90"
                         @click="requestMentionBrowserNotifications"
                     >
-                        Разрешить уведомления браузера при @упоминании (вкладка в фоне)
+                        {{ t('organization.enableMentionNotifications') }}
                     </button>
                     <div class="pt-1">
                         <div
                             v-if="teamGlobalSearchLoading"
                             class="text-xs text-[var(--wa-text-secondary)] mt-1.5"
-                        >Поиск…</div>
+                        >{{ t('organization.searchingShort') }}</div>
                         <div
                             v-else-if="teamGlobalSearch.trim().length >= 2 && (teamGlobalSearchConvHits.length || teamGlobalSearchMsgHits.length || teamGlobalSearchColleagueHits.length)"
                             class="ui-panel mt-2 max-h-48 overflow-y-auto text-left"
                         >
-                            <div v-if="teamGlobalSearchColleagueHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)]">Люди</div>
+                            <div v-if="teamGlobalSearchColleagueHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)]">{{ t('organization.peopleSection') }}</div>
                             <button
                                 v-for="h in teamGlobalSearchColleagueHits"
                                 :key="'u-' + h.id"
@@ -708,7 +711,7 @@ function clearSearch() {
                                 <span class="font-medium text-[var(--wa-text)]">{{ h.name }}</span>
                                 <span v-if="h.email" class="block text-xs text-[var(--wa-text-secondary)] truncate">{{ h.email }}</span>
                             </button>
-                            <div v-if="teamGlobalSearchConvHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)] border-t border-[var(--wa-border)]">Беседы</div>
+                            <div v-if="teamGlobalSearchConvHits.length" class="px-2 py-1 text-[0.65rem] uppercase tracking-wide text-[var(--wa-text-secondary)] border-t border-[var(--wa-border)]">{{ t('organization.conversations') }}</div>
                             <Link
                                 v-for="h in teamGlobalSearchConvHits"
                                 :key="'c-' + h.id"
@@ -726,7 +729,7 @@ function clearSearch() {
                                         ? 'border-t border-[var(--wa-border)]'
                                         : '',
                                 ]"
-                            >Сообщения</div>
+                            >{{ t('organization.messages') }}</div>
                             <button
                                 v-for="h in teamGlobalSearchMsgHits"
                                 :key="'m-' + h.id"
@@ -742,14 +745,14 @@ function clearSearch() {
                         <div
                             v-else-if="teamGlobalSearch.trim() === lastTeamSearchQuery && lastTeamSearchQuery.length >= 2 && !teamGlobalSearchLoading && !teamGlobalSearchConvHits.length && !teamGlobalSearchMsgHits.length && !teamGlobalSearchColleagueHits.length"
                             class="text-xs text-[var(--wa-text-secondary)] mt-1.5"
-                        >Ничего не найдено</div>
+                        >{{ t('organization.nothingFound') }}</div>
                     </div>
                 </div>
                 <div v-else class="px-3 py-2 shrink-0">
                     <input
                         v-model="contactSearch"
                         type="text"
-                        placeholder="Поиск сотрудника"
+                        :placeholder="t('organization.searchEmployee')"
                         class="w-full px-3 py-2 rounded-lg text-sm text-[var(--wa-text)] border border-[var(--wa-border)] bg-[var(--wa-panel-header)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
                     />
                 </div>
@@ -790,7 +793,7 @@ function clearSearch() {
                                     />
                                     <div class="flex-1 min-w-0">
                                         <div class="dept-name truncate flex items-center gap-1">
-                                            <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" title="Закреплено">📌</span>
+                                            <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" :title="t('organization.pinned')">📌</span>
                                             <span class="truncate">{{ c.title }}</span>
                                         </div>
                                         <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
@@ -801,8 +804,8 @@ function clearSearch() {
                                 <button
                                     type="button"
                                     class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
-                                    :title="c.is_pinned ? 'Открепить' : 'Закрепить'"
-                                    :aria-label="c.is_pinned ? 'Открепить' : 'Закрепить'"
+                                    :title="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
+                                    :aria-label="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
                                     @click.prevent.stop="toggleTeamPin(c)"
                                 >
                                     <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
@@ -810,10 +813,10 @@ function clearSearch() {
                             </div>
                         </template>
                         <div v-if="!teamListLoading && teamConversations.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
-                            <span v-if="conversationFilter === 'unread'">Нет непрочитанных бесед.</span>
-                            <span v-else-if="conversationFilter === 'department'">Нет чатов отделов в списке.</span>
-                            <span v-else-if="conversationFilter === 'direct'">Нет личных бесед.</span>
-                            <span v-else>Нет бесед. Откройте «Сотрудники», чтобы написать коллеге.</span>
+                            <span v-if="conversationFilter === 'unread'">{{ t('organization.noUnread') }}</span>
+                            <span v-else-if="conversationFilter === 'department'">{{ t('organization.noDeptChats') }}</span>
+                            <span v-else-if="conversationFilter === 'direct'">{{ t('organization.noDirectChats') }}</span>
+                            <span v-else>{{ t('organization.noConversationsHint') }}</span>
                         </div>
                     </template>
                     <template v-else>
@@ -831,7 +834,7 @@ function clearSearch() {
                             </div>
                         </button>
                         <div v-if="contacts.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
-                            Нет сотрудников в компании или не задан company_id.
+                            {{ t('organization.noEmployees') }}
                         </div>
                     </template>
                 </div>

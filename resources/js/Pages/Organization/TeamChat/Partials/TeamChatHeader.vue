@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
+
+const { t } = useI18n();
 
 export type TeamConversationHeader = {
     id: number;
@@ -39,7 +42,12 @@ const statusLine = computed((): string => {
     if (isDepartment.value) {
         const n = (props.participants ?? []).length;
         if (n > 0) {
-            const word = n === 1 ? 'участник' : n < 5 ? 'участника' : 'участников';
+            const word = n === 1
+                ? t('organization.participantOne')
+                : n < 5
+                    ? t('organization.participantFew')
+                    : t('organization.participantMany');
+
             return `${n} ${word}`;
         }
     }
@@ -60,7 +68,7 @@ const participantsSorted = computed(() =>
         <Link
             :href="route('organization.team-chat.index')"
             class="md:hidden shrink-0 text-[var(--wa-icon)] p-1 -ml-1"
-            aria-label="К списку чатов"
+            :aria-label="t('organization.backToList')"
         >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -70,8 +78,8 @@ const participantsSorted = computed(() =>
         <button
             type="button"
             class="shrink-0 rounded-full border-0 bg-transparent p-0 cursor-pointer"
-            :title="isDepartment ? 'Участники' : header.title"
-            :aria-label="isDepartment ? 'Показать участников' : header.title"
+            :title="isDepartment ? t('organization.participants') : header.title"
+            :aria-label="isDepartment ? t('organization.participants') : header.title"
             @click="isDepartment ? (participantsOpen = true) : undefined"
         >
             <Avatar
@@ -105,8 +113,8 @@ const participantsSorted = computed(() =>
                 v-if="(participants ?? []).length > 0"
                 type="button"
                 class="team-chat-header-btn"
-                title="Встреча в календаре"
-                aria-label="Встреча в календаре"
+                :title="t('organization.calendarMeeting')"
+                :aria-label="t('organization.calendarMeeting')"
                 @click="emit('calendar')"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -117,8 +125,8 @@ const participantsSorted = computed(() =>
                 v-if="isDepartment"
                 type="button"
                 class="team-chat-header-btn"
-                title="Участники"
-                aria-label="Участники"
+                :title="t('organization.participants')"
+                :aria-label="t('organization.participants')"
                 @click="participantsOpen = true"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -129,8 +137,8 @@ const participantsSorted = computed(() =>
                 type="button"
                 class="team-chat-header-btn"
                 :class="{ 'text-[var(--wa-accent)]': header.is_pinned }"
-                :title="header.is_pinned ? 'Открепить беседу' : 'Закрепить беседу'"
-                :aria-label="header.is_pinned ? 'Открепить беседу' : 'Закрепить беседу'"
+                :title="header.is_pinned ? t('organization.unpinConversation') : t('organization.pinConversation')"
+                :aria-label="header.is_pinned ? t('organization.unpinConversation') : t('organization.pinConversation')"
                 :disabled="pinBusy"
                 @click="emit('pin')"
             >
@@ -161,11 +169,11 @@ const participantsSorted = computed(() =>
                     @click.stop
                 >
                     <div class="px-4 py-3 border-b border-[var(--wa-border)] flex items-center justify-between gap-2">
-                        <h3 id="team-participants-title" class="text-sm font-semibold m-0">Участники</h3>
+                        <h3 id="team-participants-title" class="text-sm font-semibold m-0">{{ t('organization.participants') }}</h3>
                         <button
                             type="button"
                             class="text-lg leading-none opacity-60 hover:opacity-100 px-1"
-                            aria-label="Закрыть"
+                            :aria-label="t('organization.closeAria')"
                             @click="participantsOpen = false"
                         >×</button>
                     </div>

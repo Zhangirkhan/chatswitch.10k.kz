@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 
 export type FilterFieldDef = {
@@ -26,6 +27,8 @@ const emit = defineEmits<{
     apply: [];
     reset: [];
 }>();
+
+const { t } = useI18n();
 
 const open = ref(false);
 
@@ -89,7 +92,7 @@ function inputType(field: FilterFieldDef): string {
                 :class="{ 'ui-btn--accent-soft': open }"
                 @click="open = !open"
             >
-                Фильтры
+                {{ t('clients.filter.title') }}
                 <span v-if="activeCount > 0" class="ui-tab-badge ui-tab-badge--neutral">{{ activeCount }}</span>
             </button>
             <button
@@ -98,7 +101,7 @@ function inputType(field: FilterFieldDef): string {
                 class="ui-btn ui-btn--ghost ui-btn--sm"
                 @click="emit('reset')"
             >
-                Сбросить
+                {{ t('clients.filter.reset') }}
             </button>
         </div>
 
@@ -120,7 +123,7 @@ function inputType(field: FilterFieldDef): string {
                     :value="fieldValue(field.code)"
                     @change="setField(field.code, ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Все этапы</option>
+                    <option value="">{{ t('clients.filter.allStages') }}</option>
                     <option v-for="stage in funnelStages" :key="stage.id" :value="String(stage.id)">
                         {{ stage.name }}
                     </option>
@@ -133,7 +136,7 @@ function inputType(field: FilterFieldDef): string {
                     :value="fieldValue(field.code)"
                     @change="setField(field.code, ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Любой</option>
+                    <option value="">{{ t('clients.filter.any') }}</option>
                     <option v-for="user in assigneeOptions" :key="user.id" :value="String(user.id)">
                         {{ user.name }}
                     </option>
@@ -146,7 +149,7 @@ function inputType(field: FilterFieldDef): string {
                     :value="fieldValue(field.code)"
                     @change="setField(field.code, ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Любой тип</option>
+                    <option value="">{{ t('clients.filter.anyType') }}</option>
                     <option value="B2B">B2B</option>
                     <option value="B2C">B2C</option>
                 </select>
@@ -158,9 +161,9 @@ function inputType(field: FilterFieldDef): string {
                     :value="fieldValue(field.code)"
                     @change="setField(field.code, ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Любое</option>
-                    <option value="1">Да</option>
-                    <option value="0">Нет</option>
+                    <option value="">{{ t('clients.filter.anyValue') }}</option>
+                    <option value="1">{{ t('common.yes') }}</option>
+                    <option value="0">{{ t('common.no') }}</option>
                 </select>
 
                 <select
@@ -170,7 +173,7 @@ function inputType(field: FilterFieldDef): string {
                     :value="fieldValue(field.code)"
                     @change="setField(field.code, ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Любое</option>
+                    <option value="">{{ t('clients.filter.anyValue') }}</option>
                     <option v-for="opt in listOptions(field)" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
 
@@ -180,7 +183,7 @@ function inputType(field: FilterFieldDef): string {
                     class="ui-input"
                     :type="inputType(field)"
                     :value="fieldValue(field.code)"
-                    :placeholder="`Поиск: ${field.label.toLowerCase()}`"
+                    :placeholder="t('clients.filter.searchField', { label: field.label.toLowerCase() })"
                     @change="setField(field.code, ($event.target as HTMLInputElement).value)"
                 />
             </div>

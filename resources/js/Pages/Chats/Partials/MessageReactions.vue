@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MessageReaction } from '@/types';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 interface Props {
     reactions: MessageReaction[];
@@ -20,7 +23,7 @@ const grouped = computed<Bucket[]>(() => {
     const map = new Map<string, Bucket>();
     for (const r of props.reactions ?? []) {
         const bucket = map.get(r.emoji) ?? { emoji: r.emoji, names: [], mine: false };
-        bucket.names.push(r.user?.name || r.external_name || 'Клиент');
+        bucket.names.push(r.user?.name || r.external_name || t('chats.client'));
         if (props.currentUserId && r.user?.id === props.currentUserId) {
             bucket.mine = true;
         }

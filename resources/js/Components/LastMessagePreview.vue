@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Chat } from '@/types';
+import { useI18n } from '@/composables/useI18n';
 import { stripWaMarkup } from '@/utils/waMarkup';
 
 /**
@@ -24,6 +25,8 @@ const props = defineProps<{
     chat: Chat;
     emptyText?: string;
 }>();
+
+const { t } = useI18n();
 
 type MediaKind =
     | 'image'
@@ -117,40 +120,40 @@ const preview = computed<{ kind: MediaKind; label: string } | null>(() => {
 
     switch (kind) {
         case 'image':
-            return { kind, label: caption !== '' ? caption : 'Фото' };
+            return { kind, label: caption !== '' ? caption : t('chats.preview.photo') };
         case 'video':
-            return { kind, label: caption !== '' ? caption : 'Видео' };
+            return { kind, label: caption !== '' ? caption : t('chats.preview.video') };
         case 'audio':
-            return { kind, label: caption !== '' ? caption : 'Аудио' };
+            return { kind, label: caption !== '' ? caption : t('chats.preview.audio') };
         case 'voice': {
             const raw = (latest.metadata as { media?: { duration?: number } } | null | undefined)
                 ?.media?.duration;
             const duration = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
-            const base = 'Голосовое сообщение';
+            const base = t('chats.preview.voice');
             return {
                 kind,
-                label: duration !== null ? `${base} (${formatDuration(duration)})` : base,
+                label: duration !== null ? t('chats.preview.voiceWithDuration', { duration: formatDuration(duration) }) : base,
             };
         }
         case 'sticker':
-            return { kind, label: 'Стикер' };
+            return { kind, label: t('chats.preview.sticker') };
         case 'gif':
-            return { kind, label: caption !== '' ? caption : 'GIF' };
+            return { kind, label: caption !== '' ? caption : t('chats.preview.gif') };
         case 'document': {
             const filename = firstMedia?.filename?.trim() || '';
             if (caption !== '') {
                 return { kind, label: caption };
             }
-            return { kind, label: filename !== '' ? filename : 'Документ' };
+            return { kind, label: filename !== '' ? filename : t('chats.preview.document') };
         }
         case 'contact': {
             const metaContact = (latest.metadata as { contact?: { name?: string | null; phone?: string | null } } | null | undefined)?.contact;
             const metaName = (metaContact?.name || metaContact?.phone || '').trim();
             const vcardName = contactNameFromVcard(latest.body);
-            return { kind, label: metaName || vcardName || 'Контакт' };
+            return { kind, label: metaName || vcardName || t('chats.preview.contact') };
         }
         case 'poll':
-            return { kind, label: caption !== '' ? `Опрос: ${caption}` : 'Опрос' };
+            return { kind, label: caption !== '' ? t('chats.preview.pollWithCaption', { caption }) : t('chats.preview.poll') };
         case 'chat':
         default:
             if (caption !== '') return { kind: 'chat', label: caption };
@@ -302,7 +305,7 @@ const preview = computed<{ kind: MediaKind; label: string } | null>(() => {
 
         <span class="truncate">{{ preview.label }}</span>
     </span>
-    <span v-else class="truncate">{{ emptyText ?? 'Нет сообщений' }}</span>
+    <span v-else class="truncate">{{ emptyText ?? t('chats.preview.noMessages') }}</span>
 </template>
 
 <style scoped>

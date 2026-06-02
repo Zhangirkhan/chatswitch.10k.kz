@@ -5,9 +5,12 @@ import UiPagination from '@/Components/Ui/UiPagination.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { auditActionLabel, auditMetaSummary } from '@/utils/superAdminAuditLabels';
-import { paymentMethodLabels } from '@/utils/superAdminInvoiceBadge';
+import { useI18n } from '@/composables/useI18n';
+import { paymentMethodLabelMap } from '@/utils/superAdminInvoiceBadge';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 
 interface AuditRow {
     id: number;
@@ -65,10 +68,12 @@ const filterForm = useForm({
     q: props.filters.q,
 });
 
-const tabs: Array<{ id: JournalTab; label: string }> = [
-    { id: 'actions', label: 'Действия' },
-    { id: 'transactions', label: 'Транзакции' },
-];
+const tabs = computed((): Array<{ id: JournalTab; label: string }> => [
+    { id: 'actions', label: t('superAdmin.auditLogs.tabActions') },
+    { id: 'transactions', label: t('superAdmin.auditLogs.tabTransactions') },
+]);
+
+const paymentMethodLabels = computed(() => paymentMethodLabelMap(t));
 
 const isActionsTab = computed(() => props.tab === 'actions');
 
@@ -99,63 +104,63 @@ function formatPrice(cents: number): string {
 
 <template>
     <SuperAdminLayout>
-        <Head title="Журнал действий" />
-        <h1 class="mb-6 text-2xl font-bold">Глобальный журнал</h1>
+        <Head :title="t('superAdmin.auditLogs.pageTitle')" />
+        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.auditLogs.heading') }}</h1>
 
         <UiPillNav class="mb-4">
             <button
-                v-for="t in tabs"
-                :key="t.id"
+                v-for="tabItem in tabs"
+                :key="tabItem.id"
                 type="button"
                 class="ui-pill-nav__item"
-                :class="{ 'is-active': tab === t.id }"
-                @click="setTab(t.id)"
+                :class="{ 'is-active': tab === tabItem.id }"
+                @click="setTab(tabItem.id)"
             >
-                {{ t.label }}
+                {{ tabItem.label }}
             </button>
         </UiPillNav>
 
         <UiFilterPanel class="mb-4" @submit="applyFilters">
-            <UiFilterField label="Поиск" wide>
+            <UiFilterField :label="t('superAdmin.invoices.filterSearch')" wide>
                 <input
                     v-model="filterForm.q"
                     type="search"
                     class="ui-input"
-                    :placeholder="isActionsTab ? 'Компания, действие, email' : 'Компания, счёт, ссылка, email'"
+                    :placeholder="isActionsTab ? t('superAdmin.auditLogs.searchActionsPlaceholder') : t('superAdmin.auditLogs.searchTransactionsPlaceholder')"
                 />
             </UiFilterField>
-            <UiFilterField v-if="isActionsTab" label="Действие">
+            <UiFilterField v-if="isActionsTab" :label="t('superAdmin.auditLogs.filterAction')">
                 <select v-model="filterForm.action" class="ui-select">
-                    <option value="">Все</option>
+                    <option value="">{{ t('superAdmin.common.filterAll') }}</option>
                     <option v-for="action in actions" :key="action" :value="action">
-                        {{ auditActionLabel(action) }}
+                        {{ auditActionLabel(action, t) }}
                     </option>
                 </select>
             </UiFilterField>
             <template v-else>
-                <UiFilterField label="Способ оплаты">
+                <UiFilterField :label="t('superAdmin.auditLogs.filterPaymentMethod')">
                     <select v-model="filterForm.method" class="ui-select">
-                        <option value="">Все</option>
+                        <option value="">{{ t('superAdmin.common.filterAll') }}</option>
                         <option v-for="(label, key) in paymentMethodLabels" :key="key" :value="key">
                             {{ label }}
                         </option>
                     </select>
                 </UiFilterField>
-                <UiFilterField label="С">
+                <UiFilterField :label="t('superAdmin.auditLogs.filterFrom')">
                     <input v-model="filterForm.from" type="date" class="ui-input" />
                 </UiFilterField>
-                <UiFilterField label="По">
+                <UiFilterField :label="t('superAdmin.auditLogs.filterTo')">
                     <input v-model="filterForm.to" type="date" class="ui-input" />
                 </UiFilterField>
             </template>
-            <UiFilterField label="Компания">
+            <UiFilterField :label="t('superAdmin.auditLogs.filterCompany')">
                 <select v-model="filterForm.company_id" class="ui-select">
-                    <option value="">Все</option>
+                    <option value="">{{ t('superAdmin.common.filterAll') }}</option>
                     <option v-for="c in companies" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
                 </select>
             </UiFilterField>
             <template #actions>
-                <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">Применить</button>
+                <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">{{ t('superAdmin.common.apply') }}</button>
             </template>
         </UiFilterPanel>
 
@@ -163,7 +168,7 @@ function formatPrice(cents: number): string {
             <ul class="divide-y divide-ui-border">
                 <li v-for="log in auditLogs.data" :key="log.id" class="px-4 py-3 text-sm">
                     <div class="flex flex-wrap items-baseline justify-between gap-2">
-                        <span class="font-medium">{{ auditActionLabel(log.action) }}</span>
+                        <span class="font-medium">{{ auditActionLabel(log.action, t) }}</span>
                         <span class="text-xs text-ui-text-muted">{{ formatDate(log.created_at) }}</span>
                     </div>
                     <p v-if="log.company" class="mt-0.5 text-ui-text-secondary">
@@ -174,12 +179,12 @@ function formatPrice(cents: number): string {
                     <p v-if="log.actor" class="mt-0.5 text-ui-text-secondary">
                         {{ log.actor.name }} · {{ log.actor.email }}
                     </p>
-                    <p v-if="auditMetaSummary(log.meta)" class="mt-0.5 text-xs text-ui-text-muted">
-                        {{ auditMetaSummary(log.meta) }}
+                    <p v-if="auditMetaSummary(log.meta, t)" class="mt-0.5 text-xs text-ui-text-muted">
+                        {{ auditMetaSummary(log.meta, t) }}
                     </p>
                 </li>
                 <li v-if="auditLogs.data.length === 0" class="px-4 py-8 text-center text-ui-text-muted">
-                    Записей не найдено
+                    {{ t('superAdmin.auditLogs.actionsEmpty') }}
                 </li>
             </ul>
             <UiPagination
@@ -194,13 +199,13 @@ function formatPrice(cents: number): string {
             <table class="min-w-[880px] w-full text-left text-sm">
                 <thead>
                     <tr>
-                        <th>Дата</th>
-                        <th>Компания</th>
-                        <th>Счёт</th>
-                        <th>Сумма</th>
-                        <th>Способ</th>
-                        <th>Записал</th>
-                        <th>Ссылка</th>
+                        <th>{{ t('superAdmin.auditLogs.tableDate') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableCompany') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableInvoice') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableAmount') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableMethod') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableRecordedBy') }}</th>
+                        <th>{{ t('superAdmin.auditLogs.tableReference') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -214,7 +219,7 @@ function formatPrice(cents: number): string {
                             >
                                 {{ payment.company.name }}
                             </Link>
-                            <span v-else>—</span>
+                            <span v-else>{{ t('superAdmin.common.emDash') }}</span>
                         </td>
                         <td class="font-medium">
                             <Link
@@ -238,7 +243,7 @@ function formatPrice(cents: number): string {
                         <td class="text-ui-text-muted">{{ payment.external_ref ?? '—' }}</td>
                     </tr>
                     <tr v-if="transactions.data.length === 0">
-                        <td colspan="7" class="py-8 text-center text-ui-text-muted">Транзакций не найдено</td>
+                        <td colspan="7" class="py-8 text-center text-ui-text-muted">{{ t('superAdmin.auditLogs.transactionsEmpty') }}</td>
                     </tr>
                 </tbody>
             </table>

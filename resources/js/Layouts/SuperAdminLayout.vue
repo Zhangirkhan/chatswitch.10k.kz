@@ -2,8 +2,10 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { useTheme } from '@/composables/useTheme';
+import { useI18n } from '@/composables/useI18n';
 
 const page = usePage<any>();
+const { t } = useI18n();
 const user = computed(() => page.props.auth?.user);
 
 type SuperAdminNavProps = {
@@ -50,21 +52,21 @@ const isSandboxSuperAdmin = computed(
 
 const navItems = computed((): NavItem[] => {
     const items: NavItem[] = [
-        { href: '/dashboard', label: 'Дашборд', match: '/dashboard' },
-        { href: '/companies', label: 'Компании', match: '/companies' },
-        { href: '/invoices', label: 'Счета', match: '/invoices' },
+        { href: '/dashboard', label: t('superAdmin.layout.nav.dashboard'), match: '/dashboard' },
+        { href: '/companies', label: t('superAdmin.layout.nav.companies'), match: '/companies' },
+        { href: '/invoices', label: t('superAdmin.layout.nav.invoices'), match: '/invoices' },
     ];
 
     if (!isSandboxSuperAdmin.value) {
         items.push(
-            { href: '/plans', label: 'Тарифы', match: '/plans' },
+            { href: '/plans', label: t('superAdmin.layout.nav.plans'), match: '/plans' },
             {
                 href: '/signup-requests',
-                label: 'Заявки',
+                label: t('superAdmin.layout.nav.signupRequests'),
                 match: '/signup-requests',
                 badge: superAdminNav.value?.pending_signups,
             },
-            { href: '/audit-logs', label: 'Журнал', match: '/audit-logs' },
+            { href: '/audit-logs', label: t('superAdmin.layout.nav.auditLogs'), match: '/audit-logs' },
         );
     }
 
@@ -97,7 +99,7 @@ watch(
                         class="ui-btn ui-btn--ghost inline-flex h-10 w-10 shrink-0 items-center justify-center !px-0 lg:hidden"
                         :aria-expanded="navOpen"
                         aria-controls="super-admin-nav"
-                        aria-label="Меню"
+                        :aria-label="t('superAdmin.layout.menuAriaLabel')"
                         @click="navOpen = !navOpen"
                     >
                         <svg v-if="!navOpen" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -113,8 +115,8 @@ watch(
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost ui-btn--sm"
-                        :aria-label="theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'"
-                        :title="theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'"
+                        :aria-label="theme === 'dark' ? t('superAdmin.layout.theme.light') : t('superAdmin.layout.theme.dark')"
+                        :title="theme === 'dark' ? t('superAdmin.layout.theme.light') : t('superAdmin.layout.theme.dark')"
                         @click="toggleTheme"
                     >
                         <svg v-if="theme === 'dark'" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -132,7 +134,7 @@ watch(
                         as="button"
                         class="ui-btn ui-btn--secondary ui-btn--sm"
                     >
-                        Выйти
+                        {{ t('superAdmin.layout.logout') }}
                     </Link>
                 </div>
             </div>

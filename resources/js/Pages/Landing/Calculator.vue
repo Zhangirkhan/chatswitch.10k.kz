@@ -14,8 +14,11 @@ import {
     type ScenarioConfig,
 } from '@/utils/aiTokenCalculator';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 type Preset = Partial<CalculatorInputs> & { label: string; hint?: string };
 
@@ -43,21 +46,26 @@ type FieldDef = {
 };
 
 
-const heroField: FieldDef = {
-    key: 'leads_per_day',
-    label: 'Обращений в день',
-    hint: 'Сколько новых людей пишут вам в WhatsApp за рабочий день. Каждый новый диалог считается одним обращением.',
-    min: 1,
-    max: 500,
-    step: 1,
-};
+function calcField(
+    id: string,
+    key: keyof CalculatorInputs,
+    extra: Omit<FieldDef, 'key' | 'label' | 'hint'>,
+): FieldDef {
+    return {
+        key,
+        label: t(`landing.calc.${id}.label` as 'landing.calc.leadsPerDay.label'),
+        hint: t(`landing.calc.${id}.hint` as 'landing.calc.leadsPerDay.hint'),
+        ...extra,
+    };
+}
 
-const funnelField: FieldDef = {
-    key: 'funnel_enabled',
-    label: 'Воронка продаж',
-    hint: 'AI определяет этап сделки, подсказывает следующий шаг менеджеру и учитывает это в ответах клиенту.',
-    type: 'toggle',
-};
+const heroField = computed<FieldDef>(() =>
+    calcField('leadsPerDay', 'leads_per_day', { min: 1, max: 500, step: 1 }),
+);
+
+const funnelField = computed<FieldDef>(() =>
+    calcField('funnelEnabled', 'funnel_enabled', { type: 'toggle' }),
+);
 
 const props = defineProps<{
     rootDomain?: string;
@@ -120,10 +128,10 @@ watch(
 
 const activePresetLabel = computed(() => {
     if (!activePreset.value) {
-        return 'Свой';
+        return t('landing.calcPresetCustom');
     }
 
-    return props.calculator.presets[activePreset.value]?.label ?? 'Свой';
+    return props.calculator.presets[activePreset.value]?.label ?? t('landing.calcPresetCustom');
 });
 
 const presetEntries = computed(() => Object.entries(props.calculator.presets));
@@ -137,106 +145,22 @@ function applyPreset(key: string): void {
     Object.assign(inputs, props.calculator.defaults, preset);
 }
 
-const coreFields: FieldDef[] = [
-    {
-        key: 'inbound_msgs_per_lead',
-        label: 'Сообщений в диалоге',
-        hint: 'Среднее число сообщений от одного клиента за переписку. Чем длиннее диалог, тем больше контекста обрабатывает AI.',
-        min: 1,
-        max: 50,
-        step: 1,
-    },
-    {
-        key: 'ai_reply_rate',
-        label: 'AI отвечает сам',
-        hint: 'Доля входящих сообщений, на которые AI отвечает без менеджера. Остальные чаты ведёт команда.',
-        min: 0,
-        max: 100,
-        step: 5,
-        suffix: '%',
-        format: 'percent',
-    },
-    {
-        key: 'operators',
-        label: 'Менеджеров',
-        hint: 'Сотрудники, которые ведут WhatsApp и могут пользоваться AI-помощником и ИИ-чатом по базе клиентов.',
-        min: 1,
-        max: 50,
-        step: 1,
-    },
-    {
-        key: 'voice_msg_rate',
-        label: 'Голосовые от клиентов',
-        hint: 'Как часто клиенты отправляют голосовые вместо текста. Каждое голосовое расшифровывается через Whisper.',
-        min: 0,
-        max: 50,
-        step: 5,
-        suffix: '%',
-        format: 'percent',
-    },
-];
+const coreFields = computed<FieldDef[]>(() => [
+    calcField('inboundMsgs', 'inbound_msgs_per_lead', { min: 1, max: 50, step: 1 }),
+    calcField('aiReplyRate', 'ai_reply_rate', { min: 0, max: 100, step: 5, suffix: '%', format: 'percent' }),
+    calcField('operators', 'operators', { min: 1, max: 50, step: 1 }),
+    calcField('voiceMsgRate', 'voice_msg_rate', { min: 0, max: 50, step: 5, suffix: '%', format: 'percent' }),
+]);
 
-const extraFields: FieldDef[] = [
-    {
-        key: 'silent_leads_per_day',
-        label: '«Замолчало» в день',
-        hint: 'Клиенты в день, которые перестали отвечать. AI может предложить текст напоминания или отправить его автоматически.',
-        min: 0,
-        max: 100,
-        step: 1,
-    },
-    {
-        key: 'operator_ai_uses_per_day',
-        label: 'Помощь AI менеджеру',
-        hint: 'Сколько раз в день каждый менеджер просит AI подсказать ответ, перефразировать или дописать сообщение.',
-        min: 0,
-        max: 50,
-        step: 1,
-    },
-    {
-        key: 'orchestrator_rate',
-        label: 'Сложные сценарии',
-        hint: 'Доля AI-ответов со сложной логикой: запись на услугу, смена этапа воронки, умные предложения.',
-        min: 0,
-        max: 100,
-        step: 5,
-        suffix: '%',
-        format: 'percent',
-    },
-    {
-        key: 'avg_voice_duration_sec',
-        label: 'Длина голосового',
-        hint: 'Средняя длительность одного голосового от клиента. Влияет на стоимость расшифровки в минутах.',
-        min: 5,
-        max: 120,
-        step: 5,
-        format: 'voice_duration',
-    },
-    {
-        key: 'translations_per_day',
-        label: 'Переводов в день',
-        hint: 'Сколько сообщений в день переводится AI для клиентов на другой язык.',
-        min: 0,
-        max: 100,
-        step: 1,
-    },
-    {
-        key: 'workspace_queries_per_day',
-        label: 'Запросов к базе',
-        hint: 'Вопросы к базе на менеджера в день: «кто не ответил», «сколько сделок на этапе», поиск по перепискам.',
-        min: 0,
-        max: 50,
-        step: 1,
-    },
-    {
-        key: 'work_days_per_month',
-        label: 'Рабочих дней в месяц',
-        hint: 'Количество рабочих дней для перевода дневных показателей в месячный бюджет на AI.',
-        min: 20,
-        max: 31,
-        step: 1,
-    },
-];
+const extraFields = computed<FieldDef[]>(() => [
+    calcField('silentLeads', 'silent_leads_per_day', { min: 0, max: 100, step: 1 }),
+    calcField('operatorAiUses', 'operator_ai_uses_per_day', { min: 0, max: 50, step: 1 }),
+    calcField('orchestratorRate', 'orchestrator_rate', { min: 0, max: 100, step: 5, suffix: '%', format: 'percent' }),
+    calcField('avgVoiceDuration', 'avg_voice_duration_sec', { min: 5, max: 120, step: 5, format: 'voice_duration' }),
+    calcField('translations', 'translations_per_day', { min: 0, max: 100, step: 1 }),
+    calcField('workspaceQueries', 'workspace_queries_per_day', { min: 0, max: 50, step: 1 }),
+    calcField('workDays', 'work_days_per_month', { min: 20, max: 31, step: 1 }),
+]);
 
 function sliderFillPercent(field: FieldDef): number {
     const value = sliderValue(field.key);
@@ -260,21 +184,21 @@ function displayValue(field: FieldDef): string {
     const value = sliderValue(field.key);
     if (field.format === 'percent') {
         if (value === 0) {
-            return 'Выкл';
+            return t('landing.calcModeOff');
         }
         if (value === 100) {
-            return 'Всегда';
+            return t('landing.calcModeAlways');
         }
         return `~${value}%`;
     }
     if (field.format === 'voice_duration') {
         if (value <= 15) {
-            return 'Короткие';
+            return t('landing.calcVoiceShort');
         }
         if (value <= 35) {
-            return 'Средние';
+            return t('landing.calcVoiceMedium');
         }
-        return 'Длинные';
+        return t('landing.calcVoiceLong');
     }
     return `${value}${field.suffix ?? ''}`;
 }
@@ -323,22 +247,22 @@ const visibleScenarios = computed(() =>
 
 <template>
     <div class="landing">
-        <Head :title="`Калькулятор AI — Accel`" />
+        <Head :title="t('landing.calculatorTitle')" />
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
                 Accel
             </a>
             <nav class="landing__nav">
-                <Link href="/" class="landing__nav-link">На главную</Link>
+                <Link href="/" class="landing__nav-link">{{ t('landing.backHome') }}</Link>
             </nav>
         </header>
 
         <main class="landing__main landing__main--wide">
             <section class="calc-intro">
-                <h1 class="calc-intro__title">Сколько стоит AI для вашего бизнеса</h1>
+                <h1 class="calc-intro__title">{{ t('landing.calculatorIntroTitle') }}</h1>
                 <p class="calc-intro__text">
-                    Настройте параметры слева — справа сразу увидите ориентир по бюджету.
+                    {{ t('landing.calcIntro') }}
                 </p>
             </section>
 
@@ -346,11 +270,11 @@ const visibleScenarios = computed(() =>
                 <div class="calc-sheet">
                     <div class="calc-sheet__controls">
                     <header class="calc-sheet__header">
-                        <h2 class="calc-sheet__heading">Расчёт стоимости</h2>
-                        <p class="calc-sheet__sub">Примерный месячный расход на OpenAI</p>
+                        <h2 class="calc-sheet__heading">{{ t('landing.calculatorSheetTitle') }}</h2>
+                        <p class="calc-sheet__sub">{{ t('landing.calculatorSheetSub') }}</p>
                     </header>
 
-                    <div class="ui-section-tabs calc-segments" role="tablist" aria-label="Профиль бизнеса">
+                    <div class="ui-section-tabs calc-segments" role="tablist" :aria-label="t('landing.calcProfileAria')">
                         <button
                             v-for="[key, preset] in presetEntries"
                             :key="key"
@@ -390,7 +314,7 @@ const visibleScenarios = computed(() =>
                                 <strong class="calc-feature__value">{{ inputs.leads_per_day }}</strong>
                             </div>
                             <div class="calc-feature__aside">
-                                <span class="calc-feature__kicker">Профиль</span>
+                                <span class="calc-feature__kicker">{{ t('landing.calcProfileKicker') }}</span>
                                 <strong class="calc-feature__tier">{{ activePresetLabel }}</strong>
                             </div>
                         </div>
@@ -476,7 +400,7 @@ const visibleScenarios = computed(() =>
                         <UiCheckbox
                             :model-value="inputs.funnel_enabled"
                             size="sm"
-                            aria-label="Воронка продаж"
+                            :aria-label="t('landing.calcFunnelAria')"
                             @update:model-value="(v) => setBooleanInput('funnel_enabled', v)"
                         />
                     </div>
@@ -486,7 +410,7 @@ const visibleScenarios = computed(() =>
                         class="calc-more"
                         @click="showAdvanced = !showAdvanced"
                     >
-                        {{ showAdvanced ? 'Скрыть дополнительно' : 'Дополнительные параметры' }}
+                        {{ showAdvanced ? t('landing.hideAdvanced') : t('landing.showAdvanced') }}
                     </button>
 
                     <div v-if="showAdvanced" class="calc-fields calc-fields--extra">
@@ -535,7 +459,7 @@ const visibleScenarios = computed(() =>
                     <div class="calc-receipt__panel">
                         <div class="calc-receipt__head">
                             <div class="calc-receipt__total" :class="{ 'calc-receipt__total--pulse': pricePulse }">
-                                <span class="calc-receipt__kicker">Итого AI / мес</span>
+                                <span class="calc-receipt__kicker">{{ t('landing.calculatorTotal') }}</span>
                                 <div class="calc-receipt__price-line">
                                     <strong class="calc-receipt__price">{{ formatKzt(result.totals.api_cost_kzt) }}</strong>
                                     <span class="calc-receipt__badge ui-badge ui-badge--neutral">{{ activePresetLabel }}</span>
@@ -547,41 +471,41 @@ const visibleScenarios = computed(() =>
                         <div class="calc-receipt__scroll">
                             <dl class="calc-receipt__lines">
                                 <div class="calc-receipt__line">
-                                    <dt>Сообщений от клиентов</dt>
+                                    <dt>{{ t('landing.calculatorInbound') }}</dt>
                                     <dd>{{ formatNumber(result.inbound_per_month) }}</dd>
                                 </div>
                                 <div class="calc-receipt__line">
-                                    <dt>Обрабатывает AI</dt>
+                                    <dt>{{ t('landing.calculatorAiHandled') }}</dt>
                                     <dd>{{ formatNumber(result.ai_inbound_per_month) }} <span class="calc-receipt__pct">({{ aiSharePercent }}%)</span></dd>
                                 </div>
                                 <div class="calc-receipt__line">
-                                    <dt>Голосовые, мин / мес</dt>
+                                    <dt>{{ t('landing.calculatorVoice') }}</dt>
                                     <dd>{{ result.totals.whisper_minutes }}</dd>
                                 </div>
                                 <div class="calc-receipt__line">
-                                    <dt>Себестоимость API</dt>
+                                    <dt>{{ t('landing.calculatorApiCost') }}</dt>
                                     <dd>{{ formatUsd(result.totals.api_cost_usd) }}</dd>
                                 </div>
                                 <div class="calc-receipt__line calc-receipt__line--sep">
-                                    <dt>Подписка Accel</dt>
+                                    <dt>{{ t('landing.calculatorSubscription') }}</dt>
                                     <dd>{{ formatKzt(result.totals.subscription_kzt) }}</dd>
                                 </div>
                             </dl>
 
                             <p class="calc-receipt__note">
-                                Подписка на WhatsApp-платформу оплачивается отдельно от расходов на AI.
+                                {{ t('landing.calculatorSubscriptionNote') }}
                             </p>
 
                             <button type="button" class="calc-more calc-more--ghost" @click="showTechnical = !showTechnical">
-                                {{ showTechnical ? 'Скрыть детали' : 'Как считается?' }}
+                                {{ showTechnical ? t('landing.hideTechnical') : t('landing.showTechnical') }}
                             </button>
 
                             <div v-if="showTechnical" class="calc-receipt__details">
                                 <table class="calc-table">
                                     <thead>
                                         <tr>
-                                            <th>Сценарий</th>
-                                            <th>Раз</th>
+                                            <th>{{ t('landing.scenarioCol') }}</th>
+                                            <th>{{ t('landing.countCol') }}</th>
                                             <th>$</th>
                                         </tr>
                                     </thead>
@@ -596,7 +520,7 @@ const visibleScenarios = computed(() =>
                             </div>
                         </div>
 
-                        <a href="/#request" class="ui-btn ui-btn--primary calc-receipt__cta">Оставить заявку</a>
+                        <a href="/#request" class="ui-btn ui-btn--primary calc-receipt__cta">{{ t('landing.calcReceiptCta') }}</a>
                     </div>
                 </aside>
                 </div>

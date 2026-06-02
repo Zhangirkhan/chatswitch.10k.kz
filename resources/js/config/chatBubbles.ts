@@ -45,8 +45,8 @@ const QUOTE_MUTED_ON_DARK = '#D8DEE3';
 export const messageStylePresets: MessageStylePreset[] = [
     {
         id: 'whatsapp',
-        label: 'Зелёный',
-        description: 'Классический WhatsApp',
+        label: 'Green',
+        description: 'Classic WhatsApp',
         light: {
             in: '#FFFFFF',
             out: '#D9FDD3',
@@ -82,8 +82,8 @@ export const messageStylePresets: MessageStylePreset[] = [
     },
     {
         id: 'blue',
-        label: 'Синий',
-        description: 'Telegram: белый текст на синем',
+        label: 'Blue',
+        description: 'Telegram blue',
         light: {
             in: '#FFFFFF',
             out: '#3390EC',
@@ -117,8 +117,8 @@ export const messageStylePresets: MessageStylePreset[] = [
     },
     {
         id: 'graphite',
-        label: 'Графит',
-        description: 'Нейтральный серый, как в Telegram',
+        label: 'Graphite',
+        description: 'Neutral gray',
         light: {
             in: '#F1F1F1',
             out: '#2C2C2C',
@@ -152,8 +152,8 @@ export const messageStylePresets: MessageStylePreset[] = [
     },
     {
         id: 'purple',
-        label: 'Фиолетовый',
-        description: 'Спокойная лаванда',
+        label: 'Purple',
+        description: 'Calm lavender',
         light: {
             in: '#FFFFFF',
             out: '#7C5CBF',
@@ -187,8 +187,8 @@ export const messageStylePresets: MessageStylePreset[] = [
     },
     {
         id: 'ocean',
-        label: 'Бирюза',
-        description: 'Приглушённая морская гамма',
+        label: 'Teal',
+        description: 'Muted sea tones',
         light: {
             in: '#FFFFFF',
             out: '#3D9B8F',
@@ -222,8 +222,8 @@ export const messageStylePresets: MessageStylePreset[] = [
     },
     {
         id: 'coral',
-        label: 'Коралл',
-        description: 'Тёплый терракотовый',
+        label: 'Coral',
+        description: 'Warm terracotta',
         light: {
             in: '#FFFFFF',
             out: '#D9725C',

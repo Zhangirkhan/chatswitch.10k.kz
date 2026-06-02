@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { ClientProfileActivityItem } from '@/Components/Clients/clientProfileTypes';
+import { useI18n } from '@/composables/useI18n';
 
 defineProps<{
     items: ClientProfileActivityItem[];
 }>();
+
+const { t } = useI18n();
 
 function dateLabel(v: string | null): string {
     if (!v) {
@@ -13,22 +16,22 @@ function dateLabel(v: string | null): string {
     if (Number.isNaN(d.getTime())) {
         return '';
     }
-    return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function itemLabel(item: ClientProfileActivityItem): string {
     if (item.type === 'message') {
-        return item.direction === 'inbound' ? 'Клиент' : 'Менеджер';
+        return item.direction === 'inbound' ? t('clients.timeline.client') : t('clients.timeline.manager');
     }
     if (item.type === 'event') {
-        return 'Событие';
+        return t('clients.timeline.event');
     }
-    return item.label || 'Факт';
+    return item.label || t('clients.timeline.fact');
 }
 </script>
 
 <template>
-    <div v-if="items.length === 0" class="text-xs opacity-70">Нет записей в истории</div>
+    <div v-if="items.length === 0" class="text-xs opacity-70">{{ t('clients.timeline.empty') }}</div>
     <ul v-else class="space-y-2">
         <li
             v-for="(item, idx) in items"
@@ -41,7 +44,7 @@ function itemLabel(item: ClientProfileActivityItem): string {
                 <span v-if="item.at">{{ dateLabel(item.at) }}</span>
             </div>
             <div class="whitespace-pre-wrap break-words">{{ item.body }}</div>
-            <div v-if="item.assignee" class="mt-1 opacity-70">Ответственный: {{ item.assignee }}</div>
+            <div v-if="item.assignee" class="mt-1 opacity-70">{{ t('clients.timeline.assignee', { name: item.assignee }) }}</div>
         </li>
     </ul>
 </template>

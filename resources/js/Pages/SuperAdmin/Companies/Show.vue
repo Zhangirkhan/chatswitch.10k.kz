@@ -11,7 +11,10 @@ import CompanyShowWhatsappPanel from '@/Pages/SuperAdmin/Companies/Partials/Comp
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed, onMounted, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 type TabId = 'info' | 'modules' | 'subscription' | 'history' | 'invoices' | 'users' | 'whatsapp' | 'audit';
 
@@ -140,16 +143,16 @@ const page = usePage();
 const rootDomain = computed(() => (page.props.rootDomain as string | undefined) ?? 'accel.kz');
 const activeTab = ref<TabId>('info');
 
-const tabs: { id: TabId; label: string; badge?: number }[] = [
-    { id: 'info', label: 'О компании' },
-    { id: 'modules', label: 'Модули' },
-    { id: 'subscription', label: 'Подписка' },
-    { id: 'history', label: 'История' },
-    { id: 'invoices', label: 'Счета', badge: props.billingSummary.overdue_invoices || undefined },
-    { id: 'users', label: 'Пользователи', badge: props.company.users_count ?? props.companyUsers.length },
+const tabs = computed((): { id: TabId; label: string; badge?: number }[] => [
+    { id: 'info', label: t('superAdmin.companies.show.tabInfo') },
+    { id: 'modules', label: t('superAdmin.companies.show.tabModules') },
+    { id: 'subscription', label: t('superAdmin.companies.show.tabSubscription') },
+    { id: 'history', label: t('superAdmin.companies.show.tabHistory') },
+    { id: 'invoices', label: t('superAdmin.companies.show.tabInvoices'), badge: props.billingSummary.overdue_invoices || undefined },
+    { id: 'users', label: t('superAdmin.companies.show.tabUsers'), badge: props.company.users_count ?? props.companyUsers.length },
     { id: 'whatsapp', label: 'WhatsApp', badge: props.whatsappSessions.length || undefined },
-    { id: 'audit', label: 'Журнал' },
-];
+    { id: 'audit', label: t('superAdmin.companies.show.tabAudit') },
+]);
 
 function setTab(tab: TabId): void {
     activeTab.value = tab;
@@ -199,8 +202,8 @@ function confirmQuickToggle(): void {
 const toggleConfirmDescription = computed(() => {
     const domain = `${props.company.slug}.${rootDomain.value}`;
     return props.company.is_active
-        ? `Отключить ${domain}? Пользователи увидят страницу «Сайт отключён».`
-        : `Включить ${domain}?`;
+        ? t('superAdmin.companies.show.toggleDisableDescription', { domain })
+        : t('superAdmin.companies.show.toggleEnableDescription', { domain });
 });
 
 function requestActivatePaid(): void {
@@ -238,24 +241,24 @@ function formatPrice(cents: number): string {
 }
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return t('superAdmin.common.emDash');
     return new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-const statusLabels: Record<string, string> = {
-    trial: 'Триал',
-    active: 'Активна',
-    past_due: 'Ожидает оплаты',
-    suspended: 'Приостановлена',
-    canceled: 'Отменена',
-};
+const statusLabels = computed(() => ({
+    trial: t('superAdmin.subscriptionStatus.trial'),
+    active: t('superAdmin.subscriptionStatus.active'),
+    past_due: t('superAdmin.subscriptionStatus.pastDuePay'),
+    suspended: t('superAdmin.subscriptionStatus.suspended'),
+    canceled: t('superAdmin.subscriptionStatus.canceled'),
+}));
 
-const eventLabels: Record<string, string> = {
-    trial_started: 'Старт триала',
-    activated: 'Оплата / активация',
-    canceled: 'Отказ',
-    trial_expired: 'Триал истёк',
-};
+const eventLabels = computed(() => ({
+    trial_started: t('superAdmin.subscriptionEvent.trialStarted'),
+    activated: t('superAdmin.subscriptionEvent.activated'),
+    canceled: t('superAdmin.subscriptionEvent.canceled'),
+    trial_expired: t('superAdmin.subscriptionEvent.trialExpired'),
+}));
 
 const trialInfo = computed(() => {
     if (props.company.subscription_status !== 'trial' || !props.company.trial_ends_at) {
@@ -263,7 +266,10 @@ const trialInfo = computed(() => {
     }
     const end = new Date(props.company.trial_ends_at);
     const days = Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86400000));
-    return `Осталось ${days} дн. (до ${formatDate(props.company.trial_ends_at)})`;
+    return t('superAdmin.companies.show.trialRemaining', {
+        days,
+        date: formatDate(props.company.trial_ends_at),
+    });
 });
 
 const form = useForm({
@@ -299,7 +305,7 @@ function assignPlan(): void {
         <Head :title="company.name" />
 
         <div class="mb-4">
-            <Link href="/companies" class="text-sm text-ui-text-secondary hover:text-ui-accent">← Компании</Link>
+            <Link href="/companies" class="text-sm text-ui-text-secondary hover:text-ui-accent">{{ t('superAdmin.companies.show.back') }}</Link>
         </div>
 
         <CompanyShowHeader
@@ -332,49 +338,49 @@ function assignPlan(): void {
         <!-- О компании -->
         <div v-show="activeTab === 'info'" class="space-y-6">
             <section class="ui-settings-section">
-                <h2 class="mb-4 text-base font-semibold">Сводка</h2>
+                <h2 class="mb-4 text-base font-semibold">{{ t('superAdmin.companies.show.summaryTitle') }}</h2>
                 <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
                         <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">ID</dt>
                         <dd class="mt-0.5 font-mono text-sm text-ui-text">{{ company.id }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Поддомен</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldSubdomain') }}</dt>
                         <dd class="mt-0.5 font-mono text-sm text-ui-text">{{ company.slug }}.{{ rootDomain }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Создана</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldCreated') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">{{ formatDate(company.created_at) }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Обновлена</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldUpdated') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">{{ formatDate(company.updated_at) }}</dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Текущий тариф</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldCurrentPlan') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">
                             {{ company.plan?.name ?? '—' }}
                             <span v-if="company.plan" class="text-ui-text-secondary">
-                                ({{ company.plan.code }}, {{ formatPrice(company.plan.price_cents) }}/мес.)
+                                {{ t('superAdmin.companies.show.planPerMonth', { code: company.plan.code, price: formatPrice(company.plan.price_cents) }) }}
                             </span>
                         </dd>
                     </div>
                     <div>
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Владелец</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldOwner') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">
                             <template v-if="company.owner">
                                 {{ company.owner.name }}
                                 <span class="text-ui-text-secondary">· {{ company.owner.email }}</span>
                             </template>
-                            <span v-else class="text-ui-text-muted">Не назначен</span>
+                            <span v-else class="text-ui-text-muted">{{ t('superAdmin.companies.show.ownerNotAssigned') }}</span>
                         </dd>
                     </div>
                     <div v-if="company.email">
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Email компании</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldCompanyEmail') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">{{ company.email }}</dd>
                     </div>
                     <div v-if="company.website">
-                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">Сайт</dt>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldWebsite') }}</dt>
                         <dd class="mt-0.5 text-sm">
                             <a :href="company.website" target="_blank" rel="noopener noreferrer" class="text-ui-accent hover:underline">
                                 {{ company.website }}
@@ -388,43 +394,43 @@ function assignPlan(): void {
             </section>
 
             <section class="ui-settings-section">
-                <h2 class="mb-1 text-base font-semibold">Профиль и контакты</h2>
-                <p class="mb-4 text-sm text-ui-text-secondary">Изменения сохраняются только для этой компании в каталоге тенантов.</p>
+                <h2 class="mb-1 text-base font-semibold">{{ t('superAdmin.companies.show.profileTitle') }}</h2>
+                <p class="mb-4 text-sm text-ui-text-secondary">{{ t('superAdmin.companies.show.profileHint') }}</p>
                 <form class="max-w-xl space-y-4" @submit.prevent="saveCompany">
                     <label class="block text-sm">
-                        <span class="text-ui-text-secondary">Название</span>
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.name') }}</span>
                         <input v-model="form.name" class="ui-input mt-1" required />
                         <p v-if="form.errors.name" class="mt-1 text-xs text-ui-danger">{{ form.errors.name }}</p>
                     </label>
                     <label class="block text-sm">
-                        <span class="text-ui-text-secondary">Телефон</span>
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.phone') }}</span>
                         <input v-model="form.phone" type="tel" class="ui-input mt-1" placeholder="+7 747 123 45 67" />
                         <p v-if="form.errors.phone" class="mt-1 text-xs text-ui-danger">{{ form.errors.phone }}</p>
                     </label>
                     <label class="block text-sm">
-                        <span class="text-ui-text-secondary">Окончание триала</span>
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.show.fieldTrialEnds') }}</span>
                         <input v-model="form.trial_ends_at" type="date" class="ui-input mt-1" />
                         <p v-if="form.errors.trial_ends_at" class="mt-1 text-xs text-ui-danger">{{ form.errors.trial_ends_at }}</p>
                     </label>
                     <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
                         <UiCheckbox v-model="form.is_active" size="sm" />
-                        Тенант активен
+                        {{ t('superAdmin.companies.show.tenantActive') }}
                     </label>
                     <button type="submit" class="ui-btn ui-btn--primary" :disabled="form.processing">
-                        {{ form.processing ? 'Сохранение…' : 'Сохранить' }}
+                        {{ form.processing ? t('superAdmin.common.saving') : t('superAdmin.common.save') }}
                     </button>
                 </form>
             </section>
 
             <section class="ui-settings-section">
-                <h2 class="mb-4 text-base font-semibold">Метрики тенанта</h2>
+                <h2 class="mb-4 text-base font-semibold">{{ t('superAdmin.companies.show.metricsTitle') }}</h2>
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="ui-panel px-4 py-3">
-                        <div class="text-xs text-ui-text-muted">Пользователи</div>
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.metricsUsers') }}</div>
                         <div class="mt-0.5 text-xl font-semibold">{{ company.users_count ?? companyUsers.length }}</div>
                     </div>
                     <div class="ui-panel px-4 py-3">
-                        <div class="text-xs text-ui-text-muted">Записей подписок</div>
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.metricsSubscriptions') }}</div>
                         <div class="mt-0.5 text-xl font-semibold">{{ company.subscriptions_count ?? company.subscriptions.length }}</div>
                     </div>
                     <button
@@ -432,14 +438,14 @@ function assignPlan(): void {
                         class="ui-panel px-4 py-3 text-left transition-colors hover:bg-ui-surface-hover"
                         @click="setTab('invoices')"
                     >
-                        <div class="text-xs text-ui-text-muted">Счета</div>
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.metricsInvoices') }}</div>
                         <div class="mt-0.5 text-xl font-semibold">{{ company.invoices_count ?? invoices.length }}</div>
                         <span v-if="billingSummary.overdue_invoices > 0" class="mt-1 inline-block text-xs text-ui-accent">
-                            {{ billingSummary.overdue_invoices }} не оплачено →
+                            {{ t('superAdmin.companies.show.metricsUnpaid', { count: billingSummary.overdue_invoices }) }}
                         </span>
                     </button>
                     <div class="ui-panel px-4 py-3">
-                        <div class="text-xs text-ui-text-muted">WhatsApp-сессии</div>
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.metricsWhatsappSessions') }}</div>
                         <div class="mt-0.5 text-xl font-semibold">{{ company.whatsapp_sessions_count ?? 0 }}</div>
                     </div>
                 </div>
@@ -455,21 +461,21 @@ function assignPlan(): void {
         <!-- Подписка -->
         <div v-show="activeTab === 'subscription'" class="space-y-6">
             <section class="ui-settings-section max-w-2xl">
-                <h2 class="mb-3 text-base font-semibold">Текущая подписка</h2>
+                <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.show.subscriptionCurrentTitle') }}</h2>
                 <p class="mb-4 text-sm text-ui-text-secondary">
-                    {{ billing.standard_price_label }}, триал {{ billing.trial_days }} дн. После триала — оплатить или отказаться.
+                    {{ t('superAdmin.companies.show.subscriptionCurrentHint', { priceLabel: billing.standard_price_label, days: billing.trial_days }) }}
                 </p>
                 <div class="mb-4 flex flex-wrap items-center gap-2">
                     <span :class="subscriptionStatusBadgeClass(company.subscription_status)">
-                        {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
+                        {{ statusLabels[company.subscription_status as keyof typeof statusLabels] ?? company.subscription_status }}
                     </span>
                     <span v-if="company.plan" class="text-sm text-ui-text-secondary">
-                        {{ company.plan.name }} · {{ formatPrice(company.plan.price_cents) }}/мес.
+                        {{ t('superAdmin.companies.show.planOption', { name: company.plan.name, price: formatPrice(company.plan.price_cents) }) }}
                     </span>
                 </div>
                 <div class="mb-4 flex flex-wrap items-end gap-3">
                     <label v-if="company.subscription_status === 'trial' || company.subscription_status === 'past_due'" class="block text-sm text-ui-text-secondary">
-                        Месяцев
+                        {{ t('superAdmin.companies.show.subscriptionMonths') }}
                         <select v-model.number="activateMonths" class="ui-select mt-1">
                             <option v-for="m in 24" :key="m" :value="m">{{ m }}</option>
                         </select>
@@ -482,7 +488,7 @@ function assignPlan(): void {
                         class="ui-btn ui-btn--primary ui-btn--sm"
                         @click="requestActivatePaid"
                     >
-                        Оплатить ({{ activateMonths }} мес.)
+                        {{ t('superAdmin.companies.show.subscriptionPay', { months: activateMonths }) }}
                     </button>
                     <button
                         v-if="company.subscription_status !== 'canceled'"
@@ -490,56 +496,56 @@ function assignPlan(): void {
                         class="ui-btn ui-btn--danger-ghost ui-btn--sm"
                         @click="requestCancelSubscription"
                     >
-                        Отказаться
+                        {{ t('superAdmin.companies.show.subscriptionCancel') }}
                     </button>
                 </div>
             </section>
 
             <section class="ui-settings-section max-w-2xl">
-                <h2 class="mb-3 text-base font-semibold">Сменить тариф</h2>
-                <p class="mb-4 text-sm text-ui-text-secondary">Создаёт новую запись в истории подписок.</p>
+                <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.show.changePlanTitle') }}</h2>
+                <p class="mb-4 text-sm text-ui-text-secondary">{{ t('superAdmin.companies.show.changePlanHint') }}</p>
                 <form class="space-y-3" @submit.prevent="assignPlan">
                     <label class="block text-sm text-ui-text-secondary">
-                        Тариф
+                        {{ t('superAdmin.companies.field.plan') }}
                         <select v-model="planForm.plan_id" class="ui-select mt-1 w-full">
                             <option v-for="p in plans" :key="p.id" :value="p.id">
-                                {{ p.name }} — {{ formatPrice(p.price_cents) }}/мес.
+                                {{ t('superAdmin.companies.show.planOption', { name: p.name, price: formatPrice(p.price_cents) }) }}
                             </option>
                         </select>
                     </label>
                     <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
                         <UiCheckbox v-model="planForm.restart_trial" size="sm" />
-                        Начать новый триал 14 дней
+                        {{ t('superAdmin.companies.show.restartTrial') }}
                     </label>
                     <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="planForm.processing">
-                        Применить тариф
+                        {{ t('superAdmin.companies.show.applyPlan') }}
                     </button>
                 </form>
             </section>
 
             <section class="ui-settings-section max-w-2xl">
-                <h2 class="mb-3 text-base font-semibold">Ручная корректировка</h2>
-                <p class="mb-4 text-sm text-ui-text-secondary">Для исключений: смена статуса или тарифа без типового сценария оплаты.</p>
+                <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.show.manualTitle') }}</h2>
+                <p class="mb-4 text-sm text-ui-text-secondary">{{ t('superAdmin.companies.show.manualHint') }}</p>
                 <form class="space-y-3" @submit.prevent="saveCompany">
                     <label class="block text-sm">
-                        <span class="text-ui-text-secondary">Статус подписки</span>
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.show.statusField') }}</span>
                         <select v-model="form.subscription_status" class="ui-select mt-1 w-full">
-                            <option value="trial">trial — триал</option>
-                            <option value="active">active — оплачено</option>
-                            <option value="past_due">past_due — ждёт оплаты</option>
-                            <option value="suspended">suspended — приостановлена</option>
-                            <option value="canceled">canceled — отменена</option>
+                            <option value="trial">{{ t('superAdmin.companies.show.statusTrial') }}</option>
+                            <option value="active">{{ t('superAdmin.companies.show.statusActive') }}</option>
+                            <option value="past_due">{{ t('superAdmin.companies.show.statusPastDue') }}</option>
+                            <option value="suspended">{{ t('superAdmin.companies.show.statusSuspended') }}</option>
+                            <option value="canceled">{{ t('superAdmin.companies.show.statusCanceled') }}</option>
                         </select>
                     </label>
                     <label class="block text-sm">
-                        <span class="text-ui-text-secondary">Тариф (при сохранении — запись в истории)</span>
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.show.planOnSave') }}</span>
                         <select v-model="form.plan_id" class="ui-select mt-1 w-full">
-                            <option :value="null">—</option>
+                            <option :value="null">{{ t('superAdmin.common.emDash') }}</option>
                             <option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }}</option>
                         </select>
                     </label>
                     <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="form.processing">
-                        Сохранить статус и тариф
+                        {{ t('superAdmin.companies.show.saveStatusPlan') }}
                     </button>
                 </form>
             </section>
@@ -549,42 +555,42 @@ function assignPlan(): void {
         <div v-show="activeTab === 'history'">
             <div class="ui-panel overflow-hidden p-0">
                 <div class="border-b border-ui-border px-4 py-3">
-                    <h2 class="font-medium">История тарифов и подписок</h2>
+                    <h2 class="font-medium">{{ t('superAdmin.companies.show.historyTitle') }}</h2>
                     <p class="mt-0.5 text-sm text-ui-text-secondary">
-                        {{ company.subscriptions_count ?? company.subscriptions.length }} записей
+                        {{ t('superAdmin.companies.show.historyCount', { count: company.subscriptions_count ?? company.subscriptions.length }) }}
                     </p>
                 </div>
                 <div class="ui-table-panel">
                     <table class="min-w-[720px] w-full text-left text-sm">
                         <thead>
                             <tr>
-                                <th>Тариф</th>
-                                <th>Статус</th>
-                                <th>Событие</th>
-                                <th>Начало</th>
-                                <th>Конец / триал</th>
-                                <th>Закрыта</th>
+                                <th>{{ t('superAdmin.companies.show.historyPlan') }}</th>
+                                <th>{{ t('superAdmin.companies.show.historyStatus') }}</th>
+                                <th>{{ t('superAdmin.companies.show.historyEvent') }}</th>
+                                <th>{{ t('superAdmin.companies.show.historyStart') }}</th>
+                                <th>{{ t('superAdmin.companies.show.historyEnd') }}</th>
+                                <th>{{ t('superAdmin.companies.show.historyClosed') }}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="s in company.subscriptions" :key="s.id">
-                                <td class="!text-ui-text">{{ s.plan?.name ?? '—' }}</td>
+                                <td class="!text-ui-text">{{ s.plan?.name ?? t('superAdmin.common.emDash') }}</td>
                                 <td>
                                     <span class="inline-flex" :class="subscriptionStatusBadgeClass(s.status)">
-                                        {{ statusLabels[s.status] ?? s.status }}
+                                        {{ statusLabels[s.status as keyof typeof statusLabels] ?? s.status }}
                                     </span>
                                 </td>
-                                <td>{{ eventLabels[s.event ?? ''] ?? (s.event ?? '—') }}</td>
+                                <td>{{ s.event ? (eventLabels[s.event as keyof typeof eventLabels] ?? s.event) : t('superAdmin.common.emDash') }}</td>
                                 <td>{{ formatDate(s.started_at) }}</td>
                                 <td>
-                                    <span v-if="s.trial_ends_at">триал до {{ formatDate(s.trial_ends_at) }}</span>
-                                    <span v-else-if="s.ends_at">до {{ formatDate(s.ends_at) }}</span>
-                                    <span v-else>—</span>
+                                    <span v-if="s.trial_ends_at">{{ t('superAdmin.companies.show.historyTrialUntil', { date: formatDate(s.trial_ends_at) }) }}</span>
+                                    <span v-else-if="s.ends_at">{{ t('superAdmin.companies.show.historyUntil', { date: formatDate(s.ends_at) }) }}</span>
+                                    <span v-else>{{ t('superAdmin.common.emDash') }}</span>
                                 </td>
                                 <td class="!text-ui-text-muted">{{ formatDate(s.ended_at) }}</td>
                             </tr>
                             <tr v-if="company.subscriptions.length === 0">
-                                <td colspan="6" class="!py-8 text-center !text-ui-text-muted">Нет записей</td>
+                                <td colspan="6" class="!py-8 text-center !text-ui-text-muted">{{ t('superAdmin.companies.show.historyEmpty') }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -620,27 +626,27 @@ function assignPlan(): void {
 
         <DangerConfirmModal
             :open="showToggleConfirm"
-            title="Переключить тенант?"
+            :title="t('superAdmin.companies.show.toggleModalTitle')"
             :description="toggleConfirmDescription"
-            :confirm-label="company.is_active ? 'Отключить' : 'Включить'"
+            :confirm-label="company.is_active ? t('superAdmin.companies.index.toggleDisable') : t('superAdmin.companies.index.toggleEnable')"
             confirm-variant="primary"
             @close="showToggleConfirm = false"
             @confirm="confirmQuickToggle"
         />
         <DangerConfirmModal
             :open="showActivateConfirm"
-            title="Активировать подписку?"
-            :description="`Активировать платную подписку на ${activateMonths} мес.?`"
-            confirm-label="Активировать"
+            :title="t('superAdmin.companies.show.activateModalTitle')"
+            :description="t('superAdmin.companies.show.activateModalDescription', { months: activateMonths })"
+            :confirm-label="t('superAdmin.companies.show.activateModalConfirm')"
             confirm-variant="primary"
             @close="showActivateConfirm = false"
             @confirm="confirmActivatePaid"
         />
         <DangerConfirmModal
             :open="showCancelConfirm"
-            title="Отменить подписку?"
-            description="История сохранится, статус компании станет «отменена»."
-            confirm-label="Отменить подписку"
+            :title="t('superAdmin.companies.show.cancelModalTitle')"
+            :description="t('superAdmin.companies.show.cancelModalDescription')"
+            :confirm-label="t('superAdmin.companies.show.cancelModalConfirm')"
             @close="showCancelConfirm = false"
             @confirm="confirmCancelSubscription"
         />

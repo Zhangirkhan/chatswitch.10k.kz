@@ -6,6 +6,7 @@ import type {
 } from '@/Components/AiChat/aiWorkspaceTypes';
 import { Link } from '@inertiajs/vue3';
 import { formatPhone } from '@/utils/phone';
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
 
 const props = defineProps<{
@@ -15,6 +16,8 @@ const props = defineProps<{
     focusedContactId: number | null;
 }>();
 
+const { t } = useI18n();
+
 const emit = defineEmits<{
     'update:activeTab': [tab: ResultTabId];
     selectContact: [contactId: number];
@@ -22,13 +25,13 @@ const emit = defineEmits<{
 
 const tabs = computed(() => {
     const items: Array<{ id: ResultTabId; label: string; count: number }> = [
-        { id: 'contacts', label: 'Контакты', count: props.tabCounts.contacts },
-        { id: 'media', label: 'Файлы', count: props.tabCounts.media },
-        { id: 'messages', label: 'Сообщения', count: props.tabCounts.messages },
-        { id: 'calendar', label: 'Календарь', count: props.tabCounts.calendar },
-        { id: 'funnel', label: 'Воронка', count: props.tabCounts.funnel },
-        { id: 'tasks', label: 'Задачи', count: props.tabCounts.tasks },
-        { id: 'employees', label: 'Сотрудники', count: props.tabCounts.employees },
+        { id: 'contacts', label: t('aiChat.tabContacts'), count: props.tabCounts.contacts },
+        { id: 'media', label: t('aiChat.tabFiles'), count: props.tabCounts.media },
+        { id: 'messages', label: t('aiChat.tabMessages'), count: props.tabCounts.messages },
+        { id: 'calendar', label: t('aiChat.tabCalendar'), count: props.tabCounts.calendar },
+        { id: 'funnel', label: t('aiChat.tabFunnel'), count: props.tabCounts.funnel },
+        { id: 'tasks', label: t('aiChat.tabTasks'), count: props.tabCounts.tasks },
+        { id: 'employees', label: t('aiChat.tabEmployees'), count: props.tabCounts.employees },
     ];
 
     return items.filter((tab) => tab.count > 0);
@@ -36,18 +39,18 @@ const tabs = computed(() => {
 
 function mimeLabel(mime: string | null | undefined): string {
     if (!mime) {
-        return 'Файл';
+        return t('aiChat.mediaFile');
     }
     if (mime.startsWith('image/')) {
-        return 'Фото';
+        return t('aiChat.mediaPhoto');
     }
     if (mime.startsWith('video/')) {
-        return 'Видео';
+        return t('aiChat.mediaVideo');
     }
     if (mime.startsWith('audio/')) {
-        return 'Аудио';
+        return t('aiChat.mediaAudio');
     }
-    return 'Документ';
+    return t('aiChat.mediaDocument');
 }
 
 function formatEventWhen(startsAt: string, endsAt: string, allDay?: boolean): string {
@@ -78,7 +81,7 @@ function onContactClick(contactId: number): void {
 <template>
     <section class="ai-result-tabs">
         <div v-if="tabs.length === 0" class="ai-result-tabs__empty">
-            Результаты появятся здесь после запроса.
+            {{ t('aiChat.noResults') }}
         </div>
 
         <template v-else>
@@ -115,7 +118,7 @@ function onContactClick(contactId: number): void {
                                 {{ c.companies.join(', ') }}
                             </p>
                             <p v-if="c.unread_count" class="ai-result-tabs__card-badge">
-                                Непрочитанных: {{ c.unread_count }}
+                                {{ t('aiChat.unreadCount', { count: c.unread_count }) }}
                             </p>
                         </button>
                         <Link
@@ -124,7 +127,7 @@ function onContactClick(contactId: number): void {
                             class="ai-result-tabs__link"
                             @click.stop
                         >
-                            Чат
+                            {{ t('aiChat.chatFallback') }}
                         </Link>
                     </li>
                 </ul>
@@ -142,17 +145,17 @@ function onContactClick(contactId: number): void {
                                 rel="noopener"
                                 class="ai-result-tabs__card-title block truncate hover:underline"
                             >
-                                {{ m.filename || 'Без имени' }}
+                                {{ m.filename || t('aiChat.noName') }}
                             </a>
                             <p class="ai-result-tabs__card-meta truncate">
-                                {{ m.contact_name || m.chat_name || 'Чат' }}
+                                {{ m.contact_name || m.chat_name || t('aiChat.chatFallback') }}
                             </p>
                             <Link
                                 v-if="m.chat_id"
                                 :href="route('chats.show', m.chat_id)"
                                 class="ai-result-tabs__link"
                             >
-                                В диалог
+                                {{ t('aiChat.openDialog') }}
                             </Link>
                         </div>
                     </li>
@@ -172,14 +175,14 @@ function onContactClick(contactId: number): void {
                     <li v-for="deal in results.funnel_deals" :key="deal.id" class="ai-result-tabs__card">
                         <div class="ai-result-tabs__card-title">{{ deal.name }}</div>
                         <p class="ai-result-tabs__card-meta">{{ deal.funnel_name }} · {{ deal.stage_name }}</p>
-                        <Link :href="route('chats.show', deal.id)" class="ai-result-tabs__link">Открыть сделку</Link>
+                        <Link :href="route('chats.show', deal.id)" class="ai-result-tabs__link">{{ t('aiChat.openDeal') }}</Link>
                     </li>
                 </ul>
 
                 <ul v-else-if="activeTab === 'messages'" class="ai-result-tabs__list">
                     <li v-for="msg in results.messages" :key="msg.id" class="ai-result-tabs__card">
                         <div class="ai-result-tabs__card-title truncate">
-                            {{ msg.contact_name || msg.chat_name || 'Чат' }}
+                            {{ msg.contact_name || msg.chat_name || t('aiChat.chatFallback') }}
                         </div>
                         <p class="ai-result-tabs__card-meta line-clamp-3">{{ msg.body }}</p>
                         <Link
@@ -187,7 +190,7 @@ function onContactClick(contactId: number): void {
                             :href="route('chats.show', msg.chat_id)"
                             class="ai-result-tabs__link"
                         >
-                            В диалог
+                            {{ t('aiChat.openDialog') }}
                         </Link>
                     </li>
                 </ul>
@@ -196,7 +199,7 @@ function onContactClick(contactId: number): void {
                     <li v-for="post in results.department_posts" :key="post.id" class="ai-result-tabs__card">
                         <div class="ai-result-tabs__card-title">{{ post.title }}</div>
                         <p class="ai-result-tabs__card-meta">
-                            {{ post.department_name || 'Отдел' }} · {{ post.status }}
+                            {{ post.department_name || t('aiChat.departmentFallback') }} · {{ post.status }}
                         </p>
                     </li>
                 </ul>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -28,6 +29,8 @@ const props = defineProps<{
     employee_profiles: EmployeeProfile[];
 }>();
 
+const { t, locale } = useI18n();
+
 const form = useForm({
     use_manual_override: props.profile.use_manual_override,
     manual_summary: props.profile.manual_summary ?? props.profile.summary ?? '',
@@ -39,10 +42,11 @@ const reanalyzing = ref(false);
 
 const analyzedLabel = computed(() => {
     if (!props.profile.analyzed_at) {
-        return 'Автоанализ ещё не выполнялся';
+        return t('settings.toneProfile.notAnalyzedYet');
     }
 
-    return `Обновлено: ${new Date(props.profile.analyzed_at).toLocaleString('ru-RU')}`;
+    const date = new Date(props.profile.analyzed_at).toLocaleString(locale.value === 'kk' ? 'kk-KZ' : locale.value === 'en' ? 'en-GB' : 'ru-RU');
+    return t('settings.toneProfile.analyzedAt', { date });
 });
 
 function addPhrase(): void {
@@ -77,36 +81,36 @@ function reanalyze(): void {
 </script>
 
 <template>
-    <Head title="Профиль тона" />
+    <Head :title="t('settings.toneProfile.title')" />
 
-    <SettingsLayout title="Профиль тона" subtitle="Как AI формулирует ответы от имени компании">
+    <SettingsLayout :title="t('settings.toneProfile.title')" :subtitle="t('settings.toneProfile.subtitle')">
         <div class="w-full space-y-6 px-6 py-6">
             <section class="ui-settings-section space-y-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Ручная настройка</h3>
+                        <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.toneProfile.manualTitle') }}</h3>
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Если включено, AI использует ваш текст вместо автоанализа переписки.
+                            {{ t('settings.toneProfile.manualDesc') }}
                         </p>
                     </div>
                     <label class="inline-flex items-center gap-2 text-sm cursor-pointer" :style="{ color: 'var(--ui-text)' }">
                         <UiCheckbox v-model="form.use_manual_override" />
-                        Использовать ручной профиль
+                        {{ t('settings.toneProfile.useManual') }}
                     </label>
                 </div>
 
                 <label class="block space-y-1">
-                    <span class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Описание стиля</span>
+                    <span class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">{{ t('settings.toneProfile.styleDescription') }}</span>
                     <textarea
                         v-model="form.manual_summary"
                         rows="5"
                         class="settings-input w-full min-h-[120px]"
-                        placeholder="Коротко: тон, длина ответов, обращение к клиенту…"
+                        :placeholder="t('settings.toneProfile.stylePlaceholder')"
                     />
                 </label>
 
                 <div class="space-y-2">
-                    <span class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">Типичные фразы</span>
+                    <span class="text-xs" :style="{ color: 'var(--ui-text-secondary)' }">{{ t('settings.toneProfile.typicalPhrases') }}</span>
                     <div class="flex flex-wrap gap-2">
                         <span
                             v-for="(phrase, index) in form.manual_phrases"
@@ -123,7 +127,7 @@ function reanalyze(): void {
                             v-model="newPhrase"
                             type="text"
                             class="settings-input flex-1"
-                            placeholder="Добавить фразу…"
+                            :placeholder="t('settings.toneProfile.addPhrasePlaceholder')"
                             @keydown.enter.prevent="addPhrase"
                         />
                         <button
@@ -131,7 +135,7 @@ function reanalyze(): void {
                             class="ui-btn ui-btn--secondary ui-btn--sm"
                             @click="addPhrase"
                         >
-                            Добавить
+                            {{ t('settings.toneProfile.add') }}
                         </button>
                     </div>
                 </div>
@@ -143,7 +147,7 @@ function reanalyze(): void {
                         :disabled="form.processing"
                         @click="submit"
                     >
-                        {{ form.processing ? 'Сохранение…' : 'Сохранить' }}
+                        {{ form.processing ? t('settings.toneProfile.saving') : t('common.save') }}
                     </button>
                     <button
                         type="button"
@@ -151,16 +155,16 @@ function reanalyze(): void {
                         :disabled="reanalyzing"
                         @click="reanalyze"
                     >
-                        {{ reanalyzing ? 'Запуск…' : 'Пересобрать из переписки' }}
+                        {{ reanalyzing ? t('settings.toneProfile.reanalyzing') : t('settings.toneProfile.reanalyze') }}
                     </button>
                 </div>
             </section>
 
             <section class="ui-settings-section">
-                <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">Автоанализ компании</h3>
+                <h3 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.toneProfile.autoAnalysisTitle') }}</h3>
                 <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">{{ analyzedLabel }}</p>
                 <p class="mt-3 text-sm whitespace-pre-wrap" :style="{ color: 'var(--ui-text)' }">
-                    {{ profile.summary || 'Пока нет данных — нажмите «Пересобрать из переписки».' }}
+                    {{ profile.summary || t('settings.toneProfile.noDataHint') }}
                 </p>
                 <ul v-if="profile.phrases?.length" class="mt-3 space-y-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
                     <li v-for="phrase in profile.phrases" :key="phrase">• {{ phrase }}</li>
@@ -171,7 +175,7 @@ function reanalyze(): void {
                 v-if="employee_profiles.length"
                 class="ui-settings-section"
             >
-                <h3 class="text-sm font-semibold mb-3" :style="{ color: 'var(--ui-text)' }">Профили сотрудников (авто)</h3>
+                <h3 class="text-sm font-semibold mb-3" :style="{ color: 'var(--ui-text)' }">{{ t('settings.toneProfile.employeeProfilesTitle') }}</h3>
                 <ul class="space-y-3">
                     <li
                         v-for="row in employee_profiles"

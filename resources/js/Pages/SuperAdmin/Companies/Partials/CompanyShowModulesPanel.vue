@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -13,6 +14,8 @@ const props = defineProps<{
     companyId: number;
     modules: CompanyModuleItem[];
 }>();
+
+const { t } = useI18n();
 
 const form = useForm({
     modules: Object.fromEntries(props.modules.map((m) => [m.key, m.enabled])) as Record<string, boolean>,
@@ -35,14 +38,13 @@ function save(): void {
     <section class="ui-settings-section max-w-3xl">
         <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-                <h2 class="text-base font-semibold">Модули тенанта</h2>
+                <h2 class="text-base font-semibold">{{ t('superAdmin.companies.modules.title') }}</h2>
                 <p class="mt-1 text-sm text-ui-text-secondary">
-                    Включённые: {{ enabledCount }} из {{ modules.length }}.
-                    Изменения применяются для всех пользователей этой компании.
+                    {{ t('superAdmin.companies.modules.summary', { enabled: enabledCount, total: modules.length }) }}
                 </p>
             </div>
             <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="form.processing" @click="save">
-                {{ form.processing ? 'Сохранение…' : 'Сохранить модули' }}
+                {{ form.processing ? t('superAdmin.common.saving') : t('superAdmin.companies.modules.save') }}
             </button>
         </div>
 
@@ -61,7 +63,7 @@ function save(): void {
                     type="button"
                     class="group inline-flex shrink-0 items-center"
                     :aria-pressed="form.modules[mod.key]"
-                    :title="form.modules[mod.key] ? 'Выключить' : 'Включить'"
+                    :title="form.modules[mod.key] ? t('superAdmin.companies.modules.toggleOff') : t('superAdmin.companies.modules.toggleOn')"
                     @click="toggle(mod.key)"
                 >
                     <span

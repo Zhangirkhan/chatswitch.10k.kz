@@ -16,7 +16,9 @@ import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 
+const { t } = useI18n();
 const { show: showToast } = useToastStore();
 
 type AiStatus = {
@@ -200,7 +202,7 @@ const displayName = computed(() =>
         || props.chat.contact?.name
         || props.chat.contact?.push_name
         || formatPhone(props.chat.contact?.phone_number)
-        || 'Без имени',
+        || t('chats.noName'),
 );
 
 // For group chats there is no "phone number" to display; showing a numeric WA group id is confusing.
@@ -238,12 +240,14 @@ const aiPanelTone = computed(() => {
 });
 
 const aiPanelStatusLabel = computed(() => {
-    if (props.chat.ai_orchestrator_status === 'needs_manager') return 'Нужен менеджер';
-    if (props.chat.ai_orchestrator_status === 'running' || props.chat.ai_orchestrator_status === 'pending') return 'AI ведёт сделку';
-    if (props.chat.ai_orchestrator_status === 'failed') return 'Ошибка оркестратора';
+    if (props.chat.ai_orchestrator_status === 'needs_manager') return t('chats.contactInfo.orchestratorNeedsManager');
+    if (props.chat.ai_orchestrator_status === 'running' || props.chat.ai_orchestrator_status === 'pending') {
+        return t('chats.contactInfo.orchestratorRunning');
+    }
+    if (props.chat.ai_orchestrator_status === 'failed') return t('chats.contactInfo.orchestratorFailed');
     if (props.aiStatus?.label) return props.aiStatus.label;
 
-    return props.chat.ai_enabled ? 'AI включён' : 'AI выключен';
+    return props.chat.ai_enabled ? t('chats.contactInfo.aiEnabled') : t('chats.contactInfo.aiDisabled');
 });
 
 const latestOrchestratorStep = computed(() => props.aiStatus?.orchestrator_history?.[0] ?? null);
@@ -255,11 +259,11 @@ async function requestManagerAttention(): Promise<void> {
     quickActionLoading.value = 'manager';
     try {
         await axios.post(route('chats.manager-attention', props.chat.id), {
-            note: 'Оператор вручную передал чат менеджеру из панели клиента.',
+            note: t('chats.contactInfo.handoffNote'),
         });
         await router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось передать чат менеджеру.', type: 'warning' });
+        showToast({ message: e?.response?.data?.message || t('chats.contactInfo.handoffFailed'), type: 'warning' });
     } finally {
         quickActionLoading.value = null;
     }
@@ -270,12 +274,12 @@ async function createQuickTask(): Promise<void> {
     quickActionLoading.value = 'task';
     try {
         await axios.post(route('chats.quick-task', props.chat.id), {
-            title: 'Проверить следующий шаг по клиенту',
-            body: 'Создано из правой панели чата. Проверьте переписку, статус воронки и следующий шаг.',
+            title: t('chats.contactInfo.quickTaskTitle'),
+            body: t('chats.contactInfo.quickTaskBody'),
         });
         await router.reload({ only: ['sidebarInsights', 'chat'] });
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось создать задачу.', type: 'warning' });
+        showToast({ message: e?.response?.data?.message || t('chats.contactInfo.createTaskFailed'), type: 'warning' });
     } finally {
         quickActionLoading.value = null;
     }
@@ -297,7 +301,7 @@ async function loadContactCard() {
         contactCard.value = data as ContactCardPayload;
     } catch (e: any) {
         contactCard.value = null;
-        contactCardError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось загрузить карточку контакта';
+        contactCardError.value = e?.response?.data?.message || e?.response?.data?.error || t('chats.contactInfo.loadFailed');
     } finally {
         contactCardLoading.value = false;
     }
@@ -402,7 +406,7 @@ async function loadSharedMedia() {
         const { data } = await axios.get(route('chats.media-links-documents', props.chat.id));
         sharedPayload.value = data as SharedPayload;
     } catch (e: any) {
-        sharedError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось загрузить медиа';
+        sharedError.value = e?.response?.data?.message || e?.response?.data?.error || t('chats.contactInfo.mediaLoadFailed');
     } finally {
         sharedLoading.value = false;
     }
@@ -418,9 +422,9 @@ function isVideo(item: ChatSharedMedia): boolean {
 
 function formatFileSize(size?: number | null): string {
     if (!size || size <= 0) return '';
-    if (size < 1024) return `${size} Б`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`;
-    return `${(size / 1024 / 1024).toFixed(1)} МБ`;
+    if (size < 1024) return t('chats.contactInfo.fileSizeB', { size });
+    if (size < 1024 * 1024) return t('chats.contactInfo.fileSizeKb', { size: (size / 1024).toFixed(1) });
+    return t('chats.contactInfo.fileSizeMb', { size: (size / 1024 / 1024).toFixed(1) });
 }
 
 function formatSharedDate(dateStr?: string | null): string {
@@ -479,7 +483,7 @@ async function loadParticipants() {
         participants.value = (data.participants || []) as GroupParticipant[];
     } catch (e: any) {
         participants.value = [];
-        participantsError.value = e?.response?.data?.error || 'Не удалось загрузить участников';
+        participantsError.value = e?.response?.data?.error || t('chats.contactInfo.participantsLoadFailed');
     } finally {
         participantsLoading.value = false;
     }
@@ -520,7 +524,7 @@ async function addParticipantToContacts() {
         await loadParticipants();
         closeParticipantMenu();
     } catch (e: any) {
-        participantSaveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось добавить контакт';
+        participantSaveError.value = e?.response?.data?.message || e?.response?.data?.error || t('chats.contactInfo.addParticipantFailed');
     } finally {
         participantSaving.value = false;
     }
@@ -603,8 +607,8 @@ async function confirmClearChat(): Promise<void> {
     }
 }
 
-function notImplemented(name: string) {
-    showToast({ message: `«${name}» — скоро будет доступно.`, type: 'info' });
+function notImplemented(featureName: string) {
+    showToast({ message: t('chats.featureComingSoonShort', { name: featureName }), type: 'info' });
 }
 
 function preferredEditableName(): string {
@@ -631,7 +635,7 @@ async function saveContactName() {
     saveError.value = null;
     const name = editName.value.trim();
     if (!name) {
-        saveError.value = 'Введите имя контакта';
+        saveError.value = t('chats.contactInfo.nameRequired');
         return;
     }
     savingContact.value = true;
@@ -640,7 +644,7 @@ async function saveContactName() {
         closeEdit();
         router.reload({ only: ['chat', 'chats', 'messages', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
     } catch (e: any) {
-        saveError.value = e?.response?.data?.message || e?.response?.data?.error || 'Не удалось сохранить контакт';
+        saveError.value = e?.response?.data?.message || e?.response?.data?.error || t('chats.contactInfo.saveFailed');
     } finally {
         savingContact.value = false;
     }
@@ -664,7 +668,7 @@ async function saveContactName() {
             <button
                 @click="emit('close')"
                 class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                title="Закрыть"
+                :title="t('common.close')"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -672,12 +676,12 @@ async function saveContactName() {
                 </svg>
             </button>
             <h2 class="text-base flex-1 min-w-0 truncate font-medium" :style="{ color: 'var(--wa-text)' }">
-                Данные контакта
+                {{ t('chats.contactInfo.title') }}
             </h2>
             <button
                 @click="openEdit"
                 class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                :title="chat.contact?.name ? 'Редактировать контакт' : 'Добавить в контакты'"
+                :title="chat.contact?.name ? t('chats.contactInfo.editContact') : t('chats.contactInfo.addContact')"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -701,7 +705,7 @@ async function saveContactName() {
                          :style="{ background: 'var(--wa-panel-header)' }"
                     >
                         <div class="text-sm font-medium" :style="{ color: 'var(--wa-text)' }">
-                            {{ chat.contact?.name ? 'Редактировать контакт' : 'Добавить контакт' }}
+                            {{ chat.contact?.name ? t('chats.contactInfo.editContact') : t('chats.contactInfo.addContactShort') }}
                         </div>
                         <button type="button" class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]" @click="closeEdit">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -710,13 +714,13 @@ async function saveContactName() {
                         </button>
                     </div>
                     <div class="p-5">
-                        <label class="block text-xs mb-2" :style="{ color: 'var(--wa-text-secondary)' }">Имя контакта</label>
+                        <label class="block text-xs mb-2" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.contactInfo.contactName') }}</label>
                         <input
                             v-model="editName"
                             type="text"
                             class="w-full px-4 py-2.5 rounded-xl border-0 focus:ring-0 focus:outline-none"
                             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text)' }"
-                            placeholder="Например: Айбек"
+                            :placeholder="t('chats.contactInfo.contactNamePlaceholder')"
                             @keydown.enter.prevent="saveContactName"
                         />
                         <div v-if="saveError" class="text-xs mt-2" style="color: #ff6b6b;">
@@ -727,7 +731,7 @@ async function saveContactName() {
                                     :style="{ color: 'var(--wa-text)' }"
                                     @click="closeEdit"
                             >
-                                Отмена
+                                {{ t('common.cancel') }}
                             </button>
                             <button
                                 type="button"
@@ -736,7 +740,7 @@ async function saveContactName() {
                                 :style="{ background: 'var(--wa-accent)', color: 'white', opacity: savingContact ? 0.7 : 1 }"
                                 @click="saveContactName"
                             >
-                                Сохранить
+                                {{ t('common.save') }}
                             </button>
                         </div>
                     </div>
@@ -750,7 +754,7 @@ async function saveContactName() {
                 <button
                     type="button"
                     class="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)]"
-                    title="Назад"
+                    :title="t('common.back')"
                     @click="closeMediaBrowser"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -758,8 +762,8 @@ async function saveContactName() {
                     </svg>
                 </button>
                 <div class="min-w-0 flex-1">
-                    <div class="text-base truncate" :style="{ color: 'var(--wa-text)' }">Медиа, ссылки и документы</div>
-                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ sharedTotalCount }} элементов</div>
+                    <div class="text-base truncate" :style="{ color: 'var(--wa-text)' }">{{ t('chats.contactInfo.sharedMedia') }}</div>
+                    <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('chats.contactInfo.itemsCount', { count: sharedTotalCount }) }}</div>
                 </div>
             </div>
 
@@ -771,7 +775,7 @@ async function saveContactName() {
                         :class="{ 'shared-tab-active': sharedTab === 'media' }"
                         @click="sharedTab = 'media'"
                     >
-                        Медиа {{ sharedPayload.counts.media || 0 }}
+                        {{ t('chats.contactInfo.tabMedia', { count: sharedPayload.counts.media || 0 }) }}
                     </button>
                     <button
                         type="button"
@@ -779,7 +783,7 @@ async function saveContactName() {
                         :class="{ 'shared-tab-active': sharedTab === 'links' }"
                         @click="sharedTab = 'links'"
                     >
-                        Ссылки {{ sharedPayload.counts.links || 0 }}
+                        {{ t('chats.contactInfo.tabLinks', { count: sharedPayload.counts.links || 0 }) }}
                     </button>
                     <button
                         type="button"
@@ -787,23 +791,23 @@ async function saveContactName() {
                         :class="{ 'shared-tab-active': sharedTab === 'documents' }"
                         @click="sharedTab = 'documents'"
                     >
-                        Документы {{ sharedPayload.counts.documents || 0 }}
+                        {{ t('chats.contactInfo.tabDocuments', { count: sharedPayload.counts.documents || 0 }) }}
                     </button>
                 </div>
             </div>
 
             <div v-if="sharedLoading" class="px-4 py-10 text-center text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                Загрузка…
+                {{ t('chats.loading') }}
             </div>
             <div v-else-if="sharedError" class="px-4 py-6 text-sm" :style="{ color: 'var(--wa-danger)' }">
                 {{ sharedError }}
-                <button type="button" class="block mt-3 underline" @click="loadSharedMedia">Повторить</button>
+                <button type="button" class="block mt-3 underline" @click="loadSharedMedia">{{ t('chats.retry') }}</button>
             </div>
 
             <div v-else class="px-4 pb-6">
                 <div v-if="sharedTab === 'media'">
                     <div v-if="sharedPayload.media.length === 0" class="shared-empty">
-                        В этом чате пока нет фото или видео.
+                        {{ t('chats.contactInfo.noMedia') }}
                     </div>
                     <div v-else class="grid grid-cols-3 gap-1">
                         <a
@@ -838,7 +842,7 @@ async function saveContactName() {
 
                 <div v-else-if="sharedTab === 'links'">
                     <div v-if="sharedPayload.links.length === 0" class="shared-empty">
-                        В этом чате пока нет ссылок.
+                        {{ t('chats.contactInfo.noLinks') }}
                     </div>
                     <div v-else class="space-y-2">
                         <a
@@ -865,7 +869,7 @@ async function saveContactName() {
 
                 <div v-else>
                     <div v-if="sharedPayload.documents.length === 0" class="shared-empty">
-                        В этом чате пока нет документов.
+                        {{ t('chats.contactInfo.noDocuments') }}
                     </div>
                     <div v-else class="space-y-2">
                         <a
@@ -876,7 +880,7 @@ async function saveContactName() {
                         >
                             <div class="shared-doc-icon">{{ documentIconLabel(item) }}</div>
                             <div class="min-w-0 flex-1">
-                                <div class="shared-row-title truncate">{{ item.filename || 'Документ' }}</div>
+                                <div class="shared-row-title truncate">{{ item.filename || t('chats.preview.document') }}</div>
                                 <div class="shared-row-subtitle">
                                     {{ item.mime_type }}<span v-if="formatFileSize(item.file_size)"> · {{ formatFileSize(item.file_size) }}</span>
                                 </div>
@@ -928,7 +932,7 @@ async function saveContactName() {
                 <div class="deal-card" :class="`deal-card-${aiPanelTone}`">
                     <div class="deal-card__head">
                         <div>
-                            <div class="deal-card__eyebrow">AI и воронка</div>
+                            <div class="deal-card__eyebrow">{{ t('chats.contactInfo.aiAndFunnel') }}</div>
                             <div class="deal-card__title">{{ aiPanelStatusLabel }}</div>
                         </div>
                         <span class="deal-card__badge">{{ funnelProgressPercent }}%</span>
@@ -940,16 +944,16 @@ async function saveContactName() {
 
                     <div class="deal-card__facts">
                         <div>
-                            <span>Воронка</span>
-                            <strong>{{ chat.funnel?.name || 'Не выбрана' }}</strong>
+                            <span>{{ t('chats.contactInfo.funnel') }}</span>
+                            <strong>{{ chat.funnel?.name || t('chats.contactInfo.funnelNotSelected') }}</strong>
                         </div>
                         <div>
-                            <span>Этап</span>
-                            <strong>{{ chat.funnel_stage?.name || 'Не выбран' }}</strong>
+                            <span>{{ t('chats.contactInfo.stage') }}</span>
+                            <strong>{{ chat.funnel_stage?.name || t('chats.contactInfo.stageNotSelected') }}</strong>
                         </div>
                         <div>
-                            <span>Режим AI</span>
-                            <strong>{{ chat.ai_enabled ? (chat.ai_mode === 'draft' ? 'Черновик' : 'Автоответ') : 'Выключен' }}</strong>
+                            <span>{{ t('chats.contactInfo.aiMode') }}</span>
+                            <strong>{{ chat.ai_enabled ? (chat.ai_mode === 'draft' ? t('chats.contactInfo.aiDraft') : t('chats.contactInfo.aiAuto')) : t('chats.contactInfo.aiOff') }}</strong>
                         </div>
                     </div>
 
@@ -957,8 +961,8 @@ async function saveContactName() {
                         {{ latestOrchestratorStep?.reason || chat.ai_orchestrator_last_summary }}
                     </div>
                     <div v-if="latestOrchestratorStep?.target_stage || latestOrchestratorStep?.task_title" class="deal-card__chips">
-                        <span v-if="latestOrchestratorStep?.target_stage">Этап: {{ latestOrchestratorStep.target_stage }}</span>
-                        <span v-if="latestOrchestratorStep?.task_title">Задача: {{ latestOrchestratorStep.task_title }}</span>
+                        <span v-if="latestOrchestratorStep?.target_stage">{{ t('chats.contactInfo.orchestratorStage', { name: latestOrchestratorStep.target_stage }) }}</span>
+                        <span v-if="latestOrchestratorStep?.task_title">{{ t('chats.contactInfo.orchestratorTask', { title: latestOrchestratorStep.task_title }) }}</span>
                     </div>
                 </div>
             </div>
@@ -968,14 +972,14 @@ async function saveContactName() {
                 <div class="contact-card">
                     <div class="contact-card__head">
                         <div>
-                            <div class="contact-card__title">Карточка контакта</div>
-                            <div class="contact-card__subtitle">Автоматически собрано из диалогов</div>
+                            <div class="contact-card__title">{{ t('chats.contactInfo.contactCard') }}</div>
+                            <div class="contact-card__subtitle">{{ t('chats.contactInfo.contactCardHint') }}</div>
                         </div>
                         <button
                             type="button"
                             class="contact-card__refresh"
                             :disabled="contactCardLoading"
-                            title="Обновить"
+                            :title="t('common.update')"
                             @click="loadContactCard"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -989,19 +993,19 @@ async function saveContactName() {
                     <div v-else-if="contactCard" class="space-y-3">
                         <div class="contact-card__grid">
                             <div>
-                                <div class="contact-card__label">Чатов</div>
+                                <div class="contact-card__label">{{ t('chats.contactInfo.chatsCount') }}</div>
                                 <div class="contact-card__value">{{ contactCard.activity.chats_count }}</div>
                             </div>
                             <div>
-                                <div class="contact-card__label">Каналов</div>
+                                <div class="contact-card__label">{{ t('chats.contactInfo.channelsCount') }}</div>
                                 <div class="contact-card__value">{{ contactCard.activity.channels_count }}</div>
                             </div>
                             <div>
-                                <div class="contact-card__label">Сообщений</div>
+                                <div class="contact-card__label">{{ t('chats.contactInfo.messagesCount') }}</div>
                                 <div class="contact-card__value">{{ contactCard.activity.messages.total }}</div>
                             </div>
                             <div>
-                                <div class="contact-card__label">Вложения</div>
+                                <div class="contact-card__label">{{ t('chats.contactInfo.attachmentsCount') }}</div>
                                 <div class="contact-card__value">
                                     {{ contactCard.activity.attachments.media + contactCard.activity.attachments.documents + contactCard.activity.attachments.links }}
                                 </div>
@@ -1010,25 +1014,25 @@ async function saveContactName() {
 
                         <div class="contact-card__facts">
                             <div>
-                                <span>Первое сообщение:</span>
+                                <span>{{ t('chats.contactInfo.firstMessage') }}</span>
                                 {{ formatChatTime(contactCard.activity.first_message_at) || '—' }}
                             </div>
                             <div>
-                                <span>Последняя активность:</span>
+                                <span>{{ t('chats.contactInfo.lastActivity') }}</span>
                                 {{ formatChatTime(contactCard.activity.last_message_at) || '—' }}
                             </div>
                             <div>
-                                <span>От клиента:</span>
+                                <span>{{ t('chats.contactInfo.fromClient') }}</span>
                                 {{ contactCard.activity.messages.inbound }}
                             </div>
                             <div>
-                                <span>От операторов:</span>
+                                <span>{{ t('chats.contactInfo.fromOperators') }}</span>
                                 {{ contactCard.activity.messages.outbound }}
                             </div>
                         </div>
 
                         <div v-if="contactCard.activity.last_client_message" class="contact-card__last">
-                            <div class="contact-card__label">Последняя реплика клиента</div>
+                            <div class="contact-card__label">{{ t('chats.contactInfo.lastClientReply') }}</div>
                             <div class="contact-card__last-text">{{ shortMessagePreview(contactCard.activity.last_client_message) }}</div>
                         </div>
 
@@ -1051,7 +1055,7 @@ async function saveContactName() {
                         <div v-if="chat.contact_id" class="mt-4 border-t pt-3" :style="{ borderColor: 'var(--wa-border)' }">
                             <div class="mb-2 flex items-center justify-between gap-2">
                                 <span class="text-xs font-medium uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">
-                                    CRM-поля
+                                    {{ t('chats.contactInfo.crmFields') }}
                                 </span>
                                 <div class="flex items-center gap-1">
                                     <Link
@@ -1060,7 +1064,7 @@ async function saveContactName() {
                                         class="text-[11px] underline"
                                         :style="{ color: 'var(--wa-accent)' }"
                                     >
-                                        Полный профиль
+                                        {{ t('chats.contactInfo.fullProfile') }}
                                     </Link>
                                     <template v-if="isAdmin">
                                         <button
@@ -1068,12 +1072,12 @@ async function saveContactName() {
                                             class="ui-btn ui-btn--secondary ui-btn--sm"
                                             @click="fieldPickerOpen = true"
                                         >
-                                            Поля
+                                            {{ t('chats.contactInfo.fields') }}
                                         </button>
                                         <button
                                             type="button"
                                             class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon text-sm leading-none"
-                                            aria-label="Добавить поле"
+                                            :aria-label="t('chats.contactInfo.addFieldAria')"
                                             @click="addFieldOpen = true"
                                         >
                                             +
@@ -1102,7 +1106,7 @@ async function saveContactName() {
                             class="mt-3"
                         />
                     </div>
-                    <div v-else class="contact-card__muted">Нет данных для карточки.</div>
+                    <div v-else class="contact-card__muted">{{ t('chats.contactInfo.noCardData') }}</div>
                 </div>
             </div>
 
@@ -1114,7 +1118,7 @@ async function saveContactName() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h2l3.6 7.59-1.35 2.44c-.15.27-.24.58-.24.92 0 1.05.94 1.96 2 1.96h12V16H8.42c-.13 0-.24-.11-.24-.24l.03-.12.9-1.64h7.45c.75 0 1.4-.41 1.75-1.03l3.58-6.5A1 1 0 0020.01 5H5.21L4.27 3H1v2h2zM7 20a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z" />
                     </svg>
                     <span class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Этот клиент общался с вами на других номерах
+                        {{ t('chats.contactInfo.otherNumbersTitle') }}
                     </span>
                 </div>
                 <div class="flex flex-col gap-1.5">
@@ -1163,10 +1167,10 @@ async function saveContactName() {
 
             <div class="px-4 pb-4">
                 <div class="quick-actions-card">
-                    <div class="quick-actions-card__title">Быстрые действия</div>
+                    <div class="quick-actions-card__title">{{ t('chats.contactInfo.quickActions') }}</div>
                     <div class="quick-actions-card__grid">
                         <button type="button" class="quick-action-btn" @click="emit('open-ai')">
-                            Открыть AI
+                            {{ t('chats.contactInfo.openAi') }}
                         </button>
                         <button
                             type="button"
@@ -1174,7 +1178,7 @@ async function saveContactName() {
                             :disabled="quickActionLoading !== null"
                             @click="requestManagerAttention"
                         >
-                            {{ quickActionLoading === 'manager' ? 'Передаём…' : 'Передать менеджеру' }}
+                            {{ quickActionLoading === 'manager' ? t('chats.contactInfo.handoffLoading') : t('chats.contactInfo.handoffManager') }}
                         </button>
                         <button
                             v-if="orgTasksEnabled"
@@ -1183,7 +1187,7 @@ async function saveContactName() {
                             :disabled="quickActionLoading !== null"
                             @click="createQuickTask"
                         >
-                            {{ quickActionLoading === 'task' ? 'Создаём…' : 'Создать задачу' }}
+                            {{ quickActionLoading === 'task' ? t('chats.contactInfo.taskCreating') : t('chats.contactInfo.createTask') }}
                         </button>
                     </div>
                 </div>
@@ -1193,13 +1197,13 @@ async function saveContactName() {
                 <div class="ops-card">
                     <div class="ops-card__head">
                         <div>
-                            <div class="ops-card__title">Операционный контекст</div>
-                            <div class="ops-card__subtitle">События календаря и задачи AI по этому чату</div>
+                            <div class="ops-card__title">{{ t('chats.contactInfo.opsContext') }}</div>
+                            <div class="ops-card__subtitle">{{ t('chats.contactInfo.opsContextHint') }}</div>
                         </div>
                     </div>
 
                     <div v-if="sidebarEvents.length" class="ops-card__section">
-                        <div class="ops-card__section-title">Календарь</div>
+                        <div class="ops-card__section-title">{{ t('chats.contactInfo.calendar') }}</div>
                         <div class="ops-card__list">
                             <div v-for="event in sidebarEvents" :key="`event-${event.id}`" class="ops-card__row">
                                 <div class="ops-card__row-main">
@@ -1214,7 +1218,7 @@ async function saveContactName() {
                     </div>
 
                     <div v-if="sidebarTasks.length" class="ops-card__section">
-                        <div class="ops-card__section-title">Задачи AI</div>
+                        <div class="ops-card__section-title">{{ t('chats.contactInfo.aiTasks') }}</div>
                         <div class="ops-card__list">
                             <div v-for="task in sidebarTasks" :key="`task-${task.id}`" class="ops-card__row ops-card__row-task">
                                 <div class="ops-card__row-main">
@@ -1233,7 +1237,7 @@ async function saveContactName() {
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    <span>Поиск</span>
+                    <span>{{ t('chats.contactInfo.search') }}</span>
                 </button>
             </div>
 
@@ -1242,11 +1246,11 @@ async function saveContactName() {
             <!-- Group participants -->
             <div v-if="isGroup" class="py-2">
                 <div class="px-4 pt-3 pb-2 text-xs uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">
-                    Участники
+                    {{ t('chats.contactInfo.participants') }}
                 </div>
 
                 <div v-if="participantsLoading" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                    Загрузка…
+                    {{ t('chats.loading') }}
                 </div>
                 <div v-else-if="participantsError" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-danger)' }">
                     {{ participantsError }}
@@ -1265,15 +1269,15 @@ async function saveContactName() {
                         <div class="flex-1 min-w-0 text-left">
                             <div class="info-label-inline">
                                 {{ participantLabel(p) }}
-                                <span v-if="p.isSuperAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">владелец</span>
-                                <span v-else-if="p.isAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">админ</span>
+                                <span v-if="p.isSuperAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">{{ t('chats.contactInfo.owner') }}</span>
+                                <span v-else-if="p.isAdmin" class="ml-2 text-[11px]" :style="{ color: 'var(--wa-accent)' }">{{ t('chats.contactInfo.admin') }}</span>
                             </div>
                             <div v-if="p.number" class="info-sublabel">{{ p.number }}</div>
                         </div>
                     </button>
 
                     <div v-if="participants.length === 0" class="px-4 pb-4 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Участники не найдены
+                        {{ t('chats.contactInfo.participantsNotFound') }}
                     </div>
                 </div>
             </div>
@@ -1286,7 +1290,7 @@ async function saveContactName() {
                     <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <span class="info-label">Медиа, ссылки и документы</span>
+                    <span class="info-label">{{ t('chats.contactInfo.sharedMedia') }}</span>
                     <span class="info-meta">
                         {{ sharedTotalCount }}
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1295,11 +1299,11 @@ async function saveContactName() {
                     </span>
                 </button>
 
-                <button class="info-row w-full" @click="notImplemented('Избранные сообщения')" type="button">
+                <button class="info-row w-full" @click="notImplemented(t('chats.contactInfo.favorites'))" type="button">
                     <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.539 1.118L12 16.98l-3.976 2.888c-.784.57-1.838-.196-1.539-1.118l1.518-4.674a1 1 0 00-.363-1.118L3.664 10.1c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.673z" />
                     </svg>
-                    <span class="info-label">Избранные</span>
+                    <span class="info-label">{{ t('chats.contactInfo.favorites') }}</span>
                 </button>
 
             </div>
@@ -1313,22 +1317,22 @@ async function saveContactName() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                     <span class="info-label">
-                        {{ chat.is_pinned ? 'Убрать из избранного' : 'Добавить в избранное' }}
+                        {{ chat.is_pinned ? t('chats.listItem.removeFavorite') : t('chats.listItem.addFavorite') }}
                     </span>
                 </button>
 
-                <button class="info-row w-full" @click="notImplemented('Добавить в список')" type="button">
+                <button class="info-row w-full" @click="notImplemented(t('chats.contactInfo.addToList'))" type="button">
                     <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h10M19 15v6m-3-3h6" />
                     </svg>
-                    <span class="info-label">Добавить в список</span>
+                    <span class="info-label">{{ t('chats.contactInfo.addToList') }}</span>
                 </button>
 
                 <button class="info-row w-full" type="button" :disabled="working" @click="openClearChatDialog">
                     <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
                     </svg>
-                    <span class="info-label">Очистить историю чата</span>
+                    <span class="info-label">{{ t('chats.contactInfo.clearHistory') }}</span>
                 </button>
             </div>
 
@@ -1337,9 +1341,9 @@ async function saveContactName() {
 
     <DangerConfirmModal
         :open="clearChatDialogOpen"
-        title="Очистить историю чата?"
-        description="Все сообщения в этом чате будут удалены. Действие необратимо."
-        confirm-label="Очистить"
+        :title="t('chats.contactInfo.clearHistoryTitle')"
+        :description="t('chats.contactInfo.clearHistoryDescription')"
+        :confirm-label="t('chats.listItem.clearChatConfirm')"
         :busy="working"
         confirm-variant="danger"
         @close="clearChatDialogOpen = false"
@@ -1371,7 +1375,7 @@ async function saveContactName() {
                             {{ formatPhone(participantMenu.p.number) }}
                         </div>
                         <div v-else class="participant-popover__subtitle">
-                            Номер недоступен
+                            {{ t('chats.contactInfo.numberUnavailable') }}
                         </div>
                     </div>
                 </div>
@@ -1380,7 +1384,7 @@ async function saveContactName() {
 
                 <div class="participant-popover__field-block">
                     <label class="participant-popover__label" for="participant-save-name">
-                        Имя для сохранения
+                        {{ t('chats.contactInfo.saveAsName') }}
                     </label>
                     <input
                         id="participant-save-name"
@@ -1388,7 +1392,7 @@ async function saveContactName() {
                         type="text"
                         class="participant-popover__input"
                         :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }"
-                        placeholder="Как сохранить в контактах…"
+                        :placeholder="t('chats.contactInfo.saveAsPlaceholder')"
                         autocomplete="off"
                     />
                     <div v-if="participantSaveError" class="participant-popover__error">
@@ -1408,7 +1412,7 @@ async function saveContactName() {
                         <svg class="participant-popover__row-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
-                        <span class="participant-popover__row-label">Добавить в контакты</span>
+                        <span class="participant-popover__row-label">{{ t('chats.contactInfo.addToContacts') }}</span>
                     </button>
 
                     <button
@@ -1420,7 +1424,7 @@ async function saveContactName() {
                         <svg class="participant-popover__row-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5m7 7l-3.5-3.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span class="participant-popover__row-label">Написать лично</span>
+                        <span class="participant-popover__row-label">{{ t('chats.contactInfo.writePrivately') }}</span>
                     </button>
                 </div>
             </div>

@@ -11,9 +11,11 @@ import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 import axios from 'axios';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
@@ -410,7 +412,7 @@ async function enableNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission === 'denied') {
         showToast({
-            message: 'Браузер заблокировал уведомления. Снимите запрет в настройках сайта и перезагрузите страницу.',
+            message: t('chats.sidebar.notificationsBlocked'),
             type: 'warning',
             duration: 6000,
         });
@@ -599,7 +601,7 @@ onBeforeUnmount(() => {
                 <button
                     @click="showNewChat = true"
                     class="wa-icon-btn"
-                    title="Новый чат"
+                    :title="t('chats.sidebar.newChat')"
                     type="button"
                 >
                     <svg
@@ -621,7 +623,7 @@ onBeforeUnmount(() => {
                     <button
                         @click="headerMenuOpen = !headerMenuOpen"
                         class="wa-icon-btn"
-                        title="Меню"
+                        :title="t('chats.sidebar.menu')"
                         type="button"
                     >
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -651,7 +653,7 @@ onBeforeUnmount(() => {
                                 <svg class="menu-item-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 16l-4-4m0 0l4-4m-4 4h16m-4 4l4-4m0 0l-4-4" />
                                 </svg>
-                                <span>Подключения WhatsApp</span>
+                                <span>{{ t('chats.sidebar.whatsappConnections') }}</span>
                             </Link>
                             <Link
                                 :href="route('settings.departments')"
@@ -661,7 +663,7 @@ onBeforeUnmount(() => {
                                 <svg class="menu-item-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                <span>Отделы</span>
+                                <span>{{ t('chats.sidebar.departments') }}</span>
                             </Link>
                             <Link
                                 :href="route('settings.users')"
@@ -671,7 +673,7 @@ onBeforeUnmount(() => {
                                 <svg class="menu-item-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                <span>Пользователи</span>
+                                <span>{{ t('chats.sidebar.users') }}</span>
                             </Link>
                             <Link
                                 :href="route('settings.system')"
@@ -682,7 +684,7 @@ onBeforeUnmount(() => {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                <span>Настройки системы</span>
+                                <span>{{ t('chats.sidebar.systemSettings') }}</span>
                             </Link>
                             <div class="my-1 h-px" :style="{ background: 'var(--wa-border)' }"></div>
                         </template>
@@ -694,7 +696,7 @@ onBeforeUnmount(() => {
                             <svg class="menu-item-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
-                            <span>Профиль</span>
+                            <span>{{ t('chats.sidebar.profile') }}</span>
                         </Link>
                     </div>
                 </div>
@@ -721,7 +723,7 @@ onBeforeUnmount(() => {
                         class="w-5 h-5 flex items-center justify-center rounded-full"
                         :style="{ color: 'var(--wa-accent)' }"
                         type="button"
-                        title="Очистить"
+                        :title="t('chats.sidebar.clearSearch')"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -733,8 +735,8 @@ onBeforeUnmount(() => {
                     @focus="searchFocused = true"
                     @blur="searchFocused = false"
                     type="text"
-                    placeholder="Поиск или новый чат"
-                    aria-label="Поиск или новый чат"
+                    :placeholder="t('chats.sidebar.searchOrNewChat')"
+                    :aria-label="t('chats.sidebar.searchOrNewChatAria')"
                     data-shortcut-target="chat-search"
                     class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                 />
@@ -743,7 +745,7 @@ onBeforeUnmount(() => {
                     @click="clearSearch"
                     class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
                     type="button"
-                    title="Очистить"
+                    :title="t('chats.sidebar.clearSearch')"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -762,18 +764,18 @@ onBeforeUnmount(() => {
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': scope === 'active' }"
                     >
-                        Активные
+                        {{ t('chats.sidebar.active') }}
                     </Link>
                     <Link
                         :href="archivedListHref"
                         class="ui-pill-nav__item"
                         :class="{ 'is-active': scope === 'archived' }"
                     >
-                        <span class="truncate">Архив</span>
+                        <span class="truncate">{{ t('chats.sidebar.archive') }}</span>
                         <span
                             v-if="archivedCount > 0"
                             class="ui-tab-badge"
-                            :title="`Чатов в архиве: ${archivedCount}`"
+                            :title="t('chats.sidebar.archivedCountTitle', { count: archivedCount })"
                         >{{ archivedCount > 99 ? '99+' : archivedCount }}</span>
                     </Link>
                 </UiPillNav>
@@ -783,7 +785,7 @@ onBeforeUnmount(() => {
                         v-if="scope === 'active'"
                         class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
                         role="toolbar"
-                        aria-label="Фильтры списка чатов"
+                        :aria-label="t('chats.sidebar.filtersAria')"
                     >
                     <template v-if="canFilterByOwnership">
                         <button
@@ -792,7 +794,7 @@ onBeforeUnmount(() => {
                             :class="{ 'is-active': listOwnership === 'all' }"
                             @click="setOwnership('all')"
                         >
-                            Все
+                            {{ t('chats.sidebar.all') }}
                         </button>
                         <button
                             type="button"
@@ -800,7 +802,7 @@ onBeforeUnmount(() => {
                             :class="{ 'is-active': listOwnership === 'mine' }"
                             @click="setOwnership('mine')"
                         >
-                            Мои
+                            {{ t('chats.sidebar.mine') }}
                             <span v-if="mineChatsTotal" class="ui-chip__meta">{{ mineChatsTotal }}</span>
                         </button>
                         <span class="ui-sidebar-filters__sep" aria-hidden="true" />
@@ -811,7 +813,7 @@ onBeforeUnmount(() => {
                         :class="{ 'is-active': activeSegment === 'favorites' && listFilter !== 'attention' }"
                         @click="setSegment('favorites')"
                     >
-                        Избранные
+                        {{ t('chats.sidebar.favorites') }}
                         <span v-if="favoritesTotal" class="ui-chip__meta">{{ favoritesTotal }}</span>
                     </button>
                     <button
@@ -820,7 +822,7 @@ onBeforeUnmount(() => {
                         :class="{ 'is-active': activeSegment === 'clients' && listFilter !== 'attention' }"
                         @click="setSegment('clients')"
                     >
-                        Клиенты
+                        {{ t('chats.sidebar.clients') }}
                         <span v-if="clientsTotal" class="ui-chip__meta">{{ clientsTotal }}</span>
                     </button>
                     <button
@@ -829,17 +831,17 @@ onBeforeUnmount(() => {
                         :class="{ 'is-active': activeSegment === 'staff' && listFilter !== 'attention' }"
                         @click="setSegment('staff')"
                     >
-                        Сотрудники
+                        {{ t('chats.sidebar.staff') }}
                         <span v-if="staffTotal" class="ui-chip__meta">{{ staffTotal }}</span>
                     </button>
                     <button
                         type="button"
                         class="ui-chip ui-chip--danger shrink-0"
                         :class="{ 'is-active': listFilter === 'attention' }"
-                        title="AI: нужен менеджер, ошибка, низкая уверенность; непрочитанные"
+                        :title="t('chats.sidebar.attentionTitle')"
                         @click="setAttentionFilter"
                     >
-                        Внимание
+                        {{ t('chats.sidebar.attention') }}
                         <span v-if="attentionChatsTotal" class="ui-chip__meta">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>
                     </button>
                     </div>
@@ -852,7 +854,7 @@ onBeforeUnmount(() => {
             class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
         >
-            Сейчас нет чатов, требующих внимания.
+            {{ t('chats.sidebar.noAttentionChats') }}
         </div>
 
         <div
@@ -860,14 +862,14 @@ onBeforeUnmount(() => {
             class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
         >
-            В разделе «Сотрудники» только чаты, где последнее сообщение от оператора.
+            {{ t('chats.sidebar.staffSectionHint') }}
             <button
                 type="button"
                 class="font-semibold mt-1 block"
                 :style="{ color: 'var(--wa-accent)' }"
                 @click="setSegment('clients')"
             >
-                Показать всех клиентов
+                {{ t('chats.sidebar.showAllClients') }}
             </button>
         </div>
 
@@ -882,20 +884,20 @@ onBeforeUnmount(() => {
                 </svg>
             </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[13px] text-[var(--wa-text)] truncate font-medium">Включите уведомления о новых сообщениях</div>
+                    <div class="text-[13px] text-[var(--wa-text)] truncate font-medium">{{ t('chats.sidebar.notificationsBannerTitle') }}</div>
                     <button
                         type="button"
                         class="text-[13px] font-semibold mt-0.5"
                         :style="{ color: 'var(--wa-accent)' }"
                         @click="enableNotifications"
                     >
-                        Разрешить
+                        {{ t('chats.sidebar.notificationsAllow') }}
                     </button>
                 </div>
             <button
                 @click="dismissNotifBanner"
                 class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 hover:bg-[var(--wa-panel-hover)] text-[var(--wa-icon)]"
-                title="Закрыть"
+                :title="t('common.close')"
                 type="button"
             >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -917,22 +919,22 @@ onBeforeUnmount(() => {
                 </svg>
             </div>
             <div class="flex-1 min-w-0">
-                <div class="text-[13px] text-[var(--wa-text)]">Обращайтесь к новым клиентам</div>
+                <div class="text-[13px] text-[var(--wa-text)]">{{ t('chats.sidebar.promoTitle') }}</div>
                 <div class="text-[12px] text-[var(--wa-text-secondary)] mt-0.5 leading-snug">
-                    Рекламируйте свою компанию на Facebook и в Instagram.
+                    {{ t('chats.sidebar.promoDescription') }}
                     <button
                         type="button"
                         class="font-medium"
                         :style="{ color: 'var(--wa-accent)' }"
                     >
-                        Начать
+                        {{ t('chats.sidebar.promoStart') }}
                     </button>
                 </div>
             </div>
             <button
                 @click="dismissPromoBanner"
                 class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 hover:bg-[var(--wa-panel-hover)] text-[var(--wa-icon)]"
-                title="Закрыть"
+                :title="t('common.close')"
                 type="button"
             >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -952,8 +954,8 @@ onBeforeUnmount(() => {
                 v-else-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
                 class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
             >
-                <template v-if="scope === 'archived'">В архиве пока нет чатов</template>
-                <template v-else>Нет чатов в этом разделе</template>
+                <template v-if="scope === 'archived'">{{ t('chats.archived.emptyList') }}</template>
+                <template v-else>{{ t('chats.sidebar.emptySection') }}</template>
             </div>
             <ChatListItem
                 v-for="chat in filteredChats"

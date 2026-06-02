@@ -1,4 +1,18 @@
 import type { MessageCatalog } from '../types';
+import { aiChatKk } from './domains/aiChat.kk';
+import { analyticsKk } from './domains/analytics.kk';
+import { authKk } from './domains/auth.kk';
+import { broadcastsKk } from './domains/broadcasts.kk';
+import { calendarKk } from './domains/calendar.kk';
+import { chats as chatsKk } from './domains/chats.kk';
+import { clientsKk } from './domains/clients.kk';
+import { funnelsKk } from './domains/funnels.kk';
+import { landingKk } from './domains/landing.kk';
+import { miscKk } from './domains/misc.kk';
+import { organizationKk } from './domains/organization.kk';
+import { profileKk } from './domains/profile.kk';
+import { settingsExtrasKk } from './domains/settingsExtras.kk';
+import { superAdminKk } from './domains/superAdmin.kk';
 
 export const kk: MessageCatalog = {
     nav: {
@@ -746,6 +760,14 @@ export const kk: MessageCatalog = {
             errorDisplayNameRequired: 'Қосылу атауын көрсетіңіз.',
             errorSaveName: 'Атау сақталмады',
         },
+        clients: settingsExtrasKk.clients,
+        contactFields: settingsExtrasKk.contactFields,
+        aiQuality: settingsExtrasKk.aiQuality,
+        toneProfile: settingsExtrasKk.toneProfile,
+        funnelAiWizard: settingsExtrasKk.funnelAiWizard,
+        usersForm: settingsExtrasKk.usersForm,
+        departmentsForm: settingsExtrasKk.departmentsForm,
+        connectionsExtras: settingsExtrasKk.connectionsExtras,
         interface: {
             language: 'Интерфейс тілі',
             languageHint: 'Бұл құрылғыда мәзір мен жалпы элементтердің тілін өзгертеді.',
@@ -755,6 +777,19 @@ export const kk: MessageCatalog = {
             dark: 'Қараңғы',
         },
     },
+    profile: profileKk,
+    chats: chatsKk,
+    clients: clientsKk,
+    calendar: calendarKk,
+    broadcasts: broadcastsKk,
+    analytics: analyticsKk,
+    funnels: funnelsKk,
+    aiChat: aiChatKk,
+    auth: authKk,
+    landing: landingKk,
+    organization: organizationKk,
+    misc: miscKk,
+    superAdmin: superAdminKk,
     common: {
         cancel: 'Бас тарту',
         save: 'Сақтау',
@@ -762,5 +797,17 @@ export const kk: MessageCatalog = {
         done: 'Дайын',
         delete: 'Жою',
         saved: 'Сақталды!',
+        back: 'Артқа',
+        forward: 'Алға',
+        edit: 'Өзгерту',
+        optional: 'міндетті емес',
+        yes: 'Иә',
+        no: 'Жоқ',
+        update: 'Жаңарту',
+        ok: 'OK',
+        inactive: '(белсенді емес)',
+        learnMore: 'Толығырақ',
+        confirm: 'Растау',
+        wait: 'Күте тұрыңыз…',
     },
 };

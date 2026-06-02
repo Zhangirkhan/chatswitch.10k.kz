@@ -1,4 +1,18 @@
 import type { MessageCatalog } from '../types';
+import { aiChatRu } from './domains/aiChat.ru';
+import { analyticsRu } from './domains/analytics.ru';
+import { authRu } from './domains/auth.ru';
+import { broadcastsRu } from './domains/broadcasts.ru';
+import { calendarRu } from './domains/calendar.ru';
+import { chats as chatsRu } from './domains/chats.ru';
+import { clientsRu } from './domains/clients.ru';
+import { funnelsRu } from './domains/funnels.ru';
+import { landingRu } from './domains/landing.ru';
+import { miscRu } from './domains/misc.ru';
+import { organizationRu } from './domains/organization.ru';
+import { profileRu } from './domains/profile.ru';
+import { settingsExtrasRu } from './domains/settingsExtras.ru';
+import { superAdminRu } from './domains/superAdmin.ru';
 
 export const ru: MessageCatalog = {
     nav: {
@@ -746,6 +760,14 @@ export const ru: MessageCatalog = {
             errorDisplayNameRequired: 'Укажите название подключения.',
             errorSaveName: 'Не удалось сохранить название',
         },
+        clients: settingsExtrasRu.clients,
+        contactFields: settingsExtrasRu.contactFields,
+        aiQuality: settingsExtrasRu.aiQuality,
+        toneProfile: settingsExtrasRu.toneProfile,
+        funnelAiWizard: settingsExtrasRu.funnelAiWizard,
+        usersForm: settingsExtrasRu.usersForm,
+        departmentsForm: settingsExtrasRu.departmentsForm,
+        connectionsExtras: settingsExtrasRu.connectionsExtras,
         interface: {
             language: 'Язык интерфейса',
             languageHint: 'Меняет подписи меню и общие элементы приложения на этом устройстве.',
@@ -755,6 +777,19 @@ export const ru: MessageCatalog = {
             dark: 'Тёмная',
         },
     },
+    profile: profileRu,
+    chats: chatsRu,
+    clients: clientsRu,
+    calendar: calendarRu,
+    broadcasts: broadcastsRu,
+    analytics: analyticsRu,
+    funnels: funnelsRu,
+    aiChat: aiChatRu,
+    auth: authRu,
+    landing: landingRu,
+    organization: organizationRu,
+    misc: miscRu,
+    superAdmin: superAdminRu,
     common: {
         cancel: 'Отмена',
         save: 'Сохранить',
@@ -762,5 +797,17 @@ export const ru: MessageCatalog = {
         done: 'Готово',
         delete: 'Удалить',
         saved: 'Сохранено!',
+        back: 'Назад',
+        forward: 'Вперёд',
+        edit: 'Изменить',
+        optional: 'необязательно',
+        yes: 'Да',
+        no: 'Нет',
+        update: 'Обновить',
+        ok: 'OK',
+        inactive: '(неактивен)',
+        learnMore: 'Подробнее',
+        confirm: 'Подтвердить',
+        wait: 'Подождите…',
     },
 };

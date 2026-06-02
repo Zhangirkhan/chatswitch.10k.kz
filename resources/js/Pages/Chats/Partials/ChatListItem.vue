@@ -8,6 +8,7 @@ import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
 import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
 import LastMessagePreview from '@/Components/LastMessagePreview.vue';
 import { useToastStore } from '@/stores/toast';
+import { useI18n } from '@/composables/useI18n';
 import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
@@ -15,6 +16,7 @@ import { whatsappSessionRingColor } from '@/utils/whatsappSessionColor';
 import type { WhatsappSession } from '@/types';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const props = defineProps<{
     chat: Chat;
@@ -55,7 +57,9 @@ const assigneeNames = computed(() =>
 const assigneePillLabel = computed(() => assigneeNames.value.join(', '));
 
 const assigneePillTitle = computed(() =>
-    assigneeNames.value.length > 0 ? `Ответственные: ${assigneeNames.value.join(', ')}` : '',
+    assigneeNames.value.length > 0
+        ? t('chats.listItem.assigneesTitle', { names: assigneeNames.value.join(', ') })
+        : '',
 );
 
 /** Плашка закреплённых только если есть хотя бы один назначенный. */
@@ -154,9 +158,9 @@ function togglePin() {
     const wasPinned = props.chat.is_pinned;
     run(() => axios.post(route('chats.toggle-pin', props.chat.id))).then(() => {
         showToast({
-            message: wasPinned ? 'Чат откреплён' : 'Чат закреплён',
+            message: wasPinned ? t('chats.listItem.toastUnpinned') : t('chats.listItem.toastPinned'),
             action: {
-                label: 'Отменить',
+                label: t('chats.undo'),
                 handler: async () => {
                     await axios.post(route('chats.toggle-pin', props.chat.id));
                     router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
@@ -170,9 +174,9 @@ function toggleArchive() {
     const wasArchived = props.chat.is_archived;
     run(() => axios.post(route('chats.archive', props.chat.id))).then(() => {
         showToast({
-            message: wasArchived ? 'Чат разархивирован' : 'Чат архивирован',
+            message: wasArchived ? t('chats.listItem.toastUnarchived') : t('chats.listItem.toastArchived'),
             action: {
-                label: 'Отменить',
+                label: t('chats.undo'),
                 handler: async () => {
                     await axios.post(route('chats.archive', props.chat.id));
                     router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
@@ -195,8 +199,8 @@ function toggleMute() {
         muteApi({ unmute: true }).then(() => {
             showToast({
                 message: isGroupChat.value
-                    ? 'Уведомления в группе включены'
-                    : 'Уведомления включены',
+                    ? t('chats.listItem.toastGroupNotificationsOn')
+                    : t('chats.listItem.toastNotificationsOn'),
             });
         });
         return;
@@ -210,16 +214,16 @@ function onMuteConfirm(duration: '8h' | '1w' | 'always') {
     muteApi({ duration }).then(() => {
         showToast({
             message: isGroupChat.value
-                ? 'Уведомления в группе отключены'
-                : 'Уведомления отключены',
+                ? t('chats.listItem.toastGroupNotificationsOff')
+                : t('chats.listItem.toastNotificationsOff'),
             action: {
-                label: 'Отменить',
+                label: t('chats.undo'),
                 handler: async () => {
                     await muteApi({ unmute: true });
                     showToast({
                         message: isGroupChat.value
-                            ? 'Уведомления в группе включены'
-                            : 'Уведомления включены',
+                            ? t('chats.listItem.toastGroupNotificationsOn')
+                            : t('chats.listItem.toastNotificationsOn'),
                     });
                 },
             },
@@ -231,9 +235,9 @@ function toggleFavorite() {
     const wasFavorite = props.chat.is_favorite;
     run(() => axios.post(route('chats.toggle-favorite', props.chat.id))).then(() => {
         showToast({
-            message: wasFavorite ? 'Удалено из избранного' : 'Добавлено в избранное',
+            message: wasFavorite ? t('chats.listItem.toastRemovedFavorite') : t('chats.listItem.toastAddedFavorite'),
             action: {
-                label: 'Отменить',
+                label: t('chats.undo'),
                 handler: async () => {
                     await axios.post(route('chats.toggle-favorite', props.chat.id));
                     router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
@@ -247,9 +251,9 @@ function toggleUnread() {
     const wasUnread = props.chat.unread_count > 0;
     run(() => axios.post(route('chats.toggle-unread', props.chat.id))).then(() => {
         showToast({
-            message: wasUnread ? 'Чат помечен как прочитанный' : 'Чат помечен как непрочитанный',
+            message: wasUnread ? t('chats.listItem.toastMarkedRead') : t('chats.listItem.toastMarkedUnread'),
             action: {
-                label: 'Отменить',
+                label: t('chats.undo'),
                 handler: async () => {
                     await axios.post(route('chats.toggle-unread', props.chat.id));
                     router.reload({ only: [...CHATS_PARTIAL_RELOAD] });
@@ -271,7 +275,7 @@ async function confirmClearChat(): Promise<void> {
     try {
         await axios.post(route('chats.clear', props.chat.id));
         router.reload({ only: ['chats', 'messages', 'chat'] });
-        showToast({ message: 'Чат очищен' });
+        showToast({ message: t('chats.listItem.toastCleared') });
     } finally {
         working.value = false;
         closeMenu();
@@ -281,7 +285,7 @@ async function confirmClearChat(): Promise<void> {
 function notImplemented(name: string) {
     closeMenu();
     showToast({
-        message: `«${name}» — функция скоро будет доступна`,
+        message: t('chats.featureComingSoon', { name }),
     });
 }
 
@@ -307,7 +311,7 @@ function formatTime(dateStr: string | null): string {
     }
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Вчера';
+    if (d.toDateString() === yesterday.toDateString()) return t('chats.yesterday');
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
@@ -322,7 +326,7 @@ const displayName = computed(
 
 const muteSubtitle = computed<string>(() => {
     if (!props.chat.is_muted) return '';
-    if (!props.chat.muted_until) return 'Всегда';
+    if (!props.chat.muted_until) return t('chats.always');
 
     const until = new Date(props.chat.muted_until);
     const now = new Date();
@@ -330,12 +334,12 @@ const muteSubtitle = computed<string>(() => {
     const time = until.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
     const isToday = until.toDateString() === now.toDateString();
-    if (isToday) return `Уведомления выключены до ${time} сегодня`;
+    if (isToday) return t('chats.listItem.muteUntilToday', { time });
 
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (until.toDateString() === tomorrow.toDateString()) {
-        return `Уведомления выключены до ${time} завтра`;
+        return t('chats.listItem.muteUntilTomorrow', { time });
     }
 
     const date = until.toLocaleDateString('ru-RU', {
@@ -343,7 +347,7 @@ const muteSubtitle = computed<string>(() => {
         month: '2-digit',
         year: '2-digit',
     });
-    return `Уведомления выключены до ${time} ${date}`;
+    return t('chats.listItem.muteUntilDate', { time, date });
 });
 
 function sessionTooltip(chat: Chat): string {
@@ -379,7 +383,7 @@ const avatarTitle = computed(
             <span
                 v-if="showAiPill"
                 class="chat-list-ai-mark"
-                title="AI-ассистент включён"
+                :title="t('chats.listItem.aiEnabledTitle')"
             >
                 AI
             </span>
@@ -394,7 +398,7 @@ const avatarTitle = computed(
                             || chat.contact?.name
                             || (chat.contact?.push_name ? `~ ${chat.contact.push_name}` : null)
                             || formatPhone(chat.contact?.phone_number)
-                            || 'Без имени'
+                            || t('chats.noName')
                         }}
                     </span>
                 </div>
@@ -443,7 +447,7 @@ const avatarTitle = computed(
                         class="w-4 h-4 text-[var(--wa-text-secondary)] shrink-0"
                         fill="currentColor"
                         viewBox="0 0 24 24"
-                        title="Чат закреплён"
+                        :title="t('chats.listItem.pinnedTitle')"
                         aria-hidden="true"
                     >
                         <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/>
@@ -459,7 +463,7 @@ const avatarTitle = computed(
                         type="button"
                         class="chevron-btn"
                         :class="{ 'is-open': menuOpen }"
-                        title="Меню"
+                        :title="t('chats.listItem.menu')"
                         @click.prevent.stop="openMenuFromChevron"
                     >
                         <svg class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -488,7 +492,7 @@ const avatarTitle = computed(
                     <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v11a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
                     </svg>
-                    <span>{{ chat.is_archived ? 'Разархивировать чат' : 'Архивировать чат' }}</span>
+                    <span>{{ chat.is_archived ? t('chats.listItem.unarchive') : t('chats.listItem.archive') }}</span>
                 </button>
 
                 <button class="menu-item" @click.prevent="toggleMute" type="button">
@@ -512,7 +516,7 @@ const avatarTitle = computed(
                         class="menu-icon"
                     />
                     <div class="flex flex-col items-start text-left">
-                        <span>{{ chat.is_muted ? 'Включить звук' : 'Без звука' }}</span>
+                        <span>{{ chat.is_muted ? t('chats.listItem.unmute') : t('chats.listItem.mute') }}</span>
                         <span v-if="chat.is_muted && muteSubtitle" class="menu-item-subtitle">
                             {{ muteSubtitle }}
                         </span>
@@ -523,7 +527,7 @@ const avatarTitle = computed(
                     <svg class="menu-icon" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
                     </svg>
-                    <span>{{ chat.is_pinned ? 'Открепить чат' : 'Закрепить чат' }}</span>
+                    <span>{{ chat.is_pinned ? t('chats.listItem.unpin') : t('chats.listItem.pin') }}</span>
                 </button>
 
                 <button class="menu-item" @click.prevent="toggleUnread" type="button">
@@ -531,7 +535,7 @@ const avatarTitle = computed(
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8M3 8l9-5 9 5" />
                     </svg>
                     <span>
-                        {{ chat.unread_count > 0 ? 'Пометить как прочитанное' : 'Пометить как непрочитанное' }}
+                        {{ chat.unread_count > 0 ? t('chats.listItem.markRead') : t('chats.listItem.markUnread') }}
                     </span>
                 </button>
 
@@ -539,14 +543,14 @@ const avatarTitle = computed(
                     <svg class="menu-icon" :fill="chat.is_favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
                     </svg>
-                    <span>{{ chat.is_favorite ? 'Убрать из избранного' : 'Добавить в избранное' }}</span>
+                    <span>{{ chat.is_favorite ? t('chats.listItem.removeFavorite') : t('chats.listItem.addFavorite') }}</span>
                 </button>
 
-                <button class="menu-item" @click.prevent="notImplemented('Добавить в список')" type="button">
+                <button class="menu-item" @click.prevent="notImplemented(t('chats.listItem.addToList'))" type="button">
                     <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h10M19 15v6m-3-3h6" />
                     </svg>
-                    <span>Добавить в список</span>
+                    <span>{{ t('chats.listItem.addToList') }}</span>
                 </button>
 
                 <div class="menu-divider"></div>
@@ -555,7 +559,7 @@ const avatarTitle = computed(
                     <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
                     </svg>
-                    <span>Очистить чат</span>
+                    <span>{{ t('chats.listItem.clearChat') }}</span>
                 </button>
             </div>
         </div>
@@ -563,9 +567,9 @@ const avatarTitle = computed(
 
     <DangerConfirmModal
         :open="clearChatDialogOpen"
-        title="Очистить историю чата?"
-        description="Все сообщения в этом чате будут удалены. Действие необратимо."
-        confirm-label="Очистить"
+        :title="t('chats.listItem.clearChatTitle')"
+        :description="t('chats.listItem.clearChatDescription')"
+        :confirm-label="t('chats.listItem.clearChatConfirm')"
         :busy="working"
         confirm-variant="danger"
         @close="clearChatDialogOpen = false"

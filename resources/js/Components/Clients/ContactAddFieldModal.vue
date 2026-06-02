@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiModal from '@/Components/Ui/UiModal.vue';
+import { useI18n } from '@/composables/useI18n';
 import { ADDABLE_FIELD_TYPES, type ContactFieldTypeId } from '@/utils/contactFieldTypes';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const step = ref<'pick' | 'form'>('pick');
 const saving = ref(false);
@@ -46,6 +48,10 @@ watch(
 
 const selectedTypeMeta = computed(() => ADDABLE_FIELD_TYPES.find((row) => row.id === selectedType.value));
 
+const modalTitle = computed(() =>
+    step.value === 'pick' ? t('clients.fields.addModalPick') : t('clients.fields.addModalNew'),
+);
+
 function pickType(type: ContactFieldTypeId): void {
     selectedType.value = type;
     step.value = 'form';
@@ -54,7 +60,7 @@ function pickType(type: ContactFieldTypeId): void {
 async function createField(): Promise<void> {
     const label = form.value.label.trim();
     if (!label) {
-        showToast({ message: 'Укажите название поля', duration: 3000 });
+        showToast({ message: t('clients.fields.toastNameRequired'), duration: 3000 });
         return;
     }
 
@@ -76,14 +82,14 @@ async function createField(): Promise<void> {
         }
 
         await axios.post(route('settings.contact-fields.store'), payload);
-        showToast({ message: 'Поле добавлено', duration: 2500 });
+        showToast({ message: t('clients.fields.toastCreated'), duration: 2500 });
         emit('created');
         emit('close');
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
         const message = err.response?.data?.errors?.label?.[0]
             || err.response?.data?.message
-            || 'Не удалось создать поле';
+            || t('clients.fields.toastCreateError');
         showToast({ message, duration: 4000 });
     } finally {
         saving.value = false;
@@ -94,7 +100,7 @@ async function createField(): Promise<void> {
 <template>
     <UiModal
         :open="open"
-        :title="step === 'pick' ? 'Добавить поле' : 'Новое поле'"
+        :title="modalTitle"
         max-width="md"
         :z-index="1300"
         @close="emit('close')"
@@ -119,32 +125,32 @@ async function createField(): Promise<void> {
             </div>
 
             <label class="block space-y-1">
-                <span class="text-xs opacity-70">Название</span>
+                <span class="text-xs opacity-70">{{ t('clients.fields.fieldName') }}</span>
                 <input
                     v-model="form.label"
                     type="text"
                     class="w-full rounded-lg border-0 px-3 py-2 text-sm focus:ring-0 focus:outline-none"
                     :style="{ background: 'var(--ui-surface-muted)' }"
-                    placeholder="Например: UTM-метка"
+                    :placeholder="t('clients.fields.fieldNamePlaceholder')"
                 />
             </label>
 
             <label class="block space-y-1">
-                <span class="text-xs opacity-70">Секция в карточке</span>
+                <span class="text-xs opacity-70">{{ t('clients.fields.section') }}</span>
                 <select
                     v-model="form.section"
                     class="w-full rounded-lg border-0 px-3 py-2 text-sm focus:ring-0 focus:outline-none"
                     :style="{ background: 'var(--ui-surface-muted)' }"
                 >
-                    <option value="basic">Основное</option>
-                    <option value="contacts">Контакты</option>
+                    <option value="basic">{{ t('clients.fields.sectionBasic') }}</option>
+                    <option value="contacts">{{ t('clients.fields.sectionContacts') }}</option>
                     <option value="b2b">B2B</option>
-                    <option value="tasks_notes">Задачи и заметки</option>
+                    <option value="tasks_notes">{{ t('clients.fields.sectionTasksNotes') }}</option>
                 </select>
             </label>
 
             <label v-if="selectedType === 'list'" class="block space-y-1">
-                <span class="text-xs opacity-70">Значения списка (по одному в строке)</span>
+                <span class="text-xs opacity-70">{{ t('clients.fields.listValues') }}</span>
                 <textarea
                     v-model="form.choices"
                     rows="4"
@@ -155,7 +161,7 @@ async function createField(): Promise<void> {
 
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" class="rounded-lg px-3 py-2 text-sm" :style="{ background: 'var(--ui-surface-muted)' }" @click="step = 'pick'">
-                    Назад
+                    {{ t('clients.fields.back') }}
                 </button>
                 <button
                     type="submit"
@@ -163,7 +169,7 @@ async function createField(): Promise<void> {
                     :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                     :disabled="saving"
                 >
-                    Создать
+                    {{ t('clients.fields.create') }}
                 </button>
             </div>
         </form>

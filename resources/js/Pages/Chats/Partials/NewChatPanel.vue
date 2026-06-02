@@ -5,7 +5,9 @@ import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 import { formatPhone } from '@/utils/phone';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
+import { useI18n } from '@/composables/useI18n';
 
+const { t } = useI18n();
 const toast = useToastStore();
 
 type Contact = {
@@ -79,10 +81,8 @@ const groupSubject = ref('');
 const selectedContactIds = ref<number[]>([]);
 const creatingGroup = ref(false);
 
-const DEFAULT_COMMUNITY_DESCRIPTION =
-    'Приветствуем! В этом сообществе участники могут общаться в тематических группах и получать важные объявления.';
 const communityName = ref('');
-const communityDescription = ref(DEFAULT_COMMUNITY_DESCRIPTION);
+const communityDescription = ref('');
 const creatingCommunity = ref(false);
 const currentCommunity = ref<Community | null>(null);
 const availableGroups = ref<AvailableGroup[]>([]);
@@ -138,7 +138,10 @@ async function loadContacts(q = '') {
     }
 }
 
-onMounted(() => loadContacts());
+onMounted(() => {
+    communityDescription.value = t('chats.newChat.defaultCommunityDescription');
+    loadContacts();
+});
 
 function onKeydown(e: KeyboardEvent) {
     if (mode.value !== 'dial') return;
@@ -175,7 +178,7 @@ const groupedContacts = computed(() => {
 });
 
 function contactLabel(c: Contact): string {
-    return c.name || c.push_name || formatPhone(c.phone_number) || formatPhone(c.whatsapp_id) || 'Без имени';
+    return c.name || c.push_name || formatPhone(c.phone_number) || formatPhone(c.whatsapp_id) || t('chats.noName');
 }
 
 function contactInitial(c: Contact): string {
@@ -316,7 +319,7 @@ async function createGroup() {
 
     creatingGroup.value = true;
     const loadingToastId = toast.show({
-        message: `Создаём группу «${subject}»…`,
+        message: t('chats.newChat.creatingGroup', { name: subject }),
         duration: 60_000,
     });
 
@@ -332,7 +335,7 @@ async function createGroup() {
 
         toast.dismiss(loadingToastId);
         toast.show({
-            message: `Группа «${subject}» создана`,
+            message: t('chats.newChat.groupCreated', { name: subject }),
             duration: 4000,
         });
 
@@ -355,8 +358,8 @@ async function createGroup() {
         toast.dismiss(loadingToastId);
         const raw = String(err?.response?.data?.error || err?.message || '');
         const readable = raw.toLowerCase().includes('client not ready')
-            ? 'WhatsApp-номер ещё не подключён. Дождитесь статуса «Онлайн» и попробуйте снова.'
-            : raw || 'Не удалось создать группу';
+            ? t('chats.newChat.whatsappNotConnected')
+            : raw || t('chats.newChat.groupCreateFailed');
         toast.show({
             message: readable,
             duration: 6000,
@@ -398,7 +401,7 @@ function openNewCommunity() {
         selectedSessionId.value = sessions.value[0].id;
     }
     communityName.value = '';
-    communityDescription.value = DEFAULT_COMMUNITY_DESCRIPTION;
+    communityDescription.value = t('chats.newChat.defaultCommunityDescription');
     mode.value = 'community-info';
 }
 
@@ -408,7 +411,7 @@ async function createCommunity() {
 
     creatingCommunity.value = true;
     const toastId = toast.show({
-        message: `Создаём сообщество «${name}»…`,
+        message: t('chats.newChat.creatingCommunity', { name }),
         duration: 60_000,
     });
 
@@ -422,7 +425,7 @@ async function createCommunity() {
         currentCommunity.value = data.community as Community;
         toast.dismiss(toastId);
         toast.show({
-            message: `Сообщество «${name}» создано`,
+            message: t('chats.newChat.communityCreated', { name }),
             duration: 4000,
         });
         mode.value = 'community-manage';
@@ -435,7 +438,7 @@ async function createCommunity() {
             || '',
         );
         toast.show({
-            message: raw || 'Не удалось создать сообщество',
+            message: raw || t('chats.newChat.communityCreateFailed'),
             duration: 5000,
         });
     } finally {
@@ -474,7 +477,7 @@ async function openPickExistingGroup() {
         mode.value = 'community-pick-existing';
     } catch {
         toast.show({
-            message: 'Не удалось загрузить список групп',
+            message: t('chats.newChat.loadGroupsFailed'),
             duration: 4000,
         });
     }
@@ -489,14 +492,14 @@ async function linkExistingGroup(chatId: number) {
             { chat_id: chatId },
         );
         toast.show({
-            message: 'Группа добавлена в сообщество',
+            message: t('chats.newChat.groupAdded'),
             duration: 3500,
         });
         await reloadCurrentCommunity();
         mode.value = 'community-manage';
     } catch (err: any) {
         toast.show({
-            message: err?.response?.data?.error || 'Не удалось добавить группу',
+            message: err?.response?.data?.error || t('chats.newChat.groupAddFailed'),
             duration: 4000,
         });
     } finally {
@@ -511,9 +514,9 @@ async function unlinkGroup(chatId: number) {
             route('communities.unlink-group', [currentCommunity.value.id, chatId]),
         );
         await reloadCurrentCommunity();
-        toast.show({ message: 'Группа убрана из сообщества', duration: 3000 });
+        toast.show({ message: t('chats.newChat.groupRemoved'), duration: 3000 });
     } catch {
-        toast.show({ message: 'Не удалось убрать группу', duration: 4000 });
+        toast.show({ message: t('chats.newChat.groupRemoveFailed'), duration: 4000 });
     }
 }
 </script>
@@ -529,18 +532,18 @@ async function unlinkGroup(chatId: number) {
             <button
                 @click="onHeaderBack"
                 class="wa-back-btn"
-                title="Назад"
+                :title="t('common.back')"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
-            <h1 class="text-[17px] font-normal flex-1 m-0">Новый чат</h1>
+            <h1 class="text-[17px] font-normal flex-1 m-0">{{ t('chats.newChat.title') }}</h1>
             <button
                 @click="openDialpad"
                 class="wa-back-btn"
-                title="Ввести номер телефона"
+                :title="t('chats.newChat.dialNumber')"
                 type="button"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -560,24 +563,24 @@ async function unlinkGroup(chatId: number) {
             <button
                 @click="onHeaderBack"
                 class="wa-back-btn"
-                title="Назад" type="button"
+                :title="t('common.back')" type="button"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
             <h1 class="text-[17px] font-normal m-0 truncate">
-                <template v-if="mode === 'dial'">Номер телефона</template>
+                <template v-if="mode === 'dial'">{{ t('chats.newChat.phoneNumber') }}</template>
                 <template v-else-if="mode === 'group-participants'">
-                    <template v-if="groupCreationCommunityId">Добавить участников группы</template>
-                    <template v-else>Добав. участников группы</template>
+                    <template v-if="groupCreationCommunityId">{{ t('chats.newChat.addGroupMembers') }}</template>
+                    <template v-else>{{ t('chats.newChat.addGroupMembersShort') }}</template>
                 </template>
-                <template v-else-if="mode === 'group-info'">Новая группа</template>
-                <template v-else-if="mode === 'community-info'">Новое сообщество</template>
+                <template v-else-if="mode === 'group-info'">{{ t('chats.newChat.newGroup') }}</template>
+                <template v-else-if="mode === 'community-info'">{{ t('chats.newChat.newCommunity') }}</template>
                 <template v-else-if="mode === 'community-manage'">
-                    {{ currentCommunity?.name || 'Сообщество' }}
+                    {{ currentCommunity?.name || t('chats.newChat.community') }}
                 </template>
-                <template v-else-if="mode === 'community-pick-existing'">Управление группами</template>
+                <template v-else-if="mode === 'community-pick-existing'">{{ t('chats.newChat.manageGroups') }}</template>
             </h1>
         </div>
 
@@ -590,7 +593,7 @@ async function unlinkGroup(chatId: number) {
                 :style="{ borderColor: 'var(--wa-border)' }"
             >
                 <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
-                    Отправитель
+                    {{ t('chats.newChat.sender') }}
                 </label>
                 <select
                     v-model="selectedSessionId"
@@ -602,7 +605,7 @@ async function unlinkGroup(chatId: number) {
                     }"
                 >
                     <option v-for="s in sessions" :key="s.id" :value="s.id">
-                        {{ s.display_name || formatPhone(s.phone_number) || s.session_name }}<template v-if="s.status !== 'connected'"> (не подключён)</template>
+                        {{ s.display_name || formatPhone(s.phone_number) || s.session_name }}<template v-if="s.status !== 'connected'">{{ t('chats.newChat.notConnected') }}</template>
                     </option>
                 </select>
             </div>
@@ -626,7 +629,7 @@ async function unlinkGroup(chatId: number) {
                     class="mt-5 text-[13px] text-center"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Введите номер телефона, чтобы начать чат
+                    {{ t('chats.newChat.dialHint') }}
                 </p>
 
                 <!-- Dialpad -->
@@ -679,7 +682,7 @@ async function unlinkGroup(chatId: number) {
                     :disabled="starting"
                     class="absolute bottom-6 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition hover:brightness-95"
                     :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                    title="Начать чат"
+                    :title="t('chats.newChat.startChat')"
                     type="button"
                 >
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -698,7 +701,7 @@ async function unlinkGroup(chatId: number) {
             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }"
         >
             <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
-                Отправитель
+                {{ t('chats.newChat.sender') }}
             </label>
             <select
                 v-model="selectedSessionId"
@@ -711,7 +714,7 @@ async function unlinkGroup(chatId: number) {
             >
                 <option v-for="s in sessions" :key="s.id" :value="s.id">
                     {{ s.display_name || formatPhone(s.phone_number) || s.session_name }}
-                    <template v-if="s.status !== 'connected'"> (не подключён)</template>
+                    <template v-if="s.status !== 'connected'">{{ t('chats.newChat.notConnected') }}</template>
                 </option>
             </select>
         </div>
@@ -728,7 +731,7 @@ async function unlinkGroup(chatId: number) {
                 <input
                     v-model="search"
                     type="text"
-                    placeholder="Поиск по имени или номеру"
+                    :placeholder="t('chats.newChat.searchNameOrPhone')"
                     class="w-full pl-12 pr-3 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                 />
             </div>
@@ -751,10 +754,10 @@ async function unlinkGroup(chatId: number) {
                 </div>
                 <div class="flex-1 min-w-0 text-left">
                     <div class="text-[15px]" :style="{ color: 'var(--wa-text)' }">
-                        Написать на «{{ search }}»
+                        {{ t('chats.newChat.writeTo', { query: search }) }}
                     </div>
                     <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Будет создан новый контакт
+                        {{ t('chats.newChat.newContactHint') }}
                     </div>
                 </div>
             </button>
@@ -768,10 +771,10 @@ async function unlinkGroup(chatId: number) {
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="text-[15px] truncate" :style="{ color: 'var(--wa-text)' }">
-                        {{ currentUser?.name }} (Вы)
+                        {{ currentUser?.name }} ({{ t('chats.input.replyYou') }})
                     </div>
                     <div class="text-xs" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Сообщение для себя
+                        {{ t('chats.newChat.messageToSelf') }}
                     </div>
                 </div>
             </div>
@@ -782,16 +785,16 @@ async function unlinkGroup(chatId: number) {
                 class="p-6 text-center text-sm"
                 :style="{ color: 'var(--wa-text-secondary)' }"
             >
-                Загрузка контактов…
+                {{ t('chats.newChat.loadingContacts') }}
             </div>
             <div
                 v-else-if="contacts.length === 0"
                 class="p-6 text-center text-sm"
                 :style="{ color: 'var(--wa-text-secondary)' }"
             >
-                Контакты не найдены.
+                {{ t('chats.newChat.contactsNotFound') }}
                 <template v-if="hasPhoneInSearch">
-                    Нажмите «Написать на "{{ search }}"» выше, чтобы начать чат с новым номером.
+                    {{ t('chats.newChat.contactsNotFoundHint', { query: search }) }}
                 </template>
             </div>
 
@@ -866,7 +869,7 @@ async function unlinkGroup(chatId: number) {
                         type="button"
                         class="chip-remove"
                         @click="toggleParticipant(c.id)"
-                        title="Убрать"
+                        :title="t('chats.newChat.remove')"
                     >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -880,7 +883,7 @@ async function unlinkGroup(chatId: number) {
                 <input
                     v-model="groupSearch"
                     type="text"
-                    placeholder="Поиск по имени или номеру"
+                    :placeholder="t('chats.newChat.searchNameOrPhone')"
                     class="w-full bg-transparent text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none py-2 group-search-input"
                 />
             </div>
@@ -892,7 +895,7 @@ async function unlinkGroup(chatId: number) {
                     class="p-6 text-center text-sm"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Загрузка контактов…
+                    {{ t('chats.newChat.loadingContacts') }}
                 </div>
 
                 <template v-for="[letter, group] in groupedGroupContacts" :key="letter">
@@ -958,7 +961,7 @@ async function unlinkGroup(chatId: number) {
                     @click="goToGroupInfo"
                     class="absolute bottom-6 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition hover:brightness-95"
                     :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                    title="Далее"
+                    :title="t('chats.newChat.next')"
                     type="button"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -984,13 +987,13 @@ async function unlinkGroup(chatId: number) {
                     </div>
                     <div class="flex-1 min-w-0">
                         <label class="block text-[13px] mb-1" :style="{ color: 'var(--wa-accent)' }">
-                            Название группы
+                            {{ t('chats.newChat.groupName') }}
                         </label>
                         <input
                             v-model="groupSubject"
                             type="text"
                             maxlength="100"
-                            placeholder="Укажите название группы"
+                            :placeholder="t('chats.newChat.groupNamePlaceholder')"
                             class="w-full bg-transparent text-[15px] text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none py-1 subject-input"
                         />
                     </div>
@@ -1000,7 +1003,7 @@ async function unlinkGroup(chatId: number) {
                     class="px-4 pt-6 pb-2 text-[13px]"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Участники: {{ selectedContacts.length }}
+                    {{ t('chats.newChat.participantsCount', { count: selectedContacts.length }) }}
                 </div>
 
                 <div class="px-4 pb-2 flex flex-wrap gap-2">
@@ -1020,7 +1023,7 @@ async function unlinkGroup(chatId: number) {
                             type="button"
                             class="chip-remove"
                             @click="toggleParticipant(c.id)"
-                            title="Убрать"
+                            :title="t('chats.newChat.remove')"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1040,7 +1043,7 @@ async function unlinkGroup(chatId: number) {
                     :disabled="creatingGroup || groupSubject.trim().length === 0"
                     class="absolute bottom-6 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                    :title="groupSubject.trim().length === 0 ? 'Введите название группы' : 'Создать группу'"
+                    :title="groupSubject.trim().length === 0 ? t('chats.newChat.enterGroupName') : t('chats.newChat.createGroup')"
                     type="button"
                 >
                     <svg
@@ -1083,8 +1086,7 @@ async function unlinkGroup(chatId: number) {
                     <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
                 </svg>
                 <span>
-                    Сообщество объединяет ваши WhatsApp-группы в одном месте.
-                    Сначала задайте имя, затем добавьте группы.
+                    {{ t('chats.newChat.communityHint') }}
                 </span>
             </div>
 
@@ -1095,7 +1097,7 @@ async function unlinkGroup(chatId: number) {
                 :style="{ background: 'var(--wa-panel-header)' }"
             >
                 <label class="block text-xs mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
-                    WhatsApp-номер
+                    {{ t('chats.newChat.whatsappNumber') }}
                 </label>
                 <select
                     v-model="selectedSessionId"
@@ -1107,7 +1109,7 @@ async function unlinkGroup(chatId: number) {
                     }"
                 >
                     <option v-for="s in sessions" :key="s.id" :value="s.id">
-                        {{ s.display_name || formatPhone(s.phone_number) || s.session_name }}<template v-if="s.status !== 'connected'"> (не подключён)</template>
+                        {{ s.display_name || formatPhone(s.phone_number) || s.session_name }}<template v-if="s.status !== 'connected'">{{ t('chats.newChat.notConnected') }}</template>
                     </option>
                 </select>
             </div>
@@ -1128,20 +1130,20 @@ async function unlinkGroup(chatId: number) {
 
                 <div class="px-6">
                     <label class="block text-[13px] mb-1" :style="{ color: 'var(--wa-accent)' }">
-                        Название сообщества
+                        {{ t('chats.newChat.communityName') }}
                     </label>
                     <input
                         v-model="communityName"
                         type="text"
                         maxlength="100"
-                        placeholder="Укажите название"
+                        :placeholder="t('chats.newChat.communityNamePlaceholder')"
                         class="w-full bg-transparent text-[15px] text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none py-1 subject-input"
                     />
                 </div>
 
                 <div class="px-6 pt-6">
                     <label class="block text-[13px] mb-1" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Описание сообщества
+                        {{ t('chats.newChat.communityDescription') }}
                     </label>
                     <textarea
                         v-model="communityDescription"
@@ -1167,7 +1169,7 @@ async function unlinkGroup(chatId: number) {
                     :disabled="creatingCommunity || communityName.trim().length === 0 || !selectedSessionId"
                     class="absolute bottom-6 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     :style="{ background: 'var(--wa-accent)', color: '#fff' }"
-                    :title="creatingCommunity ? 'Создание…' : 'Создать сообщество'"
+                    :title="creatingCommunity ? t('chats.newChat.creating') : t('chats.newChat.createCommunity')"
                     type="button"
                 >
                     <svg
@@ -1225,7 +1227,7 @@ async function unlinkGroup(chatId: number) {
                     class="px-4 pt-4 pb-2 text-[13px]"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Управление группами
+                    {{ t('chats.newChat.manageGroups') }}
                 </div>
 
                 <button
@@ -1238,7 +1240,7 @@ async function unlinkGroup(chatId: number) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                     </div>
-                    <span class="text-[15px] text-left flex-1" :style="{ color: 'var(--wa-text)' }">Создать новую группу</span>
+                    <span class="text-[15px] text-left flex-1" :style="{ color: 'var(--wa-text)' }">{{ t('chats.newChat.createNewGroup') }}</span>
                 </button>
 
                 <button
@@ -1251,7 +1253,7 @@ async function unlinkGroup(chatId: number) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
                     </div>
-                    <span class="text-[15px] text-left flex-1" :style="{ color: 'var(--wa-text)' }">Добавить существующую группу</span>
+                    <span class="text-[15px] text-left flex-1" :style="{ color: 'var(--wa-text)' }">{{ t('chats.newChat.addExistingGroup') }}</span>
                 </button>
 
                 <div
@@ -1259,7 +1261,7 @@ async function unlinkGroup(chatId: number) {
                     class="px-4 pt-5 pb-1 text-[13px]"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Группы в этом сообществе
+                    {{ t('chats.newChat.groupsInCommunity') }}
                 </div>
 
                 <button
@@ -1279,7 +1281,7 @@ async function unlinkGroup(chatId: number) {
                     </div>
                     <div class="flex-1 min-w-0 text-left">
                         <div class="text-[15px] truncate" :style="{ color: 'var(--wa-text)' }">
-                            {{ g.chat_name || 'Группа' }}
+                            {{ g.chat_name || t('chats.newChat.groupFallback') }}
                         </div>
                         <div
                             v-if="g.last_message_text"
@@ -1292,7 +1294,7 @@ async function unlinkGroup(chatId: number) {
                     <button
                         type="button"
                         class="wa-back-btn shrink-0"
-                        title="Убрать из сообщества"
+                        :title="t('chats.newChat.removeFromCommunity')"
                         @click.stop="unlinkGroup(g.id)"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -1313,9 +1315,9 @@ async function unlinkGroup(chatId: number) {
                     class="p-6 text-center text-sm"
                     :style="{ color: 'var(--wa-text-secondary)' }"
                 >
-                    Нет доступных групп для добавления.
+                    {{ t('chats.newChat.noGroupsToAdd') }}
                     <br />
-                    Сначала создайте новую группу.
+                    {{ t('chats.newChat.createGroupFirst') }}
                 </div>
 
                 <button
@@ -1336,14 +1338,14 @@ async function unlinkGroup(chatId: number) {
                     </div>
                     <div class="flex-1 min-w-0 text-left">
                         <div class="text-[15px] truncate" :style="{ color: 'var(--wa-text)' }">
-                            {{ g.chat_name || 'Группа' }}
+                            {{ g.chat_name || t('chats.newChat.groupFallback') }}
                         </div>
                         <div
                             v-if="g.community_id"
                             class="text-xs truncate"
                             :style="{ color: 'var(--wa-text-secondary)' }"
                         >
-                            Состоит в другом сообществе — будет перенесена
+                            {{ t('chats.newChat.inOtherCommunity') }}
                         </div>
                     </div>
                     <svg

@@ -5,7 +5,10 @@ import { computed, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
+import { useI18n } from '@/composables/useI18n';
 import { formatPhone } from '@/utils/phone';
+
+const { t } = useI18n();
 
 type SessionOpt = { id: number; label: string; phone_number: string | null; status: string };
 type SenderOpt = { id: number; name: string };
@@ -158,7 +161,7 @@ async function runPreview(): Promise<void> {
             ? e.response.data.message
             : (e as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data?.errors
                 ? Object.values((e as any).response.data.errors).flat().join(' ')
-                : 'Не удалось построить предпросмотр.';
+                : t('broadcasts.errorPreview');
         resetPreview();
     } finally {
         if (requestId === previewRequestId) {
@@ -169,7 +172,7 @@ async function runPreview(): Promise<void> {
 
 async function startBroadcast(): Promise<void> {
     if (previewSummary.value.ready === 0) {
-        error.value = 'Нет получателей для отправки. Сначала проверьте предпросмотр.';
+        error.value = t('broadcasts.errorNoRecipients');
         return;
     }
     error.value = null;
@@ -200,7 +203,7 @@ async function startBroadcast(): Promise<void> {
         error.value = axios.isAxiosError(e)
             ? (e.response?.data?.message
                 ?? Object.values(e.response?.data?.errors ?? {}).flat().join(' '))
-            : 'Не удалось запустить рассылку.';
+            : t('broadcasts.errorStart');
     } finally {
         starting.value = false;
     }
@@ -237,27 +240,24 @@ async function refreshCampaign(id: number): Promise<void> {
 
 function statusLabel(status: string): string {
     return ({
-        pending: 'Ожидает',
-        running: 'Идёт отправка',
-        completed: 'Завершена',
-        cancelled: 'Отменена',
+        pending: t('broadcasts.statusPending'),
+        running: t('broadcasts.statusRunning'),
+        completed: t('broadcasts.statusCompleted'),
+        cancelled: t('broadcasts.statusCancelled'),
     } as Record<string, string>)[status] ?? status;
 }
 </script>
 
 <template>
     <AuthenticatedLayout>
-        <Head title="Рассылки" />
+        <Head :title="t('nav.broadcasts')" />
 
         <div class="app-page">
             <div class="app-page__scroll wa-scrollbar">
             <div class="app-page__content max-w-4xl space-y-6">
                 <header>
-                    <h1 class="text-xl font-semibold text-[var(--wa-text)]">Рассылки</h1>
-                    <p class="text-sm text-[var(--wa-text-secondary)] mt-1">
-                        Отправка только в <strong>закрытые (архивные)</strong> чаты с найденными клиентами.
-                        Excel: столбец 1 — номер, столбец 2 — текст. Между сообщениями — автозадержка.
-                    </p>
+                    <h1 class="text-xl font-semibold text-[var(--wa-text)]">{{ t('broadcasts.title') }}</h1>
+                    <p class="text-sm text-[var(--wa-text-secondary)] mt-1" v-html="t('broadcasts.intro')" />
                 </header>
 
                 <p v-if="error" class="text-sm text-red-500 rounded-lg border border-red-500/30 px-3 py-2">{{ error }}</p>
@@ -270,7 +270,7 @@ function statusLabel(status: string): string {
                             :class="{ 'is-active': mode === 'excel' }"
                             @click="mode = 'excel'"
                         >
-                            Файл Excel/CSV
+                            {{ t('broadcasts.modeExcel') }}
                         </button>
                         <button
                             type="button"
@@ -278,13 +278,13 @@ function statusLabel(status: string): string {
                             :class="{ 'is-active': mode === 'filters' }"
                             @click="mode = 'filters'"
                         >
-                            По фильтрам
+                            {{ t('broadcasts.modeFilters') }}
                         </button>
                     </UiPillNav>
 
                     <div class="grid md:grid-cols-2 gap-4">
                         <label class="block text-sm">
-                            <span class="text-[var(--wa-text-secondary)]">WhatsApp-номер (от кого)</span>
+                            <span class="text-[var(--wa-text-secondary)]">{{ t('broadcasts.whatsappFrom') }}</span>
                             <select
                                 v-model="sessionId"
                                 class="ui-input mt-1"
@@ -293,7 +293,7 @@ function statusLabel(status: string): string {
                             </select>
                         </label>
                         <label class="block text-sm">
-                            <span class="text-[var(--wa-text-secondary)]">От имени сотрудника</span>
+                            <span class="text-[var(--wa-text-secondary)]">{{ t('broadcasts.senderAs') }}</span>
                             <select
                                 v-model="senderId"
                                 class="ui-input mt-1"
@@ -306,15 +306,14 @@ function statusLabel(status: string): string {
                             class="md:col-span-2 text-sm rounded-lg border px-3 py-2.5"
                             :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                         >
-                            <p class="font-medium text-[var(--wa-text)]">Скорость отправки — автоматически</p>
+                            <p class="font-medium text-[var(--wa-text)]">{{ t('broadcasts.rateTitle') }}</p>
                             <p class="mt-1">
-                                Случайная пауза {{ rateLimit.delay_seconds_min }}–{{ rateLimit.delay_seconds_max }} сек между сообщениями
-                                (не более {{ rateLimit.max_per_day }} в сутки с одного WhatsApp-номера).
+                                {{ t('broadcasts.rateHint', { min: rateLimit.delay_seconds_min, max: rateLimit.delay_seconds_max, maxPerDay: rateLimit.max_per_day }) }}
                             </p>
                             <p v-if="rateLimit.remaining !== undefined" class="mt-1">
-                                Сейчас можно отправить ещё: <strong>{{ rateLimit.remaining }}</strong>
+                                {{ t('broadcasts.rateRemaining') }} <strong>{{ rateLimit.remaining }}</strong>
                                 <span v-if="rateLimit.sent_last_day !== undefined">
-                                    (уже {{ rateLimit.sent_last_day }} за последние 24 часа)
+                                    {{ t('broadcasts.rateSentLastDay', { count: rateLimit.sent_last_day }) }}
                                 </span>
                             </p>
                         </div>
@@ -323,7 +322,7 @@ function statusLabel(status: string): string {
                     <UiViewTransition :transition-key="mode">
                         <div v-if="mode === 'excel'">
                             <label class="block text-sm text-[var(--wa-text-secondary)]">
-                                Файл .xlsx или .csv (номер + текст)
+                                {{ t('broadcasts.fileHint') }}
                                 <input
                                     type="file"
                                     accept=".xlsx,.csv"
@@ -335,25 +334,25 @@ function statusLabel(status: string): string {
 
                         <div v-else class="space-y-3">
                             <label class="block text-sm">
-                                <span class="text-[var(--wa-text-secondary)]">Текст для всех</span>
+                                <span class="text-[var(--wa-text-secondary)]">{{ t('broadcasts.messageForAll') }}</span>
                                 <textarea
                                     v-model="filterMessage"
                                     rows="3"
                                     class="ui-input mt-1 w-full resize-y min-h-[4.5rem]"
-                                    placeholder="Сообщение для отфильтрованных закрытых чатов"
+                                    :placeholder="t('broadcasts.messagePlaceholder')"
                                 />
                             </label>
                             <div class="grid md:grid-cols-2 gap-3">
                                 <input
                                     v-model="filterSearch"
                                     type="text"
-                                    placeholder="Поиск по имени/телефону"
+                                    :placeholder="t('broadcasts.searchPlaceholder')"
                                     class="ui-input"
                                 />
                                 <input
                                     v-model="filterCompany"
                                     type="text"
-                                    placeholder="Компания"
+                                    :placeholder="t('broadcasts.companyPlaceholder')"
                                     class="ui-input"
                                 />
                             </div>
@@ -368,7 +367,7 @@ function statusLabel(status: string): string {
                             :disabled="!canPreview || loadingPreview"
                             @click="runPreview"
                         >
-                            {{ loadingPreview ? 'Проверяю…' : 'Предпросмотр' }}
+                            {{ loadingPreview ? t('broadcasts.previewLoading') : t('broadcasts.preview') }}
                         </button>
                         <button
                             type="button"
@@ -376,13 +375,13 @@ function statusLabel(status: string): string {
                             :disabled="starting || loadingPreview || previewSummary.ready === 0"
                             @click="startBroadcast"
                         >
-                            {{ starting ? 'Запуск…' : loadingPreview ? 'Считаю…' : `Отправить (${previewSummary.ready})` }}
+                            {{ starting ? t('broadcasts.starting') : loadingPreview ? t('broadcasts.counting') : t('broadcasts.send', { count: previewSummary.ready }) }}
                         </button>
                         <span
                             v-if="mode === 'filters' && loadingPreview"
                             class="text-xs text-[var(--wa-text-secondary)]"
                         >
-                            Ищем в архиве…
+                            {{ t('broadcasts.searchingArchive') }}
                         </span>
                     </div>
 
@@ -391,23 +390,22 @@ function statusLabel(status: string): string {
                         class="text-sm rounded-lg border px-3 py-2"
                         :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                     >
-                        Не найдено закрытых чатов по фильтрам на выбранном WhatsApp-номере.
-                        Оставьте поиск пустым, чтобы увидеть все архивные чаты.
+                        {{ t('broadcasts.noArchivedChats') }}
                     </p>
                 </section>
 
                 <section v-if="previewRows.length" class="ui-panel ui-table-panel overflow-hidden p-0">
                     <div class="px-4 py-2 text-sm border-b" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
-                        Предпросмотр: {{ previewSummary.ready }} к отправке, {{ previewSummary.skipped }} пропущено
+                        {{ t('broadcasts.previewSummary', { ready: previewSummary.ready, skipped: previewSummary.skipped }) }}
                     </div>
                     <div class="max-h-80 overflow-y-auto text-sm">
                         <table class="w-full">
                             <thead class="text-left text-xs text-[var(--wa-text-secondary)] sticky top-0" :style="{ background: 'var(--wa-sidebar-bg)' }">
                                 <tr>
                                     <th class="px-3 py-2">#</th>
-                                    <th class="px-3 py-2">Номер</th>
-                                    <th class="px-3 py-2">Клиент</th>
-                                    <th class="px-3 py-2">Статус</th>
+                                    <th class="px-3 py-2">{{ t('broadcasts.colPhone') }}</th>
+                                    <th class="px-3 py-2">{{ t('broadcasts.colClient') }}</th>
+                                    <th class="px-3 py-2">{{ t('broadcasts.colStatus') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -421,8 +419,8 @@ function statusLabel(status: string): string {
                                     <td class="px-3 py-2">{{ formatPhone(r.phone) || r.phone }}</td>
                                     <td class="px-3 py-2">{{ r.contact_name || '—' }}</td>
                                     <td class="px-3 py-2">
-                                        <span v-if="r.status === 'ready'" class="text-green-600">Отправим</span>
-                                        <span v-else class="text-[var(--wa-text-secondary)]" :title="r.skip_reason ?? ''">Пропуск</span>
+                                        <span v-if="r.status === 'ready'" class="text-green-600">{{ t('broadcasts.statusReady') }}</span>
+                                        <span v-else class="text-[var(--wa-text-secondary)]" :title="r.skip_reason ?? ''">{{ t('broadcasts.statusSkip') }}</span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -431,7 +429,7 @@ function statusLabel(status: string): string {
                 </section>
 
                 <section v-if="campaigns.length" class="space-y-3">
-                    <h2 class="text-sm font-semibold text-[var(--wa-text)]">Последние рассылки</h2>
+                    <h2 class="text-sm font-semibold text-[var(--wa-text)]">{{ t('broadcasts.recentCampaigns') }}</h2>
                     <div
                         v-for="c in campaigns"
                         :key="c.id"
@@ -442,10 +440,8 @@ function statusLabel(status: string): string {
                             <span class="text-[var(--wa-text-secondary)]">{{ c.session?.label }} · {{ c.sender?.name }}</span>
                         </div>
                         <p class="mt-2 text-[var(--wa-text-secondary)]">
-                            Отправлено: {{ c.sent_count }} / {{ c.ready_count }},
-                            пропущено: {{ c.skipped_count }},
-                            ошибок: {{ c.failed_count }}
-                            <span v-if="c.delay_seconds"> · случайная пауза ~{{ c.delay_seconds }}с</span>
+                            {{ t('broadcasts.campaignStats', { sent: c.sent_count, ready: c.ready_count, skipped: c.skipped_count, failed: c.failed_count }) }}
+                            <span v-if="c.delay_seconds">{{ t('broadcasts.campaignDelay', { seconds: c.delay_seconds }) }}</span>
                         </p>
                         <button
                             v-if="c.status === 'running'"
@@ -454,7 +450,7 @@ function statusLabel(status: string): string {
                             :style="{ color: 'var(--wa-accent)' }"
                             @click="startPolling(c.id)"
                         >
-                            Обновить статус
+                            {{ t('broadcasts.refreshStatus') }}
                         </button>
                     </div>
                 </section>

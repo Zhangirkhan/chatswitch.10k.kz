@@ -13,7 +13,10 @@ import { useI18n } from '@/composables/useI18n';
 import type { AppLocale } from '@/i18n/types';
 import { wallpaperPreview } from '@/config/wallpapers';
 import { messageStylePreview } from '@/config/chatBubbles';
+import { useProfileAppearanceLabels } from '@/composables/useProfileAppearanceLabels';
 import { computed, ref } from 'vue';
+
+const { messageStyleLabel: localizedMessageStyleLabel, wallpaperLabel: localizedWallpaperLabel } = useProfileAppearanceLabels();
 
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
@@ -21,8 +24,8 @@ const { presets: messageStyles, currentMessageStyleId, setMessageStyle, getCurre
 const { lang: translateLang } = useTranslationLang();
 const { locale: uiLocale, locales: uiLocaleOptions, t, setLocale: setUiLocale } = useI18n();
 
-const wallpaperLabel = computed(() => getCurrent().label);
-const messageStyleLabel = computed(() => getCurrentMessageStyle().label);
+const wallpaperLabel = computed(() => localizedWallpaperLabel(currentWallpaperId.value));
+const messageStyleLabel = computed(() => localizedMessageStyleLabel(currentMessageStyleId.value));
 const wallpaperPickerOpen = ref(false);
 const messageStylePickerOpen = ref(false);
 const isDarkTheme = computed(() => theme.value === 'dark');
@@ -54,10 +57,10 @@ function isDefaultLang(value: TranslationLang): boolean {
 
         <div class="flex-1 overflow-y-auto wa-scrollbar chats-settings">
             <section class="ui-settings-section chats-settings__section">
-                <h3 class="ui-settings-block-title">Отображение</h3>
+                <h3 class="ui-settings-block-title">{{ t('profile.chatsSection.display') }}</h3>
 
                 <div class="chats-settings__field">
-                    <span class="ui-settings-field-label" id="theme-label">Тема интерфейса</span>
+                    <span class="ui-settings-field-label" id="theme-label">{{ t('profile.chatsSection.interfaceTheme') }}</span>
                     <div
                         class="ui-theme-switch"
                         :class="{ 'is-dark': isDarkTheme }"
@@ -94,7 +97,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                 </div>
 
                 <div class="chats-settings__field">
-                    <span class="ui-settings-field-label">Обои чата</span>
+                    <span class="ui-settings-field-label">{{ t('profile.chatsSection.chatWallpaper') }}</span>
                     <button
                         type="button"
                         class="ui-settings-pick-card"
@@ -107,7 +110,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                         />
                         <div class="flex-1 min-w-0">
                             <div class="text-[15px] text-[var(--wa-text)] truncate">{{ wallpaperLabel }}</div>
-                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Нажмите, чтобы выбрать фон</div>
+                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">{{ t('profile.chatsSection.tapToPickWallpaper') }}</div>
                         </div>
                         <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -116,9 +119,9 @@ function isDefaultLang(value: TranslationLang): boolean {
                 </div>
 
                 <div class="chats-settings__field">
-                    <span class="ui-settings-field-label">Стиль сообщений</span>
+                    <span class="ui-settings-field-label">{{ t('profile.chatsSection.messageStyle') }}</span>
                     <p class="ui-settings-block-hint !mt-0 !mb-2">
-                        Цвет входящих и исходящих в ленте чата — отдельно от обоев и темы интерфейса.
+                        {{ t('profile.chatsSection.messageStyleHint') }}
                     </p>
                     <button
                         type="button"
@@ -137,7 +140,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="text-[15px] text-[var(--wa-text)] truncate">{{ messageStyleLabel }}</div>
-                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">Зелёный, синий, графит и др.</div>
+                            <div class="text-xs text-[var(--wa-text-secondary)] mt-0.5">{{ t('profile.chatsSection.messageStyleExamples') }}</div>
                         </div>
                         <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
@@ -170,12 +173,12 @@ function isDefaultLang(value: TranslationLang): boolean {
             </section>
 
             <section class="ui-settings-section chats-settings__section">
-                <h3 class="ui-settings-block-title">Перевод сообщений</h3>
+                <h3 class="ui-settings-block-title">{{ t('profile.chatsSection.translation') }}</h3>
                 <p class="ui-settings-block-hint">
-                    Выберите язык — под входящими сообщениями появится кнопка «Перевести». «Выкл» отключает перевод.
+                    {{ t('profile.chatsSection.translationHint') }}
                 </p>
 
-                <div class="ui-lang-grid" role="listbox" aria-label="Язык перевода">
+                <div class="ui-lang-grid" role="listbox" :aria-label="t('profile.chatsSection.translationLangAria')">
                     <button
                         v-for="opt in TRANSLATION_LANG_OPTIONS"
                         :key="opt.value"
@@ -194,7 +197,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                         <span
                             v-if="isDefaultLang(opt.value)"
                             class="ui-lang-chip__badge"
-                        >основной</span>
+                        >{{ t('profile.chatsSection.primaryBadge') }}</span>
                     </button>
                 </div>
             </section>
@@ -203,8 +206,8 @@ function isDefaultLang(value: TranslationLang): boolean {
         <!-- Wallpaper picker modal -->
         <UiModal
             :open="wallpaperPickerOpen"
-            title="Выберите обои"
-            subtitle="Применяется только для вашего устройства"
+            :title="t('profile.chatsSection.pickWallpaperTitle')"
+            :subtitle="t('profile.chatsSection.pickWallpaperSubtitle')"
             max-width="lg"
             body-class="p-6"
             @close="wallpaperPickerOpen = false"
@@ -241,7 +244,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                             </div>
                         </div>
                     </div>
-                    <span class="text-xs text-[var(--wa-text)] truncate max-w-full">{{ wp.label }}</span>
+                    <span class="text-xs text-[var(--wa-text)] truncate max-w-full">{{ localizedWallpaperLabel(wp.id) }}</span>
                 </button>
             </div>
 
@@ -252,14 +255,14 @@ function isDefaultLang(value: TranslationLang): boolean {
                     class="px-6 py-2 rounded-full text-white text-sm font-medium"
                     :style="{ background: 'var(--wa-accent)' }"
                 >
-                    Готово
+                    {{ t('common.done') }}
                 </button>
             </template>
         </UiModal>
 
         <UiModal
             :open="messageStylePickerOpen"
-            title="Стиль сообщений"
+            :title="t('profile.chatsSection.messageStyleTitle')"
             max-width="lg"
             body-class="p-6"
             @close="messageStylePickerOpen = false"
@@ -283,7 +286,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                             :style="{ background: messageStylePreview(preset, theme).out }"
                         />
                     </div>
-                    <div class="mt-2 font-medium text-sm text-[var(--wa-text)]">{{ preset.label }}</div>
+                    <div class="mt-2 font-medium text-sm text-[var(--wa-text)]">{{ localizedMessageStyleLabel(preset.id) }}</div>
                 </button>
             </div>
 
@@ -293,7 +296,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                     class="ui-btn ui-btn--primary"
                     @click="messageStylePickerOpen = false"
                 >
-                    Готово
+                    {{ t('common.done') }}
                 </button>
             </template>
         </UiModal>

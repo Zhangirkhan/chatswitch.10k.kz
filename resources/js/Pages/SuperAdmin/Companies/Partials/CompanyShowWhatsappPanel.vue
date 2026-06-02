@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import axios from 'axios';
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 interface WaSession {
     id: number;
@@ -21,18 +22,20 @@ const props = defineProps<{
     active?: boolean;
 }>();
 
+const { t } = useI18n();
+
 const qrById = ref<Record<number, string>>({});
 const statusById = ref<Record<number, string>>({});
 const busyId = ref<number | null>(null);
 let timer: ReturnType<typeof setInterval> | null = null;
 
-const statusLabels: Record<string, string> = {
-    connected: 'Подключён',
-    qr: 'Ожидает QR',
-    initializing: 'Инициализация',
-    disconnected: 'Отключён',
-    error: 'Ошибка',
-};
+const statusLabels = computed(() => ({
+    connected: t('superAdmin.companies.whatsapp.statusConnected'),
+    qr: t('superAdmin.companies.whatsapp.statusQr'),
+    initializing: t('superAdmin.companies.whatsapp.statusInitializing'),
+    disconnected: t('superAdmin.companies.whatsapp.statusDisconnected'),
+    error: t('superAdmin.companies.whatsapp.statusError'),
+}));
 
 async function refreshSession(session: WaSession): Promise<void> {
     if (!props.whatsappServiceReachable) return;
@@ -98,7 +101,8 @@ onBeforeUnmount(() => {
 });
 
 function displayStatus(s: WaSession): string {
-    return statusLabels[statusById.value[s.id] ?? s.status] ?? (statusById.value[s.id] ?? s.status);
+    const key = statusById.value[s.id] ?? s.status;
+    return statusLabels.value[key as keyof typeof statusLabels.value] ?? key;
 }
 </script>
 
@@ -107,23 +111,23 @@ function displayStatus(s: WaSession): string {
         <div class="ui-panel px-4 py-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <span class="text-sm text-ui-text-secondary">Номеров подключено</span>
+                    <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.whatsapp.connectedCount') }}</span>
                     <span class="ml-2 font-semibold text-ui-text">{{ sessions.length }} / {{ maxSessions }}</span>
                 </div>
                 <span
                     class="ui-badge"
                     :class="whatsappServiceReachable ? 'ui-badge--success' : 'ui-badge--admin'"
                 >
-                    {{ whatsappServiceReachable ? 'Сервис доступен' : 'Сервис недоступен' }}
+                    {{ whatsappServiceReachable ? t('superAdmin.companies.whatsapp.serviceAvailable') : t('superAdmin.companies.whatsapp.serviceUnavailable') }}
                 </span>
             </div>
             <p class="mt-2 text-xs text-ui-text-muted">
-                Управление подключением — в настройках тенанта. Здесь статус и QR для супер-админа.
+                {{ t('superAdmin.companies.whatsapp.hint') }}
             </p>
         </div>
 
         <div v-if="sessions.length === 0" class="ui-empty-state ui-empty-state--dashed">
-            WhatsApp-сессий нет
+            {{ t('superAdmin.companies.whatsapp.empty') }}
         </div>
 
         <div v-else class="grid gap-4 md:grid-cols-2">
@@ -142,12 +146,12 @@ function displayStatus(s: WaSession): string {
                     :disabled="busyId === s.id || !whatsappServiceReachable"
                     @click="refreshSession(s)"
                 >
-                    {{ busyId === s.id ? '…' : 'Обновить статус / QR' }}
+                    {{ busyId === s.id ? t('superAdmin.common.emDash') : t('superAdmin.companies.whatsapp.refresh') }}
                 </button>
                 <img
                     v-if="qrById[s.id]"
                     :src="qrById[s.id]"
-                    alt="QR код WhatsApp"
+                    :alt="t('superAdmin.companies.whatsapp.qrAlt')"
                     class="mx-auto max-h-48 rounded-lg border border-ui-border bg-white p-2"
                 />
             </div>

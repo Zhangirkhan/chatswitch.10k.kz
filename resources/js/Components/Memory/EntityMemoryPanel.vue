@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import { useI18n } from '@/composables/useI18n';
 import { onMounted, ref, watch } from 'vue';
 import axios from 'axios';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     subjectType: 'tenant' | 'contact' | 'employee' | 'client_company';
@@ -51,7 +54,7 @@ async function load(): Promise<void> {
         meta.value = data.memory as MemoryPayload;
         content.value = meta.value?.content ?? '';
     } catch (e: any) {
-        error.value = e?.response?.data?.message || 'Не удалось загрузить memory.md';
+        error.value = e?.response?.data?.message || t('misc.components.entityMemory.loadFailed');
     } finally {
         loading.value = false;
     }
@@ -74,7 +77,7 @@ async function save(): Promise<void> {
             saved.value = false;
         }, 2000);
     } catch (e: any) {
-        error.value = e?.response?.data?.message || e?.response?.data?.errors?.content?.[0] || 'Не удалось сохранить';
+        error.value = e?.response?.data?.message || e?.response?.data?.errors?.content?.[0] || t('misc.components.entityMemory.saveFailed');
     } finally {
         saving.value = false;
     }
@@ -127,7 +130,7 @@ async function confirmRestoreBackup(): Promise<void> {
         content.value = meta.value?.content ?? '';
         backupsOpen.value = false;
     } catch (e: any) {
-        error.value = e?.response?.data?.message || 'Не удалось восстановить';
+        error.value = e?.response?.data?.message || t('misc.components.entityMemory.restoreFailed');
     } finally {
         saving.value = false;
     }
@@ -161,7 +164,7 @@ watch(
         >
             <div class="min-w-0">
                 <div class="font-medium truncate" :style="{ color: 'var(--wa-text)' }">
-                    memory.md — {{ meta?.subject_label || 'Память' }}
+                    memory.md — {{ meta?.subject_label || t('misc.components.entityMemory.memoryTitle') }}
                 </div>
                 <div v-if="meta?.title" class="text-[11px] truncate" :style="{ color: 'var(--wa-text-secondary)' }">
                     {{ meta.title }}
@@ -175,7 +178,7 @@ watch(
                     :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                     @click="openBackups"
                 >
-                    Бэкапы
+                    {{ t('misc.components.entityMemory.backups') }}
                 </button>
                 <button
                     type="button"
@@ -184,12 +187,12 @@ watch(
                     :disabled="saving || loading"
                     @click="save"
                 >
-                    {{ saving ? '…' : saved ? 'Сохранено' : 'Сохранить' }}
+                    {{ saving ? t('misc.components.entityMemory.saving') : saved ? t('misc.components.entityMemory.saved') : t('misc.components.entityMemory.save') }}
                 </button>
             </div>
         </div>
 
-        <div v-if="loading" class="px-3 py-4" :style="{ color: 'var(--wa-text-secondary)' }">Загрузка…</div>
+        <div v-if="loading" class="px-3 py-4" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.entityMemory.loading') }}</div>
         <div v-else class="p-3 space-y-2">
             <p v-if="error" class="text-[12px] text-red-400">{{ error }}</p>
             <textarea
@@ -201,12 +204,12 @@ watch(
                     background: 'var(--wa-bg)',
                     color: 'var(--wa-text)',
                 }"
-                placeholder="# Заметки в формате Markdown…"
+                :placeholder="t('misc.components.entityMemory.placeholder')"
             />
             <p v-if="meta?.updated_at" class="text-[10px]" :style="{ color: 'var(--wa-text-secondary)' }">
-                Обновлено {{ new Date(meta.updated_at).toLocaleString('ru-RU') }}
+                {{ t('misc.components.entityMemory.updatedAt', { date: new Date(meta.updated_at).toLocaleString('ru-RU') }) }}
                 <span v-if="meta.updated_by?.name"> · {{ meta.updated_by.name }}</span>
-                <span v-if="meta.file_path"> · файл: {{ meta.file_path }}</span>
+                <span v-if="meta.file_path"> t('misc.components.entityMemory.filePath', { path: meta.file_path })</span>
             </p>
         </div>
 
@@ -220,12 +223,12 @@ watch(
                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border)' }"
             >
                 <div class="px-4 py-3 border-b font-medium" :style="{ borderColor: 'var(--wa-border)' }">
-                    Бэкапы memory.md
+                    {{ t('misc.components.entityMemory.backupsTitle') }}
                 </div>
                 <div class="flex-1 overflow-y-auto wa-scrollbar p-3 space-y-2">
-                    <p v-if="backupsLoading" class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">Загрузка…</p>
+                    <p v-if="backupsLoading" class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">{{ t('misc.components.entityMemory.loading') }}</p>
                     <p v-else-if="backups.length === 0" class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Пока нет сохранённых версий.
+                        {{ t('misc.components.entityMemory.backupsEmpty') }}
                     </p>
                     <button
                         v-for="row in backups"
@@ -251,7 +254,7 @@ watch(
                         :style="{ borderColor: 'var(--wa-border)', color: 'var(--wa-text-secondary)' }"
                         @click="backupsOpen = false"
                     >
-                        Закрыть
+                        {{ t('misc.components.entityMemory.close') }}
                     </button>
                 </div>
             </div>
@@ -259,9 +262,9 @@ watch(
 
         <DangerConfirmModal
             :open="restoreConfirmOpen"
-            title="Восстановить версию?"
-            description="Восстановить эту версию memory.md? Текущий текст уйдёт в бэкап."
-            confirm-label="Восстановить"
+            :title="t('misc.components.entityMemory.restoreTitle')"
+            :description="t('misc.components.entityMemory.restoreDesc')"
+            :confirm-label="t('misc.components.entityMemory.restoreConfirm')"
             :busy="saving"
             confirm-variant="primary"
             @close="closeRestoreConfirm"

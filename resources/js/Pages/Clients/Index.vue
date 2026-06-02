@@ -9,6 +9,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 import { formatPhone } from '@/utils/phone';
 import { useToastStore } from '@/stores/toast';
 
@@ -50,6 +51,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const search = ref(props.search || '');
 const filters = ref<Record<string, string>>({ ...props.filters });
@@ -108,7 +110,7 @@ function displayName(c: ClientListItem): string {
         || (c.push_name || '').trim()
         || (c.last_chat_name || '').trim()
         || formatPhone(c.phone_number)
-        || 'Без имени'
+        || t('clients.noName')
     );
 }
 
@@ -213,15 +215,15 @@ async function saveCompany(): Promise<void> {
         const payload = { ...companyForm.value, name: companyForm.value.name.trim() };
         if (openedCompanyId.value === 'new') {
             await axios.post(route('settings.companies.store'), payload);
-            showToast({ message: 'Компания создана' });
+            showToast({ message: t('clients.toastCompanyCreated') });
         } else if (openedCompanyId.value) {
             await axios.put(route('settings.companies.update', openedCompanyId.value), payload);
-            showToast({ message: 'Компания обновлена' });
+            showToast({ message: t('clients.toastCompanyUpdated') });
         }
         closeCompany();
         router.reload({ only: ['clients', 'companies', 'companyOptions'] });
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось сохранить компанию' });
+        showToast({ message: e?.response?.data?.message || t('clients.toastCompanySaveError') });
     } finally {
         companySaving.value = false;
     }
@@ -244,12 +246,12 @@ async function confirmDeleteCompany(): Promise<void> {
     companyDeleting.value = true;
     try {
         await axios.delete(route('settings.companies.destroy', company.id));
-        showToast({ message: 'Компания удалена' });
+        showToast({ message: t('clients.toastCompanyDeleted') });
         companyDeleteDialogOpen.value = false;
         companyDeleteTarget.value = null;
         router.reload({ only: ['clients', 'companies', 'companyOptions'] });
     } catch (e: any) {
-        showToast({ message: e?.response?.data?.message || 'Не удалось удалить компанию' });
+        showToast({ message: e?.response?.data?.message || t('clients.toastCompanyDeleteError') });
     } finally {
         companyDeleting.value = false;
     }
@@ -258,19 +260,19 @@ async function confirmDeleteCompany(): Promise<void> {
 const companyDeleteDescription = computed(() => {
     const c = companyDeleteTarget.value;
     if (!c) return '';
-    return `Удалить компанию «${c.name}»? Связи с клиентами тоже будут удалены.`;
+    return t('clients.deleteCompanyDescription', { name: c.name });
 });
 </script>
 
 <template>
-    <Head title="Клиенты" />
+    <Head :title="t('nav.clients')" />
 
     <AuthenticatedLayout>
         <div class="flex h-full min-h-0 flex-col overflow-hidden">
             <header class="shrink-0 border-b border-[var(--ui-border)] bg-[var(--ui-surface)] px-4 py-4 sm:px-6">
                 <div class="mb-3">
-                    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Клиенты</h1>
-                    <p class="text-sm text-[var(--ui-text-secondary)]">Карточки клиентов, профиль и AI-сводка</p>
+                    <h1 class="text-lg font-semibold text-[var(--ui-text)]">{{ t('clients.title') }}</h1>
+                    <p class="text-sm text-[var(--ui-text-secondary)]">{{ t('clients.subtitle') }}</p>
                 </div>
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex flex-wrap items-center gap-[var(--primitive-gap-sm)]">
@@ -281,7 +283,7 @@ const companyDeleteDescription = computed(() => {
                                 :class="{ 'is-active': activeTab === 'clients' }"
                                 @click="activeTab = 'clients'"
                             >
-                                <span class="truncate">Клиенты</span>
+                                <span class="truncate">{{ t('nav.clients') }}</span>
                                 <span class="ui-tab-badge ui-tab-badge--neutral">{{ total }}</span>
                             </button>
                             <button
@@ -291,7 +293,7 @@ const companyDeleteDescription = computed(() => {
                                 :class="{ 'is-active': activeTab === 'companies' }"
                                 @click="activeTab = 'companies'"
                             >
-                                <span class="truncate">Компании</span>
+                                <span class="truncate">{{ t('clients.tabCompanies') }}</span>
                                 <span class="ui-tab-badge ui-tab-badge--neutral">{{ companiesTotal }}</span>
                             </button>
                         </UiPillNav>
@@ -301,14 +303,14 @@ const companyDeleteDescription = computed(() => {
                             class="ui-btn ui-btn--primary ui-btn--sm"
                             @click="openCompany()"
                         >
-                            + Компания
+                            {{ t('clients.addCompany') }}
                         </button>
                     </div>
                     <input
                         v-model="search"
                         type="search"
                         class="ui-input w-full min-w-[240px] !rounded-[var(--primitive-radius-pill)] lg:max-w-sm"
-                        :placeholder="activeTab === 'clients' ? 'Поиск по имени, номеру, WhatsApp ID' : 'Поиск по компаниям'"
+                        :placeholder="activeTab === 'clients' ? t('clients.searchClients') : t('clients.searchCompanies')"
                     />
                 </div>
             </header>
@@ -325,11 +327,11 @@ const companyDeleteDescription = computed(() => {
                     />
 
                     <div class="text-xs text-[var(--ui-text-secondary)]">
-                        Показано {{ props.clients.from || 0 }}–{{ props.clients.to || 0 }} из {{ props.clients.total }}
+                        {{ t('clients.shownRange', { from: props.clients.from || 0, to: props.clients.to || 0, total: props.clients.total }) }}
                     </div>
 
                     <div v-if="clients.length === 0" class="py-16 text-center text-sm text-[var(--ui-text-secondary)]">
-                        {{ activeFilterParams() ? 'По выбранным фильтрам никого не найдено' : 'Клиенты не найдены' }}
+                        {{ activeFilterParams() ? t('clients.emptyFiltered') : t('clients.emptyClients') }}
                     </div>
 
                     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -367,14 +369,14 @@ const companyDeleteDescription = computed(() => {
                     </div>
 
                     <div v-if="props.clients.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page <= 1" @click="goToPage('clients', props.clients.current_page - 1)">Назад</button>
-                        <span class="text-xs text-[var(--ui-text-secondary)]">Страница {{ props.clients.current_page }} из {{ props.clients.last_page }}</span>
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page >= props.clients.last_page" @click="goToPage('clients', props.clients.current_page + 1)">Вперёд</button>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page <= 1" @click="goToPage('clients', props.clients.current_page - 1)">{{ t('common.back') }}</button>
+                        <span class="text-xs text-[var(--ui-text-secondary)]">{{ t('clients.pageOf', { current: props.clients.current_page, last: props.clients.last_page }) }}</span>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.clients.current_page >= props.clients.last_page" @click="goToPage('clients', props.clients.current_page + 1)">{{ t('common.forward') }}</button>
                     </div>
                 </div>
 
                 <div v-else-if="canManageCompanies" class="space-y-4">
-                    <div class="text-xs text-[var(--ui-text-secondary)]">Показано {{ props.companies.from || 0 }}–{{ props.companies.to || 0 }} из {{ props.companies.total }}</div>
+                    <div class="text-xs text-[var(--ui-text-secondary)]">{{ t('clients.shownRange', { from: props.companies.from || 0, to: props.companies.to || 0, total: props.companies.total }) }}</div>
                     <div
                         v-for="company in companies"
                         :key="company.id"
@@ -383,23 +385,23 @@ const companyDeleteDescription = computed(() => {
                         <div class="mb-2 flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-medium text-[var(--ui-text)]">{{ company.name }}</div>
-                                <div class="text-xs text-[var(--ui-text-secondary)]">Клиентов: {{ company.clients_count }}</div>
+                                <div class="text-xs text-[var(--ui-text-secondary)]">{{ t('clients.clientsInCompany', { count: company.clients_count }) }}</div>
                             </div>
                             <div class="flex gap-[var(--primitive-gap-sm)]">
-                                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="openCompany(company)">Изменить</button>
-                                <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="requestDeleteCompany(company)">Удалить</button>
+                                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="openCompany(company)">{{ t('common.edit') }}</button>
+                                <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="requestDeleteCompany(company)">{{ t('common.delete') }}</button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 gap-1 text-xs text-[var(--ui-text-secondary)] sm:grid-cols-2">
-                            <div v-if="company.phone">Тел: {{ company.phone }}</div>
+                            <div v-if="company.phone">{{ t('clients.phoneShort', { phone: company.phone }) }}</div>
                             <div v-if="company.email">Email: {{ company.email }}</div>
-                            <div v-if="company.website" class="sm:col-span-2">Сайт: {{ company.website }}</div>
+                            <div v-if="company.website" class="sm:col-span-2">{{ t('clients.websiteShort', { website: company.website }) }}</div>
                         </div>
                     </div>
                     <div v-if="props.companies.last_page > 1" class="flex items-center justify-between gap-3 pt-2">
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page <= 1" @click="goToPage('companies', props.companies.current_page - 1)">Назад</button>
-                        <span class="text-xs text-[var(--ui-text-secondary)]">Страница {{ props.companies.current_page }} из {{ props.companies.last_page }}</span>
-                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page >= props.companies.last_page" @click="goToPage('companies', props.companies.current_page + 1)">Вперёд</button>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page <= 1" @click="goToPage('companies', props.companies.current_page - 1)">{{ t('common.back') }}</button>
+                        <span class="text-xs text-[var(--ui-text-secondary)]">{{ t('clients.pageOf', { current: props.companies.current_page, last: props.companies.last_page }) }}</span>
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" :disabled="props.companies.current_page >= props.companies.last_page" @click="goToPage('companies', props.companies.current_page + 1)">{{ t('common.forward') }}</button>
                     </div>
                 </div>
             </div>
@@ -418,17 +420,17 @@ const companyDeleteDescription = computed(() => {
                 <div class="mx-auto flex min-h-[calc(100%-2rem)] max-w-[520px] items-center justify-center">
                     <div class="flex w-full max-h-[min(90dvh,calc(100dvh-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)]">
                         <div class="flex shrink-0 items-center justify-between bg-[var(--ui-surface-muted)] px-5 py-4">
-                            <div class="text-sm font-medium text-[var(--ui-text)]">{{ openedCompanyId === 'new' ? 'Новая компания' : `Компания: ${openedCompany?.name || ''}` }}</div>
-                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm text-base leading-none" aria-label="Закрыть" @click="closeCompany">✕</button>
+                            <div class="text-sm font-medium text-[var(--ui-text)]">{{ openedCompanyId === 'new' ? t('clients.newCompany') : t('clients.companyTitle', { name: openedCompany?.name || '' }) }}</div>
+                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm text-base leading-none" :aria-label="t('common.close')" @click="closeCompany">✕</button>
                         </div>
                         <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-sm">
                             <div>
-                                <label class="ui-filter-field__label">Название</label>
+                                <label class="ui-filter-field__label">{{ t('clients.fieldName') }}</label>
                                 <input v-model="companyForm.name" type="text" class="ui-input" />
                             </div>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div>
-                                    <label class="ui-filter-field__label">Телефон</label>
+                                    <label class="ui-filter-field__label">{{ t('clients.fieldPhone') }}</label>
                                     <input v-model="companyForm.phone" type="text" class="ui-input" />
                                 </div>
                                 <div>
@@ -437,17 +439,17 @@ const companyDeleteDescription = computed(() => {
                                 </div>
                             </div>
                             <div>
-                                <label class="ui-filter-field__label">Сайт</label>
+                                <label class="ui-filter-field__label">{{ t('clients.fieldWebsite') }}</label>
                                 <input v-model="companyForm.website" type="text" class="ui-input" />
                             </div>
                             <div>
-                                <label class="ui-filter-field__label">Описание</label>
+                                <label class="ui-filter-field__label">{{ t('clients.fieldDescription') }}</label>
                                 <textarea v-model="companyForm.description" rows="3" class="ui-input" />
                             </div>
                         </div>
                         <div class="flex shrink-0 justify-end gap-[var(--primitive-gap-sm)] border-t border-[var(--ui-border)] px-5 py-4">
-                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">Закрыть</button>
-                            <button type="button" class="ui-btn ui-btn--primary" :disabled="companySaving || !companyForm.name.trim()" @click="saveCompany">Сохранить</button>
+                            <button type="button" class="ui-btn ui-btn--secondary" @click="closeCompany">{{ t('common.close') }}</button>
+                            <button type="button" class="ui-btn ui-btn--primary" :disabled="companySaving || !companyForm.name.trim()" @click="saveCompany">{{ t('common.save') }}</button>
                         </div>
                     </div>
                 </div>
@@ -456,9 +458,9 @@ const companyDeleteDescription = computed(() => {
 
         <DangerConfirmModal
             :open="companyDeleteDialogOpen"
-            title="Удалить компанию?"
+            :title="t('clients.deleteCompanyTitle')"
             :description="companyDeleteDescription"
-            confirm-label="Удалить"
+            :confirm-label="t('common.delete')"
             :busy="companyDeleting"
             confirm-variant="danger"
             @close="closeCompanyDeleteDialog"

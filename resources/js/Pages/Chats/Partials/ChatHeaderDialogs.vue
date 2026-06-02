@@ -7,9 +7,11 @@ import UiModal from '@/Components/Ui/UiModal.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import FunnelStageWheelPicker from '@/Components/FunnelStageWheelPicker.vue';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
+import { useI18n } from '@/composables/useI18n';
 import { CHAT_HEADER_DIALOGS_KEY } from './chatHeaderDialogsKey';
 import type { ChatHeaderDialogsContext } from './chatHeaderDialogsContext';
 
+const { t } = useI18n();
 const ctx = inject(CHAT_HEADER_DIALOGS_KEY) as ChatHeaderDialogsContext;
 
 function setFunnelWheelRef(el: unknown): void {
@@ -20,21 +22,21 @@ function setFunnelWheelRef(el: unknown): void {
 <template>
         <UiModal
             :open="ctx.departmentModalOpen"
-            title="Отделы чата"
-            subtitle="Выбор отделов и история изменений"
+            :title="t('chats.headerDialogs.departmentsTitle')"
+            :subtitle="t('chats.headerDialogs.departmentsSubtitle')"
             max-width="lg"
             :z-index="1200"
-            aria-label="Отделы чата"
+            :aria-label="t('chats.headerDialogs.departmentsTitle')"
             body-class="px-5 py-4 space-y-5"
             @close="ctx.closeDepartmentModal"
         >
                         <section>
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <div>
-                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">Прикрепить отделы</h4>
-                                    <p class="text-xs text-[var(--wa-text-secondary)]">Изменения сохраняются автоматически.</p>
+                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">{{ t('chats.headerDialogs.attachDepartments') }}</h4>
+                                    <p class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.autoSaveHint') }}</p>
                                 </div>
-                                <span v-if="ctx.savingDepartments" class="text-xs text-[var(--wa-text-secondary)]">Сохранение…</span>
+                                <span v-if="ctx.savingDepartments" class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.saving') }}</span>
                             </div>
 
                             <label class="assign-searchbox mb-3">
@@ -45,7 +47,7 @@ function setFunnelWheelRef(el: unknown): void {
                                     v-model="ctx.departmentSearchQuery"
                                     type="search"
                                     autocomplete="off"
-                                    placeholder="Поиск отдела..."
+                                    :placeholder="t('chats.headerDialogs.searchDepartment')"
                                     class="assign-search"
                                 />
                             </label>
@@ -77,7 +79,7 @@ function setFunnelWheelRef(el: unknown): void {
                                     v-if="ctx.filteredDepartments.length === 0"
                                     class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-xl text-left mx-3 my-3"
                                 >
-                                    {{ ctx.departmentSearchQuery.trim() ? 'Ничего не найдено' : 'Нет доступных отделов. Создайте их в разделе «Настройки → Отделы».' }}
+                                    {{ ctx.departmentSearchQuery.trim() ? t('chats.nothingFound') : t('chats.header.noDepartments') }}
                                 </div>
                             </div>
                         </section>
@@ -96,8 +98,8 @@ function setFunnelWheelRef(el: unknown): void {
                                         </svg>
                                     </span>
                                     <div>
-                                        <div class="text-sm font-medium text-[var(--wa-text)]">История смен отделов</div>
-                                        <div class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял отделы этого чата</div>
+                                        <div class="text-sm font-medium text-[var(--wa-text)]">{{ t('chats.headerDialogs.departmentHistory') }}</div>
+                                        <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.departmentHistoryHint') }}</div>
                                     </div>
                                 </div>
                                 <svg class="w-4 h-4 shrink-0 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -112,7 +114,7 @@ function setFunnelWheelRef(el: unknown): void {
             :open="ctx.departmentHistoryModalOpen"
             max-width="md"
             :z-index="1300"
-            aria-label="История смен отделов"
+            :aria-label="t('chats.headerDialogs.departmentHistory')"
             body-class="px-5 py-4"
             :show-close="false"
             @close="ctx.closeDepartmentHistoryModal"
@@ -122,7 +124,7 @@ function setFunnelWheelRef(el: unknown): void {
                     <button
                         type="button"
                         class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                        aria-label="Назад"
+                        :aria-label="t('chats.back')"
                         @click="ctx.closeDepartmentHistoryModal"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -130,8 +132,8 @@ function setFunnelWheelRef(el: unknown): void {
                         </svg>
                     </button>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">История смен отделов</h3>
-                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">Кто и когда менял отделы этого чата</p>
+                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">{{ t('chats.headerDialogs.departmentHistory') }}</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">{{ t('chats.headerDialogs.departmentHistoryHint') }}</p>
                     </div>
                     <button
                         type="button"
@@ -140,23 +142,23 @@ function setFunnelWheelRef(el: unknown): void {
                         :disabled="ctx.departmentHistoryLoading"
                         @click="ctx.loadDepartmentHistory"
                     >
-                        Обновить
+                        {{ t('chats.refresh') }}
                     </button>
                 </div>
             </template>
 
                         <div v-if="ctx.departmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
-                            Загрузка истории…
+                            {{ t('chats.loadingHistory') }}
                         </div>
                         <div v-else-if="ctx.departmentHistoryError" class="py-4 text-sm text-[var(--wa-danger)]">
                             {{ ctx.departmentHistoryError }}
                         </div>
                         <div v-else-if="ctx.departmentHistory.length === 0" class="space-y-3">
                             <div class="rounded-xl border px-4 py-4 text-sm text-[var(--wa-text-secondary)]" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
-                                История смен отделов пока пустая. Новые изменения будут появляться здесь.
+                                {{ t('chats.headerDialogs.departmentHistoryEmpty') }}
                             </div>
                             <div v-if="ctx.currentDepartmentsHistory.length" class="rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
-                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">Текущие отделы</div>
+                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.currentDepartments') }}</div>
                                 <div class="flex flex-wrap gap-2">
                                     <span
                                         v-for="row in ctx.currentDepartmentsHistory"
@@ -183,21 +185,21 @@ function setFunnelWheelRef(el: unknown): void {
 
         <UiModal
             :open="ctx.assignmentModalOpen"
-            title="Ответственные"
-            subtitle="Текущие ответственные и история смен"
+            :title="t('chats.headerDialogs.assigneesTitle')"
+            :subtitle="t('chats.headerDialogs.assigneesSubtitle')"
             max-width="lg"
             :z-index="1200"
-            aria-label="Ответственные за чат"
+            :aria-label="t('chats.header.assigneesTitle')"
             body-class="px-5 py-4 space-y-5"
             @close="ctx.closeAssignmentModal"
         >
                         <section>
                             <div class="flex items-center justify-between gap-3 mb-3">
                                 <div>
-                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">Назначить сотрудников</h4>
-                                    <p class="text-xs text-[var(--wa-text-secondary)]">Изменения сохраняются автоматически.</p>
+                                    <h4 class="text-sm font-semibold text-[var(--wa-text)]">{{ t('chats.headerDialogs.assignEmployees') }}</h4>
+                                    <p class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.autoSaveHint') }}</p>
                                 </div>
-                                <span v-if="ctx.savingUsers" class="text-xs text-[var(--wa-text-secondary)]">Сохранение…</span>
+                                <span v-if="ctx.savingUsers" class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.saving') }}</span>
                             </div>
 
                             <label class="assign-searchbox mb-3">
@@ -208,7 +210,7 @@ function setFunnelWheelRef(el: unknown): void {
                                     v-model="ctx.userSearchQuery"
                                     type="search"
                                     autocomplete="off"
-                                    placeholder="Поиск сотрудника..."
+                                    :placeholder="t('chats.headerDialogs.searchEmployee')"
                                     class="assign-search"
                                 />
                             </label>
@@ -249,7 +251,7 @@ function setFunnelWheelRef(el: unknown): void {
                                     v-if="ctx.filteredAssignableUsers.length === 0"
                                     class="ui-empty-state ui-empty-state--dashed border-0 shadow-none rounded-xl text-left mx-3 my-3"
                                 >
-                                    {{ ctx.userSearchQuery.trim() ? 'Ничего не найдено' : 'Нет пользователей для назначения' }}
+                                    {{ ctx.userSearchQuery.trim() ? t('chats.nothingFound') : t('chats.headerDialogs.noUsersToAssign') }}
                                 </div>
                             </div>
                         </section>
@@ -268,8 +270,8 @@ function setFunnelWheelRef(el: unknown): void {
                                         </svg>
                                     </span>
                                     <div>
-                                        <div class="text-sm font-medium text-[var(--wa-text)]">История смен</div>
-                                        <div class="text-xs text-[var(--wa-text-secondary)]">Кто и когда менял ответственных</div>
+                                        <div class="text-sm font-medium text-[var(--wa-text)]">{{ t('chats.headerDialogs.assignmentHistory') }}</div>
+                                        <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.assignmentChangesHint') }}</div>
                                     </div>
                                 </div>
                                 <svg class="w-4 h-4 shrink-0 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -284,7 +286,7 @@ function setFunnelWheelRef(el: unknown): void {
             :open="ctx.assignmentHistoryModalOpen"
             max-width="md"
             :z-index="1300"
-            aria-label="История смен ответственных"
+            :aria-label="t('chats.headerDialogs.assignmentHistory')"
             body-class="px-5 py-4"
             :show-close="false"
             @close="ctx.closeAssignmentHistoryModal"
@@ -294,7 +296,7 @@ function setFunnelWheelRef(el: unknown): void {
                     <button
                         type="button"
                         class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--wa-panel-hover)] text-[var(--wa-text-secondary)] shrink-0"
-                        aria-label="Назад"
+                        :aria-label="t('chats.back')"
                         @click="ctx.closeAssignmentHistoryModal"
                     >
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -302,8 +304,8 @@ function setFunnelWheelRef(el: unknown): void {
                         </svg>
                     </button>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">История смен</h3>
-                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">Кто был назначен или снят ответственным</p>
+                        <h3 class="text-base font-semibold text-[var(--wa-text)] m-0">{{ t('chats.headerDialogs.assignmentHistory') }}</h3>
+                        <p class="text-xs text-[var(--wa-text-secondary)] mb-0">{{ t('chats.headerDialogs.assignmentHistoryHint') }}</p>
                     </div>
                     <button
                         type="button"
@@ -312,27 +314,27 @@ function setFunnelWheelRef(el: unknown): void {
                         :disabled="ctx.assignmentHistoryLoading"
                         @click="ctx.loadAssignmentHistory"
                     >
-                        Обновить
+                        {{ t('chats.refresh') }}
                     </button>
                 </div>
             </template>
 
                         <div v-if="ctx.assignmentHistoryLoading" class="py-8 text-sm text-center text-[var(--wa-text-secondary)]">
-                            Загрузка истории…
+                            {{ t('chats.loadingHistory') }}
                         </div>
                         <div v-else-if="ctx.assignmentHistoryError" class="py-4 text-sm text-[var(--wa-danger)]">
                             {{ ctx.assignmentHistoryError }}
                         </div>
                         <div v-else-if="ctx.assignmentHistory.length === 0" class="space-y-3">
                             <div class="rounded-xl border px-4 py-4 text-sm text-[var(--wa-text-secondary)]" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
-                                История смен пока пустая. Новые изменения ответственных будут появляться здесь.
+                                {{ t('chats.headerDialogs.assignmentHistoryEmpty') }}
                             </div>
                             <div v-if="ctx.currentAssignmentsHistory.length" class="rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
-                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">Текущие ответственные</div>
+                                <div class="text-xs font-semibold mb-2 text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.currentAssignees') }}</div>
                                 <div v-for="row in ctx.currentAssignmentsHistory" :key="row.id" class="text-sm py-1 text-[var(--wa-text)]">
                                     {{ row.user_name || ('#' + row.user_id) }}
                                     <span class="text-xs text-[var(--wa-text-secondary)]">
-                                        · назначил {{ row.assigned_by_name || '—' }} · {{ ctx.formatAssignmentTime(row.assigned_at) }}
+                                        {{ t('chats.headerDialogs.assignedBy', { name: row.assigned_by_name || '—', time: ctx.formatAssignmentTime(row.assigned_at) }) }}
                                     </span>
                                 </div>
                             </div>
@@ -352,35 +354,35 @@ function setFunnelWheelRef(el: unknown): void {
 
         <UiModal
             :open="ctx.funnelModalOpen"
-            title="Воронка продаж"
-            subtitle="Этап в чате с клиентом (и авто-оценка по входящим)"
+            :title="t('chats.headerDialogs.funnelTitle')"
+            :subtitle="t('chats.headerDialogs.funnelSubtitle')"
             max-width="lg"
             :z-index="1250"
-            aria-label="Воронка продаж"
+            :aria-label="t('chats.headerDialogs.funnelTitle')"
             body-class="px-5 py-4 space-y-5"
             @close="ctx.closeFunnelModal"
         >
                         <div v-if="ctx.funnelCatalogList.length === 0" class="text-sm text-[var(--wa-text-secondary)] rounded-xl border px-4 py-3" :style="{ borderColor: 'var(--wa-border)' }">
-                            Нет доступных воронок. Подключите воронки к отделам чата в настройках отделов.
+                            {{ t('chats.headerDialogs.noFunnels') }}
                         </div>
 
                         <template v-else>
                             <div>
-                                <label class="block text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">Воронка</label>
+                                <label class="block text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">{{ t('chats.headerDialogs.funnelLabel') }}</label>
                                 <select
                                     :value="ctx.funnelModalFunnelId === null ? '' : String(ctx.funnelModalFunnelId)"
                                     class="w-full rounded-xl border px-3 py-2 text-sm bg-[var(--wa-panel-header)] text-[var(--wa-text)]"
                                     :style="{ borderColor: 'var(--wa-border)' }"
                                     @change="ctx.onFunnelSelect"
                                 >
-                                    <option value="">Не выбрано (сброс)</option>
+                                    <option value="">{{ t('chats.headerDialogs.funnelReset') }}</option>
                                     <option v-for="f in ctx.funnelCatalogList" :key="f.id" :value="String(f.id)">{{ f.name }}</option>
                                 </select>
                             </div>
 
                             <div v-if="ctx.funnelModalFunnelId != null && ctx.modalStagesOrdered.length">
                                 <div class="flex items-center justify-between gap-2 mb-2">
-                                    <div class="text-xs font-semibold text-[var(--wa-text-secondary)]">Этап воронки</div>
+                                    <div class="text-xs font-semibold text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.funnelStageLabel') }}</div>
                                     <span
                                         v-if="ctx.modalStageIndex >= 0"
                                         class="text-xs font-medium tabular-nums text-[var(--wa-text-secondary)]"
@@ -432,7 +434,7 @@ function setFunnelWheelRef(el: unknown): void {
                                 />
 
                                 <p class="mt-2 text-[11px] text-[var(--wa-text-secondary)]">
-                                    Крутите барабан или нажмите этап — выбранный окажется в центре.
+                                    {{ t('chats.headerDialogs.funnelDrumHint') }}
                                 </p>
                             </div>
                             <div
@@ -440,15 +442,15 @@ function setFunnelWheelRef(el: unknown): void {
                                 class="text-sm text-[var(--wa-text-secondary)] rounded-xl border px-4 py-3"
                                 :style="{ borderColor: 'var(--wa-border)' }"
                             >
-                                У выбранной воронки нет этапов.
+                                {{ t('chats.headerDialogs.funnelNoStages') }}
                             </div>
                             <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
                                 <UiCheckbox v-model="ctx.funnelModalTracking" size="sm" />
-                                Авто-оценка этапа по входящим сообщениям
+                                {{ t('chats.headerDialogs.funnelAutoEval') }}
                             </label>
                             <label class="flex items-center gap-2 text-sm text-[var(--wa-text)] cursor-pointer">
                                 <UiCheckbox v-model="ctx.funnelModalLocked" size="sm" />
-                                Закрепить этап (AI не меняет)
+                                {{ t('chats.headerDialogs.funnelPinStage') }}
                             </label>
 
                             <div class="flex gap-2">
@@ -462,7 +464,7 @@ function setFunnelWheelRef(el: unknown): void {
                                         ctx.funnelModalStageId = null;
                                     "
                                 >
-                                    Сбросить воронку
+                                    {{ t('chats.headerDialogs.funnelResetAction') }}
                                 </button>
                                 <button
                                     type="button"
@@ -470,13 +472,13 @@ function setFunnelWheelRef(el: unknown): void {
                                     :disabled="ctx.funnelSaving"
                                     @click="ctx.saveFunnelModal"
                                 >
-                                    {{ ctx.funnelSaving ? 'Сохранение…' : 'Сохранить' }}
+                                    {{ ctx.funnelSaving ? t('chats.saving') : t('common.save') }}
                                 </button>
                             </div>
 
                             <div class="border-t pt-4" :style="{ borderColor: 'var(--wa-border)' }">
-                                <div class="text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">История переходов</div>
-                                <div v-if="ctx.funnelHistoryLoading" class="text-sm text-[var(--wa-text-secondary)]">Загрузка…</div>
+                                <div class="text-xs font-semibold text-[var(--wa-text-secondary)] mb-2">{{ t('chats.headerDialogs.funnelHistory') }}</div>
+                                <div v-if="ctx.funnelHistoryLoading" class="text-sm text-[var(--wa-text-secondary)]">{{ t('chats.loading') }}</div>
                                 <div v-else-if="ctx.funnelHistoryError" class="text-sm text-[var(--wa-danger)]">{{ ctx.funnelHistoryError }}</div>
                                 <ul v-else-if="ctx.funnelHistory.length" class="space-y-2 max-h-48 overflow-y-auto wa-scrollbar text-xs text-[var(--wa-text-secondary)]">
                                     <li v-for="h in ctx.funnelHistory" :key="h.id" class="border rounded-lg px-3 py-2" :style="{ borderColor: 'var(--wa-border)' }">
@@ -485,15 +487,15 @@ function setFunnelWheelRef(el: unknown): void {
                                         <div class="mt-0.5 opacity-80">{{ h.created_at }}</div>
                                     </li>
                                 </ul>
-                                <div v-else class="text-xs text-[var(--wa-text-secondary)]">Пока нет записей</div>
+                                <div v-else class="text-xs text-[var(--wa-text-secondary)]">{{ t('chats.headerDialogs.funnelHistoryEmpty') }}</div>
                             </div>
                         </template>
         </UiModal>
 
         <UiModal
             :open="ctx.aiRiskyEnableModalOpen && !!ctx.aiRiskyEnableModal"
-            title="Включить AI при низкой готовности?"
-            :subtitle="ctx.aiRiskyEnableModal?.readinessScore != null ? `Готовность AI: ${ctx.aiRiskyEnableModal.readinessScore}%` : ''"
+            :title="t('chats.headerDialogs.aiRiskyEnableTitle')"
+            :subtitle="ctx.aiRiskyEnableModal?.readinessScore != null ? t('chats.headerDialogs.aiReadinessScore', { score: ctx.aiRiskyEnableModal.readinessScore }) : ''"
             max-width="md"
             :z-index="1210"
             :closeable="!ctx.aiRiskyEnableConfirming"
@@ -503,7 +505,7 @@ function setFunnelWheelRef(el: unknown): void {
             <template v-if="ctx.aiRiskyEnableModal">
                 <p class="leading-relaxed m-0">{{ ctx.aiRiskyEnableModal.message }}</p>
                 <div v-if="ctx.aiRiskyEnableModal.warnings.length > 0">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-secondary)] mb-2">Замечания</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-[var(--wa-text-secondary)] mb-2">{{ t('chats.headerDialogs.warnings') }}</p>
                     <ul class="list-disc pl-5 space-y-1.5 text-[var(--wa-text)]">
                         <li v-for="(w, i) in ctx.aiRiskyEnableModal.warnings" :key="i">{{ w }}</li>
                     </ul>
@@ -513,7 +515,7 @@ function setFunnelWheelRef(el: unknown): void {
                     class="inline-flex text-sm font-medium text-[var(--wa-accent)] hover:underline"
                     @click="ctx.closeAiRiskyEnableModal"
                 >
-                    Открыть проверку готовности AI
+                    {{ t('chats.headerDialogs.openAiReadiness') }}
                 </Link>
             </template>
 
@@ -524,7 +526,7 @@ function setFunnelWheelRef(el: unknown): void {
                     :disabled="ctx.aiRiskyEnableConfirming"
                     @click="ctx.closeAiRiskyEnableModal"
                 >
-                    Отмена
+                    {{ t('common.cancel') }}
                 </button>
                 <button
                     type="button"
@@ -532,7 +534,7 @@ function setFunnelWheelRef(el: unknown): void {
                     :disabled="ctx.aiRiskyEnableConfirming"
                     @click="ctx.confirmAiRiskyEnable"
                 >
-                    {{ ctx.aiRiskyEnableConfirming ? 'Включение…' : 'Включить AI всё равно' }}
+                    {{ ctx.aiRiskyEnableConfirming ? t('chats.headerDialogs.enabling') : t('chats.headerDialogs.enableAiAnyway') }}
                 </button>
             </template>
         </UiModal>
@@ -540,4 +542,3 @@ function setFunnelWheelRef(el: unknown): void {
 </template>
 
 <style scoped src="./chat-header-assign.css"></style>
-

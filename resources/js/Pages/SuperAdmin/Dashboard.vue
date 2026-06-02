@@ -2,6 +2,9 @@
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     stats: {
@@ -29,21 +32,21 @@ const attentionItems = computed(() => {
     const items: Array<{ label: string; href: string; count: number }> = [];
     if (props.stats.pending_signups > 0) {
         items.push({
-            label: 'Заявки на рассмотрении',
+            label: t('superAdmin.dashboard.attentionPendingSignups'),
             href: '/signup-requests?status=pending',
             count: props.stats.pending_signups,
         });
     }
     if (props.stats.overdue_invoices > 0) {
         items.push({
-            label: 'Просроченные счета',
+            label: t('superAdmin.dashboard.attentionOverdueInvoices'),
             href: '/invoices?status=issued',
             count: props.stats.overdue_invoices,
         });
     }
     if (props.stats.inactive_companies > 0) {
         items.push({
-            label: 'Отключённые тенанты',
+            label: t('superAdmin.dashboard.attentionInactiveTenants'),
             href: '/companies?is_active=0',
             count: props.stats.inactive_companies,
         });
@@ -55,10 +58,10 @@ const attentionItems = computed(() => {
 <template>
     <SuperAdminLayout>
         <Head title="Super Admin" />
-        <h1 class="mb-6 text-2xl font-bold">Дашборд</h1>
+        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.dashboard.title') }}</h1>
 
         <div v-if="attentionItems.length > 0" class="ui-alert mb-6 border-ui-accent-border bg-ui-accent-soft">
-            <p class="mb-2 text-sm font-medium text-ui-text">Требуют внимания</p>
+            <p class="mb-2 text-sm font-medium text-ui-text">{{ t('superAdmin.dashboard.attentionTitle') }}</p>
             <ul class="space-y-1 text-sm">
                 <li v-for="item in attentionItems" :key="item.href">
                     <Link :href="item.href" class="text-ui-accent hover:underline">
@@ -70,41 +73,41 @@ const attentionItems = computed(() => {
 
         <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Link href="/companies?is_active=1" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">Активные компании</div>
+                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsActiveCompanies') }}</div>
                 <div class="mt-1 text-3xl font-semibold">{{ stats.active_companies }}</div>
             </Link>
             <Link href="/signup-requests?status=pending" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">Заявки с лендинга</div>
+                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsLandingSignups') }}</div>
                 <div class="mt-1 text-3xl font-semibold">{{ stats.pending_signups }}</div>
             </Link>
             <Link href="/invoices?status=issued" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">Просроченные счета</div>
+                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsOverdueInvoices') }}</div>
                 <div class="mt-1 text-3xl font-semibold">{{ stats.overdue_invoices }}</div>
                 <p v-if="stats.issued_invoices > stats.overdue_invoices" class="mt-1 text-xs text-ui-text-muted">
-                    Всего выставлено: {{ stats.issued_invoices }}
+                    {{ t('superAdmin.dashboard.statsIssuedTotal', { count: stats.issued_invoices }) }}
                 </p>
             </Link>
             <div class="ui-panel p-4">
                 <div class="text-sm text-ui-text-secondary">MRR (KZT)</div>
                 <div class="mt-1 text-3xl font-semibold">{{ stats.mrr_kzt }}</div>
-                <p class="mt-1 text-xs text-ui-text-muted">По компаниям со статусом active</p>
+                <p class="mt-1 text-xs text-ui-text-muted">{{ t('superAdmin.dashboard.statsMrrHint') }}</p>
             </div>
         </div>
 
         <div class="mb-6 flex flex-wrap gap-2">
-            <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">Создать компанию</Link>
+            <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('superAdmin.dashboard.actionsCreateCompany') }}</Link>
             <Link
                 v-if="stats.pending_signups > 0"
                 href="/signup-requests?status=pending"
                 class="ui-btn ui-btn--secondary ui-btn--sm"
             >
-                Заявки ({{ stats.pending_signups }})
+                {{ t('superAdmin.dashboard.actionsSignupRequests', { count: stats.pending_signups }) }}
             </Link>
-            <Link href="/invoices" class="ui-btn ui-btn--ghost ui-btn--sm">Все счета</Link>
+            <Link href="/invoices" class="ui-btn ui-btn--ghost ui-btn--sm">{{ t('superAdmin.dashboard.actionsAllInvoices') }}</Link>
         </div>
 
         <div class="ui-panel overflow-hidden p-0">
-            <div class="border-b border-ui-border px-4 py-3 font-medium">Последние компании</div>
+            <div class="border-b border-ui-border px-4 py-3 font-medium">{{ t('superAdmin.dashboard.recentCompaniesTitle') }}</div>
             <div class="divide-y divide-ui-border">
                 <Link
                     v-for="c in recentCompanies"

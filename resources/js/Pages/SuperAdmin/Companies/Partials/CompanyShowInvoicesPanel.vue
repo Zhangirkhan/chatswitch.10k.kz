@@ -4,13 +4,16 @@ import InputError from '@/Components/InputError.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
+import { useI18n } from '@/composables/useI18n';
 import {
     invoiceStatusBadgeClass,
-    invoiceStatusLabels,
-    paymentMethodLabels,
+    invoiceStatusLabel,
+    paymentMethodLabel,
 } from '@/utils/superAdminInvoiceBadge';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+
+const { t } = useI18n();
 
 interface PaymentRow {
     id: number;
@@ -162,29 +165,29 @@ function submitPayment(invoiceId: number): void {
         <UiFilterPanel as="div" compact>
             <UiFilterField inline wide>
                 <UiCheckbox v-model="filterUnpaidOnly" size="sm" />
-                <span class="ui-filter-field__label">Только неоплаченные</span>
+                <span class="ui-filter-field__label">{{ t('superAdmin.companies.invoices.filterUnpaidOnly') }}</span>
             </UiFilterField>
-            <UiFilterField label="С">
+            <UiFilterField :label="t('superAdmin.invoices.filterFrom')">
                 <input v-model="filterFrom" type="date" class="ui-input" />
             </UiFilterField>
-            <UiFilterField label="По">
+            <UiFilterField :label="t('superAdmin.invoices.filterTo')">
                 <input v-model="filterTo" type="date" class="ui-input" />
             </UiFilterField>
         </UiFilterPanel>
 
         <div class="ui-panel overflow-hidden p-0">
             <div class="border-b border-ui-border px-4 py-3">
-                <h2 class="font-medium">Счета ({{ filteredInvoices.length }})</h2>
+                <h2 class="font-medium">{{ t('superAdmin.companies.invoices.title', { count: filteredInvoices.length }) }}</h2>
             </div>
             <div class="ui-table-panel">
                 <table class="min-w-[800px] w-full text-left text-sm">
                     <thead>
                         <tr>
-                            <th>Номер</th>
-                            <th>Сумма</th>
-                            <th>Статус</th>
-                            <th>Выставлен</th>
-                            <th class="text-right">Действия</th>
+                            <th>{{ t('superAdmin.companies.invoices.tableNumber') }}</th>
+                            <th>{{ t('superAdmin.companies.invoices.tableAmount') }}</th>
+                            <th>{{ t('superAdmin.companies.invoices.tableStatus') }}</th>
+                            <th>{{ t('superAdmin.companies.invoices.tableIssued') }}</th>
+                            <th class="text-right">{{ t('superAdmin.common.actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -194,7 +197,7 @@ function submitPayment(invoiceId: number): void {
                                 <td>{{ formatPrice(inv.amount_cents) }}</td>
                                 <td>
                                     <span :class="invoiceStatusBadgeClass(inv.status)">
-                                        {{ invoiceStatusLabels[inv.status] ?? inv.status }}
+                                        {{ invoiceStatusLabel(inv.status, t) }}
                                     </span>
                                 </td>
                                 <td class="!text-ui-text-muted">{{ formatDate(inv.issued_at) }}</td>
@@ -206,7 +209,7 @@ function submitPayment(invoiceId: number): void {
                                             rel="noopener"
                                             class="ui-btn ui-btn--ghost ui-btn--sm"
                                         >
-                                            Открыть PDF/печать
+                                            {{ t('superAdmin.companies.invoices.openPdf') }}
                                         </a>
                                         <button
                                             type="button"
@@ -221,7 +224,7 @@ function submitPayment(invoiceId: number): void {
                                             class="ui-btn ui-btn--primary ui-btn--sm"
                                             @click="openPaymentForm(inv)"
                                         >
-                                            Оплата
+                                            {{ t('superAdmin.companies.invoices.pay') }}
                                         </button>
                                         <button
                                             v-if="inv.status === 'issued'"
@@ -229,7 +232,7 @@ function submitPayment(invoiceId: number): void {
                                             class="ui-btn ui-btn--ghost ui-btn--sm"
                                             @click="requestVoidInvoice(inv)"
                                         >
-                                            Аннулировать
+                                            {{ t('superAdmin.companies.invoices.void') }}
                                         </button>
                                     </div>
                                 </td>
@@ -241,34 +244,34 @@ function submitPayment(invoiceId: number): void {
                                         :key="p.id"
                                         class="mr-2"
                                     >
-                                        {{ formatPrice(p.amount_cents) }} · {{ paymentMethodLabels[p.method] ?? p.method }} · {{ formatDate(p.paid_at) }}<template v-if="idx < inv.payments.length - 1">;</template>
+                                        {{ formatPrice(p.amount_cents) }} · {{ paymentMethodLabel(p.method, t) }} · {{ formatDate(p.paid_at) }}<template v-if="idx < inv.payments.length - 1">;</template>
                                     </span>
                                 </td>
                             </tr>
                             <tr v-if="paymentTargetId === inv.id">
                                 <td colspan="5" class="!bg-ui-surface-muted">
                                     <form class="mx-auto max-w-lg space-y-3 py-2" @submit.prevent="submitPayment(inv.id)">
-                                        <p class="text-sm font-medium">Оплата — {{ inv.number }}</p>
+                                        <p class="text-sm font-medium">{{ t('superAdmin.companies.invoices.paymentFormTitle', { number: inv.number }) }}</p>
                                         <p class="text-xs text-ui-text-muted">
-                                            Подписка активируется автоматически (триал / просрочка / продление).
+                                            {{ t('superAdmin.companies.invoices.paymentFormHint') }}
                                         </p>
                                         <div class="grid gap-3 sm:grid-cols-2">
                                             <label class="block text-sm">
-                                                <span class="text-ui-text-secondary">Сумма, ₸</span>
+                                                <span class="text-ui-text-secondary">{{ t('superAdmin.companies.invoices.paymentAmount') }}</span>
                                                 <input v-model.number="paymentAmountTenge" type="number" min="0" class="ui-input mt-1" required />
                                             </label>
                                             <label class="block text-sm">
-                                                <span class="text-ui-text-secondary">Способ</span>
+                                                <span class="text-ui-text-secondary">{{ t('superAdmin.companies.invoices.paymentMethod') }}</span>
                                                 <select v-model="paymentForm.method" class="ui-select mt-1 w-full">
-                                                    <option value="bank_transfer">Банковский перевод</option>
-                                                    <option value="kaspi">Kaspi</option>
-                                                    <option value="cash">Наличные</option>
-                                                    <option value="other">Другое</option>
+                                                    <option value="bank_transfer">{{ t('superAdmin.invoice.paymentMethod.bank_transfer') }}</option>
+                                                    <option value="kaspi">{{ t('superAdmin.invoice.paymentMethod.kaspi') }}</option>
+                                                    <option value="cash">{{ t('superAdmin.invoice.paymentMethod.cash') }}</option>
+                                                    <option value="other">{{ t('superAdmin.invoice.paymentMethod.other') }}</option>
                                                 </select>
                                             </label>
                                         </div>
                                         <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="paymentForm.processing">
-                                            Подтвердить
+                                            {{ t('superAdmin.companies.invoices.paymentConfirm') }}
                                         </button>
                                         <InputError :message="paymentForm.errors.amount_cents" />
                                     </form>
@@ -276,7 +279,7 @@ function submitPayment(invoiceId: number): void {
                             </tr>
                         </template>
                         <tr v-if="filteredInvoices.length === 0">
-                            <td colspan="5" class="!py-8 text-center !text-ui-text-muted">Нет счетов по фильтру</td>
+                            <td colspan="5" class="!py-8 text-center !text-ui-text-muted">{{ t('superAdmin.companies.invoices.empty') }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -284,37 +287,37 @@ function submitPayment(invoiceId: number): void {
         </div>
 
         <section class="ui-settings-section max-w-xl">
-            <h2 class="mb-3 text-base font-semibold">Выставить счёт</h2>
+            <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.invoices.createTitle') }}</h2>
             <form class="space-y-3" @submit.prevent="submitInvoice">
                 <label class="block text-sm">
-                    <span class="text-ui-text-secondary">Номер</span>
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.companies.invoices.createNumber') }}</span>
                     <input v-model="invoiceForm.number" type="text" class="ui-input mt-1" required />
                     <InputError class="mt-1" :message="invoiceForm.errors.number" />
                 </label>
                 <label class="block text-sm">
-                    <span class="text-ui-text-secondary">Сумма, ₸</span>
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.companies.invoices.paymentAmount') }}</span>
                     <input v-model.number="invoiceAmountTenge" type="number" min="1" class="ui-input mt-1" required />
                     <InputError class="mt-1" :message="invoiceForm.errors.amount_cents" />
                 </label>
                 <label class="block text-sm">
-                    <span class="text-ui-text-secondary">Примечание</span>
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.companies.invoices.createNotes') }}</span>
                     <textarea v-model="invoiceForm.notes" rows="2" class="ui-input mt-1 resize-y" />
                 </label>
                 <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
                     <UiCheckbox v-model="invoiceForm.send_email" size="sm" />
-                    Отправить владельцу по email
+                    {{ t('superAdmin.companies.invoices.createSendEmail') }}
                 </label>
                 <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="invoiceForm.processing">
-                    Выставить
+                    {{ t('superAdmin.companies.invoices.createSubmit') }}
                 </button>
             </form>
         </section>
 
         <DangerConfirmModal
             :open="showVoidConfirm"
-            title="Аннулировать счёт?"
-            :description="voidTarget ? `Счёт ${voidTarget.number} будет помечен как аннулированный.` : ''"
-            confirm-label="Аннулировать"
+            :title="t('superAdmin.companies.invoices.voidModalTitle')"
+            :description="voidTarget ? t('superAdmin.companies.invoices.voidModalDescription', { number: voidTarget.number }) : ''"
+            :confirm-label="t('superAdmin.companies.invoices.voidModalConfirm')"
             @close="showVoidConfirm = false"
             @confirm="confirmVoidInvoice"
         />

@@ -3,6 +3,7 @@ import ClientActivityTimeline from '@/Components/Clients/ClientActivityTimeline.
 import ClientFinancePlaceholder from '@/Components/Clients/ClientFinancePlaceholder.vue';
 import ClientProfileSection from '@/Components/Clients/ClientProfileSection.vue';
 import type { ClientProfile, ClientProfileField } from '@/Components/Clients/clientProfileTypes';
+import { useI18n } from '@/composables/useI18n';
 
 const props = withDefaults(
     defineProps<{
@@ -28,6 +29,8 @@ const emit = defineEmits<{
     clearField: [field: ClientProfileField];
 }>();
 
+const { t } = useI18n();
+
 function sectionByKey(key: string) {
     return props.profile?.sections.find((section) => section.key === key) ?? null;
 }
@@ -35,7 +38,7 @@ function sectionByKey(key: string) {
 
 <template>
     <div class="space-y-3">
-        <div v-if="loading" class="py-6 text-center text-sm opacity-70">Загружаем профиль…</div>
+        <div v-if="loading" class="py-6 text-center text-sm opacity-70">{{ t('clients.detail.loadingProfile') }}</div>
         <div v-else-if="error" class="rounded-lg border px-4 py-3 text-sm" :style="{ borderColor: 'var(--ui-border)' }">
             {{ error }}
         </div>

@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import SectionHeader from './SectionHeader.vue';
 import { computed } from 'vue';
+import { useI18n } from '@/composables/useI18n';
 
+const { t } = useI18n();
 const appVersion = '1.0.0';
 const buildYear = computed(() => new Date().getFullYear());
 </script>
 
 <template>
     <div class="h-full flex flex-col">
-        <SectionHeader title="Помощь и отзывы" />
+        <SectionHeader :title="t('profile.helpSection.title')" />
 
         <div class="flex-1 overflow-y-auto wa-scrollbar py-2">
             <a href="#" class="help-item">
@@ -18,8 +20,8 @@ const buildYear = computed(() => new Date().getFullYear());
                     </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[15px] text-[var(--wa-text)]">Справочный центр</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)]">Ответы на популярные вопросы</div>
+                    <div class="text-[15px] text-[var(--wa-text)]">{{ t('profile.helpSection.helpCenter') }}</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('profile.helpSection.helpCenterDesc') }}</div>
                 </div>
             </a>
 
@@ -30,7 +32,7 @@ const buildYear = computed(() => new Date().getFullYear());
                     </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[15px] text-[var(--wa-text)]">Связаться с нами</div>
+                    <div class="text-[15px] text-[var(--wa-text)]">{{ t('profile.helpSection.contactUs') }}</div>
                     <div class="text-xs text-[var(--wa-text-secondary)]">support@accel.kz</div>
                 </div>
             </a>
@@ -42,8 +44,8 @@ const buildYear = computed(() => new Date().getFullYear());
                     </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[15px] text-[var(--wa-text)]">Политика конфиденциальности</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)]">Как мы защищаем ваши данные</div>
+                    <div class="text-[15px] text-[var(--wa-text)]">{{ t('profile.helpSection.privacyPolicy') }}</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('profile.helpSection.privacyPolicyDesc') }}</div>
                 </div>
             </a>
 
@@ -54,15 +56,15 @@ const buildYear = computed(() => new Date().getFullYear());
                     </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[15px] text-[var(--wa-text)]">Условия использования</div>
-                    <div class="text-xs text-[var(--wa-text-secondary)]">Правила сервиса</div>
+                    <div class="text-[15px] text-[var(--wa-text)]">{{ t('profile.helpSection.terms') }}</div>
+                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ t('profile.helpSection.termsDesc') }}</div>
                 </div>
             </a>
 
             <div class="px-6 py-6 text-xs text-[var(--wa-text-secondary)] text-center">
-                Accel · версия {{ appVersion }}
+                {{ t('profile.helpSection.version', { version: appVersion }) }}
                 <br />
-                © {{ buildYear }} Все права защищены.
+                {{ t('profile.helpSection.copyright', { year: buildYear }) }}
             </div>
         </div>
     </div>

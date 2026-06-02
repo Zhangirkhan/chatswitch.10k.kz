@@ -17,6 +17,7 @@ import {
     Tooltip,
 } from 'chart.js';
 import { useTheme } from '@/composables/useTheme';
+import { useI18n } from '@/composables/useI18n';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Bar, Doughnut, Line } from 'vue-chartjs';
 
@@ -29,60 +30,54 @@ type RankingsPayload = {
     worst_sla: Record<string, unknown>[];
 };
 
-function fmtSecStatic(s: number | null | undefined): string {
-    if (s === null || s === undefined) return '—';
-    if (s < 60) return `${Math.round(s)} с`;
-    if (s < 3600) return `${Math.round(s / 60)} мин`;
-    return `${(s / 3600).toFixed(1)} ч`;
-}
-
 function fmtPctStatic(p: number | null | undefined): string {
     if (p === null || p === undefined) return '—';
     return `${p}%`;
 }
 
-const RANKING_BLOCKS: {
+const RANKING_BLOCK_DEFS: {
     key: keyof RankingsPayload;
-    title: string;
-    hint: string;
+    titleKey: string;
+    hintKey: string;
+    secondaryKey?: string;
     primary: (r: Record<string, unknown>) => string;
     secondary?: (r: Record<string, unknown>) => string;
 }[] = [
     {
         key: 'fastest_avg_response',
-        title: 'Самые быстрые ответы',
-        hint: 'Кто в среднем отвечает клиенту быстрее всех',
-        primary: (r) => fmtSecStatic(r.avg_response_seconds as number | null | undefined),
+        titleKey: 'analytics.rankingFastest',
+        hintKey: 'analytics.rankingFastestHint',
+        primary: () => '',
     },
     {
         key: 'slowest_avg_response',
-        title: 'Самые долгие ответы',
-        hint: 'Среднее время ответа — выше, чем у коллег',
-        primary: (r) => fmtSecStatic(r.avg_response_seconds as number | null | undefined),
+        titleKey: 'analytics.rankingSlowest',
+        hintKey: 'analytics.rankingSlowestHint',
+        primary: () => '',
     },
     {
         key: 'most_unanswered',
-        title: 'Больше всего «ждут ответа»',
-        hint: 'Диалоги, где последнее сообщение от клиента',
+        titleKey: 'analytics.rankingWaiting',
+        hintKey: 'analytics.rankingWaitingHint',
         primary: (r) => String(r.unanswered_dialogs ?? 0),
-        secondary: () => 'чатов',
+        secondaryKey: 'analytics.chatsUnit',
     },
     {
         key: 'most_dialogs',
-        title: 'Больше всего диалогов',
-        hint: 'По числу назначенных чатов в выборке',
+        titleKey: 'analytics.rankingMostDialogs',
+        hintKey: 'analytics.rankingMostDialogsHint',
         primary: (r) => String(r.dialog_count ?? 0),
     },
     {
         key: 'best_sla',
-        title: 'Лучше соблюдают SLA',
-        hint: 'Доля ответов вовремя выше',
+        titleKey: 'analytics.rankingSlaBest',
+        hintKey: 'analytics.rankingSlaBestHint',
         primary: (r) => fmtPctStatic(r.sla_on_time_percent as number | null | undefined),
     },
     {
         key: 'worst_sla',
-        title: 'Чаще выходят за SLA',
-        hint: 'Среди тех, у кого были ответы клиенту',
+        titleKey: 'analytics.rankingSlaWorst',
+        hintKey: 'analytics.rankingSlaWorstHint',
         primary: (r) => fmtPctStatic(r.sla_on_time_percent as number | null | undefined),
     },
 ];
@@ -116,6 +111,7 @@ const props = defineProps<{
 
 const page = usePage();
 const { theme } = useTheme();
+const { t } = useI18n();
 const roles = computed(() => (page.props as { auth?: { user?: { roles?: string[] } } }).auth?.user?.roles || []);
 const isEmployee = computed(() => roles.value.includes('employee') && !roles.value.includes('administrator'));
 const funnelsModuleEnabled = computed<boolean>(() => Boolean(
@@ -152,24 +148,39 @@ const contextLabel = computed(() => {
         : null;
     const emp = employeeId.value ? props.filterOptions.employees.find((e) => String(e.id) === employeeId.value) : null;
     if (!dept && !emp) {
-        return 'Все отделы · все сотрудники';
+        return t('analytics.sliceAll');
     }
     if (dept && !emp) {
-        return `Отдел: ${dept.name} · все сотрудники отдела`;
+        return t('analytics.sliceDept', { dept: dept.name });
     }
     if (dept && emp) {
-        return `Отдел: ${dept.name} · ${emp.name}`;
+        return t('analytics.sliceDeptEmployee', { dept: dept.name, employee: emp.name });
     }
     if (!dept && emp) {
-        return `Сотрудник: ${emp.name}`;
+        return t('analytics.sliceEmployee', { employee: emp.name });
     }
     return '';
 });
 
-const pageTitle = computed(() => analyticsType.value === 'dialogs' ? 'Аналитика диалогов' : 'Аналитика воронок продаж');
+const pageTitle = computed(() => analyticsType.value === 'dialogs' ? t('analytics.dialogsTitle') : t('analytics.funnelsTitle'));
 const pageSubtitle = computed(() => analyticsType.value === 'dialogs'
-    ? `Здесь собраны ответы и нагрузка по выбранному периоду. SLA первого ответа в системе: ${props.filterOptions.sla_seconds} с.`
-    : 'Конверсия по этапам, отвал и движение чатов за выбранный период. Ниже — настройка покрытия этапов отделами.');
+    ? t('analytics.dialogsIntro', { seconds: props.filterOptions.sla_seconds })
+    : t('analytics.funnelsIntro'));
+
+const rankingBlocks = computed(() => RANKING_BLOCK_DEFS.map((block) => ({
+    ...block,
+    title: t(block.titleKey),
+    hint: t(block.hintKey),
+    primary:
+        block.key === 'fastest_avg_response' || block.key === 'slowest_avg_response'
+            ? (r: Record<string, unknown>) => fmtSec(r.avg_response_seconds as number | null | undefined)
+            : block.key === 'best_sla' || block.key === 'worst_sla'
+              ? (r: Record<string, unknown>) => fmtPct(r.sla_on_time_percent as number | null | undefined)
+              : block.primary,
+    secondary: block.secondaryKey
+        ? () => t(block.secondaryKey!)
+        : block.secondary,
+})));
 
 const rankingsData = computed<Partial<RankingsPayload>>(() => payload.value?.rankings || {});
 
@@ -182,7 +193,7 @@ function rankingRows(key: keyof RankingsPayload): Record<string, unknown>[] {
 const rankingKey = ref<string>('fastest_avg_response');
 
 const currentRankingBlock = computed(() => {
-    return RANKING_BLOCKS.find((b) => b.key === rankingKey.value) ?? RANKING_BLOCKS[0];
+    return rankingBlocks.value.find((b) => b.key === rankingKey.value) ?? rankingBlocks.value[0];
 });
 
 function rankingRowsSelected(): Record<string, unknown>[] {
@@ -259,7 +270,7 @@ async function fetchAnalytics() {
             });
         payload.value = data;
     } catch (e: any) {
-        error.value = e.response?.data?.message || e.message || 'Ошибка загрузки';
+        error.value = e.response?.data?.message || e.message || t('analytics.loadError');
         payload.value = null;
     } finally {
         loading.value = false;
@@ -301,9 +312,9 @@ onMounted(() => {
 
 function fmtSec(s: number | null | undefined): string {
     if (s === null || s === undefined) return '—';
-    if (s < 60) return `${Math.round(s)} с`;
-    if (s < 3600) return `${Math.round(s / 60)} мин`;
-    return `${(s / 3600).toFixed(1)} ч`;
+    if (s < 60) return t('analytics.secondsShort', { count: Math.round(s) });
+    if (s < 3600) return t('analytics.minutesShort', { count: Math.round(s / 60) });
+    return t('analytics.hoursShort', { count: Number((s / 3600).toFixed(1)) });
 }
 
 function fmtPct(p: number | null | undefined): string {
@@ -320,8 +331,8 @@ const conversionFunnels = computed<any[]>(() => conversionPayload.value?.funnels
 function fmtMinutes(m: number | null | undefined): string {
     if (m == null || Number.isNaN(Number(m))) return '—';
     const value = Number(m);
-    if (value < 60) return `${Math.round(value)} мин`;
-    return `${(value / 60).toFixed(1)} ч`;
+    if (value < 60) return t('analytics.minutesShort', { count: Math.round(value) });
+    return t('analytics.hoursShort', { count: Number((value / 60).toFixed(1)) });
 }
 
 function fmtHours(h: number | null | undefined): string {
@@ -329,10 +340,10 @@ function fmtHours(h: number | null | undefined): string {
         return '—';
     }
     if (h < 1) {
-        return `${Math.round(h * 60)} мин`;
+        return t('analytics.minutesShort', { count: Math.round(h * 60) });
     }
 
-    return `${h.toFixed(1)} ч`;
+    return t('analytics.hoursShort', { count: Number(h.toFixed(1)) });
 }
 
 const lineChartData = computed(() => {
@@ -341,7 +352,7 @@ const lineChartData = computed(() => {
         labels: rows.map((r: any) => r.date),
         datasets: [
             {
-                label: 'Сообщений / активность по дням',
+                label: t('analytics.chartLabelActivity'),
                 data: rows.map((r: any) => r.count),
                 borderColor: 'rgb(37, 211, 102)',
                 backgroundColor: 'rgba(37, 211, 102, 0.15)',
@@ -358,7 +369,7 @@ const lineAvgResp = computed(() => {
         labels: rows.map((r: any) => r.date),
         datasets: [
             {
-                label: 'Среднее время ответа (с)',
+                label: t('analytics.chartLabelResponse'),
                 data: rows.map((r: any) => r.avg_seconds ?? 0),
                 borderColor: 'rgb(234, 179, 8)',
                 backgroundColor: 'rgba(234, 179, 8, 0.12)',
@@ -375,7 +386,7 @@ const barLoad = computed(() => {
         labels: rows.map((r: any) => r.name),
         datasets: [
             {
-                label: 'Диалогов',
+                label: t('analytics.chartLabelDialogs'),
                 data: rows.map((r: any) => r.dialogs),
                 backgroundColor: 'rgba(59, 130, 246, 0.55)',
             },
@@ -386,7 +397,7 @@ const barLoad = computed(() => {
 const doughnutStatus = computed(() => {
     const d = chartData.value.status_distribution || {};
     return {
-        labels: ['Активные', 'Закрытые', 'Ожидают ответа'],
+        labels: [t('analytics.statusActiveLabel'), t('analytics.statusClosedLabel'), t('analytics.statusWaitingLabel')],
         datasets: [
             {
                 data: [d.active || 0, d.closed || 0, d.waiting || 0],
@@ -398,33 +409,23 @@ const doughnutStatus = computed(() => {
 
 type ChartKey = 'dialogs' | 'avg_response' | 'load' | 'statuses';
 
-const CHART_BLOCKS: { key: ChartKey; title: string; hint: string }[] = [
-    {
-        key: 'dialogs',
-        title: 'Активность по дням',
-        hint: 'Сколько диалогов приходилось на каждый день выбранного периода.',
-    },
-    {
-        key: 'avg_response',
-        title: 'Среднее время ответа',
-        hint: 'Средняя задержка ответа оператора по дням.',
-    },
-    {
-        key: 'load',
-        title: 'Нагрузка по сотрудникам',
-        hint: 'Кто сколько диалогов обработал в текущей выборке.',
-    },
-    {
-        key: 'statuses',
-        title: 'Статусы диалогов',
-        hint: 'Сводка по активным, закрытым и ожидающим ответа диалогам.',
-    },
+const CHART_BLOCK_DEFS: { key: ChartKey; titleKey: string; hintKey: string }[] = [
+    { key: 'dialogs', titleKey: 'analytics.chartActivity', hintKey: 'analytics.chartActivityHint' },
+    { key: 'avg_response', titleKey: 'analytics.chartResponseTime', hintKey: 'analytics.chartResponseTimeHint' },
+    { key: 'load', titleKey: 'analytics.chartLoad', hintKey: 'analytics.chartLoadHint' },
+    { key: 'statuses', titleKey: 'analytics.chartStatuses', hintKey: 'analytics.chartStatusesHint' },
 ];
+
+const chartBlocks = computed(() => CHART_BLOCK_DEFS.map((block) => ({
+    ...block,
+    title: t(block.titleKey),
+    hint: t(block.hintKey),
+})));
 
 const chartKey = ref<ChartKey>('dialogs');
 
 const currentChartBlock = computed(() => {
-    return CHART_BLOCKS.find((block) => block.key === chartKey.value) ?? CHART_BLOCKS[0];
+    return chartBlocks.value.find((block) => block.key === chartKey.value) ?? chartBlocks.value[0];
 });
 
 const chartLegendColor = computed(() => (theme.value === 'light' ? '#334155' : '#e2e8f0'));
@@ -572,13 +573,13 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
         >
             <header class="analytics-header shrink-0 border-b px-4 py-5 md:px-8" :style="{ borderColor: 'var(--wa-border)' }">
                 <div class="mx-auto max-w-5xl">
-                    <p class="text-xs font-medium uppercase tracking-wide text-[var(--wa-text-secondary)]">Обзор</p>
+                    <p class="text-xs font-medium uppercase tracking-wide text-[var(--wa-text-secondary)]">{{ t('analytics.overview') }}</p>
                     <h1 class="mt-1 text-xl font-semibold tracking-tight text-[var(--wa-text)] md:text-2xl">{{ pageTitle }}</h1>
                     <p class="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--wa-text-secondary)]">
                         {{ pageSubtitle }}
                     </p>
                     <div class="mt-4 inline-flex max-w-full items-center gap-2 rounded-full border px-4 py-2 text-sm" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
-                        <span class="text-[var(--wa-text-secondary)]">Срез:</span>
+                        <span class="text-[var(--wa-text-secondary)]">{{ t('analytics.slice') }}</span>
                         <span class="truncate font-medium text-[var(--wa-text)]">{{ contextLabel }}</span>
                     </div>
                 </div>
@@ -590,15 +591,15 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                 <section class="analytics-card rounded-2xl border p-5 md:p-6" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
                     <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                         <div>
-                            <h2 class="text-base font-semibold text-[var(--wa-text)]">Фильтры</h2>
+                            <h2 class="text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.filtersTitle') }}</h2>
                             <p class="mt-0.5 text-sm text-[var(--wa-text-secondary)]">
-                                Выберите тип аналитики, затем уточните доступные фильтры.
+                                {{ t('analytics.filtersHint') }}
                             </p>
                         </div>
-                        <button type="button" class="analytics-btn-ghost mt-2 shrink-0 sm:mt-0" @click="resetFilters">Сбросить всё</button>
+                        <button type="button" class="analytics-btn-ghost mt-2 shrink-0 sm:mt-0" @click="resetFilters">{{ t('analytics.resetAll') }}</button>
                     </div>
                     <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <span class="text-xs text-[var(--wa-text-secondary)]">Тип аналитики</span>
+                        <span class="text-xs text-[var(--wa-text-secondary)]">{{ t('analytics.typeLabel') }}</span>
                         <div class="inline-flex flex-wrap gap-1 rounded-xl p-1" :style="{ background: 'var(--wa-surface-inset)' }">
                             <button
                                 v-if="analyticsModuleEnabled"
@@ -607,7 +608,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :class="{ 'analytics-pill-active': analyticsType === 'dialogs' }"
                                 @click="analyticsType = 'dialogs'"
                             >
-                                Диалоги
+                                {{ t('analytics.typeDialogs') }}
                             </button>
                             <button
                                 v-if="funnelsModuleEnabled"
@@ -616,12 +617,12 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :class="{ 'analytics-pill-active': analyticsType === 'funnels' }"
                                 @click="analyticsType = 'funnels'"
                             >
-                                Воронки продаж
+                                {{ t('analytics.typeFunnels') }}
                             </button>
                         </div>
                     </div>
                     <div class="mb-5 flex flex-wrap items-center gap-2">
-                        <span class="mr-1 text-xs text-[var(--wa-text-secondary)]">Период</span>
+                        <span class="mr-1 text-xs text-[var(--wa-text-secondary)]">{{ t('analytics.period') }}</span>
                         <div class="inline-flex flex-wrap gap-1 rounded-xl p-1" :style="{ background: 'var(--wa-surface-inset)' }">
                             <button
                                 type="button"
@@ -629,7 +630,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :class="{ 'analytics-pill-active': periodPreset === 'today' }"
                                 @click="applyPreset('today')"
                             >
-                                Сегодня
+                                {{ t('analytics.today') }}
                             </button>
                             <button
                                 type="button"
@@ -637,7 +638,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :class="{ 'analytics-pill-active': periodPreset === '7d' }"
                                 @click="applyPreset('7d')"
                             >
-                                7 дней
+                                {{ t('analytics.days7') }}
                             </button>
                             <button
                                 type="button"
@@ -645,45 +646,45 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :class="{ 'analytics-pill-active': periodPreset === '30d' }"
                                 @click="applyPreset('30d')"
                             >
-                                30 дней
+                                {{ t('analytics.days30') }}
                             </button>
                         </div>
-                        <span class="ml-2 text-xs text-[var(--wa-text-secondary)]">Свои даты</span>
+                        <span class="ml-2 text-xs text-[var(--wa-text-secondary)]">{{ t('analytics.customDates') }}</span>
                         <input v-model="from" type="date" class="analytics-input" @focus="periodPreset = 'custom'" />
                         <span class="text-[var(--wa-text-secondary)]">—</span>
                         <input v-model="to" type="date" class="analytics-input" @focus="periodPreset = 'custom'" />
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2" :class="analyticsType === 'dialogs' ? 'lg:grid-cols-4' : 'lg:grid-cols-2'">
                         <label class="analytics-field">
-                            <span class="analytics-field-label">Отдел</span>
+                            <span class="analytics-field-label">{{ t('analytics.department') }}</span>
                             <select v-model="departmentId" class="analytics-input w-full" :disabled="isEmployee">
-                                <option value="">Все отделы</option>
+                                <option value="">{{ t('analytics.allDepartments') }}</option>
                                 <option v-for="d in filterOptions.departments" :key="d.id" :value="String(d.id)">{{ d.name }}</option>
                             </select>
                         </label>
                         <label class="analytics-field">
-                            <span class="analytics-field-label">Сотрудник</span>
+                            <span class="analytics-field-label">{{ t('analytics.employee') }}</span>
                             <select v-model="employeeId" class="analytics-input w-full" :disabled="isEmployee">
-                                <option value="">{{ departmentId ? 'Все в этом отделе' : 'Все сотрудники' }}</option>
+                                <option value="">{{ departmentId ? t('analytics.allInDepartment') : t('analytics.allEmployees') }}</option>
                                 <option v-for="e in filteredEmployees" :key="e.id" :value="String(e.id)">{{ e.name }}</option>
                             </select>
                         </label>
                         <label v-if="analyticsType === 'dialogs'" class="analytics-field">
-                            <span class="analytics-field-label">Статус чата</span>
+                            <span class="analytics-field-label">{{ t('analytics.chatStatus') }}</span>
                             <select v-model="status" class="analytics-input w-full">
-                                <option value="all">Все</option>
-                                <option value="active">Активные</option>
-                                <option value="closed">Закрытые</option>
-                                <option value="waiting">Ожидают ответа</option>
+                                <option value="all">{{ t('analytics.statusAll') }}</option>
+                                <option value="active">{{ t('analytics.statusActive') }}</option>
+                                <option value="closed">{{ t('analytics.statusClosed') }}</option>
+                                <option value="waiting">{{ t('analytics.statusWaiting') }}</option>
                             </select>
                         </label>
                         <label v-if="analyticsType === 'dialogs'" class="analytics-field">
-                            <span class="analytics-field-label">Канал</span>
+                            <span class="analytics-field-label">{{ t('analytics.channel') }}</span>
                             <select v-model="channel" class="analytics-input w-full">
-                                <option value="all">Все</option>
-                                <option value="whatsapp">WhatsApp</option>
+                                <option value="all">{{ t('analytics.channelAll') }}</option>
+                                <option value="whatsapp">{{ t('analytics.channelWhatsapp') }}</option>
                                 <option value="telegram">Telegram</option>
-                                <option value="site">Сайт</option>
+                                <option value="site">{{ t('analytics.channelSite') }}</option>
                             </select>
                         </label>
                     </div>
@@ -716,50 +717,50 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             class="rounded-2xl border px-6 py-16 text-center"
                             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                         >
-                            <p class="text-base font-medium text-[var(--wa-text)]">Воронок пока нет</p>
+                            <p class="text-base font-medium text-[var(--wa-text)]">{{ t('analytics.noFunnels') }}</p>
                             <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--wa-text-secondary)]">
-                                Создайте воронки продаж и этапы в настройках, затем подключите их к отделам.
+                                {{ t('analytics.noFunnelsHint') }}
                             </p>
                         </div>
 
                         <template v-else>
                             <section>
-                                <h2 class="mb-4 text-base font-semibold text-[var(--wa-text)]">Ключевые показатели</h2>
+                                <h2 class="mb-4 text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.kpiTitle') }}</h2>
                                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                     <div class="kpi-card" style="border-color: var(--wa-border)">
-                                        <div class="kpi-label">Всего воронок</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiTotalFunnels') }}</div>
                                         <div class="kpi-value">{{ summary.total_funnels ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(34, 197, 94, 0.35)">
-                                        <div class="kpi-label">Активные</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiActive') }}</div>
                                         <div class="kpi-value">{{ summary.active_funnels ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(59, 130, 246, 0.45)">
-                                        <div class="kpi-label">Подключены к отделам</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiDeptLinked') }}</div>
                                         <div class="kpi-value">{{ summary.connected_funnels ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: var(--wa-border)">
-                                        <div class="kpi-label">Всего этапов</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiTotalStages') }}</div>
                                         <div class="kpi-value">{{ summary.total_stages ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(168, 85, 247, 0.45)">
-                                        <div class="kpi-label">Выбранных этапов</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiSelectedStages') }}</div>
                                         <div class="kpi-value">{{ summary.selected_stages ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(234, 179, 8, 0.4)">
-                                        <div class="kpi-label">Покрытие этапов</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiStageCoverage') }}</div>
                                         <div class="kpi-value">{{ fmtPct(summary.stage_coverage_percent) }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: var(--wa-border)">
-                                        <div class="kpi-label">Отделов в срезе</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiDepartments') }}</div>
                                         <div class="kpi-value">{{ summary.departments_in_scope ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(34, 197, 94, 0.35)">
-                                        <div class="kpi-label">Чатов в срезе</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiChats') }}</div>
                                         <div class="kpi-value">{{ summary.tracked_chats ?? 0 }}</div>
                                     </div>
                                     <div class="kpi-card" style="border-color: rgba(59, 130, 246, 0.45)">
-                                        <div class="kpi-label">Переходов этапов</div>
+                                        <div class="kpi-label">{{ t('analytics.kpiTransitions') }}</div>
                                         <div class="kpi-value">{{ summary.total_transitions ?? 0 }}</div>
                                     </div>
                                 </div>
@@ -770,9 +771,9 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 class="rounded-2xl border p-5 md:p-6"
                                 :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                             >
-                                <h2 class="text-base font-semibold text-[var(--wa-text)]">Конверсия по этапам</h2>
+                                <h2 class="text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.conversionTitle') }}</h2>
                                 <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
-                                    Входы, конверсия, время на этапе и среднее время ответа клиенту (AI vs менеджер).
+                                    {{ t('analytics.conversionHint') }}
                                 </p>
                                 <div class="mt-5 space-y-6">
                                     <article
@@ -791,22 +792,22 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                 class="rounded-full px-2.5 py-1 text-xs font-semibold"
                                                 :style="{ background: 'var(--wa-selected)', color: 'var(--wa-accent)' }"
                                             >
-                                                Сквозная: {{ fmtPct(funnel.overall_conversion_percent) }}
+                                                {{ t('analytics.overallConversion', { percent: fmtPct(funnel.overall_conversion_percent) }) }}
                                             </span>
                                         </div>
                                         <div class="overflow-x-auto">
                                             <table class="w-full min-w-[960px] text-left text-sm">
                                                 <thead>
                                                     <tr class="text-[var(--wa-text-secondary)]">
-                                                        <th class="px-2 py-2">Этап</th>
-                                                        <th class="px-2 py-2">Сейчас</th>
-                                                        <th class="px-2 py-2">Вошли</th>
-                                                        <th class="px-2 py-2">Дальше</th>
-                                                        <th class="px-2 py-2">Конверсия</th>
-                                                        <th class="px-2 py-2">Отвал</th>
-                                                        <th class="px-2 py-2">На этапе</th>
-                                                        <th class="px-2 py-2">Ответ AI</th>
-                                                        <th class="px-2 py-2">Ответ менеджер</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colStage') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colNow') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colEntered') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colForward') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colConversion') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colDrop') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colOnStage') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colAiResponse') }}</th>
+                                                        <th class="px-2 py-2">{{ t('analytics.colManagerResponse') }}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -828,10 +829,10 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : fmtPct(stage.conversion_percent) }}</td>
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ stage.is_final ? '—' : stage.drop_off }}</td>
                                                         <td class="px-2 py-2 text-[var(--wa-text)]">{{ fmtHours(stage.avg_hours_on_stage) }}</td>
-                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_ai ? `Выборка: ${stage.response_samples_ai}` : ''">
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_ai ? t('analytics.sampleTitle', { sample: stage.response_samples_ai }) : ''">
                                                             {{ fmtMinutes(stage.avg_response_minutes_ai) }}
                                                         </td>
-                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_manager ? `Выборка: ${stage.response_samples_manager}` : ''">
+                                                        <td class="px-2 py-2 text-[var(--wa-text)]" :title="stage.response_samples_manager ? t('analytics.sampleTitle', { sample: stage.response_samples_manager }) : ''">
                                                             {{ fmtMinutes(stage.avg_response_minutes_manager) }}
                                                         </td>
                                                     </tr>
@@ -848,7 +849,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                     height: `${Math.max(8, Math.min(72, (stage.entries || stage.current_chats) * 6))}px`,
                                                     opacity: (stage.entries || stage.current_chats) > 0 ? 1 : 0.25,
                                                 }"
-                                                :title="`${stage.name}: ${stage.entries} входов`"
+                                                :title="t('analytics.entriesTooltip', { name: stage.name, count: stage.entries })"
                                             />
                                         </div>
                                     </article>
@@ -860,18 +861,18 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                             >
                                 <h3 class="border-b px-5 py-4 text-base font-semibold text-[var(--wa-text)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                    Покрытие воронок отделами
+                                    {{ t('analytics.coverageTitle') }}
                                 </h3>
                                 <div class="overflow-x-auto">
                                     <table class="w-full min-w-[900px] text-left text-sm">
                                         <thead>
                                             <tr class="text-[var(--wa-text-secondary)]">
-                                                <th class="px-3 py-2">Воронка</th>
-                                                <th class="px-3 py-2">Отделы</th>
-                                                <th class="px-3 py-2">Этапы</th>
-                                                <th class="px-3 py-2">Выбрано</th>
-                                                <th class="px-3 py-2">Покрытие</th>
-                                                <th class="px-3 py-2">Статус</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colFunnel') }}</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colDepartments') }}</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colStages') }}</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colSelected') }}</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colCoverage') }}</th>
+                                                <th class="px-3 py-2">{{ t('analytics.colStatus') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -912,7 +913,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                         :class="funnel.is_active ? 'text-[var(--wa-accent)]' : 'text-red-400'"
                                                         :style="{ background: 'var(--wa-selected)' }"
                                                     >
-                                                        {{ funnel.is_active ? 'Активна' : 'Неактивна' }}
+                                                        {{ funnel.is_active ? t('analytics.funnelActive') : t('analytics.funnelInactive') }}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -925,9 +926,9 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 class="rounded-2xl border p-5 md:p-6"
                                 :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                             >
-                                <h3 class="text-base font-semibold text-[var(--wa-text)]">Этапы по воронкам</h3>
+                                <h3 class="text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.stagesByFunnel') }}</h3>
                                 <p class="mt-1 text-sm text-[var(--wa-text-secondary)]">
-                                    Отмеченные этапы выбраны хотя бы одним отделом в текущем срезе.
+                                    {{ t('analytics.stagesByFunnelHint') }}
                                 </p>
                                 <div class="mt-4 space-y-4">
                                     <div v-for="funnel in funnelRows" :key="`stages-${funnel.id}`" class="rounded-xl border p-4" :style="{ borderColor: 'var(--wa-border)' }">
@@ -951,7 +952,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                 {{ stage.name }}
                                             </span>
                                         </div>
-                                        <p v-else class="text-sm text-[var(--wa-text-secondary)]">Этапов пока нет.</p>
+                                        <p v-else class="text-sm text-[var(--wa-text-secondary)]">{{ t('analytics.noStages') }}</p>
                                     </div>
                                 </div>
                             </section>
@@ -965,55 +966,55 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                         class="rounded-2xl border px-6 py-16 text-center"
                         :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                     >
-                        <p class="text-base font-medium text-[var(--wa-text)]">Пока пусто</p>
+                        <p class="text-base font-medium text-[var(--wa-text)]">{{ t('analytics.emptyTitle') }}</p>
                         <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--wa-text-secondary)]">
-                            За этот период и фильтры ничего не нашлось. Попробуйте расширить даты или сбросить фильтры — данные появятся автоматически.
+                            {{ t('analytics.emptyHint') }}
                         </p>
                     </div>
 
                     <template v-else>
                         <!-- KPI -->
                         <section>
-                            <h2 class="mb-4 text-base font-semibold text-[var(--wa-text)]">Ключевые показатели</h2>
+                            <h2 class="mb-4 text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.kpiTitle') }}</h2>
                             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             <div class="kpi-card" style="border-color: var(--wa-border)">
-                                <div class="kpi-label">Всего диалогов</div>
+                                <div class="kpi-label">{{ t('analytics.kpiTotalDialogs') }}</div>
                                 <div class="kpi-value">{{ summary.total_dialogs ?? 0 }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: rgba(34, 197, 94, 0.35)">
-                                <div class="kpi-label">Активные</div>
+                                <div class="kpi-label">{{ t('analytics.kpiActive') }}</div>
                                 <div class="kpi-value">{{ summary.active_dialogs ?? 0 }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: rgba(34, 197, 94, 0.35)">
-                                <div class="kpi-label">Среднее время первого ответа</div>
+                                <div class="kpi-label">{{ t('analytics.kpiAvgFirstResponse') }}</div>
                                 <div class="kpi-value">{{ fmtSec(summary.avg_first_response_seconds) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: var(--wa-border)">
-                                <div class="kpi-label">Среднее время ответа</div>
+                                <div class="kpi-label">{{ t('analytics.kpiAvgResponse') }}</div>
                                 <div class="kpi-value">{{ fmtSec(summary.avg_response_seconds) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: rgba(234, 179, 8, 0.4)">
-                                <div class="kpi-label">Макс. ожидание клиента</div>
+                                <div class="kpi-label">{{ t('analytics.kpiMaxWait') }}</div>
                                 <div class="kpi-value">{{ fmtSec(summary.max_client_wait_seconds) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: rgba(239, 68, 68, 0.45)">
-                                <div class="kpi-label">Без ответа</div>
+                                <div class="kpi-label">{{ t('analytics.kpiUnanswered') }}</div>
                                 <div class="kpi-value">{{ summary.unanswered_dialogs ?? 0 }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: var(--wa-border)">
-                                <div class="kpi-label">Простой до нового чата</div>
+                                <div class="kpi-label">{{ t('analytics.kpiIdleToNew') }}</div>
                                 <div class="kpi-value">{{ fmtSec(summary.avg_idle_before_new_chat_seconds) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: var(--wa-border)">
-                                <div class="kpi-label">Среднее время закрытия</div>
+                                <div class="kpi-label">{{ t('analytics.kpiAvgClose') }}</div>
                                 <div class="kpi-value">{{ fmtSec(summary.avg_time_to_close_seconds) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: rgba(239, 68, 68, 0.45)">
-                                <div class="kpi-label">Просроченные ответы</div>
+                                <div class="kpi-label">{{ t('analytics.kpiOverdue') }}</div>
                                 <div class="kpi-value">{{ fmtPct(summary.overdue_response_percent) }}</div>
                             </div>
                             <div class="kpi-card" style="border-color: var(--wa-border)">
-                                <div class="kpi-label">Диалогов на сотрудника</div>
+                                <div class="kpi-label">{{ t('analytics.kpiDialogsPerEmployee') }}</div>
                                 <div class="kpi-value">{{
                                     summary.dialogs_per_staff_member != null ? String(summary.dialogs_per_staff_member) : '—'
                                 }}</div>
@@ -1023,15 +1024,15 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
 
                         <!-- Rankings: один выбор -->
                         <section class="analytics-card rounded-2xl border p-5 md:p-6" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
-                            <h2 class="text-base font-semibold text-[var(--wa-text)]">Рейтинг сотрудников</h2>
+                            <h2 class="text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.employeeRankingTitle') }}</h2>
                             <p class="mt-1 text-sm leading-relaxed text-[var(--wa-text-secondary)]">
-                                Выберите одну метрику — покажем до восьми позиций. Остальные таблицы ниже не меняются.
+                                {{ t('analytics.employeeRankingHint') }}
                             </p>
                             <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
                                 <label class="analytics-field min-w-[min(100%,280px)] flex-1 sm:max-w-sm">
-                                    <span class="analytics-field-label">Что показать</span>
+                                    <span class="analytics-field-label">{{ t('analytics.whatToShow') }}</span>
                                     <select v-model="rankingKey" class="analytics-input w-full text-[var(--wa-text)]">
-                                        <option v-for="b in RANKING_BLOCKS" :key="b.key" :value="b.key">{{ b.title }}</option>
+                                        <option v-for="b in rankingBlocks" :key="b.key" :value="b.key">{{ b.title }}</option>
                                     </select>
                                 </label>
                             </div>
@@ -1059,7 +1060,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                     </span>
                                 </li>
                                 <li v-if="rankingRowsSelected().length === 0" class="px-4 py-8 text-center text-sm text-[var(--wa-text-secondary)]">
-                                    Нет данных для этого рейтинга в текущей выборке.
+                                    {{ t('analytics.noRankingData') }}
                                 </li>
                             </ul>
                         </section>
@@ -1068,15 +1069,15 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                         <section class="analytics-card rounded-2xl border p-5 md:p-6" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }">
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
-                                    <h2 class="text-base font-semibold text-[var(--wa-text)]">График</h2>
+                                    <h2 class="text-base font-semibold text-[var(--wa-text)]">{{ t('analytics.chartTitle') }}</h2>
                                     <p class="mt-1 text-sm leading-relaxed text-[var(--wa-text-secondary)]">
-                                        Один график за раз, чтобы блок не выбивался из страницы.
+                                        {{ t('analytics.chartHint') }}
                                     </p>
                                 </div>
                                 <label class="analytics-field min-w-[min(100%,260px)]">
-                                    <span class="analytics-field-label">Что показать</span>
+                                    <span class="analytics-field-label">{{ t('analytics.whatToShow') }}</span>
                                     <select v-model="chartKey" class="analytics-input w-full">
-                                        <option v-for="block in CHART_BLOCKS" :key="block.key" :value="block.key">{{ block.title }}</option>
+                                        <option v-for="block in chartBlocks" :key="block.key" :value="block.key">{{ block.title }}</option>
                                     </select>
                                 </label>
                             </div>
@@ -1101,18 +1102,18 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                         >
                             <h3 class="border-b px-5 py-4 text-base font-semibold text-[var(--wa-text)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                Сотрудники
+                                {{ t('analytics.employeesSection') }}
                             </h3>
                             <table class="w-full min-w-[800px] text-left text-sm">
                                 <thead>
                                     <tr class="text-[var(--wa-text-secondary)]">
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('name')">Сотрудник</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('dialog_count')">Диалогов</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('avg_response_seconds')">Сред. ответ</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('max_response_seconds')">Макс. ответ</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('unanswered_dialogs')">Без ответа</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('closed_dialogs')">Закрыто</th>
-                                        <th class="px-3 py-2">Оценка</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('name')">{{ t('analytics.colEmployee') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('dialog_count')">{{ t('analytics.colDialogs') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('avg_response_seconds')">{{ t('analytics.colAvgResponse') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('max_response_seconds')">{{ t('analytics.colMaxResponse') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('unanswered_dialogs')">{{ t('analytics.kpiUnanswered') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('closed_dialogs')">{{ t('analytics.colClosed') }}</th>
+                                        <th class="px-3 py-2">{{ t('analytics.colScore') }}</th>
                                         <th class="cursor-pointer px-3 py-2" @click="toggleEmpSort('sla_on_time_percent')">SLA %</th>
                                     </tr>
                                 </thead>
@@ -1142,18 +1143,18 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                         >
                             <h3 class="border-b px-5 py-4 text-base font-semibold text-[var(--wa-text)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                Отделы
+                                {{ t('analytics.departmentsSection') }}
                             </h3>
                             <table class="w-full min-w-[720px] text-left text-sm">
                                 <thead>
                                     <tr class="text-[var(--wa-text-secondary)]">
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('name')">Отдел</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('dialog_count')">Диалогов</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('avg_response_seconds')">Сред. ответ</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('max_delay_seconds')">Макс. задержка</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('active_dialogs')">Активные</th>
-                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('overdue_dialogs')">Просрочено</th>
-                                        <th class="px-3 py-2">Лучший сотрудник</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('name')">{{ t('analytics.colDepartment') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('dialog_count')">{{ t('analytics.colDialogs') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('avg_response_seconds')">{{ t('analytics.colAvgResponse') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('max_delay_seconds')">{{ t('analytics.colMaxDelay') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('active_dialogs')">{{ t('analytics.kpiActive') }}</th>
+                                        <th class="cursor-pointer px-3 py-2" @click="toggleDeptSort('overdue_dialogs')">{{ t('analytics.colOverdue') }}</th>
+                                        <th class="px-3 py-2">{{ t('analytics.colBestEmployee') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1181,21 +1182,21 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                             :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
                         >
                             <h3 class="border-b px-5 py-4 text-base font-semibold text-[var(--wa-text)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                Проблемные диалоги
+                                {{ t('analytics.problemDialogsTitle') }}
                             </h3>
                             <p class="border-b px-5 py-2 text-xs text-[var(--wa-text-secondary)]" :style="{ borderColor: 'var(--wa-border)' }">
-                                Чаты, где клиент долго ждёт или нарушен SLA — можно сразу открыть диалог.
+                                {{ t('analytics.problemDialogsHint') }}
                             </p>
                             <div class="overflow-x-auto">
                                 <table class="w-full min-w-[900px] text-left text-sm">
                                     <thead>
                                         <tr class="text-[var(--wa-text-secondary)]">
-                                            <th class="px-3 py-2">Клиент</th>
-                                            <th class="px-3 py-2">Сотрудник</th>
-                                            <th class="px-3 py-2">Отдел</th>
-                                            <th class="px-3 py-2">Последнее от клиента</th>
-                                            <th class="px-3 py-2">Ожидание</th>
-                                            <th class="px-3 py-2">Статус</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colClient') }}</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colEmployee') }}</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colDepartment') }}</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colLastFromClient') }}</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colWait') }}</th>
+                                            <th class="px-3 py-2">{{ t('analytics.colStatus') }}</th>
                                             <th class="px-3 py-2"></th>
                                         </tr>
                                     </thead>
@@ -1226,7 +1227,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                                     :href="row.open_url"
                                                     class="text-sm underline"
                                                     style="color: var(--wa-accent)"
-                                                    >Открыть</a
+                                                    >{{ t('analytics.openChat') }}</a
                                                 >
                                             </td>
                                         </tr>
@@ -1238,7 +1239,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                 class="flex items-center justify-between border-t px-4 py-3 text-sm"
                                 :style="{ borderColor: 'var(--wa-border)' }"
                             >
-                                <span class="text-[var(--wa-text-secondary)]">Всего: {{ problemMeta.total }}</span>
+                                <span class="text-[var(--wa-text-secondary)]">{{ t('analytics.problemTotal', { total: problemMeta.total }) }}</span>
                                 <div class="flex gap-2">
                                     <button
                                         type="button"
@@ -1247,7 +1248,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                         :class="{ 'opacity-40': problemPage <= 1 }"
                                         @click="problemPage--"
                                     >
-                                        Назад
+                                        {{ t('analytics.paginationBack') }}
                                     </button>
                                     <button
                                         type="button"
@@ -1256,7 +1257,7 @@ const problemMeta = computed(() => payload.value?.problematic_chats?.meta || { t
                                         :class="{ 'opacity-40': problemPage >= problemMeta.last_page }"
                                         @click="problemPage++"
                                     >
-                                        Вперёд
+                                        {{ t('analytics.paginationForward') }}
                                     </button>
                                 </div>
                             </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { router, usePage } from '@inertiajs/vue3';
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
 
 type ImpersonationMeta = {
@@ -9,6 +10,7 @@ type ImpersonationMeta = {
 };
 
 const page = usePage();
+const { t } = useI18n();
 const meta = computed(() => page.props.impersonation as ImpersonationMeta | null | undefined);
 const visible = computed(() => meta.value != null && typeof meta.value === 'object');
 
@@ -25,8 +27,7 @@ function leave(): void {
         aria-live="polite"
     >
         <p class="impersonation-banner__text">
-            Режим супер-админа: вы вошли как администратор
-            <strong>{{ meta?.company_name ?? 'компании' }}</strong>
+            {{ t('misc.components.impersonation.text', { company: meta?.company_name ?? t('misc.components.impersonation.companyFallback') }) }}
             <span v-if="meta?.super_user_name" class="impersonation-banner__muted">
                 ({{ meta.super_user_name }})
             </span>
@@ -34,8 +35,8 @@ function leave(): void {
         <button
             type="button"
             class="impersonation-banner__close"
-            title="Выйти и вернуться в супер-админку"
-            aria-label="Выйти из режима супер-админа"
+            :title="t('misc.components.impersonation.leaveTitle')"
+            :aria-label="t('misc.components.impersonation.leaveAria')"
             @click="leave"
         >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

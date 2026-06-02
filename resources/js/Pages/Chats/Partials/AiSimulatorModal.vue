@@ -2,7 +2,10 @@
 import Modal from '@/Components/Modal.vue';
 import AiSimulationResult, { type SimulationResult } from '@/Components/Ai/AiSimulationResult.vue';
 import axios from 'axios';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useI18n } from '@/composables/useI18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     show: boolean;
@@ -51,11 +54,19 @@ async function runSimulation(): Promise<void> {
         });
         simulationResult.value = data.result as SimulationResult;
     } catch (e: any) {
-        simulationError.value = e?.response?.data?.message || 'Не удалось запустить симуляцию.';
+        simulationError.value = e?.response?.data?.message || t('chats.aiSimulator.startFailed');
     } finally {
         simulationLoading.value = false;
     }
 }
+
+const subtitle = computed(() =>
+    t('chats.aiSimulator.subtitle', {
+        chatName: props.chatName
+            ? t('chats.aiSimulator.subtitleChatName', { name: props.chatName })
+            : '',
+    }),
+);
 </script>
 
 <template>
@@ -63,9 +74,9 @@ async function runSimulation(): Promise<void> {
         <div class="p-6 space-y-5" :style="{ background: 'var(--wa-panel)', color: 'var(--wa-text)' }">
             <div class="flex items-start justify-between gap-4">
                 <div>
-                    <h2 class="text-lg font-semibold">Симулятор AI</h2>
+                    <h2 class="text-lg font-semibold">{{ t('chats.aiSimulator.title') }}</h2>
                     <p class="mt-1 text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Dry-run для чата{{ chatName ? ` «${chatName}»` : '' }}: ответ, этап и действия без записи в переписку.
+                        {{ subtitle }}
                     </p>
                 </div>
                 <button
@@ -74,7 +85,7 @@ async function runSimulation(): Promise<void> {
                     :style="{ color: 'var(--wa-text-secondary)' }"
                     @click="emit('close')"
                 >
-                    Закрыть
+                    {{ t('common.close') }}
                 </button>
             </div>
 
@@ -82,27 +93,27 @@ async function runSimulation(): Promise<void> {
                 <div class="space-y-3">
                     <label class="block">
                         <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Тестовое сообщение клиента
+                            {{ t('chats.aiSimulator.testMessage') }}
                         </span>
                         <textarea
                             v-model="simulationMessage"
                             rows="4"
                             class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2"
                             :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)', color: 'var(--wa-text)', '--tw-ring-color': 'var(--wa-accent)' }"
-                            placeholder="Например: хочу кухню, когда замер?"
+                            :placeholder="t('chats.aiSimulator.testMessagePlaceholder')"
                         />
                     </label>
 
                     <label class="block">
                         <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--wa-text-secondary)' }">
-                            Доп. контекст <small>(необязательно)</small>
+                            {{ t('chats.aiSimulator.extraContext') }} <small>{{ t('chats.aiSimulator.optional') }}</small>
                         </span>
                         <textarea
                             v-model="simulationHistory"
                             rows="3"
                             class="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2"
                             :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)', color: 'var(--wa-text)', '--tw-ring-color': 'var(--wa-accent)' }"
-                            placeholder="Уточнения, которых нет в истории чата"
+                            :placeholder="t('chats.aiSimulator.extraContextPlaceholder')"
                         />
                     </label>
 
@@ -113,14 +124,14 @@ async function runSimulation(): Promise<void> {
                         :style="{ background: 'var(--wa-accent)', color: '#fff' }"
                         @click="runSimulation"
                     >
-                        {{ simulationLoading ? 'AI думает…' : 'Запустить симуляцию' }}
+                        {{ simulationLoading ? t('chats.aiSimulator.running') : t('chats.aiSimulator.run') }}
                     </button>
                 </div>
 
                 <div class="rounded-xl border p-4 min-h-[220px]" :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel-header)' }">
                     <div v-if="simulationError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ simulationError }}</div>
                     <div v-else-if="!simulationResult" class="text-sm" :style="{ color: 'var(--wa-text-secondary)' }">
-                        Результат появится здесь. История реального чата подставляется автоматически.
+                        {{ t('chats.aiSimulator.emptyHint') }}
                     </div>
                     <AiSimulationResult v-else :result="simulationResult" />
                 </div>

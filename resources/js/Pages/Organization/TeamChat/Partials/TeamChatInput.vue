@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
+import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import type { TeamMentionCandidate } from '@/utils/teamChatMentions';
+
+const { t } = useI18n();
 
 const { show: showToast } = useToastStore();
 
@@ -17,7 +20,7 @@ const props = withDefaults(
     {
         attachments: () => [],
         disabled: false,
-        placeholder: 'Введите сообщение',
+        placeholder: '',
         mentionCandidates: () => [],
     },
 );
@@ -42,6 +45,10 @@ const pendingFiles = computed({
 
 const hasText = computed(() => draft.value.trim().length > 0);
 const canSend = computed(() => hasText.value || pendingFiles.value.length > 0);
+const effectivePlaceholder = computed(() =>
+    props.placeholder !== '' ? props.placeholder : t('organization.messagePlaceholder'),
+);
+const mentionPlaceholder = computed(() => t('organization.messageWithMention'));
 
 const showAttach = ref(false);
 const showEmoji = ref(false);
@@ -303,7 +310,7 @@ async function startRecording(): Promise<void> {
         recordingTime.value = 0;
         recordInterval = setInterval(() => recordingTime.value++, 1000);
     } catch {
-        showToast({ message: 'Не удалось получить доступ к микрофону.', type: 'warning' });
+        showToast({ message: t('organization.micDenied'), type: 'warning' });
     }
 }
 
@@ -348,7 +355,7 @@ onBeforeUnmount(() => {
                 <button
                     type="button"
                     class="shrink-0 rounded-full px-1 opacity-60 hover:opacity-100"
-                    :aria-label="`Убрать ${f.name}`"
+                    :aria-label="t('organization.removeAttachment', { name: f.name })"
                     :disabled="disabled"
                     @click="removePendingAttachment(fi)"
                 >×</button>
@@ -357,16 +364,16 @@ onBeforeUnmount(() => {
 
         <div class="wa-input-bar">
             <template v-if="recording">
-                <button type="button" class="wa-input-btn text-red-500" title="Отменить" @click="cancelRecording">
+                <button type="button" class="wa-input-btn text-red-500" :title="t('organization.cancelRecording')" @click="cancelRecording">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                     </svg>
                 </button>
                 <div class="wa-input-pill flex-1 flex items-center gap-3 px-3">
                     <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                    <span class="text-sm text-[var(--wa-text)]">Запись… {{ formatRecordTime(recordingTime) }}</span>
+                    <span class="text-sm text-[var(--wa-text)]">{{ t('organization.recording', { time: formatRecordTime(recordingTime) }) }}</span>
                 </div>
-                <button type="button" class="wa-input-btn" title="Отправить" @click="stopRecording">
+                <button type="button" class="wa-input-btn" :title="t('organization.sendComment')" @click="stopRecording">
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" :style="{ color: 'var(--wa-accent)' }">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                     </svg>
@@ -379,7 +386,7 @@ onBeforeUnmount(() => {
                         type="button"
                         class="wa-input-btn"
                         :class="{ 'wa-input-btn-active': showAttach }"
-                        title="Прикрепить"
+                        :title="t('organization.attachFile')"
                         :disabled="disabled"
                         @click="toggleAttach"
                     >
@@ -400,7 +407,7 @@ onBeforeUnmount(() => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </span>
-                                Фото или видео
+                                {{ t('organization.attachPhotoVideo') }}
                             </button>
                             <button class="attach-item" type="button" @click="pickDocument">
                                 <span class="attach-icon" style="background: #5f66cd;">
@@ -408,7 +415,7 @@ onBeforeUnmount(() => {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </span>
-                                Документ
+                                {{ t('organization.attachDocument') }}
                             </button>
                         </div>
                     </transition>
@@ -421,7 +428,7 @@ onBeforeUnmount(() => {
                     type="button"
                     class="wa-input-btn"
                     :class="{ 'wa-input-btn-active': showEmoji }"
-                    title="Эмодзи"
+                    :title="t('organization.emoji')"
                     :disabled="disabled"
                     @click="toggleEmoji"
                 >
@@ -450,7 +457,7 @@ onBeforeUnmount(() => {
                             v-if="filteredMentionCandidates.length === 0"
                             class="team-mention-menu__empty"
                         >
-                            Никого не найдено
+                            {{ t('organization.noMentionMatches') }}
                         </p>
                     </div>
                     <textarea
@@ -458,7 +465,7 @@ onBeforeUnmount(() => {
                         v-model="draft"
                         rows="1"
                         class="wa-composer-field wa-scrollbar"
-                        :placeholder="mentionCandidates.length ? 'Введите сообщение, @ — упомянуть' : placeholder"
+                        :placeholder="mentionCandidates.length ? mentionPlaceholder : effectivePlaceholder"
                         :disabled="disabled"
                         @input="onInput"
                         @keydown="onKeydown"
@@ -472,7 +479,7 @@ onBeforeUnmount(() => {
                     v-if="canSend"
                     type="button"
                     class="wa-input-btn"
-                    title="Отправить"
+                    :title="t('organization.sendComment')"
                     :disabled="disabled"
                     @click="trySubmit"
                 >
@@ -484,7 +491,7 @@ onBeforeUnmount(() => {
                     v-else
                     type="button"
                     class="wa-input-btn"
-                    title="Голосовое сообщение"
+                    :title="t('organization.voiceMessage')"
                     :disabled="disabled"
                     @click="startRecording"
                 >

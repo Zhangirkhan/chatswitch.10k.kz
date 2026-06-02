@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n';
 import { computed } from 'vue';
+
+const { t } = useI18n();
 import type { MessageProductAttachment } from '@/types';
 
 const props = defineProps<{
@@ -37,7 +40,7 @@ const attributeLine = computed(() => {
             </div>
             <p v-if="product.description" class="wa-product-card__desc">{{ product.description }}</p>
             <p v-if="attributeLine" class="wa-product-card__attrs">{{ attributeLine }}</p>
-            <p v-if="product.sku" class="wa-product-card__sku">Арт. {{ product.sku }}</p>
+            <p v-if="product.sku" class="wa-product-card__sku">{{ t('misc.components.productCard.sku', { sku: product.sku }) }}</p>
         </div>
     </div>
 </template>
