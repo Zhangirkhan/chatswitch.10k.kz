@@ -126,4 +126,70 @@ final class ClientsHubTest extends TestCase
             ->get(route('contacts.index', ['search' => 'test']))
             ->assertRedirect(route('clients.index', ['search' => 'test']));
     }
+
+    public function test_clients_index_paginates_without_loading_all_rows_on_page_two(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+        $session = WhatsappSession::factory()->create();
+
+        for ($i = 1; $i <= 25; $i++) {
+            $contact = Contact::factory()->create([
+                'name' => "Client {$i}",
+                'phone_number' => '7700'.str_pad((string) $i, 7, '0', STR_PAD_LEFT),
+            ]);
+
+            Chat::factory()->create([
+                'contact_id' => $contact->id,
+                'whatsapp_session_id' => $session->id,
+                'is_group' => false,
+                'last_message_at' => now()->subMinutes($i),
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('clients.index', ['clients_page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Clients/Index')
+                ->where('clients.current_page', 2)
+                ->where('clients.last_page', 2)
+                ->where('clients.total', 25)
+                ->has('clients.data', 5));
+    }
+
+    public function test_clients_index_groups_duplicate_phone_digits_into_one_client(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+        $session = WhatsappSession::factory()->create();
+
+        $primary = Contact::factory()->create([
+            'name' => 'Merged Client',
+            'phone_number' => '77001112233',
+        ]);
+        $duplicate = Contact::factory()->create([
+            'phone_number' => '77001112233',
+            'whatsapp_id' => '77001112233@c.us',
+        ]);
+
+        Chat::factory()->create([
+            'contact_id' => $primary->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+        ]);
+        Chat::factory()->create([
+            'contact_id' => $duplicate->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('clients.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Clients/Index')
+                ->has('clients.data', 1)
+                ->where('clients.data.0.name', 'Merged Client'));
+    }
 }

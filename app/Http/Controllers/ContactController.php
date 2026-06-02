@@ -13,6 +13,7 @@ use App\Services\AI\AiWorkspaceClientSummaryService;
 use App\Services\Contact\ContactFieldValueService;
 use App\Services\Contact\ClientProfileAiService;
 use App\Services\Contact\ClientProfileAssembler;
+use App\Services\Contact\ClientsListService;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
 use App\Services\Contact\ContactListFilterService;
@@ -23,7 +24,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -37,6 +37,7 @@ final class ContactController extends Controller
         private readonly ClientProfileAiService $clientProfileAiService,
         private readonly ContactFieldValueService $contactFieldValues,
         private readonly ContactListFilterService $contactListFilters,
+        private readonly ClientsListService $clientsListService,
     ) {}
 
     public function settingsIndex(Request $request): RedirectResponse
@@ -62,46 +63,6 @@ final class ContactController extends Controller
         $companiesPage = max(1, (int) $request->input('companies_page', 1));
         $clientsPerPage = 20;
         $companiesPerPage = 12;
-
-        $query = Contact::query()->orderByRaw('COALESCE(name, push_name, phone_number) asc');
-
-        if ($search !== '') {
-            $digits = preg_replace('/\D/', '', $search);
-            $query->where(function ($q) use ($search, $digits) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('push_name', 'like', "%{$search}%")
-                    ->orWhere('phone_number', 'like', "%{$search}%")
-                    ->orWhere('whatsapp_id', 'like', "%{$search}%")
-                    ->orWhereHas('companies', fn ($companyQuery) => $companyQuery->where('name', 'like', "%{$search}%"));
-                if (is_string($digits) && $digits !== '') {
-                    $q->orWhere('phone_number', 'like', "%{$digits}%")
-                        ->orWhere('whatsapp_id', 'like', "%{$digits}%");
-                }
-            });
-        }
-
-        $this->contactListFilters->apply($query, $listFilters);
-
-        $contacts = $query
-            ->with([
-                'companies:id,name',
-                'chats' => fn ($q) => $q
-                    ->where('is_group', false)
-                    ->with([
-                        'whatsappSession:id,display_name,phone_number',
-                        'funnelStage:id,name,color',
-                    ])
-                    ->orderByDesc('last_message_at')
-                    ->orderByDesc('id'),
-            ])
-            ->get([
-                'id',
-                'whatsapp_id',
-                'phone_number',
-                'name',
-                'push_name',
-                'profile_picture_url',
-            ]);
 
         $companiesPaginator = null;
         $companyOptions = collect();
@@ -164,9 +125,14 @@ final class ContactController extends Controller
                 ->values();
         }
 
-        $clients = $this->buildClientsList($user, $contacts);
-
-        $clientsPaginator = $this->paginateCollection($clients, $clientsPage, $clientsPerPage, 'clients_page');
+        $clientsPaginator = $this->clientsListService->paginate(
+            user: $user,
+            search: $search,
+            listFilters: $listFilters,
+            page: $clientsPage,
+            perPage: $clientsPerPage,
+            pageName: 'clients_page',
+        );
 
         return Inertia::render('Clients/Index', [
             'search' => $search,
@@ -261,96 +227,6 @@ final class ContactController extends Controller
     }
 
     /**
-     * @param  Collection<int, Contact>  $contacts
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function buildClientsList(User $user, Collection $contacts): Collection
-    {
-        return $contacts
-            ->groupBy(function (Contact $c) {
-                $digits = $this->contactBucketResolver->normalizedDigits((string) ($c->phone_number ?: $c->whatsapp_id ?: ''));
-
-                return $digits !== '' ? "phone:{$digits}" : "contact:{$c->id}";
-            })
-            ->map(function ($bucket, string $groupKey) use ($user) {
-                /** @var Contact $primary */
-                $primary = $bucket->first();
-                $allChats = $bucket
-                    ->flatMap(fn (Contact $c) => $c->chats)
-                    ->filter(fn (Chat $chat): bool => $user->can('view', $chat))
-                    ->sortByDesc(fn (Chat $chat) => (string) ($chat->last_message_at ?? $chat->updated_at ?? ''));
-
-                if ($allChats->isEmpty()) {
-                    return null;
-                }
-
-                $latestChat = $allChats->first();
-                $savedName = $bucket
-                    ->map(fn (Contact $c) => trim((string) ($c->name ?? '')))
-                    ->first(fn (string $name) => $name !== '');
-                $pushName = $bucket
-                    ->map(fn (Contact $c) => trim((string) ($c->push_name ?? '')))
-                    ->first(fn (string $name) => $name !== '');
-
-                $channels = $allChats
-                    ->map(function (Chat $chat) {
-                        $session = $chat->whatsappSession;
-
-                        return [
-                            'chat_id' => $chat->id,
-                            'session_id' => $chat->whatsapp_session_id,
-                            'session_label' => trim((string) ($session?->display_name ?? '')) ?: trim((string) ($session?->phone_number ?? '')) ?: 'Без подписи номера',
-                            'session_phone' => $session?->phone_number,
-                            'chat_name' => $chat->chat_name,
-                            'last_message_at' => $chat->last_message_at?->toISOString(),
-                        ];
-                    })
-                    ->groupBy(fn (array $row) => (string) ($row['session_id'] ?? ''))
-                    ->map(fn ($rows) => $rows->first())
-                    ->values();
-
-                $clientCompanies = $bucket
-                    ->flatMap(fn (Contact $c) => $c->companies)
-                    ->unique('id')
-                    ->map(fn (Company $company) => [
-                        'id' => $company->id,
-                        'name' => $company->name,
-                        'position' => $company->pivot?->position,
-                    ])
-                    ->values();
-
-                $phoneIdentity = PhoneFormatter::resolveContactIdentity($bucket);
-
-                $stage = $latestChat?->funnelStage;
-
-                return [
-                    'id' => $primary->id,
-                    'whatsapp_id' => $primary->whatsapp_id,
-                    'phone_number' => $phoneIdentity['phone_number'],
-                    'phone_display' => $phoneIdentity['phone_display'],
-                    'lead_id' => $phoneIdentity['lead_id'],
-                    'name' => $savedName !== null ? $savedName : null,
-                    'push_name' => $pushName !== null ? $pushName : null,
-                    'profile_picture_url' => $primary->profile_picture_url,
-                    'chats_count' => $channels->count(),
-                    'last_chat_name' => $latestChat?->chat_name,
-                    'last_chat_at' => $latestChat?->last_message_at?->toISOString(),
-                    'primary_chat_id' => $latestChat?->id,
-                    'unread_count' => (int) $allChats->sum(fn (Chat $chat): int => (int) $chat->unread_count),
-                    'stage' => $stage !== null ? [
-                        'name' => $stage->name,
-                        'color' => $stage->color,
-                    ] : null,
-                    'channels' => $channels,
-                    'companies' => $clientCompanies,
-                ];
-            })
-            ->filter()
-            ->sortByDesc(fn (array $client) => (string) ($client['last_chat_at'] ?? ''))
-            ->values();
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function emptyPagination(): array
@@ -364,24 +240,6 @@ final class ContactController extends Controller
             'from' => null,
             'to' => null,
         ];
-    }
-
-    /**
-     * @param  Collection<int, array<string, mixed>>  $items
-     * @return LengthAwarePaginator<array<string, mixed>>
-     */
-    private function paginateCollection(Collection $items, int $page, int $perPage, string $pageName): LengthAwarePaginator
-    {
-        return new LengthAwarePaginator(
-            items: $items->forPage($page, $perPage)->values(),
-            total: $items->count(),
-            perPage: $perPage,
-            currentPage: $page,
-            options: [
-                'path' => request()->url(),
-                'pageName' => $pageName,
-            ],
-        );
     }
 
     /**
