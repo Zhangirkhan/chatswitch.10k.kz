@@ -10,6 +10,28 @@ export default defineConfig({
             '@': path.resolve('resources/js'),
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                // Тяжёлые библиотеки выносим в отдельные кэшируемые чанки, чтобы
+                // они не дублировались между страницами и кэшировались браузером.
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) {
+                        return undefined;
+                    }
+                    if (id.includes('chart.js') || id.includes('vue-chartjs')) {
+                        return 'vendor-charts';
+                    }
+                    if (id.includes('@tiptap') || id.includes('prosemirror')) {
+                        return 'vendor-editor';
+                    }
+                    // mermaid намеренно НЕ группируем: он грузится лениво и сам
+                    // бьётся на мелкие чанки (>2 МБ единым файлом ломает precache PWA).
+                    return undefined;
+                },
+            },
+        },
+    },
     plugins: [
         laravel({
             input: [
