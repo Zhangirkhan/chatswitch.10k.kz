@@ -25,16 +25,7 @@ final class DemoWhatsappSessionSimulationTest extends TestCase
 
     public function test_demo_connections_page_forces_connected_status_despite_qr_from_service(): void
     {
-        Http::fake([
-            '127.0.0.1:3050/health' => Http::response(['status' => 'ok'], 200),
-            '127.0.0.1:3050/api/sessions/*' => Http::response([
-                'success' => true,
-                'sessionName' => 'demo-main',
-                'isReady' => false,
-                'isInitializing' => false,
-                'hasQR' => true,
-            ], 200),
-        ]);
+        Http::fake();
 
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
@@ -54,12 +45,14 @@ final class DemoWhatsappSessionSimulationTest extends TestCase
                 ->has('sessions', 1)
                 ->where('sessions.0.id', $session->id)
                 ->where('sessions.0.status', 'connected')
-            );
+                ->where('whatsappServiceReachable', true));
 
         $this->assertDatabaseHas('whatsapp_sessions', [
             'id' => $session->id,
             'status' => 'connected',
         ]);
+
+        Http::assertNothingSent();
     }
 
     public function test_demo_status_endpoint_returns_simulated_connected_payload(): void

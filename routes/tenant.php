@@ -244,6 +244,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
         Route::get('/connections', [WhatsappSessionController::class, 'index'])->name('settings.connections');
+        Route::get('/connections/bootstrap', [WhatsappSessionController::class, 'bootstrap'])->name('settings.connections.bootstrap');
         Route::post('/connections', [WhatsappSessionController::class, 'store'])->name('settings.connections.store');
         Route::patch('/connections/{session}', [WhatsappSessionController::class, 'update'])->name('settings.connections.update');
         Route::post('/connections/{session}/initialize', [WhatsappSessionController::class, 'initialize'])->name('settings.connections.initialize');

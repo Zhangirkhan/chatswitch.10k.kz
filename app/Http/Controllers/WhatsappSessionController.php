@@ -31,21 +31,43 @@ final class WhatsappSessionController extends Controller
 
     public function index(): Response
     {
-        $reachable = $this->whatsappService->healthReachable();
         $sessions = WhatsappSession::orderBy('created_at')->get();
 
         if ($this->demoSessions->isDemoTenant()) {
             $sessions->each(fn (WhatsappSession $session) => $this->demoSessions->markConnected($session));
             $sessions = WhatsappSession::orderBy('created_at')->get();
-        } elseif ($reachable) {
-            $this->reconcileSessionsWithMicroservice($sessions);
-            $sessions = WhatsappSession::orderBy('created_at')->get();
         }
 
         return Inertia::render('Settings/Connections', [
             'sessions' => $sessions,
-            'whatsappServiceReachable' => $reachable,
+            'whatsappServiceReachable' => $this->demoSessions->isDemoTenant() ? true : null,
             'sessionLimits' => $this->sessionLimits->payload(),
+        ]);
+    }
+
+    public function bootstrap(): JsonResponse
+    {
+        if ($this->demoSessions->isDemoTenant()) {
+            $sessions = WhatsappSession::orderBy('created_at')->get();
+            $sessions->each(fn (WhatsappSession $session) => $this->demoSessions->markConnected($session));
+
+            return response()->json([
+                'whatsappServiceReachable' => true,
+                'sessions' => WhatsappSession::orderBy('created_at')->get(),
+            ]);
+        }
+
+        $reachable = $this->whatsappService->healthReachable();
+        $sessions = WhatsappSession::orderBy('created_at')->get();
+
+        if ($reachable) {
+            $this->reconcileSessionsWithMicroservice($sessions);
+            $sessions = WhatsappSession::orderBy('created_at')->get();
+        }
+
+        return response()->json([
+            'whatsappServiceReachable' => $reachable,
+            'sessions' => $sessions,
         ]);
     }
 

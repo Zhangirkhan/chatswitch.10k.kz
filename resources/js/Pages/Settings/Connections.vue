@@ -33,9 +33,14 @@ type StatusResponse = {
     message?: string;
 };
 
+type BootstrapResponse = {
+    whatsappServiceReachable: boolean;
+    sessions: WhatsappSession[];
+};
+
 const props = defineProps<{
     sessions: WhatsappSession[];
-    whatsappServiceReachable: boolean;
+    whatsappServiceReachable: boolean | null;
     sessionLimits: {
         global_max: number;
         global_count: number;
@@ -47,6 +52,8 @@ const props = defineProps<{
 }>();
 
 const localSessions = ref<WhatsappSession[]>([...props.sessions]);
+const whatsappServiceReachable = ref<boolean | null>(props.whatsappServiceReachable);
+const isBootstrapping = ref(props.whatsappServiceReachable === null);
 const isCreating = ref(false);
 const busySessionId = ref<number | null>(null);
 const editingSessionId = ref<number | null>(null);
@@ -59,7 +66,9 @@ let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const hasSessions = computed(() => localSessions.value.length > 0);
 const hasMultipleSessions = computed(() => localSessions.value.length > 1);
-const canCreateSession = computed(() => props.sessionLimits.can_create && props.whatsappServiceReachable);
+const canCreateSession = computed(
+    () => props.sessionLimits.can_create && whatsappServiceReachable.value === true,
+);
 const sessionLimitLabel = computed(
     () => `${props.sessionLimits.tenant_count} / ${props.sessionLimits.tenant_max}`,
 );
@@ -81,7 +90,19 @@ watch(
     },
 );
 
-onMounted(() => {
+watch(
+    () => props.whatsappServiceReachable,
+    (reachable) => {
+        whatsappServiceReachable.value = reachable;
+        isBootstrapping.value = reachable === null;
+    },
+);
+
+onMounted(async () => {
+    if (props.whatsappServiceReachable === null) {
+        await bootstrapConnections();
+    }
+
     refreshVisibleQrCodes();
     qrRefreshTimer = setInterval(refreshVisibleQrCodes, 15000);
 });
@@ -257,8 +278,22 @@ function updateSession(session: WhatsappSession): void {
     localSessions.value[index] = session;
 }
 
+async function bootstrapConnections(): Promise<void> {
+    isBootstrapping.value = true;
+
+    try {
+        const { data } = await axios.get<BootstrapResponse>(route('settings.connections.bootstrap'));
+        whatsappServiceReachable.value = data.whatsappServiceReachable;
+        localSessions.value = [...data.sessions];
+    } catch {
+        whatsappServiceReachable.value = false;
+    } finally {
+        isBootstrapping.value = false;
+    }
+}
+
 function shouldRefreshQr(session: WhatsappSession): boolean {
-    return props.whatsappServiceReachable && session.status !== 'connected';
+    return whatsappServiceReachable.value === true && session.status !== 'connected';
 }
 
 function refreshVisibleQrCodes(): void {
@@ -279,7 +314,7 @@ function normalizeQr(payload: QrResponse): string | null {
 }
 
 async function createSession(): Promise<void> {
-    if (!props.whatsappServiceReachable) {
+    if (whatsappServiceReachable.value !== true) {
         message.value = 'Сервис WhatsApp недоступен. Проверьте запуск whatsapp-service.';
         return;
     }
@@ -448,8 +483,13 @@ async function saveDisplayName(session: WhatsappSession): Promise<void> {
 }
 
 
-function reloadPage(): void {
-    router.reload({ only: ['sessions', 'whatsappServiceReachable'] });
+async function reloadPage(): Promise<void> {
+    await router.reload({ only: ['sessions', 'whatsappServiceReachable'] });
+    if (props.whatsappServiceReachable === null) {
+        await bootstrapConnections();
+    } else {
+        whatsappServiceReachable.value = props.whatsappServiceReachable;
+    }
 }
 </script>
 
@@ -481,7 +521,13 @@ function reloadPage(): void {
                 </p>
             </div>
             <div
-                v-if="!whatsappServiceReachable"
+                v-if="isBootstrapping"
+                class="ui-alert ui-alert--info text-sm"
+            >
+                Проверяем доступность whatsapp-service и актуальные статусы подключений…
+            </div>
+            <div
+                v-else-if="whatsappServiceReachable === false"
                 class="ui-alert ui-alert--warn"
             >
                 Сервис WhatsApp недоступен. Проверьте `WHATSAPP_SERVICE_URL`, `WHATSAPP_SERVICE_TOKEN` и процесс whatsapp-service.
@@ -505,7 +551,7 @@ function reloadPage(): void {
                 <button
                     type="button"
                     class="ui-btn ui-btn--primary mt-5"
-                    :disabled="isCreating || !whatsappServiceReachable"
+                    :disabled="isCreating || !canCreateSession"
                     @click="createSession"
                 >
                     Создать первое подключение
