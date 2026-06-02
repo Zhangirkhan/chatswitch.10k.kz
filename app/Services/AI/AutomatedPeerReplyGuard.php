@@ -45,6 +45,10 @@ final class AutomatedPeerReplyGuard
             return true;
         }
 
+        if ($this->isHumanAcknowledgement($body)) {
+            return false;
+        }
+
         if ($this->hasRepeatedInboundBody($chat, $body)) {
             return true;
         }
@@ -58,6 +62,10 @@ final class AutomatedPeerReplyGuard
 
         if ($this->matchesBotPhrase($body)) {
             return 'похоже на автоответ другого бота';
+        }
+
+        if ($this->isHumanAcknowledgement($body)) {
+            return 'короткое подтверждение от клиента';
         }
 
         if ($this->hasRepeatedInboundBody($chat, $body)) {
@@ -126,7 +134,22 @@ final class AutomatedPeerReplyGuard
             ->unique()
             ->count();
 
-        return $uniqueInbound <= 2;
+        return $uniqueInbound <= 1;
+    }
+
+    private function isHumanAcknowledgement(string $body): bool
+    {
+        $body = $this->normalized($body);
+        if ($body === '') {
+            return false;
+        }
+
+        if (preg_match('/^(?:спасибо|благодарю|thanks|thank you|thank u|мерси|иә рахмет|рахмет|рақмет|ракмет|жарайды|ок|ok|okay|хорошо|понятно|ясно|иә|иа)(?:[!.…,\s]|$)/u', $body) === 1) {
+            return true;
+        }
+
+        return mb_strlen($body) <= 16
+            && preg_match('/^(?:да|нет)$/u', $body) === 1;
     }
 
     private function normalized(string $body): string

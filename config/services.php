@@ -47,6 +47,10 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
         'model' => env('OPENAI_MODEL', 'gpt-5.5'),
+        /** null = auto by model prefix (gpt-5*, gpt-4.1*, o*); true/false to override. */
+        'use_max_completion_tokens' => env('OPENAI_USE_MAX_COMPLETION_TOKENS'),
+        /** null = auto (gpt-5*, o* → API default temperature only). */
+        'supports_custom_temperature' => env('OPENAI_SUPPORTS_CUSTOM_TEMPERATURE'),
         /** Демо-тенант: доп. лимиты токенов и таймаут (модель — та же OPENAI_MODEL). */
         'demo_slug' => env('TENANCY_FALLBACK_SLUG', 'demo'),
         'default_max_tokens' => (int) env('OPENAI_DEFAULT_MAX_TOKENS', 900),

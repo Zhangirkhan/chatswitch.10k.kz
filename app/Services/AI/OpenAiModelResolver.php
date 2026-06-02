@@ -63,6 +63,30 @@ final class OpenAiModelResolver
         return (int) config('services.openai.timeout', 90);
     }
 
+    public function usesMaxCompletionTokens(?int $companyId = null): bool
+    {
+        $configured = config('services.openai.use_max_completion_tokens');
+        if ($configured !== null) {
+            return filter_var($configured, FILTER_VALIDATE_BOOL);
+        }
+
+        $model = mb_strtolower(trim($this->chatModel($companyId)));
+
+        return preg_match('/^(o[0-9]|gpt-4\.1|gpt-5)/', $model) === 1;
+    }
+
+    public function supportsCustomTemperature(?int $companyId = null): bool
+    {
+        $configured = config('services.openai.supports_custom_temperature');
+        if ($configured !== null) {
+            return filter_var($configured, FILTER_VALIDATE_BOOL);
+        }
+
+        $model = mb_strtolower(trim($this->chatModel($companyId)));
+
+        return preg_match('/^(o[0-9]|gpt-5)/', $model) !== 1;
+    }
+
     private function demoSlug(): string
     {
         return (string) config('services.openai.demo_slug', config('tenancy.fallback_slug', 'demo'));

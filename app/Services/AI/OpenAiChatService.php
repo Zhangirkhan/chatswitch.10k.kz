@@ -92,9 +92,15 @@ final class OpenAiChatService
             $payload = [
                 'model' => $model,
                 'messages' => $messages,
-                'temperature' => $temperature ?? 0.4,
-                'max_tokens' => $effectiveMaxTokens,
             ];
+            if ($this->modelResolver->supportsCustomTemperature($companyId)) {
+                $payload['temperature'] = $temperature ?? 0.4;
+            }
+            if ($this->modelResolver->usesMaxCompletionTokens($companyId)) {
+                $payload['max_completion_tokens'] = $effectiveMaxTokens;
+            } else {
+                $payload['max_tokens'] = $effectiveMaxTokens;
+            }
             if ($responseFormat !== null) {
                 $payload['response_format'] = $responseFormat;
             }

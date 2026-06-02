@@ -50,4 +50,32 @@ final class OpenAiModelResolverTest extends TestCase
         $this->assertSame(1400, $resolver->maxTokens($demo->id, 700));
         $this->assertSame(120, $resolver->requestTimeout($demo->id));
     }
+
+    public function test_gpt_5_uses_max_completion_tokens_parameter(): void
+    {
+        config(['services.openai.model' => 'gpt-5.5']);
+
+        $resolver = app(OpenAiModelResolver::class);
+
+        $this->assertTrue($resolver->usesMaxCompletionTokens(null));
+    }
+
+    public function test_gpt_4o_uses_legacy_max_tokens_parameter(): void
+    {
+        config(['services.openai.model' => 'gpt-4o-mini']);
+
+        $resolver = app(OpenAiModelResolver::class);
+
+        $this->assertFalse($resolver->usesMaxCompletionTokens(null));
+        $this->assertTrue($resolver->supportsCustomTemperature(null));
+    }
+
+    public function test_gpt_5_does_not_send_custom_temperature(): void
+    {
+        config(['services.openai.model' => 'gpt-5.5']);
+
+        $resolver = app(OpenAiModelResolver::class);
+
+        $this->assertFalse($resolver->supportsCustomTemperature(null));
+    }
 }

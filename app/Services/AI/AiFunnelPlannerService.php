@@ -10,6 +10,7 @@ use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Support\MessageInboundText;
 
 final class AiFunnelPlannerService
@@ -17,6 +18,7 @@ final class AiFunnelPlannerService
     public function __construct(
         private readonly OpenAiChatService $openAi,
         private readonly PromptBuilder $promptBuilder,
+        private readonly LocalePromptAugmenter $localeAugmenter,
     ) {}
 
     /**
@@ -41,8 +43,11 @@ final class AiFunnelPlannerService
         );
 
         $context = $this->contextPayload($chat, $trigger, $scenario, $rule, $candidateAssignees, $availableSlots);
+        $triggerText = trim(MessageInboundText::forMessage($trigger));
+        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id ?? $responder->company_id);
         $messages = [
             ...$base['messages'],
+            ['role' => 'system', 'content' => $this->localeAugmenter->workspaceLanguageInstruction($locale['profile'])],
             ['role' => 'system', 'content' => $this->orchestratorPrompt($context)],
             ['role' => 'user', 'content' => 'Сформируй JSON-план следующего шага AI-оркестратора по последнему сообщению клиента.'],
         ];
@@ -71,10 +76,14 @@ final class AiFunnelPlannerService
         array $availableSlots,
     ): array {
         $chat->loadMissing(['funnel.stages', 'funnelStage']);
+        $triggerText = trim(MessageInboundText::forMessage($trigger));
+        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id);
 
         return [
             'chat_id' => $chat->id,
             'trigger_message_id' => $trigger->id,
+            'trigger_message' => $triggerText,
+            'client_locale' => $locale['profile']->toArray(),
             'current_funnel' => $chat->funnel ? [
                 'id' => $chat->funnel->id,
                 'name' => $chat->funnel->name,
@@ -105,9 +114,10 @@ final class AiFunnelPlannerService
             'available_slots' => $availableSlots,
             'existing_appointments' => CalendarEvent::query()
                 ->where('chat_id', $chat->id)
-                ->where('starts_at', '>=', now()->subHours(2))
+                ->where('starts_at', '>=', now()->subDays(ChatCalendarContextBuilder::PAST_DAYS)->startOfDay())
+                ->where('starts_at', '<=', now()->addDays(ChatCalendarContextBuilder::FUTURE_DAYS)->endOfDay())
                 ->orderBy('starts_at')
-                ->limit(3)
+                ->limit(8)
                 ->get(['id', 'title', 'starts_at', 'ends_at', 'assignee_user_id', 'source'])
                 ->map(fn (CalendarEvent $event): array => [
                     'id' => $event->id,
@@ -175,6 +185,10 @@ final class AiFunnelPlannerService
 18. Если клиент просит напомнить/предупредить за N часов или минут до визита — укажи reminder_lead_minutes в минутах (30 = полчаса, 120 = 2 часа) и подтверди это в customer_reply.
 19. Первичная новая запись (existing_appointments пуст) при manager_confirmation_required в сценарии — можно requires_manager_attention=true; перенос существующей записи — всегда без менеджера, если слот выбран.
 20. Если клиент просил конкретное время, а в appointment_request выбран другой слот из available_slots — в customer_reply обязательно объясни: запрошенное время занято, предлагаешь ближайшее свободное (назови оба времени). Не пиши так, будто записал на запрошенное время.
+21. Язык customer_reply всегда совпадает с языком последнего сообщения клиента (trigger_message / client_locale). Если клиент переключился с русского на казахский или наоборот — отвечай на новом языке.
+22. Клиент может сменить тему в любой момент. Отвечай на последнее сообщение, а не продолжай предыдущую тему, если клиент уже задал новый вопрос (срок, цена, доставка, оплата, адрес).
+23. Не отправляй каталог, если клиент спрашивает о сроках, цене, доставке, оплате или адресе — ответь по этой теме.
+24. Если клиент спрашивает о своей записи, напоминании или времени визита — смотри existing_appointments. Называй точную дату и время из ISO-полей starts_at/ends_at, не «завтра»/«сегодня» из старых реплик, если календарная дата уже в прошлом или в другой день.
 
 Контекст оркестратора:
 {$json}

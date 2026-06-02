@@ -491,6 +491,70 @@ final class AiFunnelOrchestratorGuardrailsTest extends TestCase
         $this->assertStringContainsString('ближайш', mb_strtolower($reply));
     }
 
+    public function test_kazakh_time_question_after_catalog_inquiry_does_not_get_catalog_reply(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Product::query()->create([
+            'company_id' => $company->id,
+            'name' => 'Индивидуальный заказ',
+            'price' => 100000,
+            'is_active' => true,
+            'include_in_prompt' => true,
+            'sort_order' => 0,
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'Здравствуйте какие услуги есть',
+            'message_timestamp' => now()->subMinute(),
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'Қанша уақыт',
+            'message_timestamp' => now(),
+        ]);
+
+        $blocked = new AiFunnelOrchestratorPlan(
+            customerReply: null,
+            targetFunnelStageId: null,
+            appointment: null,
+            assigneeUserId: null,
+            managerNote: 'stop',
+            task: ['title' => 'x', 'body' => 'y'],
+            requiresManagerAttention: true,
+            confidence: 0.55,
+            reason: 'AI остановлен: обнаружен повтор похожего уточняющего вопроса.',
+        );
+
+        $service = app(AiFunnelOrchestratorService::class);
+
+        $shouldOfferCatalog = new ReflectionMethod(AiFunnelOrchestratorService::class, 'shouldOfferCatalog');
+        $shouldOfferCatalog->setAccessible(true);
+        $this->assertFalse($shouldOfferCatalog->invoke($service, $chat, $trigger));
+
+        $finalize = new ReflectionMethod(AiFunnelOrchestratorService::class, 'finalizeCustomerFacingPlan');
+        $finalize->setAccessible(true);
+
+        $finalPlan = $finalize->invoke($service, $chat, $trigger, $blocked);
+
+        $this->assertStringNotContainsString('в каталоге', mb_strtolower((string) $finalPlan->customerReply));
+        $this->assertStringContainsString('мерзім', mb_strtolower((string) $finalPlan->customerReply));
+        $this->assertFalse($finalPlan->requiresManagerAttention);
+    }
+
     private function invokeNormalizeCatalogInquiry(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
         $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'normalizeCatalogInquiry');
