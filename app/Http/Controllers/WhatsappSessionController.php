@@ -8,6 +8,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\WhatsappSession;
 use App\Services\ChatService;
+use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionLimitService;
 use App\Tenancy\TenantContext;
@@ -25,6 +26,7 @@ final class WhatsappSessionController extends Controller
         private readonly WhatsappService $whatsappService,
         private readonly ChatService $chatService,
         private readonly WhatsappSessionLimitService $sessionLimits,
+        private readonly DemoWhatsappSessionSimulator $demoSessions,
     ) {}
 
     public function index(): Response
@@ -32,7 +34,10 @@ final class WhatsappSessionController extends Controller
         $reachable = $this->whatsappService->healthReachable();
         $sessions = WhatsappSession::orderBy('created_at')->get();
 
-        if ($reachable) {
+        if ($this->demoSessions->isDemoTenant()) {
+            $sessions->each(fn (WhatsappSession $session) => $this->demoSessions->markConnected($session));
+            $sessions = WhatsappSession::orderBy('created_at')->get();
+        } elseif ($reachable) {
             $this->reconcileSessionsWithMicroservice($sessions);
             $sessions = WhatsappSession::orderBy('created_at')->get();
         }
@@ -207,6 +212,10 @@ final class WhatsappSessionController extends Controller
 
     public function initialize(WhatsappSession $session): JsonResponse
     {
+        if ($this->demoSessions->isDemoTenant()) {
+            return response()->json($this->demoSessions->simulatedStatusPayload($session));
+        }
+
         if (! $this->whatsappService->healthReachable()) {
             return response()->json([
                 'message' => 'Сервис WhatsApp недоступен. Проверьте WHATSAPP_SERVICE_URL и запуск whatsapp-service.',
@@ -227,6 +236,10 @@ final class WhatsappSessionController extends Controller
 
     public function qr(WhatsappSession $session): JsonResponse
     {
+        if ($this->demoSessions->isDemoTenant()) {
+            return response()->json($this->demoSessions->simulatedStatusPayload($session));
+        }
+
         $result = $this->whatsappService->getSessionQR($session->session_name);
 
         return response()->json($result);
@@ -270,6 +283,10 @@ final class WhatsappSessionController extends Controller
 
     public function status(WhatsappSession $session): JsonResponse
     {
+        if ($this->demoSessions->isDemoTenant()) {
+            return response()->json($this->demoSessions->simulatedStatusPayload($session));
+        }
+
         $result = $this->whatsappService->getSessionStatus($session->session_name);
 
         if ($result !== []) {
@@ -306,6 +323,19 @@ final class WhatsappSessionController extends Controller
     public function verify(WhatsappSession $session): JsonResponse
     {
         $this->authorize('manage', $session);
+
+        if ($this->demoSessions->isDemoTenant()) {
+            $session = $this->demoSessions->markConnected($session);
+
+            return response()->json([
+                'alive' => true,
+                'reachable' => true,
+                'is_ready' => true,
+                'has_qr' => false,
+                'is_initializing' => false,
+                'session' => $session,
+            ]);
+        }
 
         if (! $this->whatsappService->healthReachable()) {
             return response()->json([

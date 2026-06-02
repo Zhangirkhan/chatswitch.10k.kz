@@ -40,6 +40,10 @@ final class DemoTenantPopulationTest extends TestCase
 
         $this->assertDatabaseHas('users', ['email' => 'demo@accel.kz', 'company_id' => $company->id]);
         $this->assertSame(3, WhatsappSession::query()->where('company_id', $company->id)->count());
+        $this->assertSame(
+            3,
+            WhatsappSession::query()->where('company_id', $company->id)->where('status', 'connected')->count(),
+        );
         $this->assertGreaterThanOrEqual(10, FunnelStage::query()->whereHas('funnel', fn ($q) => $q->where('company_id', $company->id))->count());
     }
 }

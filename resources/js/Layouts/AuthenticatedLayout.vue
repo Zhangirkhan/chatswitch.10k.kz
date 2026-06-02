@@ -54,6 +54,8 @@ const canSubscribeToWhatsappStatus = computed(() => {
     return Array.isArray(roles) && (roles.includes('administrator') || roles.includes('manager'));
 });
 
+const isDemoTenant = computed(() => page.props.tenantSlug === 'demo');
+
 watch(
     () => page.props.whatsappSessions as WhatsappSession[] | undefined,
     (sessions) => {
@@ -94,6 +96,12 @@ function onWhatsappStatusChanged(raw: unknown): void {
 
     const session = whatsappSessions.value.find((s) => s.session_name === sessionName);
     if (!session) return;
+
+    // В демо-тенанте подключения имитируются; игнорируем события от whatsapp-service.
+    if (isDemoTenant.value && status !== 'connected') {
+        session.status = 'connected';
+        return;
+    }
 
     session.status = status as WhatsappSession['status'];
     if (typeof payload.phone_number === 'string') {

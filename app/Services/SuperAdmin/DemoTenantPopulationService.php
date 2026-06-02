@@ -309,13 +309,17 @@ final class DemoTenantPopulationService
         $sessions = [];
 
         foreach ($defs as $def) {
+            $isDemo = $this->isDemoCompany($company);
+
             $sessions[] = WhatsappSession::query()->withoutGlobalScope('tenant')->create([
                 'company_id' => $company->id,
                 'session_name' => $def['session_name'],
                 'display_name' => $def['display_name'],
                 'phone_number' => $def['phone_number'],
                 'display_color' => $def['display_color'],
-                'status' => 'disconnected',
+                'status' => $isDemo ? 'connected' : 'disconnected',
+                'connected_at' => $isDemo ? now() : null,
+                'wa_name' => $isDemo ? $def['display_name'] : null,
                 'desired_state' => 'active',
                 'is_active' => true,
             ]);

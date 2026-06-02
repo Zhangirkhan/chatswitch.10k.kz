@@ -11,6 +11,7 @@ use App\Models\TenantSignupRequest;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\Calendar\CalendarMenuBadgeService;
+use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\Security\RecaptchaVerifier;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\TeamDepartmentChatSyncService;
@@ -193,10 +194,18 @@ final class HandleInertiaRequests extends Middleware
             $query->whereIn('id', $sessionIds);
         }
 
-        return $query
+        $sessions = $query
             ->orderBy('display_name')
-            ->get(['id', 'session_name', 'display_name', 'display_color', 'wa_name', 'phone_number', 'status'])
-            ->toArray();
+            ->get(['id', 'session_name', 'display_name', 'display_color', 'wa_name', 'phone_number', 'status']);
+
+        $simulator = app(DemoWhatsappSessionSimulator::class);
+        if ($simulator->isDemoTenant()) {
+            $sessions = $sessions->map(
+                fn (WhatsappSession $session): WhatsappSession => $simulator->markConnected($session),
+            );
+        }
+
+        return $sessions->toArray();
     }
 
     private function archivedChatsCount(User $user): int
