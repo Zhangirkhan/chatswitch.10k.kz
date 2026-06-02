@@ -8,18 +8,13 @@ use App\Models\Company;
 use App\Tenancy\TenantContext;
 
 /**
- * Выбор модели OpenAI: демо-тенант может использовать более мощную модель (GPT-5.5),
- * остальные — базовую из OPENAI_MODEL.
+ * Параметры OpenAI-запросов: модель из OPENAI_MODEL, для demo — повышенные лимиты.
  */
 final class OpenAiModelResolver
 {
     public function chatModel(?int $companyId = null): string
     {
-        if ($this->isDemo($companyId)) {
-            return (string) config('services.openai.demo_model', 'gpt-5.5');
-        }
-
-        return (string) config('services.openai.model', 'gpt-4o-mini');
+        return (string) config('services.openai.model', 'gpt-5.5');
     }
 
     public function isDemo(?int $companyId = null): bool
@@ -43,7 +38,7 @@ final class OpenAiModelResolver
     }
 
     /**
-     * Для демо снимаем «потолок» 4o-mini: удваиваем запрошенный лимит с верхней границей.
+     * Для demo удваиваем запрошенный лимит с верхней границей.
      */
     public function maxTokens(?int $companyId, ?int $requested): int
     {
@@ -65,7 +60,7 @@ final class OpenAiModelResolver
             return (int) config('services.openai.demo_timeout', 90);
         }
 
-        return (int) config('services.openai.timeout', 45);
+        return (int) config('services.openai.timeout', 90);
     }
 
     private function demoSlug(): string

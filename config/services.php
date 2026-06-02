@@ -46,15 +46,14 @@ return [
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
-        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
-        /** Демо-тенант (slug = TENANCY_FALLBACK_SLUG): более мощная модель для презентаций. */
+        'model' => env('OPENAI_MODEL', 'gpt-5.5'),
+        /** Демо-тенант: доп. лимиты токенов и таймаут (модель — та же OPENAI_MODEL). */
         'demo_slug' => env('TENANCY_FALLBACK_SLUG', 'demo'),
-        'demo_model' => env('OPENAI_DEMO_MODEL', 'gpt-5.5'),
         'default_max_tokens' => (int) env('OPENAI_DEFAULT_MAX_TOKENS', 900),
         'demo_max_tokens_multiplier' => (float) env('OPENAI_DEMO_MAX_TOKENS_MULTIPLIER', 2),
         'demo_max_tokens_cap' => (int) env('OPENAI_DEMO_MAX_TOKENS_CAP', 4096),
         'demo_timeout' => (int) env('OPENAI_DEMO_TIMEOUT', 90),
-        'timeout' => (int) env('OPENAI_TIMEOUT', 45),
+        'timeout' => (int) env('OPENAI_TIMEOUT', 90),
         'transcribe_timeout' => (int) env('OPENAI_TRANSCRIBE_TIMEOUT', 180),
         'whisper_language' => env('OPENAI_WHISPER_LANGUAGE'),
     ],
