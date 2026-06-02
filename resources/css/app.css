@@ -630,7 +630,7 @@ textarea::placeholder {
 .wa-system-chat-msg *::selection,
 .wa-bubble-surface-in ::selection,
 .wa-bubble-surface-in *::selection {
-    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 52%, var(--wa-bubble-in));
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-in));
     color: var(--wa-bubble-text-in, var(--wa-bubble-text));
 }
 
@@ -638,7 +638,7 @@ textarea::placeholder {
 .wa-msg-bubble-out *::selection,
 .wa-bubble-surface-out ::selection,
 .wa-bubble-surface-out *::selection {
-    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 52%, var(--wa-bubble-out));
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-out));
     color: var(--wa-bubble-text-out, var(--wa-bubble-text));
 }
 
@@ -648,7 +648,7 @@ textarea::placeholder {
 .wa-system-chat-msg *::-moz-selection,
 .wa-bubble-surface-in ::-moz-selection,
 .wa-bubble-surface-in *::-moz-selection {
-    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 52%, var(--wa-bubble-in));
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-in));
     color: var(--wa-bubble-text-in, var(--wa-bubble-text));
 }
 
@@ -656,7 +656,7 @@ textarea::placeholder {
 .wa-msg-bubble-out *::-moz-selection,
 .wa-bubble-surface-out ::-moz-selection,
 .wa-bubble-surface-out *::-moz-selection {
-    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 52%, var(--wa-bubble-out));
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-out));
     color: var(--wa-bubble-text-out, var(--wa-bubble-text));
 }
 
