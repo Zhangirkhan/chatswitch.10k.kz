@@ -35,6 +35,7 @@ final class TranscribeAudioJobTest extends TestCase
 
         config()->set('services.openai.api_key', 'test-key');
         config()->set('accel.transcribe_audio', true);
+        config()->set('accel.whisper_voice_fallback_language', 'kk');
 
         Http::fake([
             'https://api.openai.com/v1/audio/transcriptions' => Http::response([
