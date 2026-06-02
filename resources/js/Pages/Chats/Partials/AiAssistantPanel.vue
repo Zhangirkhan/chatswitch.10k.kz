@@ -818,7 +818,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </p>
 
                 <div
-                    class="rounded-lg px-3 py-2 text-[13px] leading-5"
+                    class="wa-bubble-surface-in rounded-lg px-3 py-2 text-[13px] leading-5"
                     :style="{ background: 'var(--wa-bubble-in)', color: 'var(--wa-bubble-text)' }"
                 >
                     <template v-if="autoDraftLoading">
@@ -885,7 +885,9 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             <template v-for="(turn, idx) in turns" :key="idx">
                 <div
                     class="max-w-[92%] text-[13.5px] rounded-2xl px-3 py-2 wa-shadow whitespace-pre-wrap break-words leading-[19px]"
-                    :class="turn.role === 'user' ? 'ml-auto rounded-tr-md' : 'mr-auto rounded-tl-md'"
+                    :class="[
+                        turn.role === 'user' ? 'ml-auto rounded-tr-md wa-bubble-surface-out' : 'mr-auto rounded-tl-md wa-bubble-surface-in',
+                    ]"
                     :style="{
                         background: turn.role === 'user' ? 'var(--wa-bubble-out)' : 'var(--wa-bubble-in)',
                         color: 'var(--wa-bubble-text)',
@@ -909,7 +911,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 
             <div
                 v-if="sending"
-                class="mr-auto max-w-[60%] text-[13px] rounded-2xl rounded-tl-md px-3 py-2 wa-shadow flex items-center gap-2"
+                class="wa-bubble-surface-in mr-auto max-w-[60%] text-[13px] rounded-2xl rounded-tl-md px-3 py-2 wa-shadow flex items-center gap-2"
                 :style="{ background: 'var(--wa-bubble-in)', color: 'var(--wa-bubble-text)' }"
             >
                 <span class="ai-typing-dot" />
