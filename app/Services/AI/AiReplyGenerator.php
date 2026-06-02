@@ -27,6 +27,7 @@ final class AiReplyGenerator
     public function __construct(
         private readonly PromptBuilder $promptBuilder,
         private readonly OpenAiChatService $openAi,
+        private readonly OpenAiModelResolver $modelResolver,
         private readonly AiAppointmentIntentService $appointmentIntent,
         private readonly CalendarAvailabilityService $availability,
         private readonly AppointmentBookingService $bookingService,
@@ -78,9 +79,11 @@ final class AiReplyGenerator
             }
         }
 
+        $companyId = $chat->company_id ?? $responder->company_id;
+
         $log?->forceFill([
             'prompt_hash' => $built['prompt_hash'],
-            'model' => (string) config('services.openai.model', 'gpt-4o-mini'),
+            'model' => $this->modelResolver->chatModel($companyId),
             'metadata' => [
                 ...($log->metadata ?? []),
                 'messages_count' => count($built['messages']),
@@ -205,7 +208,7 @@ final class AiReplyGenerator
 
         $log?->forceFill([
             'prompt_hash' => $promptHash,
-            'model' => (string) config('services.openai.model', 'gpt-4o-mini'),
+            'model' => $this->modelResolver->chatModel($log->chat?->company_id),
             'metadata' => [
                 ...($log->metadata ?? []),
                 'appointment' => $metadata,

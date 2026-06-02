@@ -18,6 +18,7 @@ final class OpenAiChatService
 {
     public function __construct(
         private readonly AiUsageRecorder $usageRecorder,
+        private readonly OpenAiModelResolver $modelResolver,
     ) {}
 
     /**
@@ -78,8 +79,10 @@ final class OpenAiChatService
     ): array {
         $apiKey = (string) config('services.openai.api_key');
         $baseUrl = rtrim((string) config('services.openai.base_url', 'https://api.openai.com/v1'), '/');
-        $model = (string) config('services.openai.model', 'gpt-4o-mini');
-        $timeout = (int) config('services.openai.timeout', 45);
+        $companyId = $usage?->companyId;
+        $model = $this->modelResolver->chatModel($companyId);
+        $timeout = $this->modelResolver->requestTimeout($companyId);
+        $effectiveMaxTokens = $this->modelResolver->maxTokens($companyId, $maxTokens);
 
         if ($apiKey === '') {
             throw new RuntimeException('OPENAI_API_KEY не задан в .env (services.openai.api_key).');
@@ -90,7 +93,7 @@ final class OpenAiChatService
                 'model' => $model,
                 'messages' => $messages,
                 'temperature' => $temperature ?? 0.4,
-                'max_tokens' => $maxTokens ?? 900,
+                'max_tokens' => $effectiveMaxTokens,
             ];
             if ($responseFormat !== null) {
                 $payload['response_format'] = $responseFormat;
