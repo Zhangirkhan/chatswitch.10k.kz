@@ -30,6 +30,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
@@ -57,10 +58,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->domain($adminHost)
                 ->group(base_path('routes/admin.php'));
 
-            Route::middleware(['api', 'tenant.resolve'])
+            Route::middleware(['api', 'tenant.resolve', 'tenant.active'])
                 ->prefix('api')
                 ->domain('{tenant}.'.$rootDomain)
                 ->group(base_path('routes/api-tenant.php'));
+
+            Route::middleware(['api', 'tenant.resolve', 'auth:sanctum', 'api.active'])
+                ->prefix('broadcasting')
+                ->domain('{tenant}.'.$rootDomain)
+                ->group(function (): void {
+                    Broadcast::routes();
+                });
 
             Route::middleware(['web', 'tenant.resolve', 'tenant.active'])
                 ->domain('{tenant}.'.$rootDomain)

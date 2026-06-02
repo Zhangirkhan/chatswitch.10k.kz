@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\User;
+use App\Services\Auth\UserPinService;
 use App\Tenancy\TenantContext;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
-final class MobileLoginRequest extends FormRequest
+final class MobilePinLoginRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -28,8 +28,17 @@ final class MobileLoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'pin' => ['required', 'string', 'regex:/^\d{4,6}$/'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'pin.regex' => 'PIN должен состоять из 4–6 цифр.',
         ];
     }
 
@@ -38,7 +47,7 @@ final class MobileLoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 8)) {
             return;
         }
 
@@ -47,21 +56,22 @@ final class MobileLoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => [trans('auth.throttle', [
+            'pin' => trans('auth.throttle', [
                 'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ])],
+                'minutes' => (int) ceil($seconds / 60),
+            ]),
         ]);
     }
 
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        $context = app(TenantContext::class);
+        $companyId = $context->companyIdOrNull() ?? 'unknown';
+
+        return Str::transliterate('pin|'.$companyId.'|'.$this->ip());
     }
 
     /**
-     * Аутентификация для API: активный пользователь или 403 JSON.
-     *
      * @throws ValidationException
      */
     public function authenticateUser(): User
@@ -71,36 +81,29 @@ final class MobileLoginRequest extends FormRequest
         $context = app(TenantContext::class);
         if (! $context->isResolved()) {
             throw ValidationException::withMessages([
-                'email' => [trans('auth.failed')],
+                'pin' => 'Неверный PIN или вход по PIN не настроен.',
             ]);
         }
 
-        $credentials = [
-            'email' => $this->string('email')->toString(),
-            'password' => $this->string('password')->toString(),
-            'company_id' => $context->companyId(),
-        ];
+        $companyId = $context->companyId();
+        $pin = $this->string('pin')->toString();
+        $user = app(UserPinService::class)->findUserByPin($companyId, $pin);
 
-        if (! Auth::attempt($credentials)) {
+        if ($user === null) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => [trans('auth.failed')],
+                'pin' => 'Неверный PIN или вход по PIN не настроен.',
             ]);
         }
 
-        RateLimiter::clear($this->throttleKey());
-
-        /** @var User $user */
-        $user = Auth::user();
-
         if (! $user->is_active) {
-            Auth::logout();
-
             throw new HttpResponseException(response()->json([
                 'message' => 'Ваш аккаунт деактивирован.',
             ], 403));
         }
+
+        RateLimiter::clear($this->throttleKey());
 
         return $user;
     }

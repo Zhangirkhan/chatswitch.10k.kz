@@ -4,26 +4,53 @@ info:
   version: "1.0.0"
   description: |
     ## Мобильный REST API (`/api/v1/...`)
+
+    **Хост:** `https://{slug}.accel.kz` — slug рабочего пространства (тенанта).
+    Перед логином проверьте slug через `GET /api/v1/workspace`.
+
     Bearer-токен Laravel Sanctum. Роли `administrator`, `manager`, `employee`.
 
     **Неактивный пользователь** (`is_active: false`): логин — HTTP 403; при уже выданном токене — 403.
+
+    **Приостановленный тенант** (`subscription_status: suspended|canceled` или `is_active: false`): HTTP 403 на все API-маршруты.
 
     **Лимиты:** `throttle:api`; неудачные логины — до 5 попыток по email+IP (429).
 
     ---
 
-    ## Веб-эндпоинты (сессия, CSRF)
-    Маршруты для оператора браузера: AI-ассистент, воронки продаж, задачи по отделам.
-    Требуют cookie-сессии (`auth`) и заголовка `X-CSRF-TOKEN` / `X-Requested-With: XMLHttpRequest`.
-    Роль — через middleware `role:administrator` (там, где указано).
+    ## Realtime (Reverb / WebSocket)
+
+    После логина подключайтесь к Reverb и авторизуйте private-каналы:
+
+    - `POST /broadcasting/auth` с заголовком `Authorization: Bearer {token}`
+    - Каналы: `private-t.{companyId}.chat.{chatId}`, `private-t.{companyId}.chats.list.{userId}`,
+      `private-t.{companyId}.team-conversation.{conversationId}`, `private-t.{companyId}.team-inbox.{userId}`
+    - События: `.message.received`, `.user.typing`, `.message.reactions`, `.team.message`, `.team.typing`, …
+
+    Параметры подключения — из env бэкенда: `REVERB_APP_KEY`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`.
+
+    ---
+
+    ## Веб-эндпоинты (сессия, CSRF) — deprecated для мобилки
+
+    Ниже в спеке могут оставаться legacy-маршруты без префикса `/api/v1`.
+    Мобильное приложение должно использовать только `/api/v1/*` с Bearer-токеном.
 
 servers:
   - url: /
     description: Текущий хост приложения
 
 tags:
-  - name: Auth
-    description: Вход, выход, текущий пользователь
+  - name: Workspace
+    description: Проверка рабочего пространства (slug)
+  - name: Settings
+    description: Системные настройки и флаги модулей
+  - name: TeamChat
+    description: Внутренний чат организации
+  - name: Contacts
+    description: Клиенты и контакты
+  - name: Media
+    description: Медиа вложения сообщений
   - name: Departments
     description: Отделы
   - name: Chats
@@ -44,6 +71,22 @@ tags:
       **Авторизация:** сессия (`auth`).
 
 paths:
+  /api/v1/workspace:
+    get:
+      tags: [Workspace]
+      summary: Информация о рабочем пространстве (публично)
+      operationId: workspaceShow
+      description: Вызывается на поддомене `{slug}.accel.kz` до логина для проверки slug.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantResourceResponse"
+        "404":
+          description: Тенант не найден
+
   /api/v1/auth/login:
     post:
       tags: [Auth]
@@ -76,6 +119,42 @@ paths:
                 $ref: "#/components/schemas/ValidationError"
         "429":
           description: Слишком много попыток входа
+
+  /api/v1/auth/login/pin:
+    post:
+      tags: [Auth]
+      summary: Вход по PIN (выдача токена)
+      operationId: authLoginPin
+      description: |
+        PIN 4–6 цифр, уникален внутри компании. Назначается администратором в CRM.
+        Подробнее — docs/mobile-api/PIN.md
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinLoginRequest"
+      responses:
+        "200":
+          description: Успех
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "403":
+          description: Аккаунт деактивирован или тенант заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "422":
+          description: Неверный PIN или ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "429":
+          description: Слишком много попыток (8 на IP+company)
 
   /api/v1/auth/logout:
     post:
@@ -806,6 +885,16 @@ components:
           type: string
           format: password
 
+    PinLoginRequest:
+      type: object
+      required: [pin]
+      properties:
+        pin:
+          type: string
+          pattern: '^\d{4,6}$'
+          description: 4–6 цифр, уникален внутри компании
+          example: "4829"
+
     LoginResponse:
       type: object
       required: [token, token_type, user]
@@ -816,8 +905,25 @@ components:
         token_type:
           type: string
           example: Bearer
+        tenant:
+          $ref: "#/components/schemas/Tenant"
         user:
           $ref: "#/components/schemas/User"
+
+    Tenant:
+      type: object
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        name: { type: string }
+        is_active: { type: boolean }
+        subscription_status: { type: string, nullable: true }
+
+    TenantResourceResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Tenant"
 
     LogoutResponse:
       type: object

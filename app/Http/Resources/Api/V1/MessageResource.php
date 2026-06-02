@@ -38,6 +38,7 @@ final class MessageResource extends JsonResource
                 'id' => $m->id,
                 'mime_type' => $m->mime_type,
                 'filename' => $m->filename,
+                'url' => url('/api/v1/media/'.$m->id),
             ])->values()->all()),
             'reactions' => $this->whenLoaded('reactions', fn () => $this->reactions->map(fn ($r) => [
                 'emoji' => $r->emoji,

@@ -75,6 +75,17 @@ final class UserPinService
 
     public function findActiveUserByPin(int $companyId, string $rawPin): ?User
     {
+        $user = $this->findUserByPin($companyId, $rawPin);
+
+        if ($user === null || ! $user->is_active) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    public function findUserByPin(int $companyId, string $rawPin): ?User
+    {
         $pin = $this->normalize($rawPin);
         if (! $this->isValidFormat($pin)) {
             return null;
@@ -83,7 +94,6 @@ final class UserPinService
         $candidates = User::query()
             ->withoutGlobalScope('tenant')
             ->where('company_id', $companyId)
-            ->where('is_active', true)
             ->where('is_super_admin', false)
             ->whereNotNull('pin_hash')
             ->get(['id', 'pin_hash', 'company_id', 'is_active', 'is_super_admin']);

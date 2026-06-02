@@ -213,7 +213,9 @@ RECAPTCHA_MIN_SCORE=0.5       # только для v3
 
 ## Swagger / OpenAPI (Mobile API v1)
 
-Спека: [`openapi/mobile-v1.yaml`](openapi/mobile-v1.yaml).
+Спека: [`openapi/mobile-v1.yaml`](openapi/mobile-v1.yaml).  
+Документация для разработчиков мобилки: [`docs/mobile-api/README.md`](docs/mobile-api/README.md).  
+PIN-вход: [`docs/mobile-api/PIN.md`](docs/mobile-api/PIN.md).
 
 На поддомене тенанта: `https://<slug>.accel.kz/docs/api` — UI Swagger, `.../docs/api/openapi.yaml` — YAML.
 
