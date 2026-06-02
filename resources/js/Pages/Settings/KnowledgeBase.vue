@@ -2,6 +2,7 @@
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -43,6 +44,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t, locale } = useI18n();
 const kbModalPanelClass = '![background:var(--ui-surface)] ![border-color:var(--ui-border)] shadow-[var(--ui-shadow-soft)]';
 const localItems = ref<KnowledgeItem[]>([...props.items]);
 const editing = ref<KnowledgeItem | null>(null);
@@ -74,38 +76,42 @@ watch(
     { deep: true },
 );
 
-const meta = computed(() => ({
-    products: {
-        title: 'Товары',
-        subtitle: 'Каталог товаров, которые AI может учитывать в промпте',
-        addLabel: 'Добавить товар',
-        route: 'settings.knowledge.products',
-        store: 'settings.knowledge.products.store',
-        update: 'settings.knowledge.products.update',
-        destroy: 'settings.knowledge.products.destroy',
-        bulkPrompt: 'settings.knowledge.products.bulk-prompt',
-    },
-    services: {
-        title: 'Услуги',
-        subtitle: 'Услуги, длительность, цены и условия',
-        addLabel: 'Добавить услугу',
-        route: 'settings.knowledge.services',
-        store: 'settings.knowledge.services.store',
-        update: 'settings.knowledge.services.update',
-        destroy: 'settings.knowledge.services.destroy',
-        bulkPrompt: 'settings.knowledge.services.bulk-prompt',
-    },
-    rules: {
-        title: 'База знаний',
-        subtitle: 'Правила ответа: часы работы, ограничения, тон и политика AI',
-        addLabel: 'Добавить правило',
-        route: 'settings.knowledge.rules',
-        store: 'settings.knowledge.rules.store',
-        update: 'settings.knowledge.rules.update',
-        destroy: 'settings.knowledge.rules.destroy',
-        bulkPrompt: 'settings.knowledge.rules.bulk-prompt',
-    },
-}[props.section]));
+const meta = computed(() => {
+    const sections = {
+        products: {
+            title: t('settings.knowledgeBase.sections.products.title'),
+            subtitle: t('settings.knowledgeBase.sections.products.subtitle'),
+            addLabel: t('settings.knowledgeBase.sections.products.addLabel'),
+            route: 'settings.knowledge.products',
+            store: 'settings.knowledge.products.store',
+            update: 'settings.knowledge.products.update',
+            destroy: 'settings.knowledge.products.destroy',
+            bulkPrompt: 'settings.knowledge.products.bulk-prompt',
+        },
+        services: {
+            title: t('settings.knowledgeBase.sections.services.title'),
+            subtitle: t('settings.knowledgeBase.sections.services.subtitle'),
+            addLabel: t('settings.knowledgeBase.sections.services.addLabel'),
+            route: 'settings.knowledge.services',
+            store: 'settings.knowledge.services.store',
+            update: 'settings.knowledge.services.update',
+            destroy: 'settings.knowledge.services.destroy',
+            bulkPrompt: 'settings.knowledge.services.bulk-prompt',
+        },
+        rules: {
+            title: t('settings.knowledgeBase.sections.rules.title'),
+            subtitle: t('settings.knowledgeBase.sections.rules.subtitle'),
+            addLabel: t('settings.knowledgeBase.sections.rules.addLabel'),
+            route: 'settings.knowledge.rules',
+            store: 'settings.knowledge.rules.store',
+            update: 'settings.knowledge.rules.update',
+            destroy: 'settings.knowledge.rules.destroy',
+            bulkPrompt: 'settings.knowledge.rules.bulk-prompt',
+        },
+    } as const;
+
+    return sections[props.section];
+});
 
 type PreviewCounts = {
     rules: number;
@@ -250,57 +256,63 @@ const missingPriceCount = computed(() =>
 const emptyCrossLinks = computed((): { label: string; href: string }[] => {
     if (props.section === 'products') {
         return [
-            { label: 'Услуги', href: route('settings.knowledge.services') },
-            { label: 'Правила ответа', href: route('settings.knowledge.rules') },
+            { label: t('settings.knowledgeBase.crossLinks.services'), href: route('settings.knowledge.services') },
+            { label: t('settings.knowledgeBase.crossLinks.rules'), href: route('settings.knowledge.rules') },
         ];
     }
     if (props.section === 'services') {
         return [
-            { label: 'Товары', href: route('settings.knowledge.products') },
-            { label: 'Правила ответа', href: route('settings.knowledge.rules') },
+            { label: t('settings.knowledgeBase.crossLinks.products'), href: route('settings.knowledge.products') },
+            { label: t('settings.knowledgeBase.crossLinks.rules'), href: route('settings.knowledge.rules') },
         ];
     }
 
     return [
-        { label: 'Товары', href: route('settings.knowledge.products') },
-        { label: 'Услуги', href: route('settings.knowledge.services') },
+        { label: t('settings.knowledgeBase.crossLinks.products'), href: route('settings.knowledge.products') },
+        { label: t('settings.knowledgeBase.crossLinks.services'), href: route('settings.knowledge.services') },
     ];
 });
 
 const promptReadyItems = computed(() => localItems.value.filter((item) => item.is_active && item.include_in_prompt));
 const readinessChecks = computed(() => [
     {
-        label: 'Контекст готов',
+        label: t('settings.knowledgeBase.readiness.contextReady'),
         ok: props.companies.length > 0,
-        hint: props.companies.length > 0 ? 'Можно собирать контекст для AI.' : 'Контекст AI ещё не подготовлен.',
+        hint: props.companies.length > 0
+            ? t('settings.knowledgeBase.readiness.contextReadyHint')
+            : t('settings.knowledgeBase.readiness.contextMissingHint'),
     },
     {
-        label: 'Есть активные записи в промпте',
+        label: t('settings.knowledgeBase.readiness.hasPromptItems'),
         ok: promptReadyItems.value.length > 0,
-        hint: promptReadyItems.value.length > 0 ? `В промпт попадёт записей: ${promptReadyItems.value.length}.` : 'Включите хотя бы одну активную запись в промпт.',
+        hint: promptReadyItems.value.length > 0
+            ? t('settings.knowledgeBase.readiness.promptItemsHint', { count: promptReadyItems.value.length })
+            : t('settings.knowledgeBase.readiness.noPromptItemsHint'),
     },
     {
-        label: 'Предпросмотр доступен',
+        label: t('settings.knowledgeBase.readiness.previewAvailable'),
         ok: previewCompanyId.value !== null,
-        hint: previewCompanyId.value !== null ? 'Можно проверить, что увидит AI.' : 'Предпросмотр пока недоступен.',
+        hint: previewCompanyId.value !== null
+            ? t('settings.knowledgeBase.readiness.previewAvailableHint')
+            : t('settings.knowledgeBase.readiness.previewUnavailableHint'),
     },
 ]);
 const dataWarnings = computed(() => {
     const warnings: string[] = [];
     if (localItems.value.length === 0) {
-        warnings.push('В разделе пока нет записей.');
+        warnings.push(t('settings.knowledgeBase.warnings.emptySection'));
     }
     if (localItems.value.some((item) => item.is_active && !item.include_in_prompt)) {
-        warnings.push('Есть активные записи, которые не попадают в AI-промпт.');
+        warnings.push(t('settings.knowledgeBase.warnings.activeNotInPrompt'));
     }
     if (props.section === 'rules' && localItems.value.some((item) => !String(item.content ?? '').trim())) {
-        warnings.push('У части правил не заполнен текст правила.');
+        warnings.push(t('settings.knowledgeBase.warnings.rulesMissingContent'));
     }
     if (props.section !== 'rules' && localItems.value.some((item) => !String(item.description ?? '').trim())) {
-        warnings.push('У части записей не заполнено описание, AI может отвечать слишком общо.');
+        warnings.push(t('settings.knowledgeBase.warnings.missingDescription'));
     }
     if (props.section !== 'rules' && localItems.value.some((item) => item.price === null || item.price === undefined || item.price === '')) {
-        warnings.push('У части товаров/услуг нет цены. Если цену нельзя называть, укажите это в описании.');
+        warnings.push(t('settings.knowledgeBase.warnings.missingPrice'));
     }
 
     return warnings;
@@ -364,13 +376,16 @@ async function reindexEmbeddings(): Promise<void> {
         });
         ragStatus.value = (data.rag ?? null) as RagStatus | null;
         showToast({
-            message: `Индексация: +${data.stats?.indexed ?? 0}, пропущено ${data.stats?.skipped ?? 0}`,
+            message: t('settings.knowledgeBase.rag.toastIndexed', {
+                indexed: data.stats?.indexed ?? 0,
+                skipped: data.stats?.skipped ?? 0,
+            }),
             duration: 4000,
         });
         ragReindexSuggested.value = false;
     } catch (error: any) {
         showToast({
-            message: error?.response?.data?.message || error?.message || 'Не удалось проиндексировать',
+            message: error?.response?.data?.message || error?.message || t('settings.knowledgeBase.rag.errorReindex'),
             duration: 4000,
         });
     } finally {
@@ -380,7 +395,7 @@ async function reindexEmbeddings(): Promise<void> {
 
 async function loadPreview(query?: string | null): Promise<void> {
     if (previewCompanyId.value == null) {
-        showToast({ message: 'Предпросмотр пока недоступен', duration: 3000 });
+        showToast({ message: t('settings.knowledgeBase.toasts.previewUnavailable'), duration: 3000 });
         return;
     }
     previewLoading.value = true;
@@ -403,7 +418,7 @@ async function loadPreview(query?: string | null): Promise<void> {
         previewOpen.value = true;
     } catch (error: any) {
         showToast({
-            message: error?.response?.data?.message || error?.message || 'Не удалось загрузить предпросмотр',
+            message: error?.response?.data?.message || error?.message || t('settings.knowledgeBase.toasts.errorPreview'),
             duration: 4000,
         });
     } finally {
@@ -418,14 +433,14 @@ function closePreview(): void {
 async function runTestQuestion(): Promise<void> {
     const question = testQuestion.value.trim();
     if (question === '') {
-        testQuestionResult.value = 'Введите вопрос, который клиент может задать AI.';
+        testQuestionResult.value = t('settings.knowledgeBase.testQuestion.empty');
         return;
     }
 
     await loadPreview(question);
 
     if (previewUsedRag.value) {
-        testQuestionResult.value = 'RAG подобрал релевантные записи по вопросу — откройте предпросмотр.';
+        testQuestionResult.value = t('settings.knowledgeBase.testQuestion.ragMatched');
         return;
     }
 
@@ -437,11 +452,13 @@ async function runTestQuestion(): Promise<void> {
     const matched = keywords.filter((word) => context.includes(word));
 
     if (matched.length > 0) {
-        testQuestionResult.value = `В полном контексте AI найдены совпадения: ${matched.slice(0, 5).join(', ')}. Для точной проверки включите RAG и проиндексируйте базу.`;
+        testQuestionResult.value = t('settings.knowledgeBase.testQuestion.keywordsMatched', {
+            words: matched.slice(0, 5).join(', '),
+        });
         return;
     }
 
-    testQuestionResult.value = 'В контексте нет явных совпадений. Добавьте запись с нужными формулировками или проиндексируйте RAG.';
+    testQuestionResult.value = t('settings.knowledgeBase.testQuestion.noMatch');
 }
 
 watch(previewCompanyId, () => {
@@ -506,12 +523,12 @@ async function bulkSetPrompt(include: boolean): Promise<void> {
         const items = data.items as KnowledgeItem[];
         const map = new Map(items.map((item) => [item.id, item]));
         localItems.value = localItems.value.map((row) => map.get(row.id) ?? row);
-        showToast({ message: 'Колонка «В промпте» обновлена', duration: 3000 });
+        showToast({ message: t('settings.knowledgeBase.toasts.bulkPromptUpdated'), duration: 3000 });
         selectedIds.value = [];
         suggestRagReindex();
     } catch (error: any) {
         showToast({
-            message: error?.response?.data?.message || error?.message || 'Не удалось обновить записи',
+            message: error?.response?.data?.message || error?.message || t('settings.knowledgeBase.toasts.errorBulk'),
             duration: 4000,
         });
     }
@@ -712,10 +729,10 @@ async function save(): Promise<void> {
         revokeProductImagePreview();
         productImagePreview.value = null;
         showForm.value = false;
-        showToast({ message: 'Запись сохранена', duration: 3000 });
+        showToast({ message: t('settings.knowledgeBase.toasts.saved'), duration: 3000 });
         suggestRagReindex();
     } catch (error: any) {
-        showToast({ message: error?.response?.data?.message || error?.message || 'Не удалось сохранить запись', duration: 4000 });
+        showToast({ message: error?.response?.data?.message || error?.message || t('settings.knowledgeBase.toasts.errorSave'), duration: 4000 });
     }
 }
 
@@ -742,7 +759,9 @@ function itemTitle(item: KnowledgeItem): string {
 
 function itemDescription(item: KnowledgeItem): string {
     const value = item.description || item.content || '';
-    return value.trim() || (props.section === 'rules' ? 'Текст правила не заполнен' : 'Описание не заполнено');
+    return value.trim() || (props.section === 'rules'
+        ? t('settings.knowledgeBase.quality.ruleTextMissing')
+        : t('settings.knowledgeBase.quality.descriptionMissing'));
 }
 
 function compactDetails(item: KnowledgeItem): string[] {
@@ -763,20 +782,31 @@ function compactDetails(item: KnowledgeItem): string[] {
 function itemQualityFlags(item: KnowledgeItem): string[] {
     const flags: string[] = [];
     if (!item.is_active) {
-        flags.push('Отключено');
+        flags.push(t('settings.knowledgeBase.quality.disabled'));
     }
     if (!item.include_in_prompt) {
-        flags.push('Не в AI');
+        flags.push(t('settings.knowledgeBase.quality.notInAi'));
     }
     if (props.section !== 'rules' && !String(item.description ?? '').trim()) {
-        flags.push('Нет описания');
+        flags.push(t('settings.knowledgeBase.quality.noDescription'));
     }
     if (props.section !== 'rules' && (item.price === null || item.price === undefined || item.price === '')) {
-        flags.push('Нет цены');
+        flags.push(t('settings.knowledgeBase.quality.noPrice'));
     }
 
     return flags;
 }
+
+const numberLocale = computed(() => {
+    if (locale.value === 'kk') {
+        return 'kk-KZ';
+    }
+    if (locale.value === 'en') {
+        return 'en-US';
+    }
+
+    return 'ru-KZ';
+});
 
 function formatTenge(price: KnowledgeItem['price']): string {
     if (price === null || price === undefined || price === '') {
@@ -788,16 +818,14 @@ function formatTenge(price: KnowledgeItem['price']): string {
         return `${price} ₸`;
     }
 
-    return `${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(value)} ₸`;
+    return `${new Intl.NumberFormat(numberLocale.value, { maximumFractionDigits: 2 }).format(value)} ₸`;
 }
 
-const detailsPlaceholder = computed(() => {
-    if (props.section === 'services') {
-        return 'место: салон\nпредоплата: не требуется\nограничение: только по записи';
-    }
-
-    return 'цвет: черный\nразмер: 42\nматериал: кожа';
-});
+const detailsPlaceholder = computed(() =>
+    props.section === 'services'
+        ? t('settings.knowledgeBase.form.detailsPlaceholderServices')
+        : t('settings.knowledgeBase.form.detailsPlaceholderProducts'),
+);
 
 function detailsTextToObject(value: string): Record<string, unknown> | null {
     const trimmed = value.trim();
@@ -809,7 +837,7 @@ function detailsTextToObject(value: string): Record<string, unknown> | null {
         try {
             return JSON.parse(trimmed) as Record<string, unknown>;
         } catch {
-            throw new Error('Проверьте блок "Дополнительно": JSON написан с ошибкой. Можно просто заполнить строками вида "цвет: черный".');
+            throw new Error(t('settings.knowledgeBase.form.jsonError'));
         }
     }
 
@@ -865,18 +893,20 @@ function detailsObjectToText(value: Record<string, unknown> | null): string {
 
 function formatAuditAction(action: string): string {
     const map: Record<string, string> = {
-        created: 'Создано',
-        updated: 'Изменено',
-        deleted: 'Удалено',
-        bulk_prompt: 'Массово «В промпте»',
+        created: t('settings.knowledgeBase.audit.actions.created'),
+        updated: t('settings.knowledgeBase.audit.actions.updated'),
+        deleted: t('settings.knowledgeBase.audit.actions.deleted'),
+        bulk_prompt: t('settings.knowledgeBase.audit.actions.bulkPrompt'),
     };
 
     return map[action] ?? action;
 }
 
 function formatAuditWhen(iso: string): string {
+    const dateLocale = locale.value === 'kk' ? 'kk-KZ' : locale.value === 'en' ? 'en-US' : 'ru-RU';
+
     try {
-        return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+        return new Intl.DateTimeFormat(dateLocale, { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
     } catch {
         return iso;
     }
@@ -911,7 +941,7 @@ async function loadAudit(): Promise<void> {
         auditEntries.value = (data.data ?? []) as AuditRow[];
     } catch (error: any) {
         showToast({
-            message: error?.response?.data?.message || error?.message || 'Не удалось загрузить аудит',
+            message: error?.response?.data?.message || error?.message || t('settings.knowledgeBase.audit.errorLoad'),
             duration: 4000,
         });
     } finally {
@@ -943,7 +973,7 @@ async function confirmDelete(): Promise<void> {
     }
     const expected = itemTitle(item).trim();
     if (deleteConfirmInput.value.trim() !== expected) {
-        showToast({ message: 'Введите название записи точно, как в списке', duration: 4000 });
+        showToast({ message: t('settings.knowledgeBase.deleteModal.nameMismatch'), duration: 4000 });
         return;
     }
 
@@ -951,10 +981,10 @@ async function confirmDelete(): Promise<void> {
         await axios.delete(route(meta.value.destroy, item.id));
         localItems.value = localItems.value.filter((existing) => existing.id !== item.id);
         closeDeleteModal();
-        showToast({ message: 'Запись удалена', duration: 3000 });
+        showToast({ message: t('settings.knowledgeBase.toasts.deleted'), duration: 3000 });
         suggestRagReindex();
     } catch (error: any) {
-        showToast({ message: error?.response?.data?.message || 'Не удалось удалить запись', duration: 4000 });
+        showToast({ message: error?.response?.data?.message || t('settings.knowledgeBase.toasts.errorDelete'), duration: 4000 });
     }
 }
 </script>
@@ -973,27 +1003,27 @@ async function confirmDelete(): Promise<void> {
             <section class="kb-hero ui-panel p-4 md:p-5">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                     <div class="max-w-3xl">
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ui-accent)]">Каталог для AI</p>
+                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ui-accent)]">{{ t('settings.knowledgeBase.hero.badge') }}</p>
                         <h2 class="mt-1 text-xl font-semibold text-[var(--ui-text)]">{{ meta.title }}</h2>
                         <p class="mt-1 text-sm text-[var(--ui-text-secondary)]">
-                            Заполняйте короткие факты: что это, цена, условия и важные ограничения. AI будет использовать данные точечно в ответе клиенту, а не рисовать одинаковые карточки.
+                            {{ t('settings.knowledgeBase.hero.description') }}
                         </p>
                     </div>
                     <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[520px]">
                         <div class="kb-stat">
-                            <span>Всего</span>
+                            <span>{{ t('settings.knowledgeBase.stats.total') }}</span>
                             <strong>{{ localItems.length }}</strong>
                         </div>
                         <div class="kb-stat">
-                            <span>Активны</span>
+                            <span>{{ t('settings.knowledgeBase.stats.active') }}</span>
                             <strong>{{ activeCount }}</strong>
                         </div>
                         <div class="kb-stat">
-                            <span>В AI</span>
+                            <span>{{ t('settings.knowledgeBase.stats.inAi') }}</span>
                             <strong>{{ promptCount }}</strong>
                         </div>
                         <div class="kb-stat" :class="missingDescriptionCount + missingPriceCount > 0 ? 'warn' : ''">
-                            <span>Пробелы</span>
+                            <span>{{ t('settings.knowledgeBase.stats.gaps') }}</span>
                             <strong>{{ missingDescriptionCount + missingPriceCount }}</strong>
                         </div>
                     </div>
@@ -1011,18 +1041,18 @@ async function confirmDelete(): Promise<void> {
                                 v-model="searchQuery"
                                 type="search"
                                 class="ui-search-input--boxed w-full !pl-10"
-                                placeholder="Поиск по названию, цене, описанию, характеристикам"
+                                :placeholder="t('settings.knowledgeBase.searchPlaceholder')"
                             />
                         </label>
                         <select v-model="statusFilter" class="settings-input">
-                            <option value="all">Все статусы</option>
-                            <option value="active">Только активные</option>
-                            <option value="inactive">Отключённые</option>
+                            <option value="all">{{ t('settings.knowledgeBase.filters.statusAll') }}</option>
+                            <option value="active">{{ t('settings.knowledgeBase.filters.statusActive') }}</option>
+                            <option value="inactive">{{ t('settings.knowledgeBase.filters.statusInactive') }}</option>
                         </select>
                         <select v-model="promptFilter" class="settings-input">
-                            <option value="all">AI: все</option>
-                            <option value="included">В промпте</option>
-                            <option value="excluded">Не в промпте</option>
+                            <option value="all">{{ t('settings.knowledgeBase.filters.promptAll') }}</option>
+                            <option value="included">{{ t('settings.knowledgeBase.filters.promptIncluded') }}</option>
+                            <option value="excluded">{{ t('settings.knowledgeBase.filters.promptExcluded') }}</option>
                         </select>
                     </div>
 
@@ -1033,14 +1063,14 @@ async function confirmDelete(): Promise<void> {
                             :disabled="previewCompanyId == null || previewLoading"
                             @click="() => loadPreview()"
                         >
-                            {{ previewLoading ? 'Загрузка…' : 'Что увидит AI' }}
+                            {{ previewLoading ? t('settings.knowledgeBase.toolbar.previewLoading') : t('settings.knowledgeBase.toolbar.preview') }}
                         </button>
                         <button
                             type="button"
                             class="ui-btn ui-btn--ghost ui-btn--sm"
                             @click="aiToolsOpen = !aiToolsOpen"
                         >
-                            {{ aiToolsOpen ? 'Скрыть проверку' : 'Проверка AI' }}
+                            {{ aiToolsOpen ? t('settings.knowledgeBase.toolbar.hideAiTools') : t('settings.knowledgeBase.toolbar.showAiTools') }}
                         </button>
                         <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">
                             {{ meta.addLabel }}
@@ -1049,10 +1079,10 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
                 <div v-if="selectedIds.length > 0" class="kb-selection-bar mt-3 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2">
-                    <span class="text-sm text-[var(--ui-text-secondary)]">Выбрано: {{ selectedIds.length }}</span>
-                    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="bulkSetPrompt(true)">Добавить в AI</button>
-                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="bulkSetPrompt(false)">Убрать из AI</button>
-                    <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">Снять выделение</button>
+                    <span class="text-sm text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.selection.count', { count: selectedIds.length }) }}</span>
+                    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="bulkSetPrompt(true)">{{ t('settings.knowledgeBase.selection.addToAi') }}</button>
+                    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="bulkSetPrompt(false)">{{ t('settings.knowledgeBase.selection.removeFromAi') }}</button>
+                    <button type="button" class="link-btn px-2 text-sm" @click="clearSelection">{{ t('settings.knowledgeBase.selection.clear') }}</button>
                 </div>
             </section>
 
@@ -1060,14 +1090,14 @@ async function confirmDelete(): Promise<void> {
                 <div class="kb-card rounded-2xl border p-4">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">Готовность AI</h3>
-                            <p class="text-xs text-[var(--ui-text-secondary)]">Минимальная проверка качества данных.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.readiness.title') }}</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.readiness.subtitle') }}</p>
                         </div>
                         <span
                             class="rounded-full px-2.5 py-1 text-xs"
                             :class="readinessChecks.every((check) => check.ok) ? 'bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]' : 'bg-amber-500/15 text-amber-500'"
                         >
-                            {{ readinessChecks.every((check) => check.ok) ? 'Готово' : 'Нужно внимание' }}
+                            {{ readinessChecks.every((check) => check.ok) ? t('settings.knowledgeBase.readiness.ready') : t('settings.knowledgeBase.readiness.needsAttention') }}
                         </span>
                     </div>
                     <div class="space-y-2">
@@ -1084,8 +1114,8 @@ async function confirmDelete(): Promise<void> {
                 <div class="kb-card rounded-2xl border p-4">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">RAG-поиск</h3>
-                            <p class="text-xs text-[var(--ui-text-secondary)]">Embeddings для подбора релевантных записей в промпт.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.rag.title') }}</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.rag.subtitle') }}</p>
                         </div>
                         <button
                             type="button"
@@ -1093,35 +1123,35 @@ async function confirmDelete(): Promise<void> {
                             :disabled="previewCompanyId == null || reindexLoading"
                             @click="reindexEmbeddings"
                         >
-                            {{ reindexLoading ? 'Индексация…' : 'Переиндексировать' }}
+                            {{ reindexLoading ? t('settings.knowledgeBase.rag.reindexing') : t('settings.knowledgeBase.rag.reindex') }}
                         </button>
                     </div>
                     <p v-if="ragStatus" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">
-                        <span v-if="!ragStatus.enabled">RAG отключён.</span>
-                        <span v-else-if="ragStatus.ready">Готово: {{ ragStatus.with_embedding }} фрагментов с embeddings.</span>
-                        <span v-else>Нужна индексация (в базе {{ ragStatus.indexed }} фрагментов, с embeddings: {{ ragStatus.with_embedding }}).</span>
+                        <span v-if="!ragStatus.enabled">{{ t('settings.knowledgeBase.rag.statusDisabled') }}</span>
+                        <span v-else-if="ragStatus.ready">{{ t('settings.knowledgeBase.rag.statusReady', { count: ragStatus.with_embedding }) }}</span>
+                        <span v-else>{{ t('settings.knowledgeBase.rag.statusNeedsIndex', { indexed: ragStatus.indexed, withEmbedding: ragStatus.with_embedding }) }}</span>
                     </p>
                     <p
                         v-if="ragReindexSuggested && ragStatus?.enabled"
                         class="ui-alert ui-alert--warn kb-inset mt-2 text-xs"
                     >
-                        Каталог изменён: индекс обновится в фоне. Для немедленной проверки RAG нажмите «Переиндексировать».
+                        {{ t('settings.knowledgeBase.rag.reindexSuggested') }}
                     </p>
                 </div>
 
                 <div class="kb-card rounded-2xl border p-4">
-                    <h3 class="text-sm font-semibold text-[var(--ui-text)]">Тестовый вопрос</h3>
-                    <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">Проверьте RAG: вопрос подберёт релевантные записи в предпросмотре.</p>
+                    <h3 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.testQuestion.title') }}</h3>
+                    <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.testQuestion.subtitle') }}</p>
                     <div class="mt-3 flex gap-2">
                         <input
                             v-model="testQuestion"
                             class="settings-input flex-1"
                             type="text"
-                            placeholder="Например: сколько стоит доставка?"
+                            :placeholder="t('settings.knowledgeBase.testQuestion.placeholder')"
                             @keydown.enter.prevent="runTestQuestion"
                         />
                         <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" :disabled="previewCompanyId == null || previewLoading" @click="runTestQuestion">
-                            Проверить
+                            {{ t('settings.knowledgeBase.testQuestion.check') }}
                         </button>
                     </div>
                     <p v-if="testQuestionResult" class="kb-inset mt-3 rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">{{ testQuestionResult }}</p>
@@ -1130,13 +1160,13 @@ async function confirmDelete(): Promise<void> {
                 <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">Аудит каталога</h3>
-                            <p class="text-xs text-[var(--ui-text-secondary)]">Дубли, цены, пробелы и противоречия.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.catalogAudit.title') }}</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.catalogAudit.subtitle') }}</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <label class="flex items-center gap-1.5 text-xs text-[var(--ui-text-secondary)]">
                                 <UiCheckbox v-model="catalogAuditUseLlm" size="sm" />
-                                AI-анализ
+                                {{ t('settings.knowledgeBase.catalogAudit.aiAnalysis') }}
                             </label>
                             <button
                                 type="button"
@@ -1144,13 +1174,13 @@ async function confirmDelete(): Promise<void> {
                                 :disabled="previewCompanyId == null || catalogAuditLoading"
                                 @click="loadCatalogAudit"
                             >
-                                {{ catalogAuditLoading ? 'Проверка…' : 'Обновить' }}
+                                {{ catalogAuditLoading ? t('settings.knowledgeBase.catalogAudit.checking') : t('settings.knowledgeBase.catalogAudit.refresh') }}
                             </button>
                         </div>
                     </div>
-                    <p v-if="catalogAuditLlmUsed" class="mb-2 text-xs text-[var(--ui-accent)]">В отчёт добавлен AI-анализ формулировок.</p>
+                    <p v-if="catalogAuditLlmUsed" class="mb-2 text-xs text-[var(--ui-accent)]">{{ t('settings.knowledgeBase.catalogAudit.llmReportAdded') }}</p>
                     <p v-if="catalogAuditSummary && catalogAuditSummary.total === 0" class="kb-inset rounded-lg px-3 py-2 text-xs text-[var(--ui-text-secondary)]">
-                        Замечаний не найдено.
+                        {{ t('settings.knowledgeBase.catalogAudit.noIssues') }}
                     </p>
                     <ul v-else-if="catalogAuditFindings.length > 0" class="wa-scrollbar max-h-64 space-y-2 overflow-y-auto">
                         <li v-for="item in catalogAuditFindings" :key="item.key" class="kb-inset rounded-lg border px-3 py-2 text-xs">
@@ -1163,20 +1193,20 @@ async function confirmDelete(): Promise<void> {
                             <p class="mt-1 text-[var(--ui-text)]">{{ item.action }}</p>
                         </li>
                     </ul>
-                    <p v-else-if="!catalogAuditLoading" class="text-xs text-[var(--ui-text-secondary)]">Нажмите «Обновить» для проверки.</p>
+                    <p v-else-if="!catalogAuditLoading" class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.catalogAudit.clickRefresh') }}</p>
                 </div>
 
                 <div class="kb-card rounded-2xl border p-4 lg:col-span-3">
                     <button type="button" class="flex w-full items-center justify-between gap-3 text-left" @click="toggleAudit">
                         <div>
-                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">История изменений</h3>
-                            <p class="text-xs text-[var(--ui-text-secondary)]">Создание, правки, удаление и массовые изменения видимости для AI.</p>
+                            <h3 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.audit.title') }}</h3>
+                            <p class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.audit.subtitle') }}</p>
                         </div>
-                        <span class="text-xs text-[var(--ui-text-secondary)] shrink-0">{{ auditOpen ? 'Скрыть' : 'Показать' }}</span>
+                        <span class="text-xs text-[var(--ui-text-secondary)] shrink-0">{{ auditOpen ? t('settings.knowledgeBase.audit.hide') : t('settings.knowledgeBase.audit.show') }}</span>
                     </button>
                     <div v-if="auditOpen" class="mt-3 space-y-2">
-                        <p v-if="previewCompanyId == null" class="text-xs text-[var(--ui-text-secondary)]">История изменений пока недоступна.</p>
-                        <p v-else-if="auditLoading" class="text-xs text-[var(--ui-text-secondary)]">Загрузка…</p>
+                        <p v-if="previewCompanyId == null" class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.audit.unavailable') }}</p>
+                        <p v-else-if="auditLoading" class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.audit.loading') }}</p>
                         <ul v-else class="wa-scrollbar max-h-56 space-y-2 overflow-y-auto text-xs">
                             <li v-for="row in auditEntries" :key="row.id" class="kb-inset rounded-lg border px-3 py-2">
                                 <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -1186,22 +1216,22 @@ async function confirmDelete(): Promise<void> {
                                 <div class="mt-0.5 text-[var(--ui-text-secondary)]">{{ row.user?.name ?? '—' }}</div>
                             </li>
                         </ul>
-                        <p v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0" class="text-xs text-[var(--ui-text-secondary)]">Пока нет записей аудита.</p>
+                        <p v-if="!auditLoading && previewCompanyId != null && auditEntries.length === 0" class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.audit.empty') }}</p>
                     </div>
                 </div>
             </section>
 
             <div v-if="dataWarnings.length > 0" class="ui-alert ui-alert--warn">
-                <p class="mb-2 text-xs font-semibold">Что мешает AI отвечать точно</p>
+                <p class="mb-2 text-xs font-semibold">{{ t('settings.knowledgeBase.warnings.title') }}</p>
                 <ul class="space-y-1 text-xs">
                     <li v-for="warning in dataWarnings" :key="warning">• {{ warning }}</li>
                 </ul>
             </div>
 
             <div v-if="localItems.length === 0" class="kb-card rounded-2xl border px-6 py-10 text-center">
-                <p class="text-[15px] text-[var(--ui-text)]">Пока нет записей в этом разделе.</p>
+                <p class="text-[15px] text-[var(--ui-text)]">{{ t('settings.knowledgeBase.empty.title') }}</p>
                 <p class="mx-auto mt-2 max-w-xl text-sm text-[var(--ui-text-secondary)]">
-                    Начните с реальных фактов: название, цена, условия, ограничения. Не нужно писать рекламную карточку — AI сам сформулирует ответ под вопрос клиента.
+                    {{ t('settings.knowledgeBase.empty.hint') }}
                 </p>
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
                     <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">{{ meta.addLabel }}</button>
@@ -1212,14 +1242,14 @@ async function confirmDelete(): Promise<void> {
             </div>
 
             <div v-else-if="filteredItems.length === 0" class="kb-card rounded-2xl border px-6 py-8 text-center">
-                <p class="text-sm text-[var(--ui-text)]">По текущим фильтрам ничего не найдено.</p>
-                <button type="button" class="mt-3 text-sm text-[var(--ui-accent)]" @click="searchQuery = ''; statusFilter = 'all'; promptFilter = 'all'">Сбросить фильтры</button>
+                <p class="text-sm text-[var(--ui-text)]">{{ t('settings.knowledgeBase.filteredEmpty.title') }}</p>
+                <button type="button" class="mt-3 text-sm text-[var(--ui-accent)]" @click="searchQuery = ''; statusFilter = 'all'; promptFilter = 'all'">{{ t('settings.knowledgeBase.filteredEmpty.reset') }}</button>
             </div>
 
             <section v-else class="kb-list-panel ui-panel overflow-hidden">
                     <div class="kb-list-header flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
                         <div class="flex items-center gap-2 text-sm text-[var(--ui-text-secondary)]">
-                            <UiCheckbox :model-value="allSelected" aria-label="Выбрать показанные" @update:model-value="toggleSelectAll" />
+                            <UiCheckbox :model-value="allSelected" :aria-label="t('settings.knowledgeBase.list.selectShownAria')" @update:model-value="toggleSelectAll" />
                             <span
                                 class="cursor-pointer select-none"
                                 role="button"
@@ -1227,10 +1257,10 @@ async function confirmDelete(): Promise<void> {
                                 @click="toggleSelectAll"
                                 @keydown.enter.prevent="toggleSelectAll"
                             >
-                                Выбрать показанные
+                                {{ t('settings.knowledgeBase.list.selectShown') }}
                             </span>
                         </div>
-                    <span class="text-xs text-[var(--ui-text-secondary)]">Показано {{ filteredItems.length }} из {{ localItems.length }}</span>
+                    <span class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.list.shownCount', { shown: filteredItems.length, total: localItems.length }) }}</span>
                 </div>
 
                 <div class="divide-y divide-[var(--ui-border)]">
@@ -1243,7 +1273,7 @@ async function confirmDelete(): Promise<void> {
                             />
                             <div v-if="section === 'products'" class="kb-product-thumb">
                                 <img v-if="item.image_url" :src="item.image_url" :alt="itemTitle(item)" />
-                                <span v-else>Фото</span>
+                                <span v-else>{{ t('settings.knowledgeBase.list.photo') }}</span>
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
@@ -1261,7 +1291,7 @@ async function confirmDelete(): Promise<void> {
                         <div class="kb-row-side">
                             <div class="text-right">
                                 <div v-if="section !== 'rules'" class="text-sm font-semibold text-[var(--ui-text)]">{{ formatTenge(item.price) }}</div>
-                                <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--ui-text-secondary)]">{{ item.duration_minutes }} мин.</div>
+                                <div v-if="section === 'services' && item.duration_minutes" class="text-xs text-[var(--ui-text-secondary)]">{{ t('settings.knowledgeBase.list.minutes', { count: item.duration_minutes }) }}</div>
                             </div>
                             <button
                                 type="button"
@@ -1269,10 +1299,10 @@ async function confirmDelete(): Promise<void> {
                                 :class="{ 'is-active': item.include_in_prompt }"
                                 @click="togglePrompt(item)"
                             >
-                                {{ item.include_in_prompt ? 'В AI' : 'Не в AI' }}
+                                {{ item.include_in_prompt ? t('settings.knowledgeBase.list.inAi') : t('settings.knowledgeBase.list.notInAi') }}
                             </button>
-                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="openEdit(item)">Изменить</button>
-                            <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="destroyItem(item)">Удалить</button>
+                            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="openEdit(item)">{{ t('settings.knowledgeBase.list.edit') }}</button>
+                            <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="destroyItem(item)">{{ t('settings.knowledgeBase.list.delete') }}</button>
                         </div>
                     </article>
                 </div>
@@ -1281,7 +1311,7 @@ async function confirmDelete(): Promise<void> {
 
         <UiModal
             :open="!!deleteTarget"
-            title="Удалить запись?"
+            :title="t('settings.knowledgeBase.deleteModal.title')"
             max-width="md"
             :z-index="55"
             :panel-class="kbModalPanelClass"
@@ -1289,19 +1319,19 @@ async function confirmDelete(): Promise<void> {
             @close="closeDeleteModal"
         >
             <p class="text-sm text-[var(--ui-text-secondary)]">
-                Это действие необратимо. Чтобы подтвердить, введите название записи целиком:
+                {{ t('settings.knowledgeBase.deleteModal.description') }}
                 <span class="font-medium text-[var(--ui-text)]">{{ deleteTarget ? itemTitle(deleteTarget) : '' }}</span>
             </p>
             <input
                 v-model="deleteConfirmInput"
                 type="text"
                 class="settings-input mt-4 w-full"
-                placeholder="Название для подтверждения"
+                :placeholder="t('settings.knowledgeBase.deleteModal.confirmPlaceholder')"
                 autocomplete="off"
             />
             <template #footer>
-                <button type="button" class="ui-btn ui-btn--secondary" @click="closeDeleteModal">Отмена</button>
-                <button type="button" class="ui-btn ui-btn--danger" @click="confirmDelete">Удалить</button>
+                <button type="button" class="ui-btn ui-btn--secondary" @click="closeDeleteModal">{{ t('common.cancel') }}</button>
+                <button type="button" class="ui-btn ui-btn--danger" @click="confirmDelete">{{ t('common.delete') }}</button>
             </template>
         </UiModal>
 
@@ -1315,11 +1345,11 @@ async function confirmDelete(): Promise<void> {
         >
             <template #header>
                 <div>
-                    <h3 class="text-lg text-[var(--ui-text)] m-0">Предпросмотр блока для AI</h3>
+                    <h3 class="text-lg text-[var(--ui-text)] m-0">{{ t('settings.knowledgeBase.previewModal.title') }}</h3>
                     <p v-if="previewCounts" class="mt-1 text-xs text-[var(--ui-text-secondary)] mb-0">
-                        Правил: {{ previewCounts.rules }}, товаров: {{ previewCounts.products }}, услуг: {{ previewCounts.services }}
-                        <span v-if="previewUsedRag"> · RAG</span>
-                        <span v-if="previewTruncated"> · показ обрезан для экрана</span>
+                        {{ t('settings.knowledgeBase.previewModal.counts', { rules: previewCounts.rules, products: previewCounts.products, services: previewCounts.services }) }}
+                        <span v-if="previewUsedRag">{{ t('settings.knowledgeBase.previewModal.ragSuffix') }}</span>
+                        <span v-if="previewTruncated">{{ t('settings.knowledgeBase.previewModal.truncated') }}</span>
                     </p>
                 </div>
             </template>
@@ -1338,9 +1368,9 @@ async function confirmDelete(): Promise<void> {
         >
             <template #header>
                 <div>
-                    <h3 class="text-lg font-semibold text-[var(--ui-text)] m-0">{{ editing ? 'Редактировать запись' : meta.addLabel }}</h3>
+                    <h3 class="text-lg font-semibold text-[var(--ui-text)] m-0">{{ editing ? t('settings.knowledgeBase.form.editTitle') : meta.addLabel }}</h3>
                     <p class="mt-1 text-xs text-[var(--ui-text-secondary)] mb-0">
-                        Пишите факты для ответа клиенту. Не нужна рекламная карточка: AI сам соберёт короткий ответ под конкретный вопрос.
+                        {{ t('settings.knowledgeBase.form.hint') }}
                     </p>
                 </div>
             </template>
@@ -1349,81 +1379,81 @@ async function confirmDelete(): Promise<void> {
                     <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
                         <section class="space-y-4">
                             <div class="kb-form-section ui-settings-section">
-                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Основное</h4>
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.form.main') }}</h4>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label v-if="section !== 'rules'" class="field sm:col-span-2">
-                                        <span>{{ section === 'services' ? 'Название услуги' : 'Название товара' }}</span>
-                                        <input v-model="form.name" type="text" placeholder="Например: Кухня на заказ" />
+                                        <span>{{ section === 'services' ? t('settings.knowledgeBase.form.serviceName') : t('settings.knowledgeBase.form.productName') }}</span>
+                                        <input v-model="form.name" type="text" :placeholder="t('settings.knowledgeBase.form.exampleProductName')" />
                                     </label>
 
                                     <label v-if="section === 'rules'" class="field sm:col-span-2">
-                                        <span>Заголовок правила</span>
-                                        <input v-model="form.title" type="text" placeholder="Например: Как отвечать про сроки" />
+                                        <span>{{ t('settings.knowledgeBase.form.ruleTitle') }}</span>
+                                        <input v-model="form.title" type="text" :placeholder="t('settings.knowledgeBase.form.exampleRuleTitle')" />
                                     </label>
 
                                     <label v-if="section === 'products'" class="field">
-                                        <span>Артикул <small>необязательно</small></span>
-                                        <input v-model="form.sku" type="text" placeholder="Например: KITCHEN-CUSTOM" />
+                                        <span>{{ t('settings.knowledgeBase.form.sku') }} <small>{{ t('settings.knowledgeBase.form.skuOptional') }}</small></span>
+                                        <input v-model="form.sku" type="text" :placeholder="t('settings.knowledgeBase.form.exampleSku')" />
                                     </label>
 
                                     <label v-if="section === 'rules'" class="field">
-                                        <span>Тип</span>
+                                        <span>{{ t('settings.knowledgeBase.form.type') }}</span>
                                         <input v-model="form.type" type="text" placeholder="sales, delivery, tone" />
                                     </label>
 
                                     <label v-if="section === 'rules'" class="field">
-                                        <span>Приоритет</span>
+                                        <span>{{ t('settings.knowledgeBase.form.priority') }}</span>
                                         <input v-model.number="form.priority" type="number" min="1" />
                                     </label>
 
                                     <label v-if="section !== 'rules'" class="field">
-                                        <span>Цена, ₸</span>
-                                        <input v-model="form.price" type="number" min="0" step="0.01" placeholder="Если цена договорная, оставьте пустым" />
+                                        <span>{{ t('settings.knowledgeBase.form.price') }}</span>
+                                        <input v-model="form.price" type="number" min="0" step="0.01" :placeholder="t('settings.knowledgeBase.form.pricePlaceholder')" />
                                     </label>
 
                                     <label v-if="section === 'services'" class="field">
-                                        <span>Длительность, мин.</span>
-                                        <input v-model="form.duration_minutes" type="number" min="1" placeholder="Например: 90" />
+                                        <span>{{ t('settings.knowledgeBase.form.duration') }}</span>
+                                        <input v-model="form.duration_minutes" type="number" min="1" :placeholder="t('settings.knowledgeBase.form.exampleDuration')" />
                                     </label>
                                 </div>
                             </div>
 
                             <div class="kb-form-section ui-settings-section">
                                 <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">
-                                    {{ section === 'rules' ? 'Текст правила' : 'Как объяснять клиенту' }}
+                                    {{ section === 'rules' ? t('settings.knowledgeBase.form.ruleContent') : t('settings.knowledgeBase.form.description') }}
                                 </h4>
                                 <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
-                                    {{ section === 'rules' ? 'Конкретное правило поведения AI.' : '1-3 предложения: что это, кому подходит, важные ограничения. Без маркетинговой воды.' }}
+                                    {{ section === 'rules' ? t('settings.knowledgeBase.form.ruleContentHint') : t('settings.knowledgeBase.form.descriptionHint') }}
                                 </p>
                                 <label class="field">
                                     <textarea
                                         v-if="section === 'rules'"
                                         v-model="form.content"
                                         rows="7"
-                                        placeholder="Например: если клиент спрашивает про сроки, сначала уточни город и объём, затем дай диапазон."
+                                        :placeholder="t('settings.knowledgeBase.form.ruleContentPlaceholder')"
                                     ></textarea>
                                     <textarea
                                         v-else
                                         v-model="form.description"
                                         rows="7"
-                                        placeholder="Например: Индивидуальное изготовление кухни под размеры клиента. Цена зависит от материалов, фурнитуры и сложности проекта. Перед расчётом нужен замер."
+                                        :placeholder="t('settings.knowledgeBase.form.descriptionPlaceholder')"
                                     ></textarea>
                                 </label>
                             </div>
 
                             <div v-if="section === 'products'" class="kb-form-section ui-settings-section">
-                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Фото товара</h4>
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.form.photoTitle') }}</h4>
                                 <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
-                                    Покажите внешний вид товара в карточке. Поддерживаются JPG, PNG и WebP до 5 МБ.
+                                    {{ t('settings.knowledgeBase.form.photoHint') }}
                                 </p>
                                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                                     <div class="kb-product-photo-preview">
-                                        <img v-if="productImagePreview" :src="productImagePreview" alt="Фото товара" />
-                                        <span v-else>Нет фото</span>
+                                        <img v-if="productImagePreview" :src="productImagePreview" :alt="t('settings.knowledgeBase.form.photoTitle')" />
+                                        <span v-else>{{ t('settings.knowledgeBase.form.noPhoto') }}</span>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
                                         <label class="ui-btn ui-btn--ghost ui-btn--sm cursor-pointer">
-                                            Выбрать фото
+                                            {{ t('settings.knowledgeBase.form.pickPhoto') }}
                                             <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectProductImage" />
                                         </label>
                                         <button
@@ -1432,16 +1462,16 @@ async function confirmDelete(): Promise<void> {
                                             class="ui-btn ui-btn--ghost ui-btn--sm"
                                             @click="removeProductImage"
                                         >
-                                            Убрать фото
+                                            {{ t('settings.knowledgeBase.form.removePhoto') }}
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
                             <div v-if="section !== 'rules'" class="kb-form-section ui-settings-section">
-                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">Факты для AI</h4>
+                                <h4 class="mb-1 text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.form.factsTitle') }}</h4>
                                 <p class="mb-3 text-xs text-[var(--ui-text-secondary)]">
-                                    Каждая строка: ключ и значение. Это не карточка для клиента, а быстрые факты для точного ответа.
+                                    {{ t('settings.knowledgeBase.form.factsHint') }}
                                 </p>
                                 <label class="field">
                                     <textarea v-model="detailsText" rows="6" spellcheck="false" :placeholder="detailsPlaceholder"></textarea>
@@ -1451,30 +1481,30 @@ async function confirmDelete(): Promise<void> {
 
                         <aside class="space-y-4">
                             <div class="kb-form-section ui-settings-section">
-                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">Публикация</h4>
+                                <h4 class="mb-3 text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.form.publish') }}</h4>
                                 <div class="space-y-3">
                                     <div class="ui-check-row">
-                                        <span>Учитывать в AI</span>
-                                        <UiCheckbox v-model="form.include_in_prompt" aria-label="Учитывать в AI" />
+                                        <span>{{ t('settings.knowledgeBase.form.includeInAi') }}</span>
+                                        <UiCheckbox v-model="form.include_in_prompt" :aria-label="t('settings.knowledgeBase.form.includeInAiAria')" />
                                     </div>
                                     <div class="ui-check-row">
-                                        <span>Активна</span>
-                                        <UiCheckbox v-model="form.is_active" aria-label="Активна" />
+                                        <span>{{ t('settings.knowledgeBase.form.active') }}</span>
+                                        <UiCheckbox v-model="form.is_active" :aria-label="t('settings.knowledgeBase.form.activeAria')" />
                                     </div>
                                     <label v-if="section !== 'rules'" class="field">
-                                        <span>Сортировка</span>
+                                        <span>{{ t('settings.knowledgeBase.form.sortOrder') }}</span>
                                         <input v-model.number="form.sort_order" type="number" min="0" />
-                                        <p class="field-help">Меньше число - выше в списке.</p>
+                                        <p class="field-help">{{ t('settings.knowledgeBase.form.sortOrderHint') }}</p>
                                     </label>
                                 </div>
                             </div>
 
                             <div class="kb-form-section ui-settings-section">
-                                <h4 class="mb-2 text-sm font-semibold text-[var(--ui-text)]">Подсказка</h4>
+                                <h4 class="mb-2 text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.knowledgeBase.form.tipsTitle') }}</h4>
                                 <ul class="space-y-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">
-                                    <li>• Название должно быть коротким и узнаваемым.</li>
-                                    <li>• Описание отвечает на вопрос клиента, а не продаёт всё сразу.</li>
-                                    <li>• Если цены нет, прямо напишите, от чего она зависит.</li>
+                                    <li>{{ t('settings.knowledgeBase.form.tip1') }}</li>
+                                    <li>{{ t('settings.knowledgeBase.form.tip2') }}</li>
+                                    <li>{{ t('settings.knowledgeBase.form.tip3') }}</li>
                                 </ul>
                             </div>
                         </aside>
@@ -1482,8 +1512,8 @@ async function confirmDelete(): Promise<void> {
                 </div>
 
             <template #footer>
-                <button type="button" class="ui-btn ui-btn--secondary" @click="closeForm">Отмена</button>
-                <button type="button" class="ui-btn ui-btn--primary" @click="save">Сохранить</button>
+                <button type="button" class="ui-btn ui-btn--secondary" @click="closeForm">{{ t('common.cancel') }}</button>
+                <button type="button" class="ui-btn ui-btn--primary" @click="save">{{ t('common.save') }}</button>
             </template>
         </UiModal>
     </SettingsLayout>

@@ -483,6 +483,207 @@ export interface MessageCatalog {
                 custom: string;
             };
         };
+        knowledgeBase: {
+            sections: {
+                products: { title: string; subtitle: string; addLabel: string };
+                services: { title: string; subtitle: string; addLabel: string };
+                rules: { title: string; subtitle: string; addLabel: string };
+            };
+            crossLinks: { products: string; services: string; rules: string };
+            hero: { badge: string; description: string };
+            stats: { total: string; active: string; inAi: string; gaps: string };
+            searchPlaceholder: string;
+            filters: {
+                statusAll: string;
+                statusActive: string;
+                statusInactive: string;
+                promptAll: string;
+                promptIncluded: string;
+                promptExcluded: string;
+            };
+            toolbar: {
+                previewLoading: string;
+                preview: string;
+                hideAiTools: string;
+                showAiTools: string;
+            };
+            selection: {
+                count: string;
+                addToAi: string;
+                removeFromAi: string;
+                clear: string;
+            };
+            readiness: {
+                title: string;
+                subtitle: string;
+                ready: string;
+                needsAttention: string;
+                contextReady: string;
+                contextReadyHint: string;
+                contextMissingHint: string;
+                hasPromptItems: string;
+                promptItemsHint: string;
+                noPromptItemsHint: string;
+                previewAvailable: string;
+                previewAvailableHint: string;
+                previewUnavailableHint: string;
+            };
+            rag: {
+                title: string;
+                subtitle: string;
+                reindexing: string;
+                reindex: string;
+                disabled: string;
+                ready: string;
+                needsIndex: string;
+                reindexSuggested: string;
+                statusDisabled: string;
+                statusReady: string;
+                statusNeedsIndex: string;
+                toastIndexed: string;
+                errorReindex: string;
+            };
+            testQuestion: {
+                title: string;
+                subtitle: string;
+                placeholder: string;
+                check: string;
+                empty: string;
+                ragMatched: string;
+                keywordsMatched: string;
+                noMatch: string;
+            };
+            catalogAudit: {
+                title: string;
+                subtitle: string;
+                aiAnalysis: string;
+                checking: string;
+                refresh: string;
+                llmUsed: string;
+                llmReportAdded: string;
+                noIssues: string;
+                clickRefresh: string;
+            };
+            audit: {
+                title: string;
+                subtitle: string;
+                hide: string;
+                show: string;
+                unavailable: string;
+                loading: string;
+                empty: string;
+                errorLoad: string;
+                actions: {
+                    created: string;
+                    updated: string;
+                    deleted: string;
+                    bulkPrompt: string;
+                };
+            };
+            warnings: {
+                title: string;
+                emptySection: string;
+                activeNotInPrompt: string;
+                rulesMissingContent: string;
+                missingDescription: string;
+                missingPrice: string;
+            };
+            empty: {
+                title: string;
+                hint: string;
+            };
+            filteredEmpty: {
+                title: string;
+                reset: string;
+            };
+            list: {
+                selectShown: string;
+                selectShownAria: string;
+                shownCount: string;
+                photo: string;
+                inAi: string;
+                notInAi: string;
+                edit: string;
+                delete: string;
+                minutes: string;
+            };
+            deleteModal: {
+                title: string;
+                description: string;
+                confirmPlaceholder: string;
+                nameMismatch: string;
+            };
+            previewModal: {
+                title: string;
+                counts: string;
+                ragSuffix: string;
+                truncated: string;
+            };
+            form: {
+                editTitle: string;
+                hint: string;
+                main: string;
+                serviceName: string;
+                productName: string;
+                ruleTitle: string;
+                sku: string;
+                skuOptional: string;
+                type: string;
+                priority: string;
+                price: string;
+                pricePlaceholder: string;
+                duration: string;
+                ruleContent: string;
+                description: string;
+                ruleContentHint: string;
+                descriptionHint: string;
+                ruleContentPlaceholder: string;
+                descriptionPlaceholder: string;
+                photoTitle: string;
+                photoHint: string;
+                noPhoto: string;
+                pickPhoto: string;
+                removePhoto: string;
+                factsTitle: string;
+                factsHint: string;
+                publish: string;
+                includeInAi: string;
+                includeInAiAria: string;
+                active: string;
+                activeAria: string;
+                sortOrder: string;
+                sortOrderHint: string;
+                tipsTitle: string;
+                tip1: string;
+                tip2: string;
+                tip3: string;
+                exampleProductName: string;
+                exampleRuleTitle: string;
+                exampleSku: string;
+                exampleDuration: string;
+                detailsPlaceholderServices: string;
+                detailsPlaceholderProducts: string;
+                jsonError: string;
+            };
+            quality: {
+                disabled: string;
+                notInAi: string;
+                noDescription: string;
+                noPrice: string;
+                ruleTextMissing: string;
+                descriptionMissing: string;
+            };
+            toasts: {
+                saved: string;
+                deleted: string;
+                bulkPromptUpdated: string;
+                previewUnavailable: string;
+                errorSave: string;
+                errorDelete: string;
+                errorBulk: string;
+                errorPreview: string;
+            };
+        };
         connections: {
             title: string;
             subtitle: string;
