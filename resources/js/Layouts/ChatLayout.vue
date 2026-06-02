@@ -16,9 +16,12 @@ withDefaults(
         selectedChatId?: number;
         search?: string;
         scope?: 'active' | 'archived';
+        /** На Chats/Show список подгружается через chats.feed, а не Inertia. */
+        sidebarLazyLoad?: boolean;
     }>(),
     {
         scope: 'active',
+        sidebarLazyLoad: false,
     },
 );
 
@@ -48,6 +51,7 @@ const sidebarResizing = computed(() => sidebarResize.isResizing.value);
                     :selected-chat-id="selectedChatId"
                     :search="search"
                     :scope="scope"
+                    :sidebar-lazy-load="sidebarLazyLoad"
                     class="h-full w-full min-w-0"
                 />
             </div>

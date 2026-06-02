@@ -26,9 +26,11 @@ const props = withDefaults(
         selectedChatId?: number;
         search?: string;
         scope?: ScopeKey;
+        sidebarLazyLoad?: boolean;
     }>(),
     {
         scope: 'active',
+        sidebarLazyLoad: false,
     },
 );
 
@@ -123,6 +125,7 @@ const searchFocused = ref(false);
 // ─── Live chat list (реальное время) ─────────────────────────────────────────
 const localChats = ref<Chat[]>([...props.chats.data]);
 const loadingMore = ref(false);
+const initialSidebarLoading = ref(false);
 const listNavigating = ref(false);
 const loadedUntilPage = ref(props.chats.current_page);
 
@@ -195,30 +198,25 @@ function applyIncomingMessage(chatId: number, msg: {
     localChats.value = updated;
 }
 
-async function onChatListScroll(e: Event): Promise<void> {
-    const el = e.target as HTMLElement;
-    if (!hasMoreChats.value || loadingMore.value) {
-        return;
-    }
-    if (el.scrollHeight - el.scrollTop - el.clientHeight > 140) {
-        return;
-    }
-    loadingMore.value = true;
-    try {
-        const next = loadedUntilPage.value + 1;
-        const { data: payload } = await axios.get<{
-            data: Chat[];
-            current_page: number;
-            last_page: number;
-        }>(route('chats.feed'), {
-            params: {
-                page: next,
-                search: props.search || undefined,
-                archived: props.scope === 'archived' ? 1 : 0,
-                ownership: listOwnership.value === 'mine' ? 'mine' : undefined,
-                filter: listFilter.value === 'attention' ? 'attention' : undefined,
-            },
-        });
+async function fetchFeedPage(page: number, options: { replace?: boolean } = {}): Promise<void> {
+    const { data: payload } = await axios.get<{
+        data: Chat[];
+        current_page: number;
+        last_page: number;
+    }>(route('chats.feed'), {
+        params: {
+            page,
+            search: props.search || undefined,
+            archived: props.scope === 'archived' ? 1 : 0,
+            ownership: listOwnership.value === 'mine' ? 'mine' : undefined,
+            filter: listFilter.value === 'attention' ? 'attention' : undefined,
+            ensure_chat_id: props.selectedChatId || undefined,
+        },
+    });
+
+    if (options.replace) {
+        localChats.value = [...payload.data];
+    } else {
         const seen = new Set(localChats.value.map((c) => c.id));
         for (const row of payload.data) {
             if (!seen.has(row.id)) {
@@ -226,7 +224,22 @@ async function onChatListScroll(e: Event): Promise<void> {
                 localChats.value.push(row);
             }
         }
-        loadedUntilPage.value = payload.current_page;
+    }
+
+    loadedUntilPage.value = payload.current_page;
+}
+
+async function onChatListScroll(e: Event): Promise<void> {
+    const el = e.target as HTMLElement;
+    if (!hasMoreChats.value || loadingMore.value || initialSidebarLoading.value) {
+        return;
+    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight > 140) {
+        return;
+    }
+    loadingMore.value = true;
+    try {
+        await fetchFeedPage(loadedUntilPage.value + 1);
     } catch {
         /* offline / 419 */
     } finally {
@@ -325,6 +338,17 @@ onMounted(async () => {
     // Инициализируем живой счётчик из Inertia-пропов (если ещё не был задан)
     if (!liveUnread.initialized()) {
         liveUnread.init(Number(page.props.unreadChatsCount || 0));
+    }
+
+    if (props.sidebarLazyLoad && props.chats.total > props.chats.data.length) {
+        initialSidebarLoading.value = true;
+        try {
+            await fetchFeedPage(1, { replace: true });
+        } catch {
+            /* offline / 419 */
+        } finally {
+            initialSidebarLoading.value = false;
+        }
     }
 
     // Echo — подписываемся сразу или ждём инициализации
@@ -920,7 +944,7 @@ onBeforeUnmount(() => {
         <!-- Chat list -->
         <div class="flex-1 overflow-y-auto wa-scrollbar" @scroll.passive="onChatListScroll">
             <SkeletonBlock
-                v-if="listNavigating && filteredChats.length === 0"
+                v-if="(listNavigating || initialSidebarLoading) && filteredChats.length === 0"
                 :lines="8"
                 wrapper-class="px-4 py-4"
             />
@@ -937,7 +961,7 @@ onBeforeUnmount(() => {
                 :chat="chat"
                 :is-selected="chat.id === selectedChatId"
             />
-            <SkeletonBlock v-if="loadingMore" :lines="4" class="px-3 py-3" />
+            <SkeletonBlock v-if="loadingMore || initialSidebarLoading" :lines="4" class="px-3 py-3" />
         </div>
 
     </div>

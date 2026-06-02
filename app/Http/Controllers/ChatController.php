@@ -153,10 +153,23 @@ final class ChatController extends Controller
             ->when(! $archived, fn ($q) => $q->whereNotNull('last_message_at'))
             ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
 
-        $this->chatService->enrichAttentionMeta($paginator->items());
+        $items = $paginator->items();
+        $ensureChatId = max(0, (int) $request->query('ensure_chat_id', 0));
+        if ($ensureChatId > 0 && ! collect($items)->contains(fn (Chat $row): bool => (int) $row->id === $ensureChatId)) {
+            $extra = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership, $listFilter)
+                ->where('is_archived', $archived)
+                ->when(! $archived, fn ($q) => $q->whereNotNull('last_message_at'))
+                ->whereKey($ensureChatId)
+                ->first();
+            if ($extra instanceof Chat) {
+                $items[] = $extra;
+            }
+        }
+
+        $this->chatService->enrichAttentionMeta($items);
 
         return response()->json([
-            'data' => $paginator->items(),
+            'data' => $items,
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
             'per_page' => $paginator->perPage(),
@@ -212,16 +225,7 @@ final class ChatController extends Controller
 
         $listOwnership = $this->chatListOwnership($request);
         $listFilter = $this->chatListFilter($request);
-        $allChats = $this->chatService->getChatsForUser($request->user(), null, $listOwnership, $listFilter)
-            ->where(function (Builder $q) use ($chat): void {
-                $q->where('is_archived', false);
-                if ($chat->is_archived) {
-                    $q->orWhere('id', $chat->id);
-                }
-            })
-            ->paginate(self::CHAT_LIST_PER_PAGE);
-
-        $this->chatService->enrichAttentionMeta($allChats->items());
+        $sidebarChats = $this->sidebarChatsForShow($request, $chat, $listOwnership, $listFilter);
 
         // «Единая клиентская база»: все чаты того же клиента (contact), включая разные WA-номера.
         // Нужен, чтобы в панели контакта показывать: с этим человеком общались с WA #1 и WA #2.
@@ -257,7 +261,8 @@ final class ChatController extends Controller
         return Inertia::render('Chats/Show', [
             'chat' => $chat,
             'messages' => $messages,
-            'chats' => $allChats,
+            'chats' => $sidebarChats,
+            'sidebarLazyLoad' => true,
             'contactChats' => $contactChats,
             'departments' => Department::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'assignableUsers' => $this->assignableUsersFor($request->user(), $chat),
@@ -1855,5 +1860,53 @@ final class ChatController extends Controller
             'whatsapp_sessions.id',
             $user->whatsappSessions()->pluck('whatsapp_sessions.id'),
         );
+    }
+
+    /**
+     * Лёгкий сайдбар для Chats/Show: только текущий чат + метаданные пагинации.
+     * Полный список подгружается на клиенте через {@see self::feed()}.
+     *
+     * @return array{data: list<Chat>, current_page: int, last_page: int, per_page: int, total: int}
+     */
+    private function sidebarChatsForShow(
+        Request $request,
+        Chat $chat,
+        string $listOwnership,
+        ?string $listFilter,
+    ): array {
+        $query = $this->sidebarChatsQuery($request->user(), $chat, $listOwnership, $listFilter);
+
+        $total = (clone $query)->count();
+        $perPage = self::CHAT_LIST_PER_PAGE;
+        $lastPage = max(1, (int) ceil($total / $perPage));
+
+        $data = [];
+        $current = (clone $query)->whereKey($chat->id)->first();
+        if ($current instanceof Chat) {
+            $this->chatService->enrichAttentionMeta([$current]);
+            $data = [$current];
+        }
+
+        return [
+            'data' => $data,
+            'current_page' => 1,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * @return Builder<Chat>
+     */
+    private function sidebarChatsQuery(User $user, Chat $contextChat, string $listOwnership, ?string $listFilter): Builder
+    {
+        return $this->chatService->getChatsForUser($user, null, $listOwnership, $listFilter)
+            ->where(function (Builder $q) use ($contextChat): void {
+                $q->where('is_archived', false);
+                if ($contextChat->is_archived) {
+                    $q->orWhere('id', $contextChat->id);
+                }
+            });
     }
 }

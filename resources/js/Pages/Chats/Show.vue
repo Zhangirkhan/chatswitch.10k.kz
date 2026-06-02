@@ -655,6 +655,7 @@ function cleanupEcho() {
         :chats="localChats"
         :selected-chat-id="headerChat.id"
         :scope="headerChat.is_archived ? 'archived' : 'active'"
+        sidebar-lazy-load
     >
         <div class="flex h-full w-full min-h-0">
             <div class="flex flex-col flex-1 min-w-0 min-h-0">
