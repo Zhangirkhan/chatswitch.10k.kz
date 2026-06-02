@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import UiModal from '@/Components/Ui/UiModal.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import { useToastStore } from '@/stores/toast';
@@ -626,120 +627,116 @@ const recurrenceLabels: Record<string, string> = {
         </div>
 
         <!-- ── Event modal ───────────────────────────────────────────── -->
-        <Teleport to="body">
-            <div v-if="showModal" class="cal-modal-backdrop" @click.self="closeModal">
-                <div class="cal-modal">
-                    <div class="cal-modal-header">
-                        <h3>{{ editingId ? 'Редактировать запись' : 'Новая запись' }}</h3>
-                        <button class="cal-modal-close" @click="closeModal">×</button>
-                    </div>
-                    <form @submit.prevent="saveEvent" class="cal-modal-body">
-
-                        <div v-if="editingMeta?.source === 'ai_auto'" class="cal-ai-hint">
-                            <strong>Запись из чата (AI).</strong>
-                            <span v-if="editingMeta.contact"> Клиент: {{ editingMeta.contact.name || '—' }}<template v-if="editingMeta.contact.phone_number">, {{ editingMeta.contact.phone_number }}</template>.</span>
-                            <span v-else-if="editingMeta.chat?.name"> Чат: {{ editingMeta.chat.name }}.</span>
-                            Клиенту уйдёт напоминание в WhatsApp от имени ответственного сотрудника (по настройкам напоминаний).
-                        </div>
-
-                        <!-- Title -->
-                        <label class="form-row">
-                            <span>Название</span>
-                            <input v-model="form.title" type="text" maxlength="255" placeholder="Название записи" autofocus />
-                        </label>
-
-                        <label class="form-row">
-                            <span>Ответственный</span>
-                            <select v-model="form.assignee_user_id" class="settings-input w-full">
-                                <option value="">Не назначен</option>
-                                <option v-for="u in assignableUsers" :key="'as-' + u.id" :value="String(u.id)">{{ u.name }}</option>
-                            </select>
-                        </label>
-
-                        <!-- Color -->
-                        <div class="form-row">
-                            <span>Цвет</span>
-                            <div class="color-palette">
-                                <button
-                                    v-for="c in PALETTE"
-                                    :key="c"
-                                    type="button"
-                                    class="color-swatch"
-                                    :class="{ 'color-swatch-active': form.color === c }"
-                                    :style="{ background: c }"
-                                    @click="form.color = c"
-                                ></button>
-                            </div>
-                        </div>
-
-                        <!-- All day toggle -->
-                        <label class="form-row form-row-inline">
-                            <span>Весь день</span>
-                            <div class="toggle" :class="{ 'toggle-on': form.all_day }" @click="form.all_day = !form.all_day">
-                                <div class="toggle-thumb"></div>
-                            </div>
-                        </label>
-
-                        <!-- Start / End -->
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="form-row">
-                                <span>Начало</span>
-                                <input
-                                    v-model="form.starts_at"
-                                    :type="form.all_day ? 'date' : 'datetime-local'"
-                                />
-                            </label>
-                            <label class="form-row">
-                                <span>Конец</span>
-                                <input
-                                    v-model="form.ends_at"
-                                    :type="form.all_day ? 'date' : 'datetime-local'"
-                                />
-                            </label>
-                        </div>
-
-                        <!-- Recurrence -->
-                        <label class="form-row">
-                            <span>Повторение</span>
-                            <select v-model="form.recurrence">
-                                <option value="">Без повторения</option>
-                                <option value="daily">Каждый день</option>
-                                <option value="weekly">Каждую неделю</option>
-                                <option value="monthly">Каждый месяц</option>
-                                <option value="yearly">Каждый год</option>
-                            </select>
-                        </label>
-                        <label v-if="form.recurrence" class="form-row">
-                            <span>Повторять до (необязательно)</span>
-                            <input v-model="form.recurrence_ends_at" type="date" />
-                        </label>
-
-                        <!-- Description -->
-                        <label class="form-row">
-                            <span>Описание</span>
-                            <textarea v-model="form.description" rows="3" maxlength="5000" placeholder="Заметки к записи"></textarea>
-                        </label>
-
-                        <div v-if="formError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ formError }}</div>
-
-                        <div class="cal-modal-actions">
-                            <button
-                                v-if="editingId && !form.title.includes('(копия)')"
-                                type="button"
-                                class="ui-btn ui-btn--danger-ghost ui-btn--sm"
-                                @click="requestDeleteEvent"
-                            >Удалить</button>
-                            <div class="flex gap-2 ml-auto">
-                                <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="closeModal">Отмена</button>
-                                <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="saving">
-                                    {{ saving ? 'Сохранение…' : (editingId ? 'Сохранить' : 'Создать') }}
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+        <UiModal
+            :open="showModal"
+            :title="editingId ? 'Редактировать запись' : 'Новая запись'"
+            max-width="sm"
+            panel-class="max-w-[480px]"
+            body-class="px-5 py-4"
+            @close="closeModal"
+        >
+            <form id="cal-event-form" @submit.prevent="saveEvent" class="cal-modal-form">
+                <div v-if="editingMeta?.source === 'ai_auto'" class="cal-ai-hint">
+                    <strong>Запись из чата (AI).</strong>
+                    <span v-if="editingMeta.contact"> Клиент: {{ editingMeta.contact.name || '—' }}<template v-if="editingMeta.contact.phone_number">, {{ editingMeta.contact.phone_number }}</template>.</span>
+                    <span v-else-if="editingMeta.chat?.name"> Чат: {{ editingMeta.chat.name }}.</span>
+                    Клиенту уйдёт напоминание в WhatsApp от имени ответственного сотрудника (по настройкам напоминаний).
                 </div>
-            </div>
-        </Teleport>
+
+                <label class="form-row">
+                    <span>Название</span>
+                    <input v-model="form.title" type="text" maxlength="255" placeholder="Название записи" autofocus />
+                </label>
+
+                <label class="form-row">
+                    <span>Ответственный</span>
+                    <select v-model="form.assignee_user_id" class="settings-input w-full">
+                        <option value="">Не назначен</option>
+                        <option v-for="u in assignableUsers" :key="'as-' + u.id" :value="String(u.id)">{{ u.name }}</option>
+                    </select>
+                </label>
+
+                <div class="form-row">
+                    <span>Цвет</span>
+                    <div class="color-palette">
+                        <button
+                            v-for="c in PALETTE"
+                            :key="c"
+                            type="button"
+                            class="color-swatch"
+                            :class="{ 'color-swatch-active': form.color === c }"
+                            :style="{ background: c }"
+                            @click="form.color = c"
+                        ></button>
+                    </div>
+                </div>
+
+                <label class="form-row form-row-inline">
+                    <span>Весь день</span>
+                    <div class="toggle" :class="{ 'toggle-on': form.all_day }" @click="form.all_day = !form.all_day">
+                        <div class="toggle-thumb"></div>
+                    </div>
+                </label>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="form-row">
+                        <span>Начало</span>
+                        <input
+                            v-model="form.starts_at"
+                            :type="form.all_day ? 'date' : 'datetime-local'"
+                        />
+                    </label>
+                    <label class="form-row">
+                        <span>Конец</span>
+                        <input
+                            v-model="form.ends_at"
+                            :type="form.all_day ? 'date' : 'datetime-local'"
+                        />
+                    </label>
+                </div>
+
+                <label class="form-row">
+                    <span>Повторение</span>
+                    <select v-model="form.recurrence">
+                        <option value="">Без повторения</option>
+                        <option value="daily">Каждый день</option>
+                        <option value="weekly">Каждую неделю</option>
+                        <option value="monthly">Каждый месяц</option>
+                        <option value="yearly">Каждый год</option>
+                    </select>
+                </label>
+                <label v-if="form.recurrence" class="form-row">
+                    <span>Повторять до (необязательно)</span>
+                    <input v-model="form.recurrence_ends_at" type="date" />
+                </label>
+
+                <label class="form-row">
+                    <span>Описание</span>
+                    <textarea v-model="form.description" rows="3" maxlength="5000" placeholder="Заметки к записи"></textarea>
+                </label>
+
+                <div v-if="formError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ formError }}</div>
+            </form>
+
+            <template #footer>
+                <div class="flex items-center w-full gap-2">
+                    <button
+                        v-if="editingId && !form.title.includes('(копия)')"
+                        type="button"
+                        class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                        @click="requestDeleteEvent"
+                    >
+                        Удалить
+                    </button>
+                    <div class="flex gap-2 ml-auto">
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="closeModal">Отмена</button>
+                        <button type="submit" form="cal-event-form" class="ui-btn ui-btn--primary ui-btn--sm" :disabled="saving">
+                            {{ saving ? 'Сохранение…' : (editingId ? 'Сохранить' : 'Создать') }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </UiModal>
 
         <DangerConfirmModal
             :open="deleteDialogOpen"
@@ -1093,58 +1090,8 @@ const recurrenceLabels: Record<string, string> = {
 .cal-week-event-title { font-size: 0.72rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-week-event-time { font-size: 0.62rem; opacity: 0.8; }
 
-/* ── Modal ──────────────────────────────────────────────────────────────── */
-.cal-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    padding: 1rem;
-}
-.cal-modal {
-    background: var(--wa-panel);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    border: 1px solid var(--wa-border-strong);
-    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
-    color: var(--wa-text);
-}
-.cal-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.9rem 1.2rem;
-    border-bottom: 1px solid var(--wa-border);
-    position: sticky;
-    top: 0;
-    background: var(--wa-panel);
-    z-index: 1;
-}
-.cal-modal-header h3 { font-size: 1rem; font-weight: 600; margin: 0; }
-.cal-modal-close {
-    background: transparent;
-    border: none;
-    color: var(--wa-text-secondary);
-    font-size: 1.5rem;
-    line-height: 1;
-    cursor: pointer;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-.cal-modal-close:hover { background: var(--wa-panel-hover); }
-
-.cal-modal-body {
-    padding: 1rem 1.2rem 1.2rem;
+/* ── Event form (UiModal body) ─────────────────────────────────────────── */
+.cal-modal-form {
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -1216,11 +1163,4 @@ const recurrenceLabels: Record<string, string> = {
     transition: transform 0.2s;
 }
 .toggle.toggle-on .toggle-thumb { transform: translateX(18px); }
-
-/* Modal actions */
-.cal-modal-actions {
-    display: flex;
-    align-items: center;
-    padding-top: 0.3rem;
-}
 </style>
