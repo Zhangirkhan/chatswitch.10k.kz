@@ -7,6 +7,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       node_args: '--max-old-space-size=4096',
+      max_memory_restart: '800M',
       env: {
         NODE_ENV: 'production',
         // Бинарник Chrome не задаём явно — src/whatsapp/clientConfig.js сам подберёт
