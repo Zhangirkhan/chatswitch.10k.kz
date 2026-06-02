@@ -9,6 +9,7 @@ use App\Models\WhatsappSession;
 use App\Services\Company\CompanyOnboardingService;
 use App\Support\TenantCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -49,6 +50,21 @@ final class SettingsReadinessMiddlewareTest extends TestCase
         $this->actingAs($admin)
             ->get(route('settings.connections'))
             ->assertOk();
+    }
+
+    public function test_admin_can_bootstrap_connections_before_ai_ready(): void
+    {
+        Http::fake([
+            '127.0.0.1:3050/health' => Http::response(['status' => 'ok'], 200),
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->getJson(route('settings.connections.bootstrap'))
+            ->assertOk()
+            ->assertJsonPath('whatsappServiceReachable', true);
     }
 
     public function test_admin_can_open_funnels_after_bootstrap(): void

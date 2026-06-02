@@ -20,6 +20,7 @@ final class EnsureSettingsReadiness
         'settings.onboarding',
         'settings.onboarding.complete',
         'settings.connections',
+        'settings.connections.bootstrap',
         'settings.connections.store',
         'settings.connections.update',
         'settings.connections.initialize',

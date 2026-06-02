@@ -295,8 +295,9 @@ async function bootstrapConnections(): Promise<void> {
         const { data } = await axios.get<BootstrapResponse>(route('settings.connections.bootstrap'));
         whatsappServiceReachable.value = data.whatsappServiceReachable;
         localSessions.value = [...data.sessions];
-    } catch {
-        whatsappServiceReachable.value = false;
+    } catch (err: unknown) {
+        message.value = errorMessage(err, t('settings.connections.serviceUnavailable'));
+        whatsappServiceReachable.value = null;
     } finally {
         isBootstrapping.value = false;
     }
