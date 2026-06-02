@@ -10,14 +10,16 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
-use App\Support\PhoneFormatter;
 use App\Services\Auth\UserPinService;
+use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -116,33 +118,13 @@ final class UserManagementController extends Controller
     {
         $validated = $request->validated();
 
-        $user = DB::transaction(function () use ($validated): User {
-            $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
-            $plainPassword = is_string($validated['password'] ?? null) && $validated['password'] !== ''
-                ? $validated['password']
-                : Str::password(32);
-
-            $user = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'] ?? null,
-                'phone' => $phonesList[0] ?? null,
-                'phones' => $phonesList !== [] ? $phonesList : null,
-                'company_id' => TenantCompany::id(),
-                'password' => $plainPassword,
-                'is_active' => true,
-            ]);
-
-            $user->assignRole($validated['role']);
-            $user->syncDepartments($this->extractDepartmentIds($validated));
-            $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
-
-            if (array_key_exists('pin', $validated)) {
-                $rawPin = is_string($validated['pin'] ?? null) ? trim($validated['pin']) : '';
-                $this->userPins->setPin($user, $rawPin !== '' ? $rawPin : null);
-            }
-
-            return $user;
-        });
+        try {
+            $user = DB::transaction(function () use ($validated): User {
+                return $this->persistUser(new User, $validated, isCreate: true);
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            throw $this->validationForUniqueViolation($e);
+        }
 
         $user->load(['roles', 'department', 'departments', 'whatsappSessions']);
 
@@ -153,9 +135,41 @@ final class UserManagementController extends Controller
     {
         $validated = $request->validated();
 
-        DB::transaction(function () use ($validated, $user): void {
-            $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
+        try {
+            DB::transaction(function () use ($validated, $user): void {
+                $this->persistUser($user, $validated, isCreate: false);
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            throw $this->validationForUniqueViolation($e);
+        }
 
+        $user->load(['roles', 'department', 'departments', 'whatsappSessions']);
+
+        return response()->json(['success' => true, 'user' => $this->transformUser($user)]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function persistUser(User $user, array $validated, bool $isCreate): User
+    {
+        $phonesList = $this->normalizePhonesList($validated['phones'] ?? null, $validated['phone'] ?? null);
+
+        if ($isCreate) {
+            $plainPassword = is_string($validated['password'] ?? null) && $validated['password'] !== ''
+                ? $validated['password']
+                : Str::password(32);
+
+            $user->fill([
+                'name' => $validated['name'],
+                'email' => $validated['email'] ?? null,
+                'phone' => $phonesList[0] ?? null,
+                'phones' => $phonesList !== [] ? $phonesList : null,
+                'company_id' => TenantCompany::id(),
+                'password' => $plainPassword,
+                'is_active' => true,
+            ])->save();
+        } else {
             $user->update([
                 'name' => $validated['name'],
                 'email' => array_key_exists('email', $validated) ? $validated['email'] : $user->email,
@@ -173,20 +187,37 @@ final class UserManagementController extends Controller
             if (array_key_exists('is_active', $validated) && $validated['is_active'] === false) {
                 $user->revokeAllPersonalAccessTokens();
             }
+        }
 
-            $user->syncRoles([$validated['role']]);
-            $user->syncDepartments($this->extractDepartmentIds($validated));
-            $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
+        $user->syncRoles([$validated['role']]);
+        $user->syncDepartments($this->extractDepartmentIds($validated));
+        $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
 
-            if (array_key_exists('pin', $validated)) {
-                $rawPin = is_string($validated['pin'] ?? null) ? trim($validated['pin']) : '';
-                $this->userPins->setPin($user, $rawPin !== '' ? $rawPin : null);
-            }
-        });
+        if (array_key_exists('pin', $validated)) {
+            $rawPin = is_string($validated['pin'] ?? null) ? trim($validated['pin']) : '';
+            $this->userPins->setPin($user, $rawPin !== '' ? $rawPin : null);
+        }
 
-        $user->load(['roles', 'department', 'departments', 'whatsappSessions']);
+        return $user;
+    }
 
-        return response()->json(['success' => true, 'user' => $this->transformUser($user)]);
+    private function validationForUniqueViolation(UniqueConstraintViolationException $e): ValidationException
+    {
+        $message = strtolower($e->getMessage());
+
+        if (str_contains($message, 'email')) {
+            return ValidationException::withMessages([
+                'email' => ['Этот email уже используется другим пользователем.'],
+            ]);
+        }
+
+        if (str_contains($message, 'pin')) {
+            return ValidationException::withMessages([
+                'pin' => ['Этот PIN уже используется другим сотрудником.'],
+            ]);
+        }
+
+        throw $e;
     }
 
     /**
