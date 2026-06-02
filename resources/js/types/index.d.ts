@@ -303,6 +303,8 @@ export type PageProps<
     selectedConversationId?: number | null;
     /** Суммарно непрочитанных сообщений внутреннего чата (HandleInertiaRequests). */
     teamChatUnreadCount?: number;
+    /** Laravel default locale shared with the SPA i18n layer. */
+    appLocale?: string;
     modules?: {
         calendar?: boolean;
         analytics?: boolean;

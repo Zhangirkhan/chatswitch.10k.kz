@@ -2,6 +2,7 @@ import '../css/app.css';
 import '../css/wa-chat-composer.css';
 import './bootstrap';
 import { initTheme } from './composables/useTheme';
+import { initI18n } from './composables/useI18n';
 import { initChatBackground } from './composables/useChatBackground';
 import { initChatBubbles } from './composables/useChatBubbles';
 import { installKeyboardShortcuts } from './composables/useKeyboardShortcuts';
@@ -77,6 +78,7 @@ createInertiaApp({
         ),
     setup({ el, App, props, plugin }) {
         syncPageScroll(props.initialPage.component);
+        initI18n(String((props.initialPage.props as { appLocale?: string }).appLocale ?? 'ru'));
 
         createApp({ render: () => h(App, props) })
             .use(plugin)

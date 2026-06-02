@@ -12,7 +12,10 @@ import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
 import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
+import { useI18n } from '@/composables/useI18n';
 import { whatsappStatusChannel as buildWhatsappStatusChannel } from '@/utils/tenantChannels';
+
+const { t } = useI18n();
 
 const page = usePage<any>();
 const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
@@ -72,14 +75,14 @@ function sessionInitial(s: WhatsappSession): string {
 function sessionTooltip(s: WhatsappSession): string {
     const parts = [s.display_name || s.wa_name || s.session_name];
     if (s.phone_number) parts.push(formatPhone(s.phone_number) || s.phone_number);
-    const statusLabel = s.status === 'connected'
-        ? 'Подключён'
+    const statusKey = s.status === 'connected'
+        ? 'whatsapp.status.connected'
         : s.status === 'qr_pending'
-            ? 'Ожидание QR'
+            ? 'whatsapp.status.qrPending'
             : s.status === 'connecting'
-                ? 'Подключение…'
-                : 'Отключён';
-    parts.push(statusLabel);
+                ? 'whatsapp.status.connecting'
+                : 'whatsapp.status.disconnected';
+    parts.push(t(statusKey));
     return parts.filter(Boolean).join(' · ');
 }
 
@@ -171,8 +174,8 @@ onUnmounted(() => {
                     :href="route('chats.index')"
                     class="wa-rail-btn relative"
                     :class="{ active: route().current('chats.index') || route().current('chats.show') || route().current('chats.archived') }"
-                    title="Чаты"
-                    aria-label="Чаты"
+                    :title="t('nav.chats')"
+                    :aria-label="t('nav.chats')"
                     :aria-current="route().current('chats.index') || route().current('chats.show') || route().current('chats.archived') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -192,8 +195,8 @@ onUnmounted(() => {
                     :href="route('clients.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('clients.*') }"
-                    title="Клиенты"
-                    aria-label="Клиенты"
+                    :title="t('nav.clients')"
+                    :aria-label="t('nav.clients')"
                     :aria-current="route().current('clients.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -206,8 +209,8 @@ onUnmounted(() => {
                     :href="route('broadcasts.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('broadcasts.*') }"
-                    title="Рассылки"
-                    aria-label="Рассылки"
+                    :title="t('nav.broadcasts')"
+                    :aria-label="t('nav.broadcasts')"
                     :aria-current="route().current('broadcasts.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -220,8 +223,8 @@ onUnmounted(() => {
                     :href="route('ai-chat.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('ai-chat.*') }"
-                    title="ИИ чат"
-                    aria-label="ИИ чат"
+                    :title="t('nav.aiChat')"
+                    :aria-label="t('nav.aiChat')"
                     :aria-current="route().current('ai-chat.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -234,8 +237,8 @@ onUnmounted(() => {
                     :href="route('analytics.dialogs')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('analytics.*') }"
-                    title="Аналитика диалогов"
-                    aria-label="Аналитика диалогов"
+                    :title="t('nav.analytics')"
+                    :aria-label="t('nav.analytics')"
                     :aria-current="route().current('analytics.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -248,8 +251,8 @@ onUnmounted(() => {
                     :href="route('calendar.index')"
                     class="wa-rail-btn relative"
                     :class="{ active: route().current('calendar.*') }"
-                    title="Календарь"
-                    aria-label="Календарь"
+                    :title="t('nav.calendar')"
+                    :aria-label="t('nav.calendar')"
                     :aria-current="route().current('calendar.*') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -262,7 +265,7 @@ onUnmounted(() => {
                         v-if="calendarBadgeCount > 0"
                         class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center px-1 leading-none"
                         :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
-                        :title="`Записей сегодня: ${calendarBadgeCount}`"
+                        :title="t('nav.calendarToday', { count: calendarBadgeCount })"
                     >
                         {{ calendarBadgeCount > 99 ? '99+' : calendarBadgeCount }}
                     </span>
@@ -273,8 +276,8 @@ onUnmounted(() => {
                     :href="route('funnels.board')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('funnels.board') }"
-                    title="Воронки"
-                    aria-label="Воронки"
+                    :title="t('nav.funnels')"
+                    :aria-label="t('nav.funnels')"
                     :aria-current="route().current('funnels.board') ? 'page' : undefined"
                 >
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -307,7 +310,7 @@ onUnmounted(() => {
                 <Link
                     :href="route('profile.edit')"
                     :title="user?.name"
-                    aria-label="Профиль и настройки"
+                    :aria-label="t('nav.profile')"
                     :aria-current="route().current('profile.edit') || route().current('settings.*') ? 'page' : undefined"
                     class="block rounded-full transition"
                     :class="{ 'ring-2 ring-[var(--wa-accent)]': route().current('profile.edit') || route().current('settings.*') }"

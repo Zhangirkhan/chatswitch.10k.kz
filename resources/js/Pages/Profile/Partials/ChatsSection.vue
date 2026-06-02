@@ -9,6 +9,8 @@ import {
     TRANSLATION_LANG_OPTIONS,
     type TranslationLang,
 } from '@/composables/useTranslationLang';
+import { useI18n } from '@/composables/useI18n';
+import type { AppLocale } from '@/i18n/types';
 import { wallpaperPreview } from '@/config/wallpapers';
 import { messageStylePreview } from '@/config/chatBubbles';
 import { computed, ref } from 'vue';
@@ -17,6 +19,7 @@ const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
 const { presets: messageStyles, currentMessageStyleId, setMessageStyle, getCurrent: getCurrentMessageStyle } = useChatMessageStyle();
 const { lang: translateLang } = useTranslationLang();
+const { locale: uiLocale, locales: uiLocaleOptions, t, setLocale: setUiLocale } = useI18n();
 
 const wallpaperLabel = computed(() => getCurrent().label);
 const messageStyleLabel = computed(() => getCurrentMessageStyle().label);
@@ -47,7 +50,7 @@ function isDefaultLang(value: TranslationLang): boolean {
 
 <template>
     <div class="h-full flex flex-col">
-        <SectionHeader title="Чаты" />
+        <SectionHeader :title="t('settings.chats.title')" />
 
         <div class="flex-1 overflow-y-auto wa-scrollbar chats-settings">
             <section class="ui-settings-section chats-settings__section">
@@ -73,7 +76,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                                 <circle cx="12" cy="12" r="4" />
                                 <path stroke-linecap="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
                             </svg>
-                            Светлая
+                            {{ t('settings.theme.light') }}
                         </button>
                         <button
                             type="button"
@@ -85,7 +88,7 @@ function isDefaultLang(value: TranslationLang): boolean {
                             <svg class="ui-theme-switch__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                             </svg>
-                            Тёмная
+                            {{ t('settings.theme.dark') }}
                         </button>
                     </div>
                 </div>
@@ -139,6 +142,29 @@ function isDefaultLang(value: TranslationLang): boolean {
                         <svg class="ui-settings-pick-card__chevron w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                         </svg>
+                    </button>
+                </div>
+            </section>
+
+            <section class="ui-settings-section chats-settings__section">
+                <h3 class="ui-settings-block-title">{{ t('settings.interface.language') }}</h3>
+                <p class="ui-settings-block-hint">
+                    {{ t('settings.interface.languageHint') }}
+                </p>
+
+                <div class="ui-lang-grid" role="listbox" :aria-label="t('settings.interface.language')">
+                    <button
+                        v-for="opt in uiLocaleOptions"
+                        :key="opt.value"
+                        type="button"
+                        role="option"
+                        class="ui-lang-chip"
+                        :class="{ 'is-active': uiLocale === opt.value }"
+                        :aria-selected="uiLocale === opt.value"
+                        @click="setUiLocale(opt.value as AppLocale)"
+                    >
+                        <span class="ui-lang-chip__flag" aria-hidden="true">{{ opt.flag }}</span>
+                        <span>{{ opt.label }}</span>
                     </button>
                 </div>
             </section>
