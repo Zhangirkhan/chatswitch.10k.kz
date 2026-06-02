@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const page = usePage();
 const tenantCompanyId = computed(() => (page.props as { tenantCompanyId?: number }).tenantCompanyId ?? 1);
@@ -29,24 +31,43 @@ const quickReactionKey = 'chat.quick_reaction_emojis';
 const defaultQuickReactions = ['👍', '❤️', '😂', '😮', '😢'];
 const quickReactions = ref<string[]>(parseQuickReactions(form.value[quickReactionKey]));
 
-const settingsConfig = [
-    { key: 'company_name', label: 'Название компании', type: 'text' },
-    { key: 'auto_assign_chats', label: 'Авто-назначение чатов', type: 'select', options: ['off', 'round-robin', 'least-busy'] },
-    { key: 'notification_sound', label: 'Звук уведомлений', type: 'select', options: ['on', 'off'] },
+const settingsConfig = computed(() => [
+    { key: 'company_name', label: t('settings.system.fieldCompanyName'), type: 'text' as const },
+    {
+        key: 'auto_assign_chats',
+        label: t('settings.system.fieldAutoAssign'),
+        type: 'select' as const,
+        options: ['off', 'round-robin', 'least-busy'] as const,
+        optionLabels: {
+            off: t('settings.system.autoAssignOff'),
+            'round-robin': t('settings.system.autoAssignRoundRobin'),
+            'least-busy': t('settings.system.autoAssignLeastBusy'),
+        },
+    },
+    {
+        key: 'notification_sound',
+        label: t('settings.system.fieldNotificationSound'),
+        type: 'select' as const,
+        options: ['on', 'off'] as const,
+        optionLabels: {
+            on: t('settings.system.soundOn'),
+            off: t('settings.system.soundOff'),
+        },
+    },
     {
         key: 'analytics.sla_first_response_seconds',
-        label: 'SLA первого ответа (секунды), для аналитики диалогов',
-        type: 'number',
+        label: t('settings.system.fieldSlaAnalytics'),
+        type: 'number' as const,
     },
-];
+]);
 
-const reminderLeadTimeOptions: { value: string; label: string }[] = [
-    { value: '15', label: 'за 15 минут' },
-    { value: '30', label: 'за 30 минут' },
-    { value: '60', label: 'за 1 час' },
-    { value: '120', label: 'за 2 часа' },
-    { value: '1440', label: 'за 1 день' },
-];
+const reminderLeadTimeOptions = computed(() => [
+    { value: '15', label: t('settings.system.leadTime15') },
+    { value: '30', label: t('settings.system.leadTime30') },
+    { value: '60', label: t('settings.system.leadTime60') },
+    { value: '120', label: t('settings.system.leadTime120') },
+    { value: '1440', label: t('settings.system.leadTime1440') },
+]);
 
 function parseQuickReactions(raw: string | undefined): string[] {
     if (!raw) {
@@ -109,7 +130,7 @@ async function save() {
         saved.value = true;
         setTimeout(() => saved.value = false, 3000);
     } catch (err: any) {
-        showToast({ message: err.response?.data?.message || 'Ошибка сохранения', type: 'warning' });
+        showToast({ message: err.response?.data?.message || t('settings.system.errorSave'), type: 'warning' });
     } finally {
         isSaving.value = false;
     }
@@ -117,15 +138,15 @@ async function save() {
 </script>
 
 <template>
-    <Head title="Настройки системы" />
-    <SettingsLayout title="Настройки системы" subtitle="Общие параметры рабочего пространства">
+    <Head :title="t('settings.system.title')" />
+    <SettingsLayout :title="t('settings.system.title')" :subtitle="t('settings.system.subtitle')">
         <div class="w-full px-6 py-6 space-y-6">
 
             <!-- Общие настройки -->
             <div
                 class="ui-settings-section ui-settings-section--narrow"
             >
-                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">Общие настройки</h2>
+                <h2 class="text-sm font-semibold mb-4" :style="{ color: 'var(--ui-text)' }">{{ t('settings.system.sectionGeneral') }}</h2>
                 <div class="space-y-4">
                     <div v-for="cfg in settingsConfig" :key="cfg.key">
                         <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ cfg.label }}</label>
@@ -140,7 +161,9 @@ async function save() {
                             v-model="form[cfg.key]"
                             class="settings-input"
                         >
-                            <option v-for="opt in cfg.options" :key="opt" :value="opt">{{ opt }}</option>
+                            <option v-for="opt in cfg.options" :key="opt" :value="opt">
+                                {{ cfg.optionLabels?.[opt] ?? opt }}
+                            </option>
                         </select>
                     </div>
                 </div>
@@ -150,9 +173,9 @@ async function save() {
             <div
                 class="ui-settings-section ui-settings-section--narrow"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Быстрые реакции</h2>
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">{{ t('settings.system.sectionQuickReactions') }}</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Эти 5 эмодзи будут показываться в быстрой панели реакций для всей компании.
+                    {{ t('settings.system.quickReactionsHint') }}
                 </p>
 
                 <div class="grid grid-cols-5 gap-2 max-w-md">
@@ -161,7 +184,7 @@ async function save() {
                         :key="index"
                         class="quick-reaction-field"
                     >
-                        <span class="sr-only">Быстрая реакция {{ index + 1 }}</span>
+                        <span class="sr-only">{{ t('settings.system.quickReactionField', { n: index + 1 }) }}</span>
                         <input
                             v-model="quickReactions[index]"
                             type="text"
@@ -172,7 +195,7 @@ async function save() {
                     </label>
                 </div>
                 <p class="mt-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Лучше ставить по одному эмодзи в каждое поле. Кнопка “+” для полного выбора эмодзи останется в чате отдельно.
+                    {{ t('settings.system.quickReactionsNote') }}
                 </p>
             </div>
 
@@ -180,15 +203,15 @@ async function save() {
             <div
                 class="ui-settings-section ui-settings-section--narrow"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">SLA в чатах</h2>
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">{{ t('settings.system.sectionSla') }}</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Внутренние напоминания в ленте организации, если клиент ждёт ответ дольше заданного времени.
+                    {{ t('settings.system.slaHint') }}
                 </p>
                 <div class="space-y-4">
                     <div class="module-row" :class="{ 'module-row-on': slaRemindersEnabled() }">
                         <div class="module-info">
-                            <span class="module-label">SLA-напоминания</span>
-                            <span class="module-desc">Создавать задачу в организации при долгом ожидании клиента.</span>
+                            <span class="module-label">{{ t('settings.system.slaReminders') }}</span>
+                            <span class="module-desc">{{ t('settings.system.slaRemindersDesc') }}</span>
                         </div>
                         <button
                             type="button"
@@ -198,7 +221,7 @@ async function save() {
                         />
                     </div>
                     <div>
-                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Клиент ждёт ответ более (минут)</label>
+                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.system.slaMinutes') }}</label>
                         <input
                             v-model="form[slaMinutesKey]"
                             type="number"
@@ -209,7 +232,7 @@ async function save() {
                             :disabled="!slaRemindersEnabled()"
                         />
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            От 5 до 120 минут. Cron проверяет чаты каждые 5 минут.
+                            {{ t('settings.system.slaMinutesHint') }}
                         </p>
                     </div>
                 </div>
@@ -219,9 +242,9 @@ async function save() {
             <div
                 class="ui-settings-section ui-settings-section--narrow"
             >
-                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">Записи и напоминания</h2>
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">{{ t('settings.system.sectionAppointments') }}</h2>
                 <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
-                    Настройки применяются к новым записям, которые AI создаёт в календаре.
+                    {{ t('settings.system.appointmentsHint') }}
                 </p>
 
                 <div class="space-y-4">
@@ -230,22 +253,22 @@ async function save() {
                         :class="{ 'module-row-on': remindersEnabled() }"
                     >
                         <div class="module-info">
-                            <span class="module-label">Напоминание клиенту о записи</span>
-                            <span class="module-desc">Автоматически создаёт отложенное сообщение после записи в календарь.</span>
+                            <span class="module-label">{{ t('settings.system.appointmentReminder') }}</span>
+                            <span class="module-desc">{{ t('settings.system.appointmentReminderDesc') }}</span>
                         </div>
                         <button
                             type="button"
                             class="toggle-btn"
                             :class="{ 'toggle-btn-on': remindersEnabled() }"
                             @click="toggleReminders"
-                            :title="remindersEnabled() ? 'Выключить напоминания' : 'Включить напоминания'"
+                            :title="remindersEnabled() ? t('settings.system.remindersToggleOff') : t('settings.system.remindersToggleOn')"
                         >
                             <span class="toggle-thumb"></span>
                         </button>
                     </div>
 
                     <div>
-                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Когда отправлять напоминание</label>
+                        <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.system.leadTimeLabel') }}</label>
                         <div class="grid gap-3 sm:grid-cols-[1fr_9rem]">
                             <select
                                 v-model="form['appointment_reminders.lead_time_minutes']"
@@ -264,11 +287,11 @@ async function save() {
                                 step="5"
                                 class="settings-input"
                                 :disabled="!remindersEnabled()"
-                                aria-label="Своё время напоминания в минутах"
+                                :aria-label="t('settings.system.leadTimeCustomAria')"
                             />
                         </div>
                         <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
-                            Можно указать своё значение в минутах: от 5 минут до 7 дней. Если выбранное время уже прошло, напоминание для этой записи не создаётся.
+                            {{ t('settings.system.leadTimeHint') }}
                         </p>
                     </div>
                 </div>
@@ -289,9 +312,9 @@ async function save() {
                     :disabled="isSaving"
                     class="ui-btn ui-btn--primary"
                 >
-                    {{ isSaving ? 'Сохранение...' : 'Сохранить' }}
+                    {{ isSaving ? t('settings.system.saving') : t('common.save') }}
                 </button>
-                <span v-if="saved" class="text-sm" :style="{ color: 'var(--ui-accent)' }">Сохранено!</span>
+                <span v-if="saved" class="text-sm" :style="{ color: 'var(--ui-accent)' }">{{ t('settings.system.saved') }}</span>
             </div>
         </div>
     </SettingsLayout>

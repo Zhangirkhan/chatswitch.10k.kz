@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import FunnelAiWizard, { type AiFunnelSuggestion } from '@/Pages/Settings/Partials/FunnelAiWizard.vue';
 import { FUNNEL_STAGE_TYPES, guessStageTypeFromName, type FunnelStageTypeValue } from '@/utils/funnelStageTypes';
@@ -114,6 +115,7 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
 
 const localFunnels = ref<Funnel[]>([...props.funnels]);
 const aiWizardRef = ref<InstanceType<typeof FunnelAiWizard> | null>(null);
@@ -134,14 +136,14 @@ const palette = [
     '#f59e0b', '#facc15', '#84cc16', '#9ca3af', '#64748b',
 ];
 
-const aiActionOptions = [
-    { id: 'reply_customer', label: 'Писать клиенту' },
-    { id: 'move_funnel_stage', label: 'Двигать этап' },
-    { id: 'create_appointment', label: 'Создавать запись' },
-    { id: 'assign_employee', label: 'Назначать сотрудника' },
-    { id: 'notify_manager', label: 'Уведомлять менеджера' },
-    { id: 'create_task', label: 'Создавать задачу' },
-];
+const aiActionOptions = computed(() => [
+    { id: 'reply_customer', label: t('settings.funnels.stageActions.replyCustomer') },
+    { id: 'move_funnel_stage', label: t('settings.funnels.stageActions.moveFunnelStage') },
+    { id: 'create_appointment', label: t('settings.funnels.stageActions.createAppointment') },
+    { id: 'assign_employee', label: t('settings.funnels.stageActions.assignEmployee') },
+    { id: 'notify_manager', label: t('settings.funnels.stageActions.notifyManager') },
+    { id: 'create_task', label: t('settings.funnels.stageActions.createTask') },
+]);
 
 /* ============================================================
  * Modal: Funnel (create/edit)
@@ -224,7 +226,7 @@ function switchFunnelMode(mode: FunnelMode) {
 
 function onWizardSelect(suggestion: AiFunnelSuggestion) {
     funnelForm.value = {
-        name: String(suggestion.name ?? '').slice(0, 255) || 'Новая воронка',
+        name: String(suggestion.name ?? '').slice(0, 255) || t('settings.funnels.newFunnelDefaultName'),
         description: String(suggestion.description ?? ''),
             color: String(suggestion.color ?? '#01b964'),
         is_active: true,
@@ -254,13 +256,13 @@ function moveAiStage(index: number, direction: -1 | 1) {
 
 async function saveFunnel() {
     if (!funnelForm.value.name.trim()) {
-        funnelErrors.value = { name: 'Укажите название воронки' };
+        funnelErrors.value = { name: t('settings.funnels.errorFunnelNameRequired') };
         return;
     }
 
     const isAiCreate = funnelMode.value === 'ai' && editingFunnelId.value === null;
     if (isAiCreate && !aiSuggested.value) {
-        aiError.value = 'Сначала сгенерируйте воронку с помощью AI или переключитесь в режим «Вручную».';
+        aiError.value = t('settings.funnels.errorAiFirst');
         return;
     }
 
@@ -275,7 +277,7 @@ async function saveFunnel() {
             .filter((s) => s.name !== '');
 
         if (stagesPayload.length === 0) {
-            aiError.value = 'Добавьте хотя бы один этап перед сохранением.';
+            aiError.value = t('settings.funnels.errorAddStageFirst');
             return;
         }
     }
@@ -299,13 +301,13 @@ async function saveFunnel() {
             await axios.post(route('settings.funnels.store'), payload);
             showToast({
                 message: isAiCreate
-                    ? `Воронка создана с ${stagesPayload.length} этап(ами)`
-                    : 'Воронка создана',
+                    ? t('settings.funnels.toastFunnelCreatedWithStages', { count: stagesPayload.length })
+                    : t('settings.funnels.toastFunnelCreated'),
                 duration: 3000,
             });
         } else {
             await axios.put(route('settings.funnels.update', editingFunnelId.value), payload);
-            showToast({ message: 'Воронка обновлена', duration: 3000 });
+            showToast({ message: t('settings.funnels.toastFunnelUpdated'), duration: 3000 });
         }
         funnelModalOpen.value = false;
         resetAiState();
@@ -319,7 +321,7 @@ async function saveFunnel() {
             }
             funnelErrors.value = flat;
         } else {
-            showToast({ message: e.response?.data?.message || 'Ошибка сохранения', duration: 6000 });
+            showToast({ message: e.response?.data?.message || t('settings.funnels.errorSave'), duration: 6000 });
         }
     } finally {
         savingFunnel.value = false;
@@ -334,17 +336,22 @@ const bulkDeleteFunnel = ref<Funnel | null>(null);
 const bulkDeleteStage = ref<FunnelStage | null>(null);
 const bulkDeleteBusy = ref(false);
 
-const bulkDeleteTitle = computed(() => (bulkDeleteKind.value === 'stage' ? 'Удалить этап?' : 'Удалить воронку?'));
+const bulkDeleteTitle = computed(() =>
+    bulkDeleteKind.value === 'stage' ? t('settings.funnels.deleteStageTitle') : t('settings.funnels.deleteFunnelTitle'),
+);
 
 const bulkDeleteDescription = computed(() => {
     if (bulkDeleteKind.value === 'funnel' && bulkDeleteFunnel.value) {
         const f = bulkDeleteFunnel.value;
         const stagesCount = f.stages?.length ?? 0;
-        const extra = stagesCount > 0 ? `\n\nБудет удалено также ${stagesCount} этап(ов).` : '';
-        return `Удалить воронку «${f.name}»?${extra}`;
+        const extra =
+            stagesCount > 0
+                ? t('settings.funnels.deleteFunnelStagesExtra', { count: stagesCount })
+                : '';
+        return t('settings.funnels.deleteFunnelDescription', { name: f.name, extra });
     }
     if (bulkDeleteKind.value === 'stage' && bulkDeleteStage.value) {
-        return `Удалить этап «${bulkDeleteStage.value.name}»?`;
+        return t('settings.funnels.deleteStageDescription', { name: bulkDeleteStage.value.name });
     }
     return '';
 });
@@ -381,10 +388,10 @@ async function confirmBulkDelete(): Promise<void> {
     try {
         if (kind === 'funnel') {
             await axios.delete(route('settings.funnels.destroy', funnel.id));
-            showToast({ message: 'Воронка удалена', duration: 3000 });
+            showToast({ message: t('settings.funnels.toastFunnelDeleted'), duration: 3000 });
         } else if (stage) {
             await axios.delete(route('settings.funnels.stages.destroy', [funnel.id, stage.id]));
-            showToast({ message: 'Этап удалён', duration: 3000 });
+            showToast({ message: t('settings.funnels.toastStageDeleted'), duration: 3000 });
         }
         bulkDeleteOpen.value = false;
         bulkDeleteKind.value = null;
@@ -393,7 +400,7 @@ async function confirmBulkDelete(): Promise<void> {
         await router.reload({ only: ['funnels'] });
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        showToast({ message: e.response?.data?.message || 'Ошибка удаления', duration: 6000 });
+        showToast({ message: e.response?.data?.message || t('settings.funnels.errorDelete'), duration: 6000 });
     } finally {
         bulkDeleteBusy.value = false;
     }
@@ -446,7 +453,7 @@ async function saveStage() {
     const funnel = stageContext.value.funnel;
     if (!funnel) return;
     if (!stageForm.value.name.trim()) {
-        stageErrors.value = { name: 'Укажите название этапа' };
+        stageErrors.value = { name: t('settings.funnels.errorStageNameRequired') };
         return;
     }
     if (savingStage.value) return;
@@ -464,13 +471,13 @@ async function saveStage() {
 
         if (stageContext.value.editingStageId === null) {
             await axios.post(route('settings.funnels.stages.store', funnel.id), payload);
-            showToast({ message: 'Этап добавлен', duration: 3000 });
+            showToast({ message: t('settings.funnels.toastStageAdded'), duration: 3000 });
         } else {
             await axios.put(
                 route('settings.funnels.stages.update', [funnel.id, stageContext.value.editingStageId]),
                 payload,
             );
-            showToast({ message: 'Этап обновлён', duration: 3000 });
+            showToast({ message: t('settings.funnels.toastStageUpdated'), duration: 3000 });
         }
         stageModalOpen.value = false;
         await router.reload({ only: ['funnels'] });
@@ -483,7 +490,7 @@ async function saveStage() {
             }
             stageErrors.value = flat;
         } else {
-            showToast({ message: e.response?.data?.message || 'Ошибка сохранения', duration: 6000 });
+            showToast({ message: e.response?.data?.message || t('settings.funnels.errorSave'), duration: 6000 });
         }
     } finally {
         savingStage.value = false;
@@ -513,7 +520,7 @@ async function persistStageOrder(funnel: Funnel, orderedIds: number[]): Promise<
         await router.reload({ only: ['funnels'] });
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        showToast({ message: e.response?.data?.message || 'Не удалось переставить этап', duration: 6000 });
+        showToast({ message: e.response?.data?.message || t('settings.funnels.errorReorderStage'), duration: 6000 });
     } finally {
         reorderingStages.value = false;
         draggingStage.value = null;
@@ -629,7 +636,7 @@ function stageRuleDraft(stage: FunnelStage): FunnelStageAiRule {
         goal: stage.ai_rule?.goal ?? '',
         required_questions: stage.ai_rule?.required_questions ?? [],
         transition_conditions: stage.ai_rule?.transition_conditions ?? '',
-        allowed_actions: stage.ai_rule?.allowed_actions ?? aiActionOptions.map((a) => a.id),
+        allowed_actions: stage.ai_rule?.allowed_actions ?? aiActionOptions.value.map((a) => a.id),
         assignee_user_ids: stage.ai_rule?.assignee_user_ids ?? [],
         assignee_department_id: stage.ai_rule?.assignee_department_id ?? null,
         require_manager_confirmation: stage.ai_rule?.require_manager_confirmation ?? false,
@@ -691,10 +698,10 @@ async function saveStageAiRule(funnel: Funnel, stage: FunnelStage, patch: Partia
     try {
         const { data } = await axios.put(route('settings.funnels.stages.ai-rule.update', [funnel.id, stage.id]), payload);
         stage.ai_rule = data.rule as FunnelStageAiRule;
-        showToast({ message: 'Правила этапа сохранены', duration: 2500 });
+        showToast({ message: t('settings.funnels.toastRulesSaved'), duration: 2500 });
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string } } };
-        showToast({ message: e.response?.data?.message || 'Не удалось сохранить правила этапа', duration: 6000 });
+        showToast({ message: e.response?.data?.message || t('settings.funnels.errorRulesSave'), duration: 6000 });
     }
 }
 
@@ -832,10 +839,10 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
         await axios.post(route('settings.funnels.templates.store'), {
             template_key: template.key,
         });
-        showToast({ message: `Шаблон «${template.industry}» создан`, duration: 3000 });
+        showToast({ message: t('settings.funnels.toastTemplateApplied', { name: template.industry }), duration: 3000 });
         await router.reload({ only: ['funnels'] });
     } catch (e: any) {
-        showToast({ message: e.response?.data?.message || 'Не удалось создать воронку из шаблона', duration: 6000 });
+        showToast({ message: e.response?.data?.message || t('settings.funnels.errorTemplateCreate'), duration: 6000 });
     } finally {
         creatingTemplateKey.value = null;
     }
@@ -843,8 +850,8 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 </script>
 
 <template>
-    <Head title="Воронки продаж" />
-    <SettingsLayout title="Воронки продаж" subtitle="Этапы и статусы сделок">
+    <Head :title="t('settings.funnels.title')" />
+    <SettingsLayout :title="t('settings.funnels.title')" :subtitle="t('settings.funnels.subtitle')">
         <template #actions>
             <div class="flex items-center gap-2">
                 <button
@@ -852,21 +859,21 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                     class="ui-btn ui-btn--ghost"
                     @click="openCreateFunnel('ai')"
                 >
-                    AI-конструктор
+                    {{ t('settings.funnels.aiBuilder') }}
                 </button>
                 <button
                     type="button"
                     class="ui-btn ui-btn--primary"
                     @click="openCreateFunnel('manual')"
                 >
-                    + Новая воронка
+                    {{ t('settings.funnels.newFunnel') }}
                 </button>
             </div>
         </template>
 
         <div class="funnels-page w-full px-6 py-6 space-y-5">
             <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
-                Создавайте воронки вручную или через AI-конструктор. Можно вести несколько воронок одновременно.
+                {{ t('settings.funnels.intro') }}
             </p>
 
             <section
@@ -875,12 +882,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
             >
                 <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold text-[var(--ui-text)]">Отраслевые шаблоны</h2>
+                        <h2 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.funnels.templatesTitle') }}</h2>
                         <p class="text-xs text-[var(--ui-text-secondary)]">
-                            Быстрый старт: создаёт воронку, этапы, AI-сценарий и правила.
+                            {{ t('settings.funnels.templatesDesc') }}
                         </p>
                     </div>
-                    <span class="text-xs font-medium text-[var(--ui-text-secondary)]">{{ funnelTemplates.length }} шаблонов</span>
+                    <span class="text-xs font-medium text-[var(--ui-text-secondary)]">{{ t('settings.funnels.templatesCount', { count: funnelTemplates.length }) }}</span>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -904,7 +911,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 :disabled="creatingTemplateKey !== null"
                                 @click="createFromTemplate(template)"
                             >
-                                {{ creatingTemplateKey === template.key ? 'Создаём…' : 'Создать' }}
+                                {{ creatingTemplateKey === template.key ? t('settings.funnels.creating') : t('settings.funnels.create') }}
                             </button>
                         </div>
                         <div class="mt-3 flex flex-wrap gap-1.5">
@@ -928,9 +935,9 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                 v-if="totalFunnels === 0"
                 class="funnel-empty-card rounded-2xl border px-6 py-12 text-center"
             >
-                <div class="text-[var(--ui-text)] text-base font-semibold mb-1">Воронок пока нет</div>
+                <div class="text-[var(--ui-text)] text-base font-semibold mb-1">{{ t('settings.funnels.emptyTitle') }}</div>
                 <div class="text-sm text-[var(--ui-text-secondary)] mb-4">
-                    Пройдите AI-онбординг — система предложит несколько вариантов воронок под ваш бизнес.
+                    {{ t('settings.funnels.emptyHint') }}
                 </div>
                 <div class="flex flex-wrap justify-center gap-2">
                     <button
@@ -938,14 +945,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         class="ui-btn ui-btn--primary"
                         @click="openCreateFunnel('ai')"
                     >
-                        Создать с AI
+                        {{ t('settings.funnels.createWithAi') }}
                     </button>
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost"
                         @click="openCreateFunnel('manual')"
                     >
-                        Создать вручную
+                        {{ t('settings.funnels.createManual') }}
                     </button>
                 </div>
             </div>
@@ -971,7 +978,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         v-if="!funnel.is_active"
                                         class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400"
                                     >
-                                        неактивна
+                                        {{ t('settings.funnels.inactiveBadge') }}
                                     </span>
                                     <span
                                         v-if="funnelIssueCount(funnel) > 0"
@@ -979,7 +986,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         :style="{ color: '#d97706', background: 'rgba(217, 119, 6, .12)' }"
                                         :title="funnelIssueSummary(funnel)"
                                     >
-                                        AI: {{ funnelIssueCount(funnel) }} {{ funnelIssueCount(funnel) === 1 ? 'проблема' : 'проблемы' }}
+                                        AI: {{ funnelIssueCount(funnel) }} {{ funnelIssueCount(funnel) === 1 ? t('settings.funnels.aiIssuesOne') : t('settings.funnels.aiIssuesMany') }}
                                     </span>
                                 </div>
                                 <div
@@ -997,7 +1004,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                 @click="openCreateStage(funnel)"
                             >
-                                + Этап
+                                {{ t('settings.funnels.addStage') }}
                             </button>
                             <button
                                 type="button"
@@ -1005,14 +1012,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 :style="{ color: 'var(--ui-text)', borderColor: 'var(--ui-border-strong)' }"
                                 @click="openEditFunnel(funnel)"
                             >
-                                Изменить
+                                {{ t('settings.funnels.edit') }}
                             </button>
                             <button
                                 type="button"
                                 class="text-xs px-2.5 py-1.5 rounded-md border border-red-500/40 text-red-400 transition hover:bg-red-500/10"
                                 @click="requestDeleteFunnel(funnel)"
                             >
-                                Удалить
+                                {{ t('common.delete') }}
                             </button>
                         </div>
                     </div>
@@ -1951,7 +1958,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
         :open="bulkDeleteOpen"
         :title="bulkDeleteTitle"
         :description="bulkDeleteDescription"
-        confirm-label="Удалить"
+        :confirm-label="t('common.delete')"
         :busy="bulkDeleteBusy"
         confirm-variant="danger"
         @close="closeBulkDelete"
