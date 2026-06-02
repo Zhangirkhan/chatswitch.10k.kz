@@ -1,6 +1,7 @@
 const { Events } = require('whatsapp-web.js');
 const { notifyLaravel } = require('./webhook');
 const { handleIncomingMessage } = require('./messageInbound');
+const { syncMissedInboundMessages, startInboundSyncPoller } = require('./syncMissedInbound');
 
 function webhookData(service, data) {
   if (service?.companyId != null) {
@@ -20,13 +21,28 @@ function isDuplicate(id) {
   return false;
 }
 
+function scheduleInboundSync(service, reason) {
+  setTimeout(() => {
+    syncMissedInboundMessages(service, { reason }).catch((err) => {
+      console.error(`[${service.sessionName}] inbound sync failed:`, err.message);
+    });
+  }, 1500);
+}
+
 function attachRuntimeEvents(service) {
-  if (service.runtimeEventsBound) {
+  const client = service.client;
+  if (!client) {
     return;
   }
-  service.runtimeEventsBound = true;
 
-  const client = service.client;
+  // После recreate Client флаг мог остаться true, а слушатели — на старом инстансе.
+  if (service.runtimeEventsBound && service.runtimeEventsClient === client) {
+    scheduleInboundSync(service, 'runtime_recheck');
+    return;
+  }
+
+  service.runtimeEventsBound = true;
+  service.runtimeEventsClient = client;
 
   client.on(Events.INCOMING_CALL, async (call) => {
     if (call?.fromMe) {
@@ -116,6 +132,9 @@ function attachRuntimeEvents(service) {
       fromMe,
     }));
   });
+
+  scheduleInboundSync(service, 'runtime_bound');
+  startInboundSyncPoller(service);
 }
 
 function attachEventBindings(service) {

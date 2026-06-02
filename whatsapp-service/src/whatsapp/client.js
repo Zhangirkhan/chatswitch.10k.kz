@@ -6,6 +6,7 @@ const { buildClientOptions, AUTH_DIR } = require('./clientConfig');
 const { attachEventBindings, attachRuntimeEvents } = require('./clientEventBindings');
 const { runExclusive } = require('./sessionMutex');
 const { releaseStaleChromiumProfileLocks } = require('./sessionProfileCleanup');
+const { syncMissedInboundMessages, stopInboundSyncPoller } = require('./syncMissedInbound');
 
 class WhatsAppClient {
   constructor(sessionName, companyId = null) {
@@ -17,6 +18,16 @@ class WhatsAppClient {
     this.isInitializing = false;
     this.lastError = null;
     this.runtimeEventsBound = false;
+    this.runtimeEventsClient = null;
+  }
+
+  ensureRuntimeEvents(reason = 'ensure') {
+    attachRuntimeEvents(this);
+    if (this.isReady && this.client) {
+      syncMissedInboundMessages(this, { reason, force: reason === 'manual_sync' }).catch((err) => {
+        console.error(`[${this.sessionName}] ensure sync failed:`, err.message);
+      });
+    }
   }
 
   async initialize() {
@@ -36,8 +47,8 @@ class WhatsAppClient {
             this.isReady = true;
             this.isInitializing = false;
             this.qrCode = null;
-            attachRuntimeEvents(this);
           }
+          this.ensureRuntimeEvents('existing_client');
           return;
         }
       }
@@ -45,6 +56,7 @@ class WhatsAppClient {
       if (this.isReady) {
         const state = await this.getState();
         if (this.browserConnected() && state === 'CONNECTED') {
+          this.ensureRuntimeEvents('ready_connected');
           return;
         }
 
@@ -80,6 +92,8 @@ class WhatsAppClient {
         }
 
         this.client = new Client(buildClientOptions(this.sessionName));
+        this.runtimeEventsBound = false;
+        this.runtimeEventsClient = null;
         attachEventBindings(this);
         await this.client.initialize();
 
@@ -91,7 +105,7 @@ class WhatsAppClient {
           this.isReady = true;
           this.isInitializing = false;
           this.qrCode = null;
-          attachRuntimeEvents(this);
+          this.ensureRuntimeEvents('initialize_fallback');
         }
       } catch (err) {
         this.lastError = err.message;
@@ -183,6 +197,7 @@ class WhatsAppClient {
       }
 
       await this.safeDestroyCurrentClient();
+      stopInboundSyncPoller(this);
       this.isReady = false;
       this.qrCode = null;
       this.isInitializing = false;
@@ -192,6 +207,7 @@ class WhatsAppClient {
   async destroy() {
     return runExclusive(this.sessionName, async () => {
       await this.safeDestroyCurrentClient();
+      stopInboundSyncPoller(this);
       this.isReady = false;
       this.qrCode = null;
       this.isInitializing = false;
@@ -225,6 +241,7 @@ class WhatsAppClient {
 
       this.client = null;
       this.runtimeEventsBound = false;
+      this.runtimeEventsClient = null;
     }
   }
 }

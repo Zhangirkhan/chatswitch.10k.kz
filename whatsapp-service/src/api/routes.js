@@ -129,6 +129,20 @@ router.get('/sessions/:name/verify', async (req, res) => {
   res.json(result);
 });
 
+router.post('/sessions/:name/sync-inbound', async (req, res) => {
+  const service = getOrCreateClient(req.params.name);
+
+  if (!service.isReady || !service.client) {
+    return res.status(400).json({ success: false, error: 'Client not ready', sessionName: req.params.name });
+  }
+
+  service.ensureRuntimeEvents('manual_sync');
+  const { syncMissedInboundMessages } = require('../whatsapp/syncMissedInbound');
+  const result = await syncMissedInboundMessages(service, { reason: 'api', force: true });
+
+  return res.json({ success: true, ...result, sessionName: req.params.name });
+});
+
 router.post('/sessions/:name/logout', async (req, res) => {
   const service = getOrCreateClient(req.params.name);
   await service.logout();
