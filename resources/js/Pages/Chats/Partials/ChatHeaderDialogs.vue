@@ -539,5 +539,5 @@ function setFunnelWheelRef(el: unknown): void {
 
 </template>
 
-<style scoped src="./chat-header.css"></style>
+<style scoped src="./chat-header-assign.css"></style>
 
