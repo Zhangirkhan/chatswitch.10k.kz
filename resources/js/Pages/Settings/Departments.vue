@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
@@ -11,6 +12,18 @@ import type { Department } from '@/types';
 import { useToastStore } from '@/stores/toast';
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
+
+type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+const WEEK_DAY_KEYS: WorkDayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+const WEEK_DAYS = computed(() =>
+    WEEK_DAY_KEYS.map((key) => ({
+        key,
+        label: t(`settings.weekdays.${key}`),
+    })),
+);
 
 interface DeptUser {
     id: number;
@@ -25,8 +38,6 @@ interface WorkDaySlot {
     to: string;
 }
 
-type WorkDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
-
 interface DepartmentRow extends Department {
     users_count: number;
     users: DeptUser[];
@@ -36,16 +47,6 @@ interface DepartmentRow extends Department {
     work_schedule_timezone?: string | null;
     work_schedule?: Partial<Record<WorkDayKey, WorkDaySlot>>;
 }
-
-const WEEK_DAYS: Array<{ key: WorkDayKey; label: string }> = [
-    { key: 'mon', label: 'Понедельник' },
-    { key: 'tue', label: 'Вторник' },
-    { key: 'wed', label: 'Среда' },
-    { key: 'thu', label: 'Четверг' },
-    { key: 'fri', label: 'Пятница' },
-    { key: 'sat', label: 'Суббота' },
-    { key: 'sun', label: 'Воскресенье' },
-];
 
 const TIMEZONE_OPTIONS = [
     'Asia/Almaty',
@@ -73,7 +74,7 @@ function defaultWorkWeek(): Record<WorkDayKey, WorkDaySlot> {
 function mergeWorkWeek(raw?: Partial<Record<WorkDayKey, WorkDaySlot>>): Record<WorkDayKey, WorkDaySlot> {
     const base = defaultWorkWeek();
     if (!raw) return base;
-    for (const { key } of WEEK_DAYS) {
+    for (const { key } of WEEK_DAYS.value) {
         const day = raw[key];
         if (day) {
             base[key] = {
@@ -89,10 +90,10 @@ function mergeWorkWeek(raw?: Partial<Record<WorkDayKey, WorkDaySlot>>): Record<W
 function scheduleSummary(dept: DepartmentRow): string | null {
     if (!dept.work_schedule_enabled) return null;
     const week = mergeWorkWeek(dept.work_schedule);
-    const parts = WEEK_DAYS.filter((d) => week[d.key].enabled).map(
+    const parts = WEEK_DAYS.value.filter((d) => week[d.key].enabled).map(
         (d) => `${d.label.slice(0, 2)} ${week[d.key].from}–${week[d.key].to}`,
     );
-    return parts.length ? parts.join(', ') : 'график не задан';
+    return parts.length ? parts.join(', ') : t('settings.departments.scheduleNotSet');
 }
 
 interface AssignmentUser {
@@ -463,12 +464,12 @@ function applyValidationErrors(err: unknown): boolean {
 
 function fallbackErrorMessage(err: unknown): string {
     const e = err as { response?: { data?: { message?: string } } };
-    return e.response?.data?.message || 'Ошибка сохранения';
+    return e.response?.data?.message || t('settings.departments.errorSave');
 }
 
 async function saveModal() {
     if (!form.value.name.trim()) {
-        validationErrors.value = { name: 'Укажите название отдела' };
+        validationErrors.value = { name: t('settings.departments.errorNameRequired') };
         return;
     }
     if (saving.value) return;
@@ -534,9 +535,9 @@ const deptDeleteDescription = computed(() => {
     const childCount = localDepartments.value.filter((d) => (d.parent_id ?? null) === dept.id).length;
     const note =
         childCount > 0
-            ? `\n\nВнимание: у отдела есть ${childCount} дочерних отделов — они станут корневыми (не удаляются).`
+            ? `\n\n${t('settings.departments.deleteDescriptionChildren', { count: childCount })}`
             : '';
-    return `Удалить отдел «${dept.name}»? У пользователей поле отдела будет очищено.${note}`;
+    return `${t('settings.departments.deleteDescription', { name: dept.name })}${note}`;
 });
 
 async function confirmRemoveDepartment(): Promise<void> {
@@ -602,8 +603,8 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 </script>
 
 <template>
-    <Head title="Отделы" />
-    <SettingsLayout title="Отделы" subtitle="Структура компании и распределение операторов">
+    <Head :title="t('settings.departments.title')" />
+    <SettingsLayout :title="t('settings.departments.title')" :subtitle="t('settings.departments.subtitle')">
         <template #actions>
             <button
                 type="button"
@@ -611,16 +612,13 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 :style="{ background: 'var(--ui-accent)', color: '#fff' }"
                 @click="openCreate(null)"
             >
-                + Отдел
+                {{ t('settings.departments.addButton') }}
             </button>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
             <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
-                Пользователь может состоять в нескольких отделах. Отделы могут быть вложенными — например,
-                «Продажи» → «B2B» → «Регион Алматы». Дочерние отделы наследуют логику родителя
-                только визуально (для группировки в списках); назначение пользователей и чатов
-                остаётся независимым.
+                {{ t('settings.departments.intro') }}
             </p>
 
             <UiFilterPanel as="div">
@@ -629,28 +627,28 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         v-model="departmentSearch"
                         type="search"
                         class="settings-input"
-                        placeholder="Поиск по отделу, описанию, сотруднику, воронке"
+                        :placeholder="t('settings.departments.searchPlaceholder')"
                     />
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="departmentStatusFilter" class="settings-input">
-                        <option value="all">Любой статус</option>
-                        <option value="active">Активные</option>
-                        <option value="inactive">Неактивные</option>
+                        <option value="all">{{ t('settings.departments.filterStatusAll') }}</option>
+                        <option value="active">{{ t('settings.departments.filterStatusActive') }}</option>
+                        <option value="inactive">{{ t('settings.departments.filterStatusInactive') }}</option>
                     </select>
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="departmentTypeFilter" class="settings-input">
-                        <option value="all">Все уровни</option>
-                        <option value="root">Только корневые</option>
-                        <option value="nested">Только подотделы</option>
+                        <option value="all">{{ t('settings.departments.filterLevelAll') }}</option>
+                        <option value="root">{{ t('settings.departments.filterLevelRoot') }}</option>
+                        <option value="nested">{{ t('settings.departments.filterLevelNested') }}</option>
                     </select>
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="departmentMembersFilter" class="settings-input">
-                        <option value="all">Любой состав</option>
-                        <option value="with_users">Есть сотрудники</option>
-                        <option value="empty">Без сотрудников</option>
+                        <option value="all">{{ t('settings.departments.filterMembersAll') }}</option>
+                        <option value="with_users">{{ t('settings.departments.filterMembersWithUsers') }}</option>
+                        <option value="empty">{{ t('settings.departments.filterMembersEmpty') }}</option>
                     </select>
                 </UiFilterField>
                 <template #actions>
@@ -660,14 +658,14 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                         :disabled="!hasDepartmentFilters"
                         @click="resetDepartmentFilters"
                     >
-                        Сбросить
+                        {{ t('settings.departments.resetFilters') }}
                     </button>
                 </template>
             </UiFilterPanel>
 
             <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
-                <span>Показано {{ visibleDepartmentTree.length }} из {{ localDepartments.length }}</span>
-                <span v-if="hasDepartmentFilters">Фильтр активен</span>
+                <span>{{ t('settings.departments.shownOf', { shown: visibleDepartmentTree.length, total: localDepartments.length }) }}</span>
+                <span v-if="hasDepartmentFilters">{{ t('settings.departments.filterActive') }}</span>
             </div>
 
             <div
@@ -675,7 +673,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border)' }"
             >
                 <div v-if="visibleDepartmentTree.length === 0" class="p-10 text-center text-[var(--ui-text-secondary)]">
-                    {{ hasDepartmentFilters ? 'Отделы не найдены по текущему фильтру.' : 'Нет отделов. Нажмите «+ Отдел».' }}
+                    {{ hasDepartmentFilters ? t('settings.departments.emptyFiltered') : t('settings.departments.emptyDefault') }}
                 </div>
                 <div
                     v-for="node in visibleDepartmentTree"
@@ -689,25 +687,26 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                                 v-if="node.depth > 0"
                                 class="text-[var(--ui-text-muted)] select-none"
                                 aria-hidden="true"
-                                title="Дочерний отдел"
+                                :title="t('settings.departments.childDept')"
                             >└─</span>
                             <h3 class="font-medium text-[var(--ui-text)] truncate">{{ node.dept.name }}</h3>
                             <span
                                 v-if="node.dept.is_active === false"
                                 class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--ui-text-muted)]"
                                 style="background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent)"
-                            >Неактивен</span>
+                            >{{ t('settings.departments.inactiveBadge') }}</span>
                             <span
                                 v-if="node.depth > 0"
                                 class="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded text-[var(--ui-text-secondary)]"
                                 style="background: color-mix(in srgb, var(--ui-text-secondary) 14%, transparent)"
-                            >Уровень {{ node.depth + 1 }}</span>
+                            >{{ t('settings.departments.levelBadge', { level: node.depth + 1 }) }}</span>
                         </div>
                         <p v-if="node.dept.description" class="text-xs text-[var(--ui-text-secondary)] mt-0.5 line-clamp-2">
                             {{ node.dept.description }}
                         </p>
                         <p class="text-xs text-[var(--ui-text-secondary)] mt-1">
-                            {{ node.dept.users_count }} {{ node.dept.users_count === 1 ? 'пользователь' : 'пользователей' }}
+                            {{ node.dept.users_count }}
+                            {{ node.dept.users_count === 1 ? t('settings.departments.usersCountOne') : t('settings.departments.usersCountMany') }}
                             <template v-if="node.dept.users?.length">
                                 ·
                                 <span class="text-[var(--ui-text)]">{{ node.dept.users.map((u) => u.name).join(', ') }}</span>
@@ -778,7 +777,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60"
                 role="dialog"
                 aria-modal="true"
-                :aria-label="editingId === null ? 'Новый отдел' : 'Редактировать отдел'"
+                :aria-label="editingId === null ? t('settings.departments.newDept') : t('settings.departments.editDept')"
                 @click.self="closeModal"
             >
                 <div
@@ -788,7 +787,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                 >
                     <div class="px-5 py-4 border-b shrink-0" :style="{ borderColor: 'var(--ui-border)' }">
                         <h3 class="text-base font-medium text-[var(--ui-text)]">
-                            {{ editingId === null ? 'Новый отдел' : 'Редактировать отдел' }}
+                            {{ editingId === null ? t('settings.departments.newDept') : t('settings.departments.editDept') }}
                         </h3>
                     </div>
 
@@ -1113,7 +1112,7 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
                             :disabled="saving"
                             @click="saveModal"
                         >
-                            {{ saving ? 'Сохранение…' : (editingId === null ? 'Создать' : 'Сохранить') }}
+                            {{ saving ? t('settings.departments.saving') : (editingId === null ? t('settings.departments.create') : t('common.save')) }}
                         </button>
                     </div>
                 </div>
@@ -1123,9 +1122,9 @@ function otherDeptNamesFor(u: AssignmentUser): string[] {
 
     <DangerConfirmModal
         :open="deptDeleteOpen"
-        title="Удалить отдел?"
+        :title="t('settings.departments.deleteTitle')"
         :description="deptDeleteDescription"
-        confirm-label="Удалить"
+        :confirm-label="t('common.delete')"
         :busy="deptDeleteBusy"
         confirm-variant="danger"
         @close="closeDeptDelete"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
+import { useI18n } from '@/composables/useI18n';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
@@ -42,6 +43,13 @@ const props = defineProps<{
 }>();
 
 const { show: showToast } = useToastStore();
+const { t } = useI18n();
+
+const roleLabels = computed<Record<string, string>>(() => ({
+    administrator: t('settings.roles.administrator'),
+    manager: t('settings.roles.manager'),
+    employee: t('settings.roles.employee'),
+}));
 
 const local = ref<User[]>([...props.users.data]);
 const filters = ref<UserFilters>({
@@ -150,12 +158,6 @@ watch(
     },
     { deep: true },
 );
-
-const roleLabels: Record<string, string> = {
-    administrator: 'Администратор',
-    manager: 'Руководитель',
-    employee: 'Сотрудник',
-};
 
 function visitUsers(overrides: Record<string, string | number | null | undefined> = {}): void {
     router.get(
@@ -317,14 +319,14 @@ function validationMessage(err: unknown): string {
             .flat()
             .join('\n');
     }
-    return data?.message || 'Ошибка сохранения';
+    return data?.message || t('settings.users.errorSave');
 }
 
 async function save() {
     formError.value = '';
 
     if (!form.value.name.trim()) {
-        formError.value = 'Укажите имя пользователя';
+        formError.value = t('settings.users.errorNameRequired');
         return;
     }
 
@@ -342,10 +344,10 @@ async function save() {
         const payload = buildPayload();
         if (editingId.value) {
             await axios.put(route('settings.users.update', editingId.value), payload);
-            showToast({ message: 'Данные пользователя сохранены', duration: 3000 });
+            showToast({ message: t('settings.users.toastSaved'), duration: 3000 });
         } else {
             await axios.post(route('settings.users.store'), payload);
-            showToast({ message: 'Пользователь создан', duration: 3000 });
+            showToast({ message: t('settings.users.toastCreated'), duration: 3000 });
         }
         showForm.value = false;
         await router.reload({ only: ['users'] });
@@ -375,7 +377,7 @@ async function confirmRemoveUser(): Promise<void> {
     userDeleting.value = true;
     try {
         await axios.delete(route('settings.users.destroy', user.id));
-        showToast({ message: 'Пользователь удалён', duration: 3000 });
+        showToast({ message: t('settings.users.toastDeleted'), duration: 3000 });
         userDeleteDialogOpen.value = false;
         userDeleteTarget.value = null;
         await router.reload({ only: ['users'] });
@@ -389,22 +391,22 @@ async function confirmRemoveUser(): Promise<void> {
 const userDeleteDescription = computed(() => {
     const u = userDeleteTarget.value;
     if (!u) return '';
-    return `Удалить пользователя «${u.name}»? Это действие необратимо.`;
+    return t('settings.users.deleteDescription', { name: u.name });
 });
 </script>
 
 <template>
-    <Head title="Пользователи" />
-    <SettingsLayout title="Пользователи" subtitle="Операторы, руководители и администраторы">
+    <Head :title="t('settings.users.title')" />
+    <SettingsLayout :title="t('settings.users.title')" :subtitle="t('settings.users.subtitle')">
         <template #actions>
             <button type="button" class="ui-btn ui-btn--primary" @click="openAdd">
-                + Добавить пользователя
+                {{ t('settings.users.addButton') }}
             </button>
         </template>
 
         <div class="w-full px-6 py-6 space-y-4">
             <p class="text-sm text-[var(--ui-text-secondary)] max-w-3xl">
-                Нажмите «Изменить» у пользователя в таблице или «+ Добавить пользователя», чтобы открыть форму.
+                {{ t('settings.users.intro') }}
             </p>
 
             <UiFilterPanel as="div">
@@ -413,12 +415,12 @@ const userDeleteDescription = computed(() => {
                         v-model="filters.search"
                         type="search"
                         class="settings-input"
-                        placeholder="Поиск по имени, email, телефону, отделу, роли"
+                        :placeholder="t('settings.users.searchPlaceholder')"
                     />
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="filters.role" class="settings-input">
-                        <option value="">Все роли</option>
+                        <option value="">{{ t('settings.users.filterRoleAll') }}</option>
                         <option v-for="role in availableRoles" :key="role" :value="role">
                             {{ roleLabels[role] || role }}
                         </option>
@@ -426,7 +428,7 @@ const userDeleteDescription = computed(() => {
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="filters.department_id" class="settings-input">
-                        <option :value="null">Все отделы</option>
+                        <option :value="null">{{ t('settings.users.filterDeptAll') }}</option>
                         <option v-for="node in departmentTree" :key="node.dept.id" :value="node.dept.id">
                             {{ `${'— '.repeat(node.depth)}${node.dept.name}` }}
                         </option>
@@ -434,21 +436,21 @@ const userDeleteDescription = computed(() => {
                 </UiFilterField>
                 <UiFilterField>
                     <select v-model="filters.status" class="settings-input">
-                        <option value="">Любой статус</option>
-                        <option value="active">Активные</option>
-                        <option value="inactive">Отключённые</option>
+                        <option value="">{{ t('settings.users.filterStatusAll') }}</option>
+                        <option value="active">{{ t('settings.users.filterStatusActive') }}</option>
+                        <option value="inactive">{{ t('settings.users.filterStatusInactive') }}</option>
                     </select>
                 </UiFilterField>
                 <template #actions>
                     <button type="button" class="ui-btn ui-btn--secondary ui-btn--sm" @click="resetFilters">
-                        Сбросить
+                        {{ t('settings.users.resetFilters') }}
                     </button>
                 </template>
             </UiFilterPanel>
 
             <div class="flex items-center justify-between gap-3 text-xs text-[var(--ui-text-secondary)]">
-                <span>Показано {{ props.users.from || 0 }}–{{ props.users.to || 0 }} из {{ props.users.total }}</span>
-                <span>Страница {{ props.users.current_page }} из {{ props.users.last_page }}</span>
+                <span>{{ t('settings.users.shownRange', { from: props.users.from || 0, to: props.users.to || 0, total: props.users.total }) }}</span>
+                <span>{{ t('settings.users.pageOf', { current: props.users.current_page, last: props.users.last_page }) }}</span>
             </div>
 
             <!-- Users table: действия сразу после имени, чтобы кнопки не уезжали за край экрана -->
@@ -456,22 +458,22 @@ const userDeleteDescription = computed(() => {
                 <table>
                     <thead>
                         <tr>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Имя</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colName') }}</th>
                             <th class="text-right px-5 py-3 font-medium text-[var(--ui-text-secondary)] whitespace-nowrap w-[1%]">
-                                Действия
+                                {{ t('settings.users.colActions') }}
                             </th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Email</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Телефон</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Роль</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Отделы</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">WhatsApp</th>
-                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">Статус</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colEmail') }}</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colPhone') }}</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colRole') }}</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colDepartments') }}</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colWhatsapp') }}</th>
+                            <th class="text-left px-5 py-3 font-medium text-[var(--ui-text-secondary)]">{{ t('settings.users.colStatus') }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="local.length === 0">
                             <td colspan="8" class="px-5 py-10 text-center text-[var(--ui-text-secondary)]">
-                                Нет пользователей
+                                {{ t('settings.users.empty') }}
                             </td>
                         </tr>
                         <tr
@@ -479,16 +481,16 @@ const userDeleteDescription = computed(() => {
                             :key="user.id"
                             class="border-t transition-colors hover:bg-[color-mix(in_srgb,var(--ui-surface-hover)_65%,transparent)] cursor-pointer"
                             :style="{ borderColor: 'var(--ui-border)' }"
-                            title="Нажмите строку, чтобы редактировать"
+                            :title="t('settings.users.rowEditHint')"
                             @click="openEdit(user)"
                         >
                             <td class="px-5 py-3 font-medium text-[var(--ui-text)]">{{ user.name }}</td>
                             <td class="px-5 py-3 text-right whitespace-nowrap align-middle" @click.stop>
                                 <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm mr-2" @click="openEdit(user)">
-                                    Изменить
+                                    {{ t('settings.users.edit') }}
                                 </button>
                                 <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--sm" @click="requestRemoveUser(user)">
-                                    Удалить
+                                    {{ t('settings.users.delete') }}
                                 </button>
                             </td>
                             <td class="px-5 py-3 text-[var(--ui-text-secondary)]">{{ user.email || '—' }}</td>
@@ -545,7 +547,7 @@ const userDeleteDescription = computed(() => {
                                         :class="user.is_active ? 'bg-[var(--ui-accent)]' : 'bg-red-400'"
                                     ></span>
                                     <span class="text-xs text-[var(--ui-text-secondary)]">
-                                        {{ user.is_active ? 'Активен' : 'Отключён' }}
+                                        {{ user.is_active ? t('settings.users.statusActive') : t('settings.users.statusInactive') }}
                                     </span>
                                     <span
                                         v-if="userHasPin(user)"
@@ -592,7 +594,7 @@ const userDeleteDescription = computed(() => {
                 class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60"
                 role="dialog"
                 aria-modal="true"
-                :aria-label="editingId ? 'Редактирование пользователя' : 'Новый пользователь'"
+                :aria-label="editingId ? t('settings.users.editUser') : t('settings.users.newUser')"
                 @click.self="closeModal"
             >
                 <div
@@ -602,7 +604,7 @@ const userDeleteDescription = computed(() => {
                 >
                     <div class="px-5 py-4 border-b shrink-0 flex items-center justify-between gap-3" :style="{ borderColor: 'var(--ui-border)' }">
                         <h3 class="text-base font-medium text-[var(--ui-text)]">
-                            {{ editingId ? 'Редактировать пользователя' : 'Новый пользователь' }}
+                            {{ editingId ? t('settings.users.editUser') : t('settings.users.newUser') }}
                         </h3>
                         <button
                             type="button"
@@ -790,7 +792,7 @@ const userDeleteDescription = computed(() => {
                             :disabled="saving"
                             @click="save"
                         >
-                            {{ saving ? 'Сохранение…' : 'Сохранить' }}
+                            {{ saving ? t('settings.users.saving') : t('common.save') }}
                         </button>
                     </div>
                 </div>
@@ -800,9 +802,9 @@ const userDeleteDescription = computed(() => {
 
     <DangerConfirmModal
         :open="userDeleteDialogOpen"
-        title="Удалить пользователя?"
+        :title="t('settings.users.deleteTitle')"
         :description="userDeleteDescription"
-        confirm-label="Удалить"
+        :confirm-label="t('common.delete')"
         :busy="userDeleting"
         confirm-variant="danger"
         @close="closeUserDeleteDialog"

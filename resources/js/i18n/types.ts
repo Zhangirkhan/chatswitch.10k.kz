@@ -6,6 +6,11 @@ export function isAppLocale(value: string): value is AppLocale {
     return (APP_LOCALES as readonly string[]).includes(value);
 }
 
+export interface SidebarNavItemCopy {
+    label: string;
+    description: string;
+}
+
 export interface MessageCatalog {
     nav: {
         chats: string;
@@ -29,6 +34,119 @@ export interface MessageCatalog {
     settings: {
         chats: {
             title: string;
+        };
+        sidebar: {
+            search: string;
+            searchAria: string;
+            logout: string;
+            onboarding: SidebarNavItemCopy;
+            connections: SidebarNavItemCopy;
+            departments: SidebarNavItemCopy;
+            users: SidebarNavItemCopy;
+            promotions: SidebarNavItemCopy;
+            funnels: SidebarNavItemCopy;
+            clients: SidebarNavItemCopy;
+            contactFields: SidebarNavItemCopy;
+            products: SidebarNavItemCopy;
+            services: SidebarNavItemCopy;
+            knowledge: SidebarNavItemCopy;
+            aiQuality: SidebarNavItemCopy;
+            toneProfile: SidebarNavItemCopy;
+            system: SidebarNavItemCopy;
+            profile: SidebarNavItemCopy;
+            account: SidebarNavItemCopy;
+            chats: SidebarNavItemCopy;
+            notifications: SidebarNavItemCopy;
+            shortcuts: SidebarNavItemCopy;
+        };
+        departments: {
+            title: string;
+            subtitle: string;
+            addButton: string;
+            intro: string;
+            searchPlaceholder: string;
+            filterStatusAll: string;
+            filterStatusActive: string;
+            filterStatusInactive: string;
+            filterLevelAll: string;
+            filterLevelRoot: string;
+            filterLevelNested: string;
+            filterMembersAll: string;
+            filterMembersWithUsers: string;
+            filterMembersEmpty: string;
+            resetFilters: string;
+            shownOf: string;
+            filterActive: string;
+            emptyFiltered: string;
+            emptyDefault: string;
+            childDept: string;
+            inactiveBadge: string;
+            levelBadge: string;
+            usersCountOne: string;
+            usersCountMany: string;
+            newDept: string;
+            editDept: string;
+            saving: string;
+            create: string;
+            deleteTitle: string;
+            deleteDescription: string;
+            deleteDescriptionChildren: string;
+            errorSave: string;
+            errorNameRequired: string;
+            scheduleNotSet: string;
+        };
+        users: {
+            title: string;
+            subtitle: string;
+            addButton: string;
+            intro: string;
+            searchPlaceholder: string;
+            filterRoleAll: string;
+            filterDeptAll: string;
+            filterStatusAll: string;
+            filterStatusActive: string;
+            filterStatusInactive: string;
+            resetFilters: string;
+            shownRange: string;
+            pageOf: string;
+            colName: string;
+            colActions: string;
+            colEmail: string;
+            colPhone: string;
+            colRole: string;
+            colDepartments: string;
+            colWhatsapp: string;
+            colStatus: string;
+            empty: string;
+            rowEditHint: string;
+            edit: string;
+            delete: string;
+            statusActive: string;
+            statusInactive: string;
+            newUser: string;
+            editUser: string;
+            saving: string;
+            deleteTitle: string;
+            deleteDescription: string;
+            errorSave: string;
+            errorNameRequired: string;
+            toastSaved: string;
+            toastCreated: string;
+            toastDeleted: string;
+        };
+        roles: {
+            administrator: string;
+            manager: string;
+            employee: string;
+        };
+        weekdays: {
+            mon: string;
+            tue: string;
+            wed: string;
+            thu: string;
+            fri: string;
+            sat: string;
+            sun: string;
         };
         connections: {
             title: string;
@@ -83,69 +201,17 @@ export interface MessageCatalog {
         save: string;
         close: string;
         done: string;
+        delete: string;
     };
 }
 
-export type MessageKey =
-    | 'nav.chats'
-    | 'nav.clients'
-    | 'nav.broadcasts'
-    | 'nav.aiChat'
-    | 'nav.analytics'
-    | 'nav.calendar'
-    | 'nav.calendarToday'
-    | 'nav.funnels'
-    | 'nav.profile'
-    | 'whatsapp.status.connected'
-    | 'whatsapp.status.qrPending'
-    | 'whatsapp.status.connecting'
-    | 'whatsapp.status.disconnected'
-    | 'settings.chats.title'
-    | 'settings.connections.title'
-    | 'settings.connections.subtitle'
-    | 'settings.connections.addConnection'
-    | 'settings.connections.creating'
-    | 'settings.connections.bootstrapping'
-    | 'settings.connections.serviceUnavailable'
-    | 'settings.connections.serviceUnavailableAction'
-    | 'settings.connections.limitsCount'
-    | 'settings.connections.limitsServer'
-    | 'settings.connections.limitsExhausted'
-    | 'settings.connections.emptyTitle'
-    | 'settings.connections.emptyHint'
-    | 'settings.connections.createFirst'
-    | 'settings.connections.multiSessionsTitle'
-    | 'settings.connections.multiSessionsHint'
-    | 'settings.connections.colorLabelMulti'
-    | 'settings.connections.colorLabelSingle'
-    | 'settings.connections.displayNamePlaceholder'
-    | 'settings.connections.pickRingColor'
-    | 'settings.connections.presetColors'
-    | 'settings.connections.saving'
-    | 'settings.connections.confirmLogoutTitle'
-    | 'settings.connections.confirmRemoveTitle'
-    | 'settings.connections.confirmLogoutDescription'
-    | 'settings.connections.confirmRemoveDescription'
-    | 'settings.connections.confirmLogout'
-    | 'settings.connections.confirmRemove'
-    | 'settings.connections.errorLogout'
-    | 'settings.connections.errorRemove'
-    | 'settings.connections.errorGeneric'
-    | 'settings.connections.errorCreate'
-    | 'settings.connections.errorInitialize'
-    | 'settings.connections.errorQr'
-    | 'settings.connections.errorStatus'
-    | 'settings.connections.errorVerify'
-    | 'settings.connections.errorDisplayNameRequired'
-    | 'settings.connections.errorSaveName'
-    | 'settings.interface.language'
-    | 'settings.interface.languageHint'
-    | 'settings.theme.light'
-    | 'settings.theme.dark'
-    | 'common.cancel'
-    | 'common.save'
-    | 'common.close'
-    | 'common.done';
+type LeafPaths<T, Prefix extends string = ''> = T extends string
+    ? Prefix
+    : {
+          [K in keyof T & string]: LeafPaths<T[K], Prefix extends '' ? K : `${Prefix}.${K}`>;
+      }[keyof T & string];
+
+export type MessageKey = LeafPaths<MessageCatalog>;
 
 export interface LocaleOption {
     value: AppLocale;

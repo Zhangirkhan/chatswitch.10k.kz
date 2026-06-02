@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import UserAvatar from '@/Components/UserAvatar.vue';
+import { useI18n } from '@/composables/useI18n';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 type AdminItem = {
     kind: 'admin';
-    label: string;
-    description: string;
+    i18nKey:
+        | 'onboarding'
+        | 'connections'
+        | 'departments'
+        | 'users'
+        | 'promotions'
+        | 'funnels'
+        | 'clients'
+        | 'contactFields'
+        | 'products'
+        | 'services'
+        | 'knowledge'
+        | 'aiQuality'
+        | 'toneProfile'
+        | 'system';
     icon: string;
     routeName: string;
     /** Имя модуля в `page.props.modules`. Если задано и модуль выключен — пункт скрыт. */
@@ -15,9 +29,7 @@ type AdminItem = {
 
 type ProfileItem = {
     kind: 'profile';
-    id: string;
-    label: string;
-    description: string;
+    id: 'profile' | 'account' | 'chats' | 'notifications' | 'shortcuts';
     icon: string;
     adminOnly?: boolean;
 };
@@ -34,127 +46,131 @@ const user = computed(() => page.props.auth?.user);
 const roles = computed<string[]>(() => user.value?.roles || []);
 const isAdmin = computed(() => roles.value.includes('administrator'));
 
+const { t } = useI18n();
+
 const searchQuery = ref('');
 
 const adminItems: AdminItem[] = [
     {
         kind: 'admin',
-        label: 'Онбординг',
-        description: 'Пошаговый запуск AI и воронки',
+        i18nKey: 'onboarding',
         icon: 'onboarding',
         routeName: 'settings.onboarding',
     },
     {
         kind: 'admin',
-        label: 'Подключения WhatsApp',
-        description: 'Номера и QR-коды',
+        i18nKey: 'connections',
         icon: 'connection',
         routeName: 'settings.connections',
     },
     {
         kind: 'admin',
-        label: 'Отделы',
-        description: 'Структура компании',
+        i18nKey: 'departments',
         icon: 'departments',
         routeName: 'settings.departments',
     },
     {
         kind: 'admin',
-        label: 'Пользователи',
-        description: 'Операторы и права',
+        i18nKey: 'users',
         icon: 'users',
         routeName: 'settings.users',
     },
     {
         kind: 'admin',
-        label: 'Акции и скидки',
-        description: 'Промо для дожима и AI',
+        i18nKey: 'promotions',
         icon: 'promotions',
         routeName: 'settings.promotions',
         moduleKey: 'funnels',
     },
     {
         kind: 'admin',
-        label: 'Воронки продаж',
-        description: 'Этапы и статусы сделок',
+        i18nKey: 'funnels',
         icon: 'funnel',
         routeName: 'settings.funnels',
         moduleKey: 'funnels',
     },
     {
         kind: 'admin',
-        label: 'Клиенты',
-        description: 'Контакты и сведения',
+        i18nKey: 'clients',
         icon: 'clients',
         routeName: 'clients.index',
     },
     {
         kind: 'admin',
-        label: 'Поля контактов',
-        description: 'Видимость и свои поля CRM',
+        i18nKey: 'contactFields',
         icon: 'clients',
         routeName: 'settings.contact-fields',
     },
     {
         kind: 'admin',
-        label: 'Товары',
-        description: 'Каталог товаров',
+        i18nKey: 'products',
         icon: 'products',
         routeName: 'settings.knowledge.products',
         moduleKey: 'products',
     },
     {
         kind: 'admin',
-        label: 'Услуги',
-        description: 'Цены и условия услуг',
+        i18nKey: 'services',
         icon: 'services',
         routeName: 'settings.knowledge.services',
         moduleKey: 'services',
     },
     {
         kind: 'admin',
-        label: 'База знаний',
-        description: 'Правила ответа AI',
+        i18nKey: 'knowledge',
         icon: 'knowledge',
         routeName: 'settings.knowledge.rules',
         moduleKey: 'knowledge',
     },
     {
         kind: 'admin',
-        label: 'AI и качество',
-        description: 'Сбои и оценки ответов',
+        i18nKey: 'aiQuality',
         icon: 'ai-quality',
         routeName: 'settings.ai-quality',
         moduleKey: 'ai_quality',
     },
     {
         kind: 'admin',
-        label: 'Профиль тона',
-        description: 'Стиль ответов AI для компании',
+        i18nKey: 'toneProfile',
         icon: 'tone',
         routeName: 'settings.tone-profile',
     },
     {
         kind: 'admin',
-        label: 'Система',
-        description: 'Общие параметры',
+        i18nKey: 'system',
         icon: 'system',
         routeName: 'settings.system',
     },
 ];
 
 const profileItems: ProfileItem[] = [
-    { kind: 'profile', id: 'profile', label: 'Профиль', description: 'Имя, фото профиля, имя пользователя', icon: 'user' },
-    { kind: 'profile', id: 'account', label: 'Аккаунт', description: 'Пароль, безопасность, удаление', icon: 'lock' },
-    { kind: 'profile', id: 'chats', label: 'Чаты', description: 'Тема, обои, настройки чата', icon: 'chat' },
-    { kind: 'profile', id: 'notifications', label: 'Уведомления', description: 'Сообщения, группы, звуки', icon: 'bell' },
-    { kind: 'profile', id: 'shortcuts', label: 'Сочетания клавиш', description: 'Быстрые действия', icon: 'keyboard' },
+    { kind: 'profile', id: 'profile', icon: 'user' },
+    { kind: 'profile', id: 'account', icon: 'lock' },
+    { kind: 'profile', id: 'chats', icon: 'chat' },
+    { kind: 'profile', id: 'notifications', icon: 'bell' },
+    { kind: 'profile', id: 'shortcuts', icon: 'keyboard' },
 ];
+
+function sidebarItemLabel(item: Item): string {
+    if (item.kind === 'admin') {
+        return t(`settings.sidebar.${item.i18nKey}.label`);
+    }
+    return t(`settings.sidebar.${item.id}.label`);
+}
+
+function sidebarItemDescription(item: Item): string {
+    if (item.kind === 'admin') {
+        return t(`settings.sidebar.${item.i18nKey}.description`);
+    }
+    return t(`settings.sidebar.${item.id}.description`);
+}
 
 function matchesQuery(item: Item): boolean {
     const q = searchQuery.value.trim().toLowerCase();
     if (!q) return true;
-    return item.label.toLowerCase().includes(q) || item.description.toLowerCase().includes(q);
+    const label = sidebarItemLabel(item).toLowerCase();
+    const description = sidebarItemDescription(item).toLowerCase();
+    return label.includes(q) || description.includes(q);
 }
 
 const modulesEnabled = computed<Record<string, boolean>>(() => (page.props.modules ?? {}) as Record<string, boolean>);
@@ -210,8 +226,8 @@ function logout() {
                 <input
                     v-model="searchQuery"
                     type="text"
-                    placeholder="Поиск"
-                    aria-label="Поиск в настройках"
+                    :placeholder="t('settings.sidebar.search')"
+                    :aria-label="t('settings.sidebar.searchAria')"
                     class="w-full pl-12 pr-4 py-[9px] bg-transparent rounded-full text-sm text-[var(--ui-text)] border-0 focus:ring-0 focus:outline-none relative z-[1]"
                 />
             </div>
@@ -290,8 +306,8 @@ function logout() {
                         </svg>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <div class="text-[15px] text-[var(--ui-text)] truncate">{{ item.label }}</div>
-                        <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ item.description }}</div>
+                        <div class="text-[15px] text-[var(--ui-text)] truncate">{{ sidebarItemLabel(item) }}</div>
+                        <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ sidebarItemDescription(item) }}</div>
                     </div>
                 </Link>
 
@@ -341,8 +357,8 @@ function logout() {
                     </svg>
                 </div>
                 <div class="min-w-0 flex-1">
-                    <div class="text-[15px] text-[var(--ui-text)] truncate">{{ item.label }}</div>
-                    <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ item.description }}</div>
+                    <div class="text-[15px] text-[var(--ui-text)] truncate">{{ sidebarItemLabel(item) }}</div>
+                    <div class="text-xs text-[var(--ui-text-secondary)] truncate">{{ sidebarItemDescription(item) }}</div>
                 </div>
             </Link>
         </div>
@@ -358,7 +374,7 @@ function logout() {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                 </svg>
             </div>
-            <div class="text-[15px] text-[var(--ui-danger)]">Выход</div>
+            <div class="text-[15px] text-[var(--ui-danger)]">{{ t('settings.sidebar.logout') }}</div>
         </button>
     </aside>
 </template>
