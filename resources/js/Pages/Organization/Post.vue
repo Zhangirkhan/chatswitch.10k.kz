@@ -312,99 +312,93 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
         :departments="departments"
         :selected-department-id="department.id"
     >
-        <div class="flex flex-col h-full min-h-0">
-            <!-- Header -->
-            <div class="px-5 py-3 shrink-0 flex items-center gap-3 border-b" :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }">
+        <div class="flex flex-col h-full min-h-0 bg-[var(--wa-page-bg)]">
+            <header class="ui-page-header">
                 <Link
                     :href="route('organization.departments.show', department.id)"
-                    class="back-btn"
+                    class="ui-page-header__back"
                     :aria-label="t('organization.backAria')"
                 >
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
                 </Link>
-                <div class="min-w-0 flex-1">
-                    <div class="text-xs text-[var(--wa-text-secondary)]">{{ department.name }}</div>
-                    <div class="text-base font-medium truncate text-[var(--wa-text)]">{{ localPost.title }}</div>
+                <div class="ui-page-header__body min-w-0">
+                    <p class="ui-page-header__subtitle m-0">{{ department.name }}</p>
+                    <h1 class="ui-page-header__title truncate">{{ localPost.title }}</h1>
                 </div>
-                <div v-if="canEditPost && !editing" class="flex items-center gap-2">
-                    <button type="button" class="secondary-btn" @click="startEdit">{{ t('organization.edit') }}</button>
-                    <button type="button" class="danger-btn" @click="requestDeletePost">{{ t('organization.delete') }}</button>
+                <div v-if="canEditPost && !editing" class="flex items-center gap-2 shrink-0">
+                    <button type="button" class="ui-btn ui-btn--secondary ui-btn--pill ui-btn--sm" @click="startEdit">{{ t('organization.edit') }}</button>
+                    <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--pill ui-btn--sm" @click="requestDeletePost">{{ t('organization.delete') }}</button>
                 </div>
-            </div>
+            </header>
 
-            <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-5">
-                <!-- Post detail -->
-                <div class="post-block">
-                    <div v-if="!editing" class="post-view">
+            <div class="ui-org-post-scroll wa-scrollbar">
+                <div class="ui-post-panel">
+                    <div v-if="!editing">
                         <div class="flex items-center gap-2 mb-3">
-                            <span class="status-pill" :class="`status-${localPost.status}`">{{ statusLabel(localPost.status) }}</span>
+                            <span
+                                class="ui-task-status ui-task-status--pill"
+                                :class="`ui-task-status--${localPost.status}`"
+                            >{{ statusLabel(localPost.status) }}</span>
                             <span v-if="localPost.due_at" class="text-xs text-[var(--wa-text-secondary)]">
                                 {{ t('organization.dueLabel') }} {{ formatDate(localPost.due_at) }}
                             </span>
                         </div>
-                        <div class="post-title">{{ localPost.title }}</div>
-                        <!-- Rendered HTML body -->
+                        <h2 class="ui-post-panel__title">{{ localPost.title }}</h2>
                         <div
                             v-if="localPost.body"
-                            class="post-body post-body-html"
+                            class="ui-post-panel__body post-body-html"
                             v-html="localPost.body"
                         ></div>
 
-                        <!-- ── Информационная панель: ответственные + автор ── -->
-                        <div class="post-info-panel">
-                            <!-- {{ t('organization.fieldAssignees') }} -->
-                            <div class="post-info-row">
-                                <div class="post-info-label">
+                        <div class="ui-post-info">
+                            <div class="ui-post-info__row">
+                                <div class="ui-post-info__label">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                     {{ t('organization.fieldAssignees') }}
                                 </div>
-                                <div class="post-info-value">
+                                <div class="ui-post-info__value">
                                     <template v-if="localPost.assignees?.length">
-                                        <div class="assignees-list">
-                                            <div
-                                                v-for="a in localPost.assignees"
-                                                :key="a.id"
-                                                class="assignee-card"
-                                            >
-                                                <span class="assignee-card-avatar">{{ initial(a.name) }}</span>
-                                                <span class="assignee-card-name">{{ a.name }}</span>
-                                            </div>
-                                        </div>
+                                        <span
+                                            v-for="a in localPost.assignees"
+                                            :key="a.id"
+                                            class="ui-post-assignee-card"
+                                        >
+                                            <span class="ui-post-assignee-card__avatar">{{ initial(a.name) }}</span>
+                                            {{ a.name }}
+                                        </span>
                                     </template>
-                                    <span v-else class="post-info-empty">{{ t('organization.noAssignee') }}</span>
+                                    <span v-else class="text-[var(--wa-text-secondary)] italic text-sm">{{ t('organization.noAssignee') }}</span>
                                 </div>
                             </div>
 
-                            <!-- {{ t('organization.author') }} + дата -->
-                            <div class="post-info-row">
-                                <div class="post-info-label">
+                            <div class="ui-post-info__row">
+                                <div class="ui-post-info__label">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
                                     {{ t('organization.author') }}
                                 </div>
-                                <div class="post-info-value">
-                                    <div class="author-chip">
-                                        <span class="author-avatar">{{ authorInitial(localPost.author?.name) }}</span>
+                                <div class="ui-post-info__value flex flex-wrap items-center gap-2">
+                                    <span class="ui-post-author-chip">
+                                        <span class="ui-post-author-chip__avatar">{{ authorInitial(localPost.author?.name) }}</span>
                                         <span>{{ localPost.author?.name || t('organization.noAuthor') }}</span>
-                                    </div>
-                                    <span class="post-info-date">{{ formatDate(localPost.created_at) }}</span>
+                                    </span>
+                                    <span class="text-xs text-[var(--wa-text-secondary)]">{{ formatDate(localPost.created_at) }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Edit form -->
-                    <form v-else @submit.prevent="saveEdit" class="post-edit">
-                        <label class="form-row">
+                    <form v-else class="ui-form-stack" @submit.prevent="saveEdit">
+                        <label class="ui-form-row">
                             <span>{{ t('organization.fieldTitle') }}</span>
-                            <input v-model="editTitle" type="text" maxlength="255" autofocus />
+                            <input v-model="editTitle" type="text" maxlength="255" class="ui-field" autofocus />
                         </label>
-                        <div class="form-row">
+                        <div class="ui-form-row">
                             <span>{{ t('organization.fieldDescription') }}</span>
                             <RichTextEditor
                                 v-model="editBody"
@@ -412,34 +406,33 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                                 min-height="160px"
                             />
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="form-row">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="ui-form-row">
                                 <span>{{ t('organization.fieldStatus') }}</span>
-                                <select v-model="editStatus">
+                                <select v-model="editStatus" class="ui-field">
                                     <option value="open">{{ t('organization.statusOpen') }}</option>
                                     <option value="in_progress">{{ t('organization.statusInProgress') }}</option>
                                     <option value="done">{{ t('organization.statusDone') }}</option>
                                 </select>
                             </label>
-                            <label class="form-row">
+                            <label class="ui-form-row">
                                 <span>{{ t('organization.fieldDue') }}</span>
-                                <input v-model="editDue" type="datetime-local" />
+                                <input v-model="editDue" type="datetime-local" class="ui-field" />
                             </label>
                         </div>
 
-                        <!-- Assignees picker in edit form -->
-                        <div v-if="members.length > 0" class="form-row">
+                        <div v-if="members.length > 0" class="ui-form-row">
                             <span>{{ t('organization.fieldAssignees') }}</span>
-                            <div class="assignee-picker">
+                            <div class="ui-assignee-picker flex-wrap">
                                 <button
                                     v-for="m in members"
                                     :key="m.id"
                                     type="button"
-                                    class="assignee-chip"
-                                    :class="{ 'assignee-chip-active': editAssigneeIds.includes(m.id) }"
+                                    class="ui-assignee-chip"
+                                    :class="{ 'is-active': editAssigneeIds.includes(m.id) }"
                                     @click="toggleEditAssignee(m.id)"
                                 >
-                                    <span class="assignee-chip-avatar">{{ initial(m.name) }}</span>
+                                    <span class="ui-assignee-chip__avatar">{{ initial(m.name) }}</span>
                                     {{ m.name }}
                                     <svg v-if="editAssigneeIds.includes(m.id)" class="w-3.5 h-3.5 ml-auto shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -448,23 +441,22 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                             </div>
                         </div>
 
-                        <div v-if="editError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ editError }}</div>
-                        <div class="flex items-center justify-end gap-2">
-                            <button type="button" class="secondary-btn" @click="cancelEdit">{{ t('organization.cancel') }}</button>
-                            <button type="submit" class="primary-btn" :disabled="editSubmitting">{{ t('organization.save') }}</button>
+                        <p v-if="editError" class="text-sm m-0" :style="{ color: 'var(--wa-danger)' }">{{ editError }}</p>
+                        <div class="ui-modal-actions">
+                            <button type="button" class="ui-btn ui-btn--secondary ui-btn--pill" @click="cancelEdit">{{ t('organization.cancel') }}</button>
+                            <button type="submit" class="ui-btn ui-btn--primary ui-btn--pill" :disabled="editSubmitting">{{ t('organization.save') }}</button>
                         </div>
                     </form>
                 </div>
 
-                <!-- Attachments block -->
-                <div class="attachments-block">
-                    <div class="attachments-header">
+                <div class="ui-post-panel">
+                    <div class="ui-post-section-head">
                         <span>{{ t('organization.attachments') }}</span>
-                        <span class="comments-count">{{ attachments.length }}</span>
+                        <span class="ui-post-count-badge">{{ attachments.length }}</span>
                         <button
                             v-if="canEditPost"
                             type="button"
-                            class="attach-upload-btn"
+                            class="ui-btn ui-btn--ghost ui-btn--pill ui-btn--sm ml-auto"
                             :disabled="uploading"
                             @click="triggerFileInput"
                         >
@@ -531,38 +523,36 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     </div>
                 </div>
 
-                <!-- Comments thread -->
-                <div class="comments-block">
-                    <div class="comments-header">
+                <div class="ui-post-panel">
+                    <div class="ui-post-section-head">
                         {{ t('organization.discussion') }}
-                        <span class="comments-count">{{ localComments.length }}</span>
+                        <span class="ui-post-count-badge">{{ localComments.length }}</span>
                     </div>
                     <div v-if="localComments.length === 0" class="text-sm text-[var(--wa-text-secondary)]">
                         {{ t('organization.noComments') }}
                     </div>
-                    <div v-for="c in localComments" :key="c.id" class="comment">
-                        <div class="comment-avatar">{{ authorInitial(c.author?.name) }}</div>
-                        <div class="comment-bubble">
-                            <div class="comment-head">
-                                <span class="comment-author">{{ c.author?.name || t('organization.noAuthor') }}</span>
-                                <span class="comment-time">{{ formatDate(c.created_at) }}</span>
+                    <div v-for="c in localComments" :key="c.id" class="ui-comment">
+                        <div class="ui-comment__avatar">{{ authorInitial(c.author?.name) }}</div>
+                        <div class="ui-comment__bubble">
+                            <div class="ui-comment__head">
+                                <span class="ui-comment__author">{{ c.author?.name || t('organization.noAuthor') }}</span>
+                                <span class="ui-comment__time">{{ formatDate(c.created_at) }}</span>
                                 <button
                                     v-if="canDeleteComment(c)"
                                     type="button"
-                                    class="comment-delete"
+                                    class="ui-comment__delete"
                                     @click="requestDeleteComment(c)"
                                     :aria-label="t('organization.deleteAria')"
                                 >×</button>
                             </div>
-                            <div class="comment-body">{{ c.body }}</div>
+                            <div class="ui-comment__body">{{ c.body }}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Add comment -->
-            <div class="comment-composer">
-                <div v-if="commentError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">{{ commentError }}</div>
+            <div class="ui-comment-composer">
+                <p v-if="commentError" class="text-sm m-0 mb-2" :style="{ color: 'var(--wa-danger)' }">{{ commentError }}</p>
                 <div class="flex items-end gap-2">
                     <textarea
                         v-model="newComment"
@@ -573,7 +563,7 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     ></textarea>
                     <button
                         type="button"
-                        class="primary-btn"
+                        class="ui-btn ui-btn--primary ui-btn--pill shrink-0"
                         :disabled="sendingComment || newComment.trim() === ''"
                         @click="submitComment"
                     >
@@ -597,179 +587,6 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
 </template>
 
 <style scoped>
-.back-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--wa-icon);
-    cursor: pointer;
-    transition: background-color 0.12s ease;
-}
-.back-btn:hover { background-color: var(--wa-panel-hover); }
-
-.primary-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.9rem;
-    border-radius: 999px;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition: filter 0.12s ease;
-}
-.primary-btn:hover:not(:disabled) { filter: brightness(1.05); }
-.primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.secondary-btn {
-    padding: 0.4rem 0.85rem;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
-    font-size: 0.82rem;
-    cursor: pointer;
-}
-.secondary-btn:hover { background-color: var(--wa-panel-hover); }
-.danger-btn {
-    padding: 0.4rem 0.85rem;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--wa-danger);
-    border: 1px solid color-mix(in srgb, var(--wa-danger) 60%, transparent);
-    font-size: 0.82rem;
-    cursor: pointer;
-}
-.danger-btn:hover { background-color: color-mix(in srgb, var(--wa-danger) 12%, transparent); }
-
-.post-block {
-    background: var(--wa-panel);
-    border: 1px solid var(--wa-border);
-    border-radius: 14px;
-    padding: 1.1rem 1.2rem;
-    margin-bottom: 1rem;
-}
-.post-title {
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--wa-text);
-    margin-bottom: 0.6rem;
-    line-height: 1.3;
-}
-.post-body {
-    font-size: 0.92rem;
-    color: var(--wa-text);
-    line-height: 1.55;
-    margin-bottom: 0.8rem;
-}
-.post-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.78rem;
-    color: var(--wa-text-secondary);
-    margin-top: 0.6rem;
-}
-.author-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    color: var(--wa-text);
-}
-.author-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--wa-accent) 28%, var(--wa-panel));
-    color: var(--wa-text);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.status-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 1.4;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-.status-open { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #f59e0b; }
-.status-in_progress { background: color-mix(in srgb, #3b82f6 22%, transparent); color: #3b82f6; }
-.status-done { background: color-mix(in srgb, var(--wa-accent) 22%, transparent); color: var(--wa-accent); }
-
-.post-edit {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-}
-.form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.82rem;
-    color: var(--wa-text-secondary);
-}
-.form-row input,
-.form-row select {
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
-    border-radius: 10px;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-    width: 100%;
-}
-
-/* Attachments */
-.attachments-block {
-    background: var(--wa-panel);
-    border: 1px solid var(--wa-border);
-    border-radius: 14px;
-    padding: 0.85rem 1.1rem;
-    margin-bottom: 1rem;
-}
-.attachments-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--wa-text);
-    margin-bottom: 0.6rem;
-}
-.attach-upload-btn {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.78rem;
-    font-weight: 500;
-    padding: 0.25rem 0.7rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
-    background: transparent;
-    color: var(--wa-text-secondary);
-    cursor: pointer;
-    transition: background-color 0.1s;
-}
-.attach-upload-btn:hover:not(:disabled) {
-    background: var(--wa-panel-hover);
-    color: var(--wa-text);
-}
-.attach-upload-btn:disabled { opacity: 0.5; cursor: default; }
-
 .attach-images {
     display: flex;
     flex-wrap: wrap;
@@ -840,230 +657,4 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
     flex-shrink: 0;
 }
 .attach-delete-sm:hover { color: var(--wa-danger); }
-
-/* Comments */
-.comments-block {
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    padding-bottom: 1rem;
-}
-.comments-header {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--wa-text);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.2rem;
-}
-.comments-count {
-    background: var(--wa-panel-header);
-    color: var(--wa-text-secondary);
-    font-size: 0.7rem;
-    font-weight: 600;
-    border-radius: 999px;
-    padding: 0.05rem 0.45rem;
-}
-.comment {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-}
-.comment-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.78rem;
-    font-weight: 600;
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-.comment-bubble {
-    background: var(--wa-panel);
-    border: 1px solid var(--wa-border);
-    border-radius: 12px;
-    padding: 0.5rem 0.8rem;
-    flex: 1;
-    min-width: 0;
-}
-.comment-head {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin-bottom: 0.2rem;
-    font-size: 0.78rem;
-}
-.comment-author { font-weight: 600; color: var(--wa-text); }
-.comment-time { color: var(--wa-text-secondary); }
-.comment-delete {
-    margin-left: auto;
-    background: transparent;
-    border: none;
-    color: var(--wa-text-secondary);
-    cursor: pointer;
-    font-size: 1.1rem;
-    line-height: 1;
-}
-.comment-delete:hover { color: var(--wa-danger); }
-.comment-body {
-    font-size: 0.88rem;
-    color: var(--wa-text);
-    white-space: pre-wrap;
-    line-height: 1.4;
-}
-
-/* ── Информационная панель ─────────────────────────────────────────────────── */
-.post-info-panel {
-    margin-top: 1.25rem;
-    border: 1px solid var(--wa-border);
-    border-radius: 12px;
-    overflow: hidden;
-    background: var(--wa-panel-header);
-}
-.post-info-row {
-    display: grid;
-    grid-template-columns: 130px 1fr;
-    gap: 0.5rem;
-    padding: 0.7rem 1rem;
-    align-items: start;
-    border-bottom: 1px solid var(--wa-border);
-}
-.post-info-row:last-child { border-bottom: none; }
-
-.post-info-label {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--wa-text-secondary);
-    white-space: nowrap;
-    padding-top: 2px;
-}
-.post-info-value {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-}
-.post-info-empty {
-    font-size: 0.82rem;
-    color: var(--wa-text-secondary);
-    font-style: italic;
-}
-.post-info-date {
-    font-size: 0.75rem;
-    color: var(--wa-text-secondary);
-}
-
-/* Assignees list in info panel */
-.assignees-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-}
-.assignee-card {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.3rem 0.75rem 0.3rem 0.35rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 28%, var(--wa-border));
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--wa-text);
-}
-.assignee-card-avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.65rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.assignee-card-name {
-    line-height: 1;
-}
-
-/* Legacy classes kept for backward compat (edit form picker) */
-.assignees-row { display: none; } /* replaced by post-info-panel */
-.assignee-badge { display: none; }
-.assignee-badge-avatar { display: none; }
-
-/* Assignee picker in edit form */
-.assignee-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    padding: 0.4rem 0;
-}
-.assignee-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.65rem 0.3rem 0.35rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-border-strong);
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background-color 0.1s, border-color 0.1s;
-}
-.assignee-chip:hover {
-    background: var(--wa-panel-hover);
-    border-color: color-mix(in srgb, var(--wa-accent) 40%, var(--wa-border));
-}
-.assignee-chip-active {
-    background: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel-header));
-    border-color: var(--wa-accent);
-}
-.assignee-chip-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--wa-accent) 30%, var(--wa-panel));
-    color: var(--wa-text);
-    font-size: 0.65rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.comment-composer {
-    border-top: 1px solid var(--wa-border);
-    background: var(--wa-panel-header);
-    padding: 0.7rem 1rem 0.85rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-.comment-composer textarea {
-    flex: 1;
-    background: var(--wa-panel);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-border-strong);
-    border-radius: 10px;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-    resize: vertical;
-    min-height: 56px;
-    max-height: 200px;
-    width: 100%;
-}
 </style>

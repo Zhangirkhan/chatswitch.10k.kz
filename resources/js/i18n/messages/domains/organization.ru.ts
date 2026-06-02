@@ -157,6 +157,7 @@ export const organizationRu = {
     indexKpiDone: 'Завершено',
     indexNoDeptsFiltered: 'Нет отделов с задачами в этом статусе',
     indexResetFilter: 'Сбросить фильтр',
+    indexScopeHint: 'В бейдже «Организация» учтены все доступные вам активные задачи ({count}), на этой странице — только отделы из списка слева.',
     indexNoTasks: 'Нет задач',
     indexBadgeInProgress: '{count} в работе',
     indexBadgeOpen: '{count} открыто',

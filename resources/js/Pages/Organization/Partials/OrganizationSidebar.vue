@@ -456,49 +456,34 @@ function clearSearch() {
                 </h1>
             </div>
 
-            <!-- Search bar -->
             <div class="px-3 py-2 shrink-0">
-                <div
-                    v-if="!teamChatActive"
-                    class="relative rounded-full"
-                    :style="{ background: 'var(--wa-panel-header)' }"
-                >
-                    <div class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
-                        <svg
-                            class="w-4 h-4 text-[var(--wa-icon)]"
-                            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                        >
+                <div v-if="!teamChatActive" class="ui-search-shell">
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg class="w-4 h-4 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
                     <input
                         v-model="search"
-                        type="text"
+                        type="search"
                         :placeholder="t('organization.searchDept')"
-                        class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
+                        class="ui-search-input pr-10"
                     />
                     <button
                         v-if="search"
-                        @click="clearSearch"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
                         type="button"
                         :title="t('organization.clearSearch')"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
+                        @click="clearSearch"
                     >
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div
-                    v-else
-                    class="relative rounded-full"
-                    :style="{ background: 'var(--wa-panel-header)' }"
-                >
-                    <div class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
-                        <svg
-                            class="w-4 h-4 text-[var(--wa-icon)]"
-                            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                        >
+                <div v-else class="ui-search-shell">
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg class="w-4 h-4 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
@@ -507,7 +492,7 @@ function clearSearch() {
                         type="search"
                         autocomplete="off"
                         :placeholder="t('organization.searchTeamChat')"
-                        class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
+                        class="ui-search-input pr-10"
                     />
                     <button
                         v-if="teamGlobalSearch"
@@ -628,16 +613,16 @@ function clearSearch() {
                     v-for="dept in flat"
                     :key="dept.id"
                     :href="route('organization.departments.show', dept.id)"
-                    class="dept-item"
-                    :class="{ 'dept-item-selected': dept.id === selectedDepartmentId }"
+                    class="ui-org-sidebar-item"
+                    :class="{ 'is-selected': dept.id === selectedDepartmentId }"
                     :style="{ paddingLeft: `${0.75 + dept.depth * 1.1}rem` }"
                 >
                     <Avatar :name="dept.name" :size="40" variant="group" />
                     <div class="flex-1 min-w-0">
-                        <div class="dept-name truncate">{{ dept.name }}</div>
-                        <div v-if="dept.description" class="dept-meta truncate">{{ dept.description }}</div>
+                        <div class="ui-org-sidebar-item__name truncate">{{ dept.name }}</div>
+                        <div v-if="dept.description" class="ui-org-sidebar-item__meta truncate">{{ dept.description }}</div>
                     </div>
-                    <div v-if="dept.posts_count > 0" class="dept-badges">
+                    <div v-if="dept.posts_count > 0" class="flex items-center gap-1 shrink-0">
                         <span
                             v-if="dept.in_progress_count > 0"
                             class="ui-tab-badge ui-tab-badge--warn"
@@ -654,17 +639,17 @@ function clearSearch() {
                 <!-- Archive link -->
                 <Link
                     :href="route('organization.archive')"
-                    class="dept-item archive-item"
-                    :class="{ 'dept-item-selected': archiveActive }"
+                    class="ui-org-archive-link"
+                    :class="{ 'is-selected': archiveActive }"
                 >
-                    <div class="dept-icon archive-icon">
+                    <div class="ui-page-header__icon ui-org-archive-link__icon">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4" />
                         </svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <div class="dept-name truncate">{{ t('organization.archiveTasks') }}</div>
-                        <div class="dept-meta">{{ t('organization.archiveMeta') }}</div>
+                        <div class="ui-org-sidebar-item__name truncate">{{ t('organization.archiveTasks') }}</div>
+                        <div class="ui-org-sidebar-item__meta">{{ t('organization.archiveMeta') }}</div>
                     </div>
                     <span v-if="totalArchived > 0" class="ui-tab-badge ui-tab-badge--neutral" :title="t('organization.archivedCount', { count: totalArchived })">
                         {{ totalArchived > 99 ? '99+' : totalArchived }}
@@ -749,12 +734,30 @@ function clearSearch() {
                     </div>
                 </div>
                 <div v-else class="px-3 py-2 shrink-0">
-                    <input
-                        v-model="contactSearch"
-                        type="text"
-                        :placeholder="t('organization.searchEmployee')"
-                        class="w-full px-3 py-2 rounded-lg text-sm text-[var(--wa-text)] border border-[var(--wa-border)] bg-[var(--wa-panel-header)] focus:outline-none focus:ring-1 focus:ring-[var(--wa-accent)]"
-                    />
+                    <div class="ui-search-shell">
+                        <div class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg class="w-4 h-4 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            v-model="contactSearch"
+                            type="search"
+                            :placeholder="t('organization.searchEmployee')"
+                            class="ui-search-input pr-10"
+                        />
+                        <button
+                            v-if="contactSearch"
+                            type="button"
+                            :title="t('organization.clearSearch')"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[var(--wa-icon)] hover:bg-[var(--wa-selected)]"
+                            @click="contactSearch = ''"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-y-auto wa-scrollbar">
                     <div v-if="chatSidebarMode === 'chats' && teamListLoading" class="px-3 py-3 space-y-3">
@@ -777,33 +780,32 @@ function clearSearch() {
                             <div
                                 v-for="c in section.items"
                                 :key="c.id"
-                                class="dept-item flex flex-row items-stretch gap-0 pr-0"
-                                :class="{ 'dept-item-selected': c.id === selectedConversationId }"
+                                class="ui-team-chat-row"
+                                :class="{ 'is-selected': c.id === selectedConversationId }"
                             >
                                 <Link
                                     :href="route('organization.team-chat.show', c.id)"
-                                    class="flex flex-1 min-w-0 items-center gap-3 text-inherit no-underline min-h-[44px]"
+                                    class="ui-team-chat-row__link"
                                 >
                                     <Avatar
                                         :name="c.title"
                                         :size="40"
                                         :variant="c.type === 'department' ? 'group' : 'staff'"
                                         fallback-initials
-                                        class="shrink-0"
                                     />
                                     <div class="flex-1 min-w-0">
-                                        <div class="dept-name truncate flex items-center gap-1">
+                                        <div class="ui-org-sidebar-item__name truncate flex items-center gap-1">
                                             <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" :title="t('organization.pinned')">📌</span>
                                             <span class="truncate">{{ c.title }}</span>
                                         </div>
-                                        <div v-if="c.last_message_preview" class="dept-meta truncate">{{ c.last_message_preview }}</div>
-                                        <div v-else-if="c.subtitle" class="dept-meta truncate">{{ c.subtitle }}</div>
+                                        <div v-if="c.last_message_preview" class="ui-org-sidebar-item__meta truncate">{{ c.last_message_preview }}</div>
+                                        <div v-else-if="c.subtitle" class="ui-org-sidebar-item__meta truncate">{{ c.subtitle }}</div>
                                     </div>
                                     <span v-if="c.unread_count > 0" class="ui-tab-badge ui-tab-badge--team shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
                                 </Link>
                                 <button
                                     type="button"
-                                    class="shrink-0 w-10 flex items-center justify-center text-[var(--wa-text-secondary)] hover:text-[var(--wa-accent)] hover:bg-[var(--wa-selected)] border-0 bg-transparent rounded-none"
+                                    class="ui-team-chat-row__pin"
                                     :title="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
                                     :aria-label="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
                                     @click.prevent.stop="toggleTeamPin(c)"
@@ -824,13 +826,13 @@ function clearSearch() {
                             v-for="u in contacts"
                             :key="u.id"
                             type="button"
-                            class="dept-item w-full text-left border-0 bg-transparent"
+                            class="ui-org-sidebar-item w-full text-left border-0"
                             @click="openContactDm(u.id)"
                         >
                             <UserAvatar :name="u.name" :size="40" />
                             <div class="flex-1 min-w-0">
-                                <div class="dept-name truncate">{{ u.name }}</div>
-                                <div class="dept-meta truncate">{{ u.email }}</div>
+                                <div class="ui-org-sidebar-item__name truncate">{{ u.name }}</div>
+                                <div v-if="u.email" class="ui-org-sidebar-item__meta truncate">{{ u.email }}</div>
                             </div>
                         </button>
                         <div v-if="contacts.length === 0" class="py-8 px-4 text-center text-sm text-[var(--wa-text-secondary)]">
@@ -845,59 +847,10 @@ function clearSearch() {
 </template>
 
 <style scoped>
-.dept-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid var(--wa-border);
-    color: var(--wa-text);
-    text-decoration: none;
-    transition: background-color 0.12s ease;
-    cursor: pointer;
+.ui-org-archive-link.is-selected {
+    background: var(--wa-selected);
 }
-.dept-item:hover {
-    background-color: var(--wa-panel-hover);
-}
-.dept-item-selected {
-    background-color: var(--wa-selected);
-}
-.dept-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: var(--wa-panel-header);
-    color: var(--wa-icon);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.dept-icon--initials {
-    color: var(--wa-accent);
-    background:
-        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--wa-accent) 28%, transparent), transparent 48%),
-        color-mix(in srgb, var(--wa-accent) 14%, var(--wa-panel));
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
-}
-.dept-icon--group {
-    color: #f59e0b;
-    background:
-        radial-gradient(circle at 30% 20%, color-mix(in srgb, #f59e0b 28%, transparent), transparent 48%),
-        color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
-}
-.dept-name {
-    font-size: 0.95rem;
-    line-height: 1.2;
-    color: var(--wa-text);
-}
-.dept-meta {
-    font-size: 0.8rem;
-    color: var(--wa-text-secondary);
-    margin-top: 2px;
-}
+
 .team-chat-section-label {
     padding: 0.625rem 0.75rem 0.25rem;
     font-size: 0.65rem;
@@ -910,23 +863,5 @@ function clearSearch() {
     margin-top: 0.25rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--wa-border);
-}
-.dept-badges {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-}
-.archive-item {
-    border-top: 1px solid var(--wa-border-strong);
-    margin-top: 2px;
-}
-.archive-icon {
-    background: color-mix(in srgb, var(--wa-accent) 15%, var(--wa-panel-header));
-    color: var(--wa-accent);
-}
-.archive-badge {
-    background: var(--wa-accent);
-    color: var(--wa-accent-on);
 }
 </style>

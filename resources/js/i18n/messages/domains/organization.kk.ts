@@ -157,6 +157,7 @@ export const organizationKk = {
     indexKpiDone: 'Аяқталған',
     indexNoDeptsFiltered: 'Бұл мәртебеде тапсырмасы бар бөлім жоқ',
     indexResetFilter: 'Сүзгіні қалпына келтіру',
+    indexScopeHint: '«Ұйым» белгісінде сізге қолжетімді барлық белсенді тапсырмалар ({count}) есептеледі; бұл бетте тек сол жақтағы бөлімдер көрсетіледі.',
     indexNoTasks: 'Тапсырма жоқ',
     indexBadgeInProgress: '{count} орындалуда',
     indexBadgeOpen: '{count} ашық',

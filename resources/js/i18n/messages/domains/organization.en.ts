@@ -157,6 +157,7 @@ export const organizationEn = {
     indexKpiDone: 'Completed',
     indexNoDeptsFiltered: 'No departments with tasks in this status',
     indexResetFilter: 'Reset filter',
+    indexScopeHint: 'The Organization badge counts all active tasks you can access ({count}); this page only shows departments from the sidebar list.',
     indexNoTasks: 'No tasks',
     indexBadgeInProgress: '{count} in progress',
     indexBadgeOpen: '{count} open',

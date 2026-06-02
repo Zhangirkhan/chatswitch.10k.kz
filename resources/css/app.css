@@ -157,19 +157,50 @@
     --wa-chroma-success-ring-18: color-mix(in srgb, var(--brand-accent) 18%, var(--wa-chroma-blend));
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 14%, var(--wa-chroma-blend));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 22%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fg: #60a5fa;
+    --wa-chroma-blue-bg-10: color-mix(in srgb, #3b82f6 10%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-12: color-mix(in srgb, #3b82f6 12%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-18: color-mix(in srgb, #3b82f6 18%, var(--wa-chroma-blend));
+    --wa-chroma-blue-border-35: color-mix(in srgb, #3b82f6 35%, var(--wa-border));
+    --wa-chroma-blue-border-45: color-mix(in srgb, #3b82f6 45%, var(--wa-border-strong));
+    --wa-chroma-blue-fill-16: color-mix(in srgb, #3b82f6 16%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fill-20: color-mix(in srgb, #3b82f6 20%, var(--wa-chroma-blend));
+    --wa-chroma-blue-ring-35: color-mix(in srgb, #3b82f6 35%, var(--wa-chroma-blend));
+
+    /* Organization task statuses */
+    --org-task-open-fg: #f59e0b;
+    --org-task-open-bg: var(--wa-chroma-amber-bg-12);
+    --org-task-open-border: var(--wa-chroma-amber-border-45);
+    --org-task-open-active-bg: color-mix(in srgb, var(--org-task-open-fg) 8%, var(--wa-panel));
+    --org-task-progress-fg: var(--wa-chroma-blue-fg);
+    --org-task-progress-bg: var(--wa-chroma-blue-bg-12);
+    --org-task-progress-border: var(--wa-chroma-blue-border-45);
+    --org-task-progress-active-bg: color-mix(in srgb, var(--org-task-progress-fg) 8%, var(--wa-panel));
+    --org-task-done-fg: var(--wa-chroma-accent-fg);
+    --org-task-done-bg: var(--wa-chroma-accent-bg-12);
+    --org-task-done-border: var(--wa-chroma-accent-border-35);
+    --org-task-done-active-bg: color-mix(in srgb, var(--org-task-done-fg) 8%, var(--wa-panel));
+    --org-task-all-fg: var(--wa-chroma-accent-fg);
+    --org-task-all-bg: var(--wa-chroma-accent-bg-10);
+    --org-task-all-border: var(--wa-chroma-accent-border-45);
+    --org-task-all-active-bg: color-mix(in srgb, var(--org-task-all-fg) 8%, var(--wa-panel));
+    --org-task-neutral-fg: var(--wa-text-secondary);
+    --org-task-neutral-bg: var(--wa-chroma-neutral-bg-22);
+    --org-task-dept-fg: var(--org-task-open-fg);
+    --org-task-dept-bg: var(--wa-chroma-amber-fill-16);
 
     /* Message bubbles — тёмная тема (до init JS = зелёный пресет) */
-    --wa-bubble-in: #202C33;
-    --wa-bubble-out: #005C4B;
+    --wa-bubble-in: #212121;
+    --wa-bubble-out: #00a056;
     --wa-bubble-text: #E9EDEF;
     --wa-bubble-text-in: var(--wa-bubble-text);
-    --wa-bubble-text-out: var(--wa-bubble-text);
+    --wa-bubble-text-out: #FFFFFF;
     --wa-message-accent: #53BDAE;
     --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.24);
-    --wa-bubble-quote-bg-in: #2A3942;
-    --wa-bubble-quote-bg-out: #0A4A3D;
+    --wa-bubble-quote-bg-in: #2C2C2C;
+    --wa-bubble-quote-bg-out: #008A48;
     --wa-bubble-quote-author-in: #53BDAE;
-    --wa-bubble-quote-author-out: #53BDAE;
+    --wa-bubble-quote-author-out: #FFFFFF;
     --wa-bubble-quote-text-in: #D8DEE3;
     --wa-bubble-quote-text-out: #D8DEE3;
 
@@ -400,19 +431,50 @@
     --wa-chroma-success-ring-18: color-mix(in srgb, var(--brand-accent) 28%, var(--wa-border));
     --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 22%, var(--wa-border));
     --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 28%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fg: #2563eb;
+    --wa-chroma-blue-bg-10: color-mix(in srgb, #3b82f6 16%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-12: color-mix(in srgb, #3b82f6 20%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-18: color-mix(in srgb, #3b82f6 26%, var(--wa-chroma-blend));
+    --wa-chroma-blue-border-35: color-mix(in srgb, #3b82f6 48%, var(--wa-border));
+    --wa-chroma-blue-border-45: color-mix(in srgb, #3b82f6 52%, var(--wa-border-strong));
+    --wa-chroma-blue-fill-16: color-mix(in srgb, #3b82f6 22%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fill-20: color-mix(in srgb, #3b82f6 28%, var(--wa-chroma-blend));
+    --wa-chroma-blue-ring-35: color-mix(in srgb, #3b82f6 48%, var(--wa-border));
+
+    /* Organization task statuses */
+    --org-task-open-fg: #d97706;
+    --org-task-open-bg: var(--wa-chroma-amber-bg-12);
+    --org-task-open-border: var(--wa-chroma-amber-border-45);
+    --org-task-open-active-bg: color-mix(in srgb, var(--org-task-open-fg) 10%, var(--wa-panel));
+    --org-task-progress-fg: var(--wa-chroma-blue-fg);
+    --org-task-progress-bg: var(--wa-chroma-blue-bg-12);
+    --org-task-progress-border: var(--wa-chroma-blue-border-45);
+    --org-task-progress-active-bg: color-mix(in srgb, var(--org-task-progress-fg) 10%, var(--wa-panel));
+    --org-task-done-fg: var(--wa-chroma-accent-fg);
+    --org-task-done-bg: var(--wa-chroma-accent-bg-12);
+    --org-task-done-border: var(--wa-chroma-accent-border-35);
+    --org-task-done-active-bg: color-mix(in srgb, var(--org-task-done-fg) 10%, var(--wa-panel));
+    --org-task-all-fg: var(--wa-chroma-accent-fg);
+    --org-task-all-bg: var(--wa-chroma-accent-bg-10);
+    --org-task-all-border: var(--wa-chroma-accent-border-45);
+    --org-task-all-active-bg: color-mix(in srgb, var(--org-task-all-fg) 10%, var(--wa-panel));
+    --org-task-neutral-fg: var(--wa-text-secondary);
+    --org-task-neutral-bg: var(--wa-chroma-neutral-bg-22);
+    --org-task-dept-fg: var(--org-task-open-fg);
+    --org-task-dept-bg: var(--wa-chroma-amber-fill-16);
 
     /* Message bubbles — светлая тема (до init JS = зелёный пресет) */
     --wa-bubble-in: #FFFFFF;
-    --wa-bubble-out: #D9FDD3;
+    --wa-bubble-out: #00a056;
     --wa-bubble-text: #111B21;
     --wa-bubble-text-in: var(--wa-bubble-text);
-    --wa-bubble-text-out: var(--wa-bubble-text);
+    --wa-bubble-text-out: #FFFFFF;
     --wa-message-accent: #008069;
     --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.07);
-    --wa-bubble-quote-bg-in: #F0F2F5;
-    --wa-bubble-quote-bg-out: #C8EBC4;
+    --wa-bubble-quote-bg-in: #F0F4F8;
+    --wa-bubble-quote-bg-out: #008A48;
     --wa-bubble-quote-author-in: #008069;
-    --wa-bubble-quote-author-out: #008069;
+    --wa-bubble-quote-author-out: #FFFFFF;
     --wa-bubble-quote-text-in: #5E686F;
     --wa-bubble-quote-text-out: #5E686F;
 

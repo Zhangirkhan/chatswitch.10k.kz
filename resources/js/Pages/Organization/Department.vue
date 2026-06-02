@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import axios from 'axios';
 import { useI18n } from '@/composables/useI18n';
+import UiModal from '@/Components/Ui/UiModal.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
@@ -87,7 +88,9 @@ function toggleAssignee(userId: number) {
 }
 
 async function submitCreate() {
-    if (submitting.value) return;
+    if (submitting.value) {
+        return;
+    }
     if (draftTitle.value.trim() === '') {
         submitError.value = t('organization.taskTitleRequired');
         return;
@@ -118,17 +121,27 @@ async function submitCreate() {
 }
 
 function statusLabel(status: OrgPost['status']): string {
-    if (status === 'in_progress') return t('organization.statusInProgress');
-    if (status === 'done') return t('organization.statusDone');
+    if (status === 'in_progress') {
+        return t('organization.statusInProgress');
+    }
+    if (status === 'done') {
+        return t('organization.statusDone');
+    }
+
     return t('organization.statusOpen');
 }
 
 function formatDate(value: string | null): string {
-    if (!value) return '';
+    if (!value) {
+        return '';
+    }
     try {
         return new Date(value).toLocaleString('ru-RU', {
-            day: '2-digit', month: '2-digit', year: '2-digit',
-            hour: '2-digit', minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
         });
     } catch {
         return '';
@@ -136,12 +149,17 @@ function formatDate(value: string | null): string {
 }
 
 function bodyPreview(body: string | null): string {
-    if (!body) return '';
+    if (!body) {
+        return '';
+    }
     const div = document.createElement('div');
     div.innerHTML = body;
     const text = div.textContent || div.innerText || '';
     const trimmed = text.trim();
-    if (trimmed.length <= 220) return trimmed;
+    if (trimmed.length <= 220) {
+        return trimmed;
+    }
+
     return trimmed.slice(0, 220) + '…';
 }
 
@@ -156,46 +174,47 @@ function initial(name: string): string {
         :departments="departments"
         :selected-department-id="department.id"
     >
-        <div class="flex flex-col h-full min-h-0">
-            <!-- Header -->
-            <div class="px-5 py-3 shrink-0 flex items-center gap-3 border-b" :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-border)' }">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center" :style="{ background: 'var(--wa-panel)', color: 'var(--wa-icon)' }">
+        <div class="flex flex-col h-full min-h-0 bg-[var(--wa-page-bg)]">
+            <header class="ui-page-header">
+                <div class="ui-page-header__icon">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </div>
-                <div class="min-w-0 flex-1">
-                    <div class="text-base font-medium truncate text-[var(--wa-text)]">{{ department.name }}</div>
-                    <div v-if="department.description" class="text-xs truncate text-[var(--wa-text-secondary)]">
+                <div class="ui-page-header__body min-w-0">
+                    <h1 class="ui-page-header__title truncate">{{ department.name }}</h1>
+                    <p v-if="department.description" class="ui-page-header__subtitle truncate">
                         {{ department.description }}
-                    </div>
+                    </p>
                 </div>
-                <button
-                    type="button"
-                    class="primary-btn"
-                    @click="openCreate"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+                <button type="button" class="ui-btn ui-btn--primary ui-btn--pill shrink-0" @click="openCreate">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
                     {{ t('organization.createPost') }}
                 </button>
-            </div>
+            </header>
 
-            <!-- Posts list -->
-            <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4">
-                <div v-if="localPosts.length === 0" class="text-sm text-[var(--wa-text-secondary)] text-center py-12">
-                    <span v-if="archived_count === 0">{{ t('organization.deptEmptyNoTasks') }}</span>
-                    <span v-else>{{ t('organization.deptEmptyAllDone') }}</span>
+            <div class="ui-org-list-scroll wa-scrollbar">
+                <div v-if="localPosts.length === 0" class="ui-empty-state ui-empty-state--org">
+                    <p class="text-sm text-[var(--wa-text-secondary)] m-0">
+                        <span v-if="archived_count === 0">{{ t('organization.deptEmptyNoTasks') }}</span>
+                        <span v-else>{{ t('organization.deptEmptyAllDone') }}</span>
+                    </p>
                 </div>
+
                 <Link
                     v-for="post in localPosts"
                     :key="post.id"
                     :href="route('organization.posts.show', post.id)"
-                    class="post-card"
+                    class="ui-task-card ui-task-card--list"
                 >
-                    <!-- Статус + срок -->
-                    <div class="post-card-top">
-                        <span class="status-pill" :class="`status-${post.status}`">{{ statusLabel(post.status) }}</span>
-                        <span v-if="post.due_at" class="post-card-due">
+                    <div class="ui-task-card__top">
+                        <span
+                            class="ui-task-status ui-task-status--pill"
+                            :class="`ui-task-status--${post.status}`"
+                        >{{ statusLabel(post.status) }}</span>
+                        <span v-if="post.due_at" class="ui-task-due">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
@@ -203,65 +222,65 @@ function initial(name: string): string {
                         </span>
                     </div>
 
-                    <!-- Заголовок -->
-                    <div class="post-card-title">{{ post.title }}</div>
+                    <div class="ui-task-card__title">{{ post.title }}</div>
 
-                    <!-- Превью тела -->
-                    <div v-if="post.body" class="post-card-body">{{ bodyPreview(post.body) }}</div>
+                    <div v-if="post.body" class="ui-task-card__body-preview">{{ bodyPreview(post.body) }}</div>
 
-                    <!-- Ответственные -->
-                    <div class="post-card-assignees">
+                    <div class="ui-task-card__assignees">
                         <template v-if="post.assignees?.length">
                             <svg class="w-3.5 h-3.5 shrink-0 text-[var(--wa-icon)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
-                            <div class="post-card-assignees-list">
+                            <div class="ui-task-card__assignees-list">
                                 <span
                                     v-for="a in post.assignees.slice(0, 4)"
                                     :key="a.id"
-                                    class="post-card-assignee"
+                                    class="ui-task-card__assignee"
                                     :title="a.name"
                                 >
-                                    <span class="post-card-assignee-avatar">{{ initial(a.name) }}</span>
+                                    <span class="ui-task-card__assignee-avatar">{{ initial(a.name) }}</span>
                                     {{ a.name }}
                                 </span>
-                                <span v-if="post.assignees.length > 4" class="post-card-assignee-more">
+                                <span v-if="post.assignees.length > 4" class="ui-task-card__assignee-more">
                                     +{{ post.assignees.length - 4 }}
                                 </span>
                             </div>
                         </template>
-                        <span v-else class="post-card-no-assignee">{{ t('organization.noAssignee') }}</span>
+                        <span v-else class="ui-task-card__no-assignee">{{ t('organization.noAssignee') }}</span>
                     </div>
 
-                    <!-- Мета: автор · дата · вложения · комментарии -->
-                    <div class="post-card-meta">
-                        <span class="post-card-author">
-                            <span class="post-card-author-avatar">{{ initial(post.author?.name || '?') }}</span>
+                    <div class="ui-task-card__meta">
+                        <span class="ui-task-card__author">
+                            <span class="ui-task-card__author-avatar">{{ initial(post.author?.name || '?') }}</span>
                             {{ post.author?.name || t('organization.noAuthor') }}
                         </span>
-                        <span class="post-card-meta-sep">·</span>
+                        <span class="ui-task-card__meta-sep">·</span>
                         <span>{{ formatDate(post.created_at) }}</span>
-                        <span v-if="post.attachments?.length" class="post-card-meta-icon">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                        <span v-if="post.attachments?.length" class="ui-task-card__meta-icon">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
                             {{ post.attachments.length }}
                         </span>
-                        <span class="post-card-meta-icon ml-auto">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" /></svg>
+                        <span class="ui-task-card__meta-icon ui-task-card__meta-icon--end">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+                            </svg>
                             {{ post.comments_count }}
                         </span>
                     </div>
                 </Link>
-                <!-- Archive link -->
+
                 <Link
                     v-if="archived_count > 0"
                     :href="route('organization.archive')"
-                    class="archive-link"
+                    class="ui-org-archive-inline"
                 >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4" />
                     </svg>
                     {{ t('organization.deptArchiveLink') }}
-                    <span class="archive-link-count">{{ archived_count }}</span>
+                    <span class="ui-org-archive-inline__count">{{ archived_count }}</span>
                     <svg class="w-3.5 h-3.5 ml-auto opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -269,401 +288,80 @@ function initial(name: string): string {
             </div>
         </div>
 
-        <!-- Create modal -->
-        <Teleport to="body">
-            <div v-if="showCreate" class="org-modal-backdrop" @click.self="closeCreate">
-                <div class="org-modal org-modal-wide">
-                    <div class="org-modal-header">
-                        <h3>{{ t('organization.newTaskModalTitle') }}</h3>
-                        <button type="button" class="org-modal-close" @click="closeCreate" :aria-label="t('organization.closeAria')">×</button>
-                    </div>
-                    <form @submit.prevent="submitCreate" class="org-modal-body">
-                        <label class="form-row">
-                            <span>{{ t('organization.fieldTitle') }}</span>
-                            <input v-model="draftTitle" type="text" maxlength="255" :placeholder="t('organization.taskTitlePlaceholder')" autofocus />
-                        </label>
-                        <div class="form-row">
-                            <span>{{ t('organization.fieldDescription') }}</span>
-                            <RichTextEditor
-                                v-model="draftBody"
-                                :placeholder="t('organization.taskDetailsPlaceholder')"
-                                min-height="160px"
-                            />
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="form-row">
-                                <span>{{ t('organization.fieldStatus') }}</span>
-                                <select v-model="draftStatus">
-                                    <option value="open">{{ t('organization.statusOpen') }}</option>
-                                    <option value="in_progress">{{ t('organization.statusInProgress') }}</option>
-                                    <option value="done">{{ t('organization.statusDone') }}</option>
-                                </select>
-                            </label>
-                            <label class="form-row">
-                                <span>{{ t('organization.fieldDue') }}</span>
-                                <input v-model="draftDue" type="datetime-local" />
-                            </label>
-                        </div>
-
-                        <!-- Assignees picker -->
-                        <div v-if="members.length > 0" class="form-row">
-                            <span>{{ t('organization.fieldAssignees') }}</span>
-                            <div class="assignee-picker">
-                                <button
-                                    v-for="m in members"
-                                    :key="m.id"
-                                    type="button"
-                                    class="assignee-chip"
-                                    :class="{ 'assignee-chip-active': draftAssigneeIds.includes(m.id) }"
-                                    @click="toggleAssignee(m.id)"
-                                >
-                                    <span class="assignee-chip-avatar">{{ initial(m.name) }}</span>
-                                    {{ m.name }}
-                                    <svg v-if="draftAssigneeIds.includes(m.id)" class="w-3.5 h-3.5 ml-auto shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div v-if="submitError" class="text-sm" :style="{ color: 'var(--wa-danger)' }">
-                            {{ submitError }}
-                        </div>
-                        <div class="org-modal-actions">
-                            <button type="button" class="secondary-btn" @click="closeCreate">{{ t('organization.cancel') }}</button>
-                            <button type="submit" class="primary-btn" :disabled="submitting">{{ t('organization.create') }}</button>
-                        </div>
-                    </form>
+        <UiModal
+            :open="showCreate"
+            :title="t('organization.newTaskModalTitle')"
+            max-width="2xl"
+            :aria-label="t('organization.newTaskModalTitle')"
+            @close="closeCreate"
+        >
+            <form class="ui-form-stack" @submit.prevent="submitCreate">
+                <label class="ui-form-row">
+                    <span>{{ t('organization.fieldTitle') }}</span>
+                    <input v-model="draftTitle" type="text" maxlength="255" class="ui-field" :placeholder="t('organization.taskTitlePlaceholder')" autofocus />
+                </label>
+                <div class="ui-form-row">
+                    <span>{{ t('organization.fieldDescription') }}</span>
+                    <RichTextEditor
+                        v-model="draftBody"
+                        :placeholder="t('organization.taskDetailsPlaceholder')"
+                        min-height="160px"
+                    />
                 </div>
-            </div>
-        </Teleport>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="ui-form-row">
+                        <span>{{ t('organization.fieldStatus') }}</span>
+                        <select v-model="draftStatus" class="ui-field">
+                            <option value="open">{{ t('organization.statusOpen') }}</option>
+                            <option value="in_progress">{{ t('organization.statusInProgress') }}</option>
+                            <option value="done">{{ t('organization.statusDone') }}</option>
+                        </select>
+                    </label>
+                    <label class="ui-form-row">
+                        <span>{{ t('organization.fieldDue') }}</span>
+                        <input v-model="draftDue" type="datetime-local" class="ui-field" />
+                    </label>
+                </div>
+
+                <div v-if="members.length > 0" class="ui-form-row">
+                    <span>{{ t('organization.fieldAssignees') }}</span>
+                    <div class="ui-assignee-picker">
+                        <button
+                            v-for="m in members"
+                            :key="m.id"
+                            type="button"
+                            class="ui-assignee-chip"
+                            :class="{ 'is-active': draftAssigneeIds.includes(m.id) }"
+                            @click="toggleAssignee(m.id)"
+                        >
+                            <span class="ui-assignee-chip__avatar">{{ initial(m.name) }}</span>
+                            {{ m.name }}
+                            <svg
+                                v-if="draftAssigneeIds.includes(m.id)"
+                                class="w-3.5 h-3.5 ml-auto shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                viewBox="0 0 24 24"
+                            >
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <p v-if="submitError" class="text-sm m-0" :style="{ color: 'var(--wa-danger)' }">
+                    {{ submitError }}
+                </p>
+                <div class="ui-modal-actions">
+                    <button type="button" class="ui-btn ui-btn--secondary ui-btn--pill" @click="closeCreate">
+                        {{ t('organization.cancel') }}
+                    </button>
+                    <button type="submit" class="ui-btn ui-btn--primary ui-btn--pill" :disabled="submitting">
+                        {{ t('organization.create') }}
+                    </button>
+                </div>
+            </form>
+        </UiModal>
     </OrganizationLayout>
 </template>
-
-<style scoped>
-.primary-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.9rem;
-    border-radius: 999px;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition: filter 0.12s ease;
-}
-.primary-btn:hover:not(:disabled) { filter: brightness(1.05); }
-.primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.secondary-btn {
-    padding: 0.45rem 0.9rem;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--wa-text);
-    border: 1px solid var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-.secondary-btn:hover { background-color: var(--wa-panel-hover); }
-
-.post-card {
-    display: block;
-    background: var(--wa-panel);
-    border: 1px solid var(--wa-border);
-    border-radius: 12px;
-    padding: 0.85rem 1rem;
-    margin-bottom: 0.65rem;
-    text-decoration: none;
-    color: var(--wa-text);
-    transition: border-color 0.12s ease, transform 0.08s ease;
-}
-.post-card:hover {
-    border-color: color-mix(in srgb, var(--wa-accent) 50%, var(--wa-border));
-}
-.post-card-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.45rem;
-}
-.post-card-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    line-height: 1.3;
-    color: var(--wa-text);
-    margin-bottom: 0.3rem;
-}
-.post-card-body {
-    font-size: 0.85rem;
-    color: var(--wa-text-secondary);
-    line-height: 1.4;
-    margin-bottom: 0.5rem;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.post-card-due {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.72rem;
-    color: var(--wa-text-secondary);
-}
-
-/* Assignees section */
-.post-card-assignees {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.4rem;
-    padding: 0.55rem 0.8rem;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--wa-accent) 6%, var(--wa-panel-header));
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 18%, var(--wa-border));
-    min-height: 36px;
-}
-.post-card-assignees-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    flex: 1;
-}
-.post-card-assignee {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--wa-text);
-    padding: 0.1rem 0.5rem 0.1rem 0.2rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--wa-accent) 14%, var(--wa-panel));
-    border: 1px solid color-mix(in srgb, var(--wa-accent) 30%, var(--wa-border));
-}
-.post-card-assignee-avatar {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--wa-accent);
-    color: var(--wa-unread-text, #0b0d0e);
-    font-size: 0.58rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.post-card-assignee-more {
-    font-size: 0.72rem;
-    color: var(--wa-text-secondary);
-    padding: 0.1rem 0.3rem;
-    align-self: center;
-}
-.post-card-no-assignee {
-    font-size: 0.75rem;
-    color: var(--wa-text-secondary);
-    font-style: italic;
-    align-self: center;
-}
-
-.post-card-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    color: var(--wa-text-secondary);
-}
-.post-card-author {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-.post-card-author-avatar {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--wa-panel-hover);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.58rem;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-.post-card-meta-sep { opacity: 0.5; }
-.post-card-meta-icon {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-}
-
-/* Assignee picker in modal */
-.assignee-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    padding: 0.5rem 0;
-}
-.assignee-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.65rem 0.3rem 0.35rem;
-    border-radius: 999px;
-    border: 1px solid var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: background-color 0.1s, border-color 0.1s;
-    min-width: 0;
-}
-.assignee-chip:hover {
-    background: var(--wa-panel-hover);
-    border-color: color-mix(in srgb, var(--wa-accent) 40%, var(--wa-border));
-}
-.assignee-chip-active {
-    background: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel-header));
-    border-color: var(--wa-accent);
-    color: var(--wa-text);
-}
-.assignee-chip-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--wa-accent) 30%, var(--wa-panel));
-    color: var(--wa-text);
-    font-size: 0.65rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.status-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.1rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 1.4;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-.status-open { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #f59e0b; }
-.status-in_progress { background: color-mix(in srgb, #3b82f6 22%, transparent); color: #3b82f6; }
-.status-done { background: color-mix(in srgb, var(--wa-accent) 22%, transparent); color: var(--wa-accent); }
-
-.org-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 1rem;
-}
-.org-modal {
-    background: var(--wa-panel);
-    border-radius: 14px;
-    width: 100%;
-    max-width: 540px;
-    max-height: 90vh;
-    overflow-y: auto;
-    border: 1px solid var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    color: var(--wa-text);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-}
-.org-modal-wide { max-width: 720px; }
-.org-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.9rem 1.2rem;
-    border-bottom: 1px solid var(--wa-border);
-    position: sticky;
-    top: 0;
-    background: var(--wa-panel);
-    z-index: 1;
-}
-.org-modal-header h3 { font-size: 1rem; font-weight: 600; margin: 0; }
-.org-modal-close {
-    background: transparent;
-    border: none;
-    color: var(--wa-text-secondary);
-    font-size: 1.4rem;
-    line-height: 1;
-    cursor: pointer;
-}
-.org-modal-body {
-    padding: 1rem 1.2rem 1.2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-}
-.form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    font-size: 0.85rem;
-    color: var(--wa-text-secondary);
-}
-.form-row input,
-.form-row select {
-    background: var(--wa-panel-header);
-    color: var(--wa-text);
-    border: 1px solid var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    border-radius: 10px;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-    width: 100%;
-}
-.org-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    padding-top: 0.4rem;
-}
-
-.archive-link {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 0.85rem;
-    border-radius: 12px;
-    border: 1px dashed var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    color: var(--wa-text-secondary);
-    text-decoration: none;
-    font-size: 0.83rem;
-    margin-top: 0.25rem;
-    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
-}
-.archive-link:hover {
-    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
-    border-color: color-mix(in srgb, var(--wa-accent) 45%, var(--wa-border));
-    color: var(--wa-accent);
-}
-.archive-link-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 0.4rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--wa-accent) 20%, transparent);
-    color: var(--wa-accent);
-    font-size: 0.72rem;
-    font-weight: 600;
-}
-</style>

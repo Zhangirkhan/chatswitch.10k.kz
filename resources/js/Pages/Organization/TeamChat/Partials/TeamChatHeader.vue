@@ -215,9 +215,9 @@ const participantsSorted = computed(() =>
     pointer-events: none;
 }
 :deep(.team-chat-header-avatar--group .avatar__initials) {
-    color: #f59e0b;
+    color: var(--org-task-dept-fg);
     background:
-        radial-gradient(circle at 30% 20%, color-mix(in srgb, #f59e0b 28%, transparent), transparent 48%),
-        color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--org-task-dept-fg) 28%, transparent), transparent 48%),
+        var(--org-task-dept-bg);
 }
 </style>
