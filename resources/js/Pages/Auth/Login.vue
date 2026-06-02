@@ -156,15 +156,17 @@ function switchMode(mode: 'email' | 'pin'): void {
                     required
                     autofocus
                     autocomplete="username"
-                    class="w-full px-3 py-2.5 rounded-lg text-sm border transition focus:outline-none"
+                    class="w-full px-3 py-2.5 rounded-lg text-sm border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wa-accent)]"
                     :style="{
                         background: 'var(--wa-panel-input)',
                         color: 'var(--wa-text)',
                         borderColor: 'var(--wa-border)',
                     }"
+                    :aria-invalid="form.errors.email ? 'true' : undefined"
+                    :aria-describedby="form.errors.email ? 'email-error' : undefined"
                     placeholder="admin@accel.kz"
                 />
-                <p v-if="form.errors.email" class="mt-1 text-xs text-red-400">{{ form.errors.email }}</p>
+                <p v-if="form.errors.email" id="email-error" role="alert" class="mt-1 text-xs text-red-400">{{ form.errors.email }}</p>
             </div>
 
             <div>
@@ -175,15 +177,17 @@ function switchMode(mode: 'email' | 'pin'): void {
                     v-model="form.password"
                     required
                     autocomplete="current-password"
-                    class="w-full px-3 py-2.5 rounded-lg text-sm border transition focus:outline-none"
+                    class="w-full px-3 py-2.5 rounded-lg text-sm border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wa-accent)]"
                     :style="{
                         background: 'var(--wa-panel-input)',
                         color: 'var(--wa-text)',
                         borderColor: 'var(--wa-border)',
                     }"
+                    :aria-invalid="form.errors.password ? 'true' : undefined"
+                    :aria-describedby="form.errors.password ? 'password-error' : undefined"
                     placeholder="Введите пароль"
                 />
-                <p v-if="form.errors.password" class="mt-1 text-xs text-red-400">{{ form.errors.password }}</p>
+                <p v-if="form.errors.password" id="password-error" role="alert" class="mt-1 text-xs text-red-400">{{ form.errors.password }}</p>
             </div>
 
             <div class="flex items-center justify-between">

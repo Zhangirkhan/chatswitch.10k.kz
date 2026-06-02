@@ -190,7 +190,7 @@ function logout() {
 </script>
 
 <template>
-    <aside class="w-[400px] h-full flex flex-col bg-[var(--ui-surface)] shrink-0">
+    <aside class="w-[260px] sm:w-[320px] lg:w-[400px] h-full flex flex-col bg-[var(--ui-surface)] shrink-0">
         <!-- Header with user name -->
         <div class="h-[60px] px-6 flex items-center shrink-0 border-b border-[var(--ui-border)]">
             <h1 class="text-[var(--ui-text)] text-xl font-semibold truncate">
@@ -203,7 +203,7 @@ function logout() {
             <div class="settings-search relative rounded-full">
                 <svg
                     class="settings-search-icon absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors"
-                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"
                 >
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -211,6 +211,7 @@ function logout() {
                     v-model="searchQuery"
                     type="text"
                     placeholder="Поиск"
+                    aria-label="Поиск в настройках"
                     class="w-full pl-12 pr-4 py-[9px] bg-transparent rounded-full text-sm text-[var(--ui-text)] border-0 focus:ring-0 focus:outline-none relative z-[1]"
                 />
             </div>

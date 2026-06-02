@@ -5,6 +5,30 @@
 @tailwind utilities;
 
 /*
+ * Accessibility: гарантируем видимый индикатор фокуса с клавиатуры даже там,
+ * где локально стоит focus:outline-none/focus:ring-0. :focus-visible не влияет
+ * на фокус мышью, поэтому визуальный шум для обычных кликов не появляется.
+ */
+@layer base {
+    :focus-visible {
+        outline: 2px solid var(--wa-accent, #25d366);
+        outline-offset: 2px;
+        border-radius: 2px;
+    }
+
+    a:focus-visible,
+    button:focus-visible,
+    [role='button']:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+        outline: 2px solid var(--wa-accent, #25d366);
+        outline-offset: 2px;
+    }
+}
+
+/*
  * Color system: WhatsApp chat (`--wa-*`) + app/settings UI (`--ui-*`).
  *
  * Chat surfaces (bubbles, list, composer): use `--wa-*` or Tailwind `wa-*`.

@@ -8,6 +8,7 @@ import type {
     WorkspaceResults,
 } from '@/Components/AiChat/aiWorkspaceTypes';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
 import { useToastStore } from '@/stores/toast';
@@ -430,8 +431,27 @@ function startNewChat(): void {
     nextTick(() => textareaEl.value?.focus());
 }
 
+const pendingDeleteThreadId = ref<string | null>(null);
+const pendingDeleteThreadTitle = computed(
+    () => threads.value.find((t) => t.id === pendingDeleteThreadId.value)?.title ?? '',
+);
+
 function deleteThread(id: string, event?: Event): void {
     event?.stopPropagation();
+    if (threads.value.findIndex((t) => t.id === id) === -1) {
+        return;
+    }
+
+    pendingDeleteThreadId.value = id;
+}
+
+function confirmDeleteThread(): void {
+    const id = pendingDeleteThreadId.value;
+    pendingDeleteThreadId.value = null;
+    if (id === null) {
+        return;
+    }
+
     const idx = threads.value.findIndex((t) => t.id === id);
     if (idx === -1) {
         return;
@@ -880,6 +900,15 @@ watch(resultsOpen, (open) => {
                 @select-contact="onSelectContact"
             />
         </div>
+
+        <DangerConfirmModal
+            :open="pendingDeleteThreadId !== null"
+            title="Удалить чат?"
+            :description="pendingDeleteThreadTitle ? `Чат «${pendingDeleteThreadTitle}» будет удалён без возможности восстановления.` : 'Чат будет удалён без возможности восстановления.'"
+            confirm-label="Удалить"
+            @close="pendingDeleteThreadId = null"
+            @confirm="confirmDeleteThread"
+        />
     </AuthenticatedLayout>
 </template>
 

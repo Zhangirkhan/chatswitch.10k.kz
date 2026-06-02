@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
 import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import type { ContactFieldDefinition, ContactFieldTypeOption } from '@/utils/contactFieldTypes';
 import { Head, Link } from '@inertiajs/vue3';
@@ -19,18 +20,26 @@ const localFields = ref<ContactFieldDefinition[]>([...props.fields]);
 const pickerOpen = ref(false);
 const addFieldOpen = ref(false);
 const deletingId = ref<number | null>(null);
+const fieldPendingDelete = ref<ContactFieldDefinition | null>(null);
 
 function reloadFields(items: ContactFieldDefinition[]): void {
     localFields.value = [...items];
 }
 
-async function deleteField(field: ContactFieldDefinition): Promise<void> {
+function deleteField(field: ContactFieldDefinition): void {
     if (field.is_system || deletingId.value) {
         return;
     }
-    if (!window.confirm(`Удалить поле «${field.label}»?`)) {
+    fieldPendingDelete.value = field;
+}
+
+async function confirmDeleteField(): Promise<void> {
+    const field = fieldPendingDelete.value;
+    fieldPendingDelete.value = null;
+    if (field === null) {
         return;
     }
+
     deletingId.value = field.id;
     try {
         const { data } = await axios.delete(route('settings.contact-fields.destroy', field.id));
@@ -85,8 +94,8 @@ function onFieldCreated(): void {
                 </Link>
             </div>
 
-            <div class="rounded-xl border overflow-hidden" :style="{ borderColor: 'var(--ui-border)' }">
-                <table class="w-full text-sm">
+            <div class="rounded-xl border overflow-x-auto" :style="{ borderColor: 'var(--ui-border)' }">
+                <table class="w-full min-w-[560px] text-sm">
                     <thead :style="{ background: 'var(--ui-surface-muted)' }">
                         <tr>
                             <th class="px-4 py-2 text-left font-medium">Поле</th>
@@ -133,5 +142,14 @@ function onFieldCreated(): void {
             @updated="void axios.get(route('settings.contact-fields.list')).then(({ data }) => reloadFields(data.fields))"
         />
         <ContactAddFieldModal :open="addFieldOpen" @close="addFieldOpen = false" @created="onFieldCreated" />
+
+        <DangerConfirmModal
+            :open="fieldPendingDelete !== null"
+            title="Удалить поле?"
+            :description="fieldPendingDelete ? `Поле «${fieldPendingDelete.label}» будет удалено. Сохранённые значения этого поля у контактов также будут потеряны.` : ''"
+            confirm-label="Удалить"
+            @close="fieldPendingDelete = null"
+            @confirm="confirmDeleteField"
+        />
     </SettingsLayout>
 </template>

@@ -710,6 +710,7 @@ onBeforeUnmount(() => {
                     @blur="searchFocused = false"
                     type="text"
                     placeholder="Поиск или новый чат"
+                    aria-label="Поиск или новый чат"
                     data-shortcut-target="chat-search"
                     class="w-full pl-12 pr-10 py-[9px] bg-transparent rounded-full text-sm text-[var(--wa-text)] border-0 focus:ring-0 focus:outline-none"
                 />

@@ -1342,13 +1342,21 @@ async function saveFunnelModal() {
 
 <template>
     <div class="min-h-[60px] py-1.5 bg-[var(--wa-panel-header)] flex items-center px-4 gap-3 shrink-0 relative overflow-hidden">
-        <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <Link :href="route('chats.index')" class="sm:hidden text-[var(--wa-icon)]" aria-label="Назад к списку чатов">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
         </Link>
 
-        <div @click="openContactInfo" class="cursor-pointer shrink-0">
+        <div
+            role="button"
+            tabindex="0"
+            aria-label="Информация о контакте"
+            @click="openContactInfo"
+            @keydown.enter.prevent="openContactInfo"
+            @keydown.space.prevent="openContactInfo"
+            class="cursor-pointer shrink-0"
+        >
             <Avatar
                 :avatar-url="chat.contact?.profile_picture_url"
                 :name="displayName"
@@ -1358,7 +1366,12 @@ async function saveFunnelModal() {
         </div>
 
         <div
+            role="button"
+            tabindex="0"
+            aria-label="Информация о контакте"
             @click="openContactInfo"
+            @keydown.enter.prevent="openContactInfo"
+            @keydown.space.prevent="openContactInfo"
             class="flex-1 min-w-0 cursor-pointer"
         >
             <h2 class="text-base text-[var(--wa-text)] truncate font-normal">

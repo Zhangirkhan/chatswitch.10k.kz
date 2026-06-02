@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 
 /**
  * Модальное подтверждение деструктивных действий (замена window.confirm).
@@ -28,11 +28,88 @@ const emit = defineEmits<{
     (e: 'confirm'): void;
 }>();
 
+const panelRef = ref<HTMLElement | null>(null);
+let previousFocus: HTMLElement | null = null;
+
 function onBackdrop(): void {
     if (!props.busy) {
         emit('close');
     }
 }
+
+function getFocusableElements(): HTMLElement[] {
+    const panel = panelRef.value;
+    if (!panel) {
+        return [];
+    }
+
+    return Array.from(
+        panel.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+}
+
+function onKeydown(event: KeyboardEvent): void {
+    if (!props.open) {
+        return;
+    }
+
+    if (event.key === 'Escape' && !props.busy) {
+        event.preventDefault();
+        emit('close');
+        return;
+    }
+
+    if (event.key !== 'Tab') {
+        return;
+    }
+
+    const focusable = getFocusableElements();
+    if (focusable.length === 0) {
+        event.preventDefault();
+        panelRef.value?.focus();
+        return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey) {
+        if (active === first || active === panelRef.value) {
+            event.preventDefault();
+            last.focus();
+        }
+        return;
+    }
+
+    if (active === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
+watch(
+    () => props.open,
+    async (isOpen) => {
+        if (isOpen) {
+            previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            document.addEventListener('keydown', onKeydown);
+            await nextTick();
+            (getFocusableElements()[0] ?? panelRef.value)?.focus();
+            return;
+        }
+
+        document.removeEventListener('keydown', onKeydown);
+        previousFocus?.focus();
+        previousFocus = null;
+    },
+);
+
+onBeforeUnmount(() => {
+    document.removeEventListener('keydown', onKeydown);
+});
 
 const headingId = useId();
 
@@ -54,7 +131,9 @@ const confirmButtonClass = computed(() =>
             @click.self="onBackdrop"
         >
             <div
-                class="w-full max-w-[440px] overflow-hidden rounded-2xl border shadow-2xl flex flex-col"
+                ref="panelRef"
+                tabindex="-1"
+                class="w-full max-w-[440px] overflow-hidden rounded-2xl border shadow-2xl flex flex-col outline-none"
                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-control-rim)', boxShadow: 'var(--wa-control-rim-shadow)' }"
                 @click.stop
             >
