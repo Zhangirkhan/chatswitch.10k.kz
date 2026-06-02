@@ -73,9 +73,19 @@
         inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
         inset 0 -1px 0 0 rgba(0, 0, 0, 0.12),
         0 2px 4px 0 rgba(0, 0, 0, 0.30);
-    /* Flat elevation for chips/segments — без белого inset сверху */
-    --wa-control-elevation-shadow: 0 1px 3px color-mix(in srgb, var(--wa-text) 8%, transparent);
-    --wa-control-elevation-shadow-hover: 0 2px 5px color-mix(in srgb, var(--wa-text) 12%, transparent);
+    /* Объём контролов: нижний inset + drop shadow (без белой полоски сверху, как ui-accent-btn) */
+    --wa-control-volume-shadow:
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #000 12%, transparent),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    --wa-chip-active-volume-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 42%, var(--wa-control-rim-inset-bottom)),
+        0 1px 2px 0 color-mix(in srgb, var(--brand-accent) 16%, var(--wa-control-rim-outer));
+    --wa-chip-active-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 48%, var(--wa-control-rim-inset-bottom)),
+        0 2px 4px 0 color-mix(in srgb, var(--brand-accent) 22%, rgba(0, 0, 0, 0.30));
     /* legacy alias */
     --wa-control-border: var(--wa-control-rim);
     --wa-control-border-hover: var(--wa-control-rim-hover);
@@ -248,8 +258,10 @@
     --ui-control-border-hover: var(--wa-control-rim-hover);
     --ui-control-rim-shadow: var(--wa-control-rim-shadow);
     --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
-    --ui-control-elevation-shadow: var(--wa-control-elevation-shadow);
-    --ui-control-elevation-shadow-hover: var(--wa-control-elevation-shadow-hover);
+    --ui-control-volume-shadow: var(--wa-control-volume-shadow);
+    --ui-control-volume-shadow-hover: var(--wa-control-volume-shadow-hover);
+    --ui-chip-active-volume-shadow: var(--wa-chip-active-volume-shadow);
+    --ui-chip-active-volume-shadow-hover: var(--wa-chip-active-volume-shadow-hover);
     --ui-accent: var(--wa-accent);
     --ui-accent-hover: var(--wa-accent-hover);
     --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 16%, var(--ui-surface));
@@ -310,8 +322,18 @@
         inset 0 1px 0 0 rgba(255, 255, 255, 1),
         inset 0 -1px 0 0 rgba(17, 27, 33, 0.05),
         0 2px 4px 0 rgba(17, 27, 33, 0.16);
-    --wa-control-elevation-shadow: 0 1px 3px color-mix(in srgb, var(--wa-text) 8%, transparent);
-    --wa-control-elevation-shadow-hover: 0 2px 5px color-mix(in srgb, var(--wa-text) 12%, transparent);
+    --wa-control-volume-shadow:
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #111b21 7%, transparent),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --wa-chip-active-volume-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 38%, var(--wa-control-rim-inset-bottom)),
+        0 1px 2px 0 color-mix(in srgb, var(--brand-accent) 14%, var(--wa-control-rim-outer));
+    --wa-chip-active-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 44%, var(--wa-control-rim-inset-bottom)),
+        0 2px 4px 0 color-mix(in srgb, var(--brand-accent) 18%, rgba(17, 27, 33, 0.16));
     --wa-control-border: var(--wa-control-rim);
     --wa-control-border-hover: var(--wa-control-rim-hover);
     --wa-divider: #E9EDEF;
@@ -475,8 +497,10 @@
     --ui-control-border-hover: var(--wa-control-rim-hover);
     --ui-control-rim-shadow: var(--wa-control-rim-shadow);
     --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
-    --ui-control-elevation-shadow: var(--wa-control-elevation-shadow);
-    --ui-control-elevation-shadow-hover: var(--wa-control-elevation-shadow-hover);
+    --ui-control-volume-shadow: var(--wa-control-volume-shadow);
+    --ui-control-volume-shadow-hover: var(--wa-control-volume-shadow-hover);
+    --ui-chip-active-volume-shadow: var(--wa-chip-active-volume-shadow);
+    --ui-chip-active-volume-shadow-hover: var(--wa-chip-active-volume-shadow-hover);
     --ui-accent: var(--wa-accent);
     --ui-accent-hover: var(--wa-accent-hover);
     --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 22%, var(--ui-surface));

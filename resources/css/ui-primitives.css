@@ -319,7 +319,7 @@
         color: var(--wa-chroma-accent-fg);
         font-weight: 600;
         background: var(--wa-panel);
-        box-shadow: var(--wa-control-elevation-shadow);
+        box-shadow: var(--wa-control-volume-shadow);
         border-bottom-color: transparent;
     }
 
@@ -329,7 +329,9 @@
         font-weight: 600;
         border-color: color-mix(in srgb, var(--wa-chroma-critical-fg) 35%, var(--wa-border));
         background: var(--wa-chroma-critical-bg);
-        box-shadow: var(--wa-control-elevation-shadow);
+        box-shadow:
+            inset 0 -1px 0 0 color-mix(in srgb, var(--wa-chroma-critical-fg) 35%, var(--wa-control-rim-inset-bottom)),
+            0 1px 2px 0 color-mix(in srgb, var(--wa-chroma-critical-fg) 14%, var(--wa-control-rim-outer));
     }
 
     .ui-segment--danger:not(.is-active):hover,
@@ -554,7 +556,7 @@
         color: var(--wa-text);
         background: var(--wa-control-surface);
         border: 1px solid var(--wa-control-rim);
-        box-shadow: var(--wa-control-elevation-shadow);
+        box-shadow: var(--wa-control-volume-shadow);
         border-radius: var(--primitive-radius-pill);
         cursor: pointer;
         transition:
@@ -568,7 +570,7 @@
         color: var(--wa-text);
         background: var(--wa-panel-hover);
         border-color: var(--wa-control-rim-hover);
-        box-shadow: var(--wa-control-elevation-shadow-hover);
+        box-shadow: var(--wa-control-volume-shadow-hover);
     }
 
     .ui-chip.is-active {
@@ -576,18 +578,20 @@
         font-weight: 600;
         background: var(--wa-chroma-accent-bg-12);
         border-color: var(--wa-chroma-accent-border-45);
-        box-shadow: var(--wa-control-elevation-shadow);
+        box-shadow: var(--wa-chip-active-volume-shadow);
     }
 
     .ui-chip.is-active:hover {
         color: var(--wa-chroma-accent-fg);
         background: var(--wa-chroma-accent-bg-18);
         border-color: var(--wa-chroma-accent-border-60);
-        box-shadow: var(--wa-control-elevation-shadow-hover);
+        box-shadow: var(--wa-chip-active-volume-shadow-hover);
     }
 
     .ui-chip--danger.is-active:hover {
-        box-shadow: var(--wa-control-elevation-shadow-hover);
+        box-shadow:
+            inset 0 -1px 0 0 color-mix(in srgb, var(--wa-chroma-critical-fg) 40%, var(--wa-control-rim-inset-bottom)),
+            0 2px 4px 0 color-mix(in srgb, var(--wa-chroma-critical-fg) 18%, var(--wa-control-rim-outer));
     }
 
     /* ─── Chat: search field ─── */
