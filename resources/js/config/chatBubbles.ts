@@ -49,35 +49,35 @@ export const messageStylePresets: MessageStylePreset[] = [
         description: 'Classic WhatsApp',
         light: {
             in: '#FFFFFF',
-            out: '#D9FDD3',
+            out: '#00A056',
             textIn: '#111B21',
-            textOut: '#111B21',
+            textOut: '#FFFFFF',
             accent: '#008069',
-            systemAccent: '#01B964',
+            systemAccent: '#00A056',
             systemAccentHover: '#08D878',
             tailShadow: 'rgba(11, 20, 26, 0.07)',
-            quoteBgIn: '#F0F2F5',
-            quoteBgOut: '#C8EBC4',
+            quoteBgIn: '#F0F4F8',
+            quoteBgOut: '#008A48',
             quoteAuthorIn: '#008069',
-            quoteAuthorOut: '#008069',
+            quoteAuthorOut: '#FFFFFF',
             quoteTextIn: QUOTE_MUTED_LIGHT,
-            quoteTextOut: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#E8F5EE',
         },
         dark: {
-            in: '#202C33',
-            out: '#005C4B',
-            textIn: '#E9EDEF',
-            textOut: '#E9EDEF',
+            in: '#212121',
+            out: '#00A056',
+            textIn: '#ECECEC',
+            textOut: '#FFFFFF',
             accent: '#53BDAE',
-            systemAccent: '#01B964',
+            systemAccent: '#00A056',
             systemAccentHover: '#08D878',
             tailShadow: 'rgba(0, 0, 0, 0.24)',
-            quoteBgIn: '#2A3942',
-            quoteBgOut: '#0A4A3D',
+            quoteBgIn: '#2C2C2C',
+            quoteBgOut: '#008A48',
             quoteAuthorIn: '#53BDAE',
-            quoteAuthorOut: '#53BDAE',
+            quoteAuthorOut: '#FFFFFF',
             quoteTextIn: QUOTE_MUTED_ON_DARK,
-            quoteTextOut: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#E8F5EE',
         },
     },
     {
@@ -418,7 +418,15 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
     }
 
     const root = document.documentElement;
-    const colors = theme === 'light' ? preset.light : preset.dark;
+    const colors = { ...(theme === 'light' ? preset.light : preset.dark) };
+
+    if (preset.id === 'whatsapp') {
+        const accentOut = colors.systemAccent ?? colors.out;
+        colors.out = accentOut;
+        if (bubbleLuminance(accentOut) >= 0.42) {
+            colors.textOut = '#FFFFFF';
+        }
+    }
 
     root.dataset.messageStyle = preset.id;
     root.dataset.chatBubbles = preset.id;
