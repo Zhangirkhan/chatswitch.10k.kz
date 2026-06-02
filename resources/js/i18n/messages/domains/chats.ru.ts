@@ -369,6 +369,7 @@ export const chats = {
         goToMessage: 'Перейти к сообщению',
         openChat: 'Открыть чат: {name}',
         hideTranslation: 'Скрыть перевод',
+        translate: 'Перевод',
         translateTo: 'Перевести на {language}',
         translating: 'Переводим…',
         translateFailed: 'Не удалось перевести',

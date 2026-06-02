@@ -14,6 +14,7 @@ import ChatMessageProductCard from '@/Components/ChatMessageProductCard.vue';
 import type { MessageProductAttachment } from '@/types';
 import { useTranslationLang } from '@/composables/useTranslationLang';
 import { useI18n } from '@/composables/useI18n';
+import { messageNeedsTranslation } from '@/utils/messageLanguage';
 
 const props = defineProps<{
     message: Message;
@@ -36,12 +37,12 @@ const emit = defineEmits<{
 }>();
 
 const page = usePage<any>();
-const { t } = useI18n();
+const { t, locale: uiLocale } = useI18n();
 const { show: showToast } = useToastStore();
 const currentUserId = computed<number | undefined>(() => page.props.auth?.user?.id);
 
 // ─── Translation ─────────────────────────────────────────────────────────────
-const { lang: translateLang, currentOption: translateCurrent } = useTranslationLang();
+const { enabled: translateEnabled, targetLang: translateTargetLang } = useTranslationLang(uiLocale);
 
 const translationText  = ref<string | null>(null);
 const translationLoading = ref(false);
@@ -60,8 +61,7 @@ function setCachedTranslation(msgId: number, lang: string, text: string): void {
 }
 
 async function toggleTranslation(): Promise<void> {
-    const lang = translateLang.value;
-    if (lang === 'off') return;
+    const lang = translateTargetLang.value;
 
     // Already shown → hide
     if (translationVisible.value) {
@@ -891,6 +891,14 @@ const showMessageBody = computed(() => {
     return true;
 });
 
+const showTranslateButton = computed(
+    () =>
+        isInbound.value
+        && translateEnabled.value
+        && showMessageBody.value
+        && messageNeedsTranslation(props.message.body, translateTargetLang.value),
+);
+
 /** Текст body в основной области (расшифровка голосового — отдельно под плеером). */
 const showMainBodyText = computed(() => showMessageBody.value && !showVoiceTranscriptCollapsible.value);
 
@@ -1580,34 +1588,15 @@ onBeforeUnmount(() => {
                 </template>
             </p>
 
-            <!-- Кнопка перевода + блок с переводом -->
-            <div v-if="showMessageBody && translateLang !== 'off'" class="translate-wrap">
-                <button
-                    type="button"
-                    class="translate-btn"
-                    :class="{ 'translate-btn-active': translationVisible }"
-                    @click.stop="toggleTranslation"
-                    :disabled="translationLoading"
-                    :title="translationVisible ? t('chats.message.hideTranslation') : t('chats.message.translateTo', { language: translateCurrent().label })"
-                >
-                    <svg class="translate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
-                    </svg>
-                    <span v-if="!translationLoading">{{ translateCurrent().flag }} {{ translateCurrent().label }}</span>
-                    <span v-else class="translate-spinner">
-                        <svg class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" d="M21 12a9 9 0 11-9-9"/>
-                        </svg>
-                    </span>
-                </button>
-
-                <div v-if="translationVisible" class="translate-result">
-                    <div v-if="translationLoading" class="translate-loading">{{ t('chats.message.translating') }}</div>
-                    <div v-else-if="translationError" class="translate-error">{{ t('chats.message.translateFailed') }}</div>
-                    <p v-else-if="translationText" class="translate-text whitespace-pre-wrap break-words" style="word-break: break-word">
-                        {{ translationText }}
-                    </p>
-                </div>
+            <div
+                v-if="translationVisible && translateEnabled"
+                class="ui-msg-translate-result"
+            >
+                <div v-if="translationLoading" class="ui-msg-translate-result__status">{{ t('chats.message.translating') }}</div>
+                <div v-else-if="translationError" class="ui-msg-translate-result__status is-error">{{ t('chats.message.translateFailed') }}</div>
+                <p v-else-if="translationText" class="ui-msg-translate-result__text whitespace-pre-wrap break-words" style="word-break: break-word">
+                    {{ translationText }}
+                </p>
             </div>
 
             <div v-if="linkPreviewUrl" class="mb-1 min-w-[14rem]">
@@ -1905,12 +1894,30 @@ onBeforeUnmount(() => {
 
             <div
                 v-if="!fullBleedVisualBubble"
-                class="float-right -mb-1 -mt-1 ml-2 flex items-center gap-1 text-[11px] opacity-80"
+                class="wa-msg-bubble-footer"
             >
-                <span>{{ messageTime() }}</span>
-                <MessageStatus v-if="isOutbound" :status="message.status" :ack="message.ack" />
+                <button
+                    v-if="showTranslateButton || translationVisible"
+                    type="button"
+                    class="ui-msg-translate-btn"
+                    :class="{ 'is-active': translationVisible }"
+                    @click.stop="toggleTranslation"
+                    :disabled="translationLoading"
+                    :title="translationVisible ? t('chats.message.hideTranslation') : t('chats.message.translate')"
+                    :aria-expanded="translationVisible"
+                >
+                    <span v-if="translationLoading" class="ui-msg-translate-btn__spinner" aria-hidden="true">
+                        <svg class="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" d="M21 12a9 9 0 11-9-9"/>
+                        </svg>
+                    </span>
+                    <span v-else>{{ t('chats.message.translate') }}</span>
+                </button>
+                <div class="wa-msg-bubble-footer__meta">
+                    <span>{{ messageTime() }}</span>
+                    <MessageStatus v-if="isOutbound" :status="message.status" :ack="message.ack" />
+                </div>
             </div>
-            <div v-if="!fullBleedVisualBubble" class="clear-both"></div>
 
             <div :class="fullBleedVisualBubble ? 'px-2' : ''">
                 <MessageReactions
@@ -2131,61 +2138,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* ── Translation ─────────────────────────────────────────────────────────── */
-.translate-wrap {
-    margin-top: 2px;
-    margin-bottom: 2px;
+.wa-msg-bubble-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-top: 1px;
+    min-height: 14px;
 }
 
-.translate-btn {
+.wa-msg-bubble-footer__meta {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
-    border-radius: 999px;
-    border: 1px solid var(--wa-control-rim);
-    box-shadow: var(--wa-control-rim-shadow);
-    background: transparent;
-    color: var(--wa-text-secondary);
-    font-size: 0.68rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: color 0.12s, border-color 0.12s, background 0.12s;
-    line-height: 1.5;
+    gap: 0.2rem;
+    margin-left: auto;
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.8;
+    white-space: nowrap;
 }
-.translate-btn:hover:not(:disabled) {
-    color: var(--wa-text);
-    border-color: var(--wa-accent);
-    background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
-}
-.translate-btn.translate-btn-active {
-    color: var(--wa-accent);
-    border-color: var(--wa-accent);
-    background: color-mix(in srgb, var(--wa-accent) 10%, transparent);
-}
-.translate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.translate-icon {
-    width: 11px;
-    height: 11px;
-    flex-shrink: 0;
-}
-.translate-spinner { display: flex; align-items: center; }
-
-.translate-result {
-    margin-top: 4px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border-left: 3px solid var(--wa-accent);
-    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-bubble-in));
-    font-size: 0.85rem;
-    color: var(--wa-text);
-}
-.translate-loading, .translate-error {
-    font-size: 0.78rem;
-    color: var(--wa-text-secondary);
-}
-.translate-error { color: var(--wa-danger, #ef4444); }
-.translate-text { margin: 0; font-size: 0.85rem; }
 
 .ai-message-badge {
     display: block;

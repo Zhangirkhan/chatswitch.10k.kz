@@ -4,11 +4,8 @@ import UiModal from '@/Components/Ui/UiModal.vue';
 import { useTheme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
 import { useChatMessageStyle } from '@/composables/useChatBubbles';
-import {
-    useTranslationLang,
-    TRANSLATION_LANG_OPTIONS,
-    type TranslationLang,
-} from '@/composables/useTranslationLang';
+import { useTranslationLang } from '@/composables/useTranslationLang';
+import SettingToggle from './SettingToggle.vue';
 import { useI18n } from '@/composables/useI18n';
 import type { AppLocale } from '@/i18n/types';
 import { wallpaperPreview } from '@/config/wallpapers';
@@ -21,8 +18,8 @@ const { messageStyleLabel: localizedMessageStyleLabel, wallpaperLabel: localized
 const { theme, set: setTheme } = useTheme();
 const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBackground();
 const { presets: messageStyles, currentMessageStyleId, setMessageStyle, getCurrent: getCurrentMessageStyle } = useChatMessageStyle();
-const { lang: translateLang } = useTranslationLang();
-const { locale: uiLocale, locales: uiLocaleOptions, t, setLocale: setUiLocale } = useI18n();
+const { locale: uiLocale, locales: uiLocaleOptions, currentLocale, t, setLocale: setUiLocale } = useI18n();
+const { enabled: translateEnabled } = useTranslationLang(uiLocale);
 
 const wallpaperLabel = computed(() => localizedWallpaperLabel(currentWallpaperId.value));
 const messageStyleLabel = computed(() => localizedMessageStyleLabel(currentMessageStyleId.value));
@@ -46,9 +43,9 @@ function previewStyle(id: string): string {
 
 const currentWallpaperPreview = computed(() => previewStyle(currentWallpaperId.value));
 
-function isDefaultLang(value: TranslationLang): boolean {
-    return value === 'ru' || value === 'kk';
-}
+const translationToggleDescription = computed(() =>
+    t('profile.chatsSection.translationHint', { language: currentLocale.value.label }),
+);
 </script>
 
 <template>
@@ -173,33 +170,11 @@ function isDefaultLang(value: TranslationLang): boolean {
             </section>
 
             <section class="ui-settings-section chats-settings__section">
-                <h3 class="ui-settings-block-title">{{ t('profile.chatsSection.translation') }}</h3>
-                <p class="ui-settings-block-hint">
-                    {{ t('profile.chatsSection.translationHint') }}
-                </p>
-
-                <div class="ui-lang-grid" role="listbox" :aria-label="t('profile.chatsSection.translationLangAria')">
-                    <button
-                        v-for="opt in TRANSLATION_LANG_OPTIONS"
-                        :key="opt.value"
-                        type="button"
-                        role="option"
-                        class="ui-lang-chip"
-                        :class="{
-                            'is-active': translateLang === opt.value,
-                            'is-off': opt.value === 'off',
-                        }"
-                        :aria-selected="translateLang === opt.value"
-                        @click="translateLang = opt.value"
-                    >
-                        <span class="ui-lang-chip__flag" aria-hidden="true">{{ opt.flag }}</span>
-                        <span>{{ opt.label }}</span>
-                        <span
-                            v-if="isDefaultLang(opt.value)"
-                            class="ui-lang-chip__badge"
-                        >{{ t('profile.chatsSection.primaryBadge') }}</span>
-                    </button>
-                </div>
+                <SettingToggle
+                    v-model="translateEnabled"
+                    :title="t('profile.chatsSection.translation')"
+                    :description="translationToggleDescription"
+                />
             </section>
         </div>
 

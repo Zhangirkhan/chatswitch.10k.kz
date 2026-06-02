@@ -369,6 +369,7 @@ export const chats = {
         goToMessage: 'Go to message',
         openChat: 'Open chat: {name}',
         hideTranslation: 'Hide translation',
+        translate: 'Translate',
         translateTo: 'Translate to {language}',
         translating: 'Translating…',
         translateFailed: 'Failed to translate',

@@ -39,7 +39,7 @@ export const profileEn = {
         messageStyleExamples: 'Green, blue, graphite and more',
         translation: 'Message translation',
         translationHint:
-            'Pick a language — a «Translate» button appears under incoming messages. «Off» disables translation.',
+            'A compact «Translate» button appears under incoming messages in another language. Translations use your interface language ({language}).',
         translationLangAria: 'Translation language',
         primaryBadge: 'primary',
         pickWallpaperTitle: 'Choose wallpaper',

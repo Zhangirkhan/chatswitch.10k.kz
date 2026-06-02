@@ -369,6 +369,7 @@ export const chats = {
         goToMessage: 'Хабарламаға өту',
         openChat: 'Чатты ашу: {name}',
         hideTranslation: 'Аударманы жасыру',
+        translate: 'Аудару',
         translateTo: '{language} тіліне аудару',
         translating: 'Аударуда…',
         translateFailed: 'Аудару сәтсіз аяқталды',
