@@ -6,13 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
-use App\Jobs\GenerateAiReplyJob;
 use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\AiReadinessService;
 use App\Services\AI\AiResponderResolver;
+use App\Services\AI\ChatIdleAiReplyService;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,6 +23,7 @@ final class ChatAiSettingsController extends Controller
     public function __construct(
         private readonly AiReadinessService $readinessService,
         private readonly AiResponderResolver $responderResolver,
+        private readonly ChatIdleAiReplyService $idleAiReply,
     ) {}
 
     public function update(Request $request, Chat $chat): JsonResponse
@@ -160,6 +161,6 @@ final class ChatAiSettingsController extends Controller
             return;
         }
 
-        GenerateAiReplyJob::dispatch($chat->id, $latest->id, $chat->company_id);
+        $this->idleAiReply->dispatchGenerateReply($chat, $latest->id, immediate: true);
     }
 }

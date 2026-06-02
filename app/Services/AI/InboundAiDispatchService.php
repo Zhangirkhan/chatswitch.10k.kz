@@ -13,6 +13,10 @@ use App\Models\SystemSetting;
 
 final class InboundAiDispatchService
 {
+    public function __construct(
+        private readonly ChatIdleAiReplyService $idleAiReply,
+    ) {}
+
     public function dispatchForInboundMessage(Message $message): void
     {
         $message->loadMissing('chat');
@@ -49,7 +53,7 @@ final class InboundAiDispatchService
         }
 
         if ($chat->ai_enabled && ! $shouldAnalyzeFunnel) {
-            GenerateAiReplyJob::dispatch($chat->id, $message->id, $chat->company_id);
+            $this->idleAiReply->dispatchGenerateReply($chat, $message->id);
         }
     }
 }

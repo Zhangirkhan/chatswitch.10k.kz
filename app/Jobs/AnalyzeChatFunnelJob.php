@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatFunnelClassifierService;
+use App\Services\AI\ChatIdleAiReplyService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\Funnel\ChatFunnelStateService;
 use Illuminate\Bus\Queueable;
@@ -37,6 +38,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
         ChatFunnelStateService $state,
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
+        ChatIdleAiReplyService $idleAiReply,
     ): void
     {
         if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
@@ -80,7 +82,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
 
         $classification = $classifier->classify($chat, $latestInbound);
         if ($classification === null) {
-            $this->dispatchFallbackReply($chat);
+            $this->dispatchFallbackReply($chat, $idleAiReply);
 
             return;
         }
@@ -98,21 +100,21 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
                 return;
             }
 
-            $this->dispatchFallbackReply($chat);
+            $this->dispatchFallbackReply($chat, $idleAiReply);
         } catch (\Throwable $e) {
             Log::warning('[funnel-ai] apply failed', [
                 'chat_id' => $chat->id,
                 'error' => $e->getMessage(),
             ]);
 
-            $this->dispatchFallbackReply($chat);
+            $this->dispatchFallbackReply($chat, $idleAiReply);
         }
     }
 
-    private function dispatchFallbackReply(Chat $chat): void
+    private function dispatchFallbackReply(Chat $chat, ChatIdleAiReplyService $idleAiReply): void
     {
         if ($chat->ai_enabled) {
-            GenerateAiReplyJob::dispatch($chat->id, $this->triggerMessageId, $chat->company_id);
+            $idleAiReply->dispatchGenerateReply($chat, $this->triggerMessageId);
         }
     }
 

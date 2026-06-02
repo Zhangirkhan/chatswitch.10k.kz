@@ -9,7 +9,7 @@ return [
      * Внутренний чат отделов (вкладка «Чат») управляется отдельно — модулем module_tasks.
      */
     'organization_department_tasks' => filter_var(
-        env('ORGANIZATION_DEPARTMENT_TASKS', false),
+        env('ORGANIZATION_DEPARTMENT_TASKS', true),
         FILTER_VALIDATE_BOOLEAN,
     ),
 
@@ -26,6 +26,12 @@ return [
 
     /** Автоответ AI на входящие голосовые (после расшифровки). */
     'ai_voice_replies' => filter_var(env('ACCEL_AI_VOICE_REPLIES', true), FILTER_VALIDATE_BOOLEAN),
+
+    /**
+     * Минуты простоя в чате перед автоответом AI на входящее (0 = сразу, как раньше).
+     * Не отвечает на «спасибо» / короткие подтверждения; после ответа менеджера ждёт простоя или ручного включения AI.
+     */
+    'ai_idle_reply_minutes' => max(0, (int) env('ACCEL_AI_IDLE_REPLY_MINUTES', 10)),
 
     'whisper_model' => env('OPENAI_WHISPER_MODEL', 'whisper-1'),
 
