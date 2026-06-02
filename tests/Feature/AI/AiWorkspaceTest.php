@@ -335,4 +335,30 @@ final class AiWorkspaceTest extends TestCase
         $this->assertNotEmpty($response->json('calendar_events'));
         $this->assertSame('Запись клиента', $response->json('calendar_events.0.title'));
     }
+
+    public function test_calendar_search_includes_past_events_by_default(): void
+    {
+        config(['services.openai.api_key' => 'test-key']);
+
+        $admin = User::factory()->create(['company_id' => TenantCompany::id()]);
+        $admin->assignRole('administrator');
+
+        CalendarEvent::query()->create([
+            'user_id' => $admin->id,
+            'assignee_user_id' => $admin->id,
+            'title' => 'Визит вчера',
+            'starts_at' => Carbon::now()->subDays(2)->setTime(11, 0),
+            'ends_at' => Carbon::now()->subDays(2)->setTime(12, 0),
+            'all_day' => false,
+        ]);
+
+        $service = app(AiWorkspaceSearchService::class);
+        $bundle = $service->searchCalendarEvents($admin, ['days_ahead' => 7]);
+
+        $this->assertNotEmpty($bundle['events']);
+        $this->assertSame('Визит вчера', $bundle['events'][0]['title']);
+        $this->assertTrue(
+            Carbon::parse((string) $bundle['meta']['date_from'])->lt(Carbon::now()->startOfDay()),
+        );
+    }
 }

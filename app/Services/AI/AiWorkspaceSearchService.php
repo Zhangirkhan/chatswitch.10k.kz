@@ -279,15 +279,18 @@ final class AiWorkspaceSearchService
     {
         $employeeName = $this->nullableString($filters['employee_name'] ?? $filters['assignee_name'] ?? null);
         $employeeId = isset($filters['employee_id']) ? (int) $filters['employee_id'] : null;
+        $daysBack = min(90, max(0, (int) ($filters['days_back'] ?? 21)));
         $daysAhead = min(90, max(1, (int) ($filters['days_ahead'] ?? 14)));
 
-        $dateFrom = $this->parseDate($filters['date_from'] ?? null) ?? Carbon::now()->startOfDay();
+        $dateFrom = $this->parseDate($filters['date_from'] ?? null) ?? Carbon::now()->subDays($daysBack)->startOfDay();
         $dateTo = $this->parseDate($filters['date_to'] ?? null, endOfDay: true)
             ?? Carbon::now()->addDays($daysAhead)->endOfDay();
 
         $meta = [
             'date_from' => $dateFrom->toDateString(),
             'date_to' => $dateTo->toDateString(),
+            'days_back' => $daysBack,
+            'days_ahead' => $daysAhead,
         ];
 
         $assignee = null;

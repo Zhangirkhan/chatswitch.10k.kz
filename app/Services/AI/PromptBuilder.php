@@ -35,6 +35,7 @@ final class PromptBuilder
         private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
         private readonly OpenAiChatService $openAi,
         private readonly OperatorCalendarContextBuilder $calendarContext,
+        private readonly ChatCalendarContextBuilder $chatCalendarContext,
         private readonly ProductMessageAttachmentService $productAttachments,
         private readonly EntityMemoryService $entityMemories,
         private readonly PromptCompressionCache $compressionCache,
@@ -88,6 +89,7 @@ final class PromptBuilder
             ? ($replyAsCompany ? $this->companyToneBlock($companyId) : $this->toneBlock($responder, $companyId))
             : 'Профиль тона сотрудника недоступен.';
         $calendarBlock = $this->calendarContext->buildContextBlock($responder);
+        $chatCalendarBlock = $this->chatCalendarContext->buildContextBlock($chat);
         $styleExamplesBlock = $this->styleExamplesBlock($chat, $responder, $replyAsCompany);
         $memoryBlock = $this->entityMemoryBlock($chat, $responder);
         $promotionsBlock = $companyId !== null
@@ -101,7 +103,7 @@ final class PromptBuilder
             : "Ты — AI-ассистент поддержки в Accel. Ты формируешь ответ клиенту от имени сотрудника «{$responderName}».";
 
         $companyRules = $replyAsCompany
-            ? "\n18. Не используй формулировки «меня зовут», «я [имя]», не подписывайся именем сотрудника.\n19. Если нужно передать вопрос человеку — скажи нейтрально, что уточним и вернёмся с ответом, без указания кого именно."
+            ? "\n19. Не используй формулировки «меня зовут», «я [имя]», не подписывайся именем сотрудника.\n20. Если нужно передать вопрос человеку — скажи нейтрально, что уточним и вернёмся с ответом, без указания кого именно."
             : '';
 
         return <<<PROMPT
@@ -124,12 +126,15 @@ final class PromptBuilder
 14. Если клиент хочет записаться на услугу (включая замер окон, выезд на объект, монтаж), уточняй недостающие дату, время или услугу. Не подтверждай запись словами, пока система не создала её в календаре.
 15. Язык и тон ответа — по блоку «Языковой профиль» ниже: подстраивайся под клиента, по умолчанию вежливо и умеренно формально.
 16. Казахский пиши казахской кириллицей (ә, ө, ү, ұ, қ, ң, ғ, һ, і). Смешивай русский и казахский только если клиент сам так пишет.
-17. Не исправляй грамматику клиента. Не используй карикатурный сленг, если клиент пишет официально.{$companyRules}
+17. Не исправляй грамматику клиента. Не используй карикатурный сленг, если клиент пишет официально.
+18. О дате записи суди по блоку «Записи календаря в этом чате» и календарю оператора, а не по словам «завтра»/«сегодня» в старых сообщениях, если календарная дата уже другая.{$companyRules}
 {$this->productAttachments->promptInstruction()}
 
 {$knowledgeBlock}
 
 {$calendarBlock}
+
+{$chatCalendarBlock}
 
 {$toneBlock}
 

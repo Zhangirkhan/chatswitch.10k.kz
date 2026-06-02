@@ -243,7 +243,7 @@ PROMPT,
   "contact_filters": { "text", "company_name", "phone_contains", "has_unread_chat", "limit" },
   "media_filters": { "filename_contains", "text_query", "mime_category", "contact_text", "date_from", "date_to", "limit" },
   "message_filters": { "text_query", "contact_text", "date_from", "date_to", "limit" },
-  "calendar_filters": { "employee_name", "employee_id", "date_from", "date_to", "days_ahead", "limit" },
+  "calendar_filters": { "employee_name", "employee_id", "date_from", "date_to", "days_back", "days_ahead", "limit" },
   "funnel_filters": { "funnel_name", "stage_name", "assignee_name", "search", "scope": "all|mine|department", "limit" },
   "task_filters": { "assignee_name", "department_name", "status": "open|in_progress|done", "text", "limit" },
   "employee_filters": { "name", "list_department": true/false, "department_name" },
@@ -256,7 +256,7 @@ PROMPT,
 - Файлы, вложения, pdf, фото → media_filters.
 - Поиск по тексту переписки, «что писали», «найди сообщение» → message_filters.
 - Воронка, сделки, этапы, лиды → funnel_filters.
-- Календарь, записи, занят/свободен, расписание сотрудника → calendar_filters (employee_name).
+- Календарь, записи, занят/свободен, расписание сотрудника → calendar_filters (employee_name). Для прошлых дат («вчера», «на прошлой неделе», «какие были записи») задай date_from/date_to или days_back (до 90).
 - Задачи отдела, организация, дедлайны → task_filters.
 - Кто в отделе, список сотрудников → employee_filters list_department=true.
 - График/диаграмма → visualizations (chart с реальными числами или пусто).
@@ -336,7 +336,7 @@ PROMPT,
             return true;
         }
 
-        foreach (['employee_name', 'assignee_name', 'employee_id', 'date_from', 'date_to', 'days_ahead'] as $key) {
+        foreach (['employee_name', 'assignee_name', 'employee_id', 'date_from', 'date_to', 'days_back', 'days_ahead'] as $key) {
             if (! empty($filters[$key])) {
                 return true;
             }
