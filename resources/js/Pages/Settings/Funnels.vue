@@ -599,7 +599,7 @@ async function saveAiScenario(funnel: Funnel, patch: Partial<FunnelAiScenario>):
 
     if (patch.enabled === true && !payload.fallback_manager_user_id && !payload.fallback_department_id) {
         showToast({
-            message: 'Укажите fallback-менеджера или отдел для задач — иначе AI не сможет передать диалог человеку.',
+            message: t('settings.funnels.aiScenario.errorFallbackRequired'),
             duration: 6000,
         });
 
@@ -609,7 +609,10 @@ async function saveAiScenario(funnel: Funnel, patch: Partial<FunnelAiScenario>):
     const issues = funnelIssueCount(funnel);
     if (patch.enabled === true && issues > 0) {
         showToast({
-            message: `Перед включением исправьте AI-правила этапов (${issues}): ${funnelIssueSummary(funnel)}`,
+            message: t('settings.funnels.aiScenario.errorFixRulesBeforeEnable', {
+                count: issues,
+                summary: funnelIssueSummary(funnel),
+            }),
             duration: 8000,
         });
 
@@ -619,14 +622,19 @@ async function saveAiScenario(funnel: Funnel, patch: Partial<FunnelAiScenario>):
     try {
         const { data } = await axios.put(route('settings.funnels.ai-scenario.update', funnel.id), payload);
         funnel.ai_scenario = data.scenario as FunnelAiScenario;
-        showToast({ message: patch.enabled ? 'AI-сценарий включён' : 'AI-сценарий сохранён', duration: 2500 });
+        showToast({
+            message: patch.enabled
+                ? t('settings.funnels.aiScenario.toastEnabled')
+                : t('settings.funnels.aiScenario.toastSaved'),
+            duration: 2500,
+        });
     } catch (err: unknown) {
         const e = err as { response?: { data?: { message?: string; readiness?: { label?: string } } } };
         const status = (err as { response?: { status?: number } }).response?.status;
         const message =
             status === 423
-                ? 'Сначала завершите онбординг (WhatsApp, база знаний).'
-                : e.response?.data?.message || 'Не удалось сохранить AI-сценарий';
+                ? t('settings.funnels.aiScenario.errorOnboarding')
+                : e.response?.data?.message || t('settings.funnels.aiScenario.errorSaveScenario');
         showToast({ message, duration: 6000 });
     }
 }
@@ -681,17 +689,17 @@ function toggleStagePromotion(funnel: Funnel, stage: FunnelStage, promoId: numbe
     saveStageAiRule(funnel, stage, { follow_up_promotion_ids: next });
 }
 
-const followUpStrategyOptions = [
-    { id: 'off' as const, label: 'Выключено' },
-    { id: 'manager_proposals' as const, label: 'AI → варианты менеджеру (рекомендуется после КП)' },
-    { id: 'auto_cron' as const, label: 'Авто в WhatsApp по расписанию' },
-];
+const followUpStrategyOptions = computed(() => [
+    { id: 'off' as const, label: t('settings.funnels.followUp.strategyOff') },
+    { id: 'manager_proposals' as const, label: t('settings.funnels.followUp.strategyManager') },
+    { id: 'auto_cron' as const, label: t('settings.funnels.followUp.strategyAutoCron') },
+]);
 
-const followUpModeOptions = [
-    { id: 'template' as const, label: 'Шаблон', hint: 'Один фиксированный текст' },
-    { id: 'ab' as const, label: 'A/B тест', hint: 'Два варианта, доля B настраивается' },
-    { id: 'ai' as const, label: 'AI-текст', hint: 'Короткое сообщение генерирует модель' },
-];
+const followUpModeOptions = computed(() => [
+    { id: 'template' as const, label: t('settings.funnels.followUp.modeTemplate'), hint: t('settings.funnels.followUp.modeTemplateHint') },
+    { id: 'ab' as const, label: t('settings.funnels.followUp.modeAb'), hint: t('settings.funnels.followUp.modeAbHint') },
+    { id: 'ai' as const, label: t('settings.funnels.followUp.modeAi'), hint: t('settings.funnels.followUp.modeAiHint') },
+]);
 
 async function saveStageAiRule(funnel: Funnel, stage: FunnelStage, patch: Partial<FunnelStageAiRule>): Promise<void> {
     const payload = { ...stageRuleDraft(stage), ...patch };
@@ -814,7 +822,7 @@ function stageHints(stage: FunnelStage, index: number, total: number): StageHint
 function stageRuleHealthLabel(stage: FunnelStage, index = 0, total = 0): string {
     const count = stageRuleIssues(stage, index, total).length;
 
-    return count === 0 ? 'AI ok' : `AI: ${count}`;
+    return count === 0 ? t('settings.funnels.aiHealthOk') : t('settings.funnels.aiHealthIssues', { count });
 }
 
 function stageRuleHealthColor(stage: FunnelStage, index = 0, total = 0): string {
@@ -1029,23 +1037,23 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                     >
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <div class="text-sm font-semibold text-[var(--ui-text)]">AI-сценарий воронки</div>
+                                <div class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.funnels.aiScenario.title') }}</div>
                                 <div class="text-xs text-[var(--ui-text-secondary)]">
-                                    AI ведёт клиента по этапам, пишет от лица компании и передаёт спорные случаи менеджеру.
+                                    {{ t('settings.funnels.aiScenario.desc') }}
                                 </div>
                             </div>
                             <label class="ai-toggle inline-flex cursor-pointer items-center gap-2 text-sm text-[var(--ui-text)]">
                                 <UiCheckbox
                                     :model-value="scenarioDraft(funnel).enabled"
-                                    aria-label="Включить AI-сценарий"
+                                    :aria-label="t('settings.funnels.aiScenario.enableAria')"
                                     @update:model-value="(v) => saveAiScenario(funnel, { enabled: v })"
                                 />
-                                Включить
+                                {{ t('settings.funnels.aiScenario.enable') }}
                             </label>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
                             <label class="space-y-1">
-                                <span class="text-[var(--ui-text-secondary)]">Горизонт записи, дней</span>
+                                <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.aiScenario.bookingHorizon') }}</span>
                                 <input
                                     type="number"
                                     min="1"
@@ -1056,34 +1064,34 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 />
                             </label>
                             <label class="space-y-1">
-                                <span class="text-[var(--ui-text-secondary)]">Fallback-менеджер</span>
+                                <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.aiScenario.fallbackManager') }}</span>
                                 <select
                                     class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                     :value="scenarioDraft(funnel).fallback_manager_user_id ?? ''"
                                     @change="saveAiScenario(funnel, { fallback_manager_user_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
                                 >
-                                    <option value="">Не выбран</option>
+                                    <option value="">{{ t('settings.funnels.notSelected') }}</option>
                                     <option v-for="u in aiScenarioUsers ?? []" :key="u.id" :value="u.id">{{ u.name }}</option>
                                 </select>
                             </label>
                             <label class="space-y-1">
-                                <span class="text-[var(--ui-text-secondary)]">Отдел для задач</span>
+                                <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.aiScenario.taskDepartment') }}</span>
                                 <select
                                     class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                     :value="scenarioDraft(funnel).fallback_department_id ?? ''"
                                     @change="saveAiScenario(funnel, { fallback_department_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
                                 >
-                                    <option value="">Не выбран</option>
+                                    <option value="">{{ t('settings.funnels.notSelected') }}</option>
                                     <option v-for="d in aiScenarioDepartments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
                                 </select>
                             </label>
                             <span class="inline-flex items-end gap-2 pb-1 text-[var(--ui-text)]">
                                 <UiCheckbox
                                     :model-value="scenarioDraft(funnel).manager_confirmation_required"
-                                    aria-label="Подтверждать у менеджера"
+                                    :aria-label="t('settings.funnels.aiScenario.managerConfirmAria')"
                                     @update:model-value="(v) => saveAiScenario(funnel, { manager_confirmation_required: v })"
                                 />
-                                Подтверждать у менеджера
+                                {{ t('settings.funnels.aiScenario.managerConfirm') }}
                             </span>
                         </div>
                     </div>
@@ -1093,7 +1101,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             v-if="funnel.stages.length === 0"
                             class="text-sm text-[var(--ui-text-secondary)] italic"
                         >
-                            Этапов пока нет — нажмите «+ Этап», чтобы добавить первый.
+                            {{ t('settings.funnels.noStagesInFunnel') }}
                         </div>
                         <ol v-else class="space-y-2">
                             <li
@@ -1114,7 +1122,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     <button
                                         type="button"
                                         class="cursor-grab px-1 text-[var(--ui-text-secondary)] active:cursor-grabbing"
-                                        title="Перетащите этап"
+                                        :title="t('settings.funnels.dragStage')"
                                         @mousedown.stop
                                     >
                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -1142,7 +1150,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             v-if="!stage.is_active"
                                             class="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400"
                                         >
-                                            неактивен
+                                            {{ t('settings.funnels.inactiveStage') }}
                                         </span>
                                         <span
                                             class="ml-2 text-[10px] px-1.5 py-0.5 rounded"
@@ -1159,7 +1167,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         type="button"
                                         class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
                                         :disabled="idx === 0"
-                                        title="Переместить выше"
+                                        :title="t('settings.funnels.moveUp')"
                                         @click="moveStage(funnel, stage, -1)"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1170,7 +1178,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         type="button"
                                         class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
                                         :disabled="idx === funnel.stages.length - 1"
-                                        title="Переместить ниже"
+                                        :title="t('settings.funnels.moveDown')"
                                         @click="moveStage(funnel, stage, 1)"
                                     >
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1183,14 +1191,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                         @click="openEditStage(funnel, stage)"
                                     >
-                                        Изменить
+                                        {{ t('settings.funnels.edit') }}
                                     </button>
                                     <button
                                         type="button"
                                         class="text-xs px-2 py-1 rounded-md border border-red-500/40 text-red-400 transition hover:bg-red-500/10"
                                         @click="requestDeleteStage(funnel, stage)"
                                     >
-                                        Удалить
+                                        {{ t('common.delete') }}
                                     </button>
                                     </div>
                                 </div>
@@ -1210,13 +1218,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 
                                 <details class="ai-rule-panel w-full rounded-xl border px-3 py-2">
                                     <summary class="cursor-pointer text-xs font-semibold text-[var(--ui-accent)]">
-                                        AI-правила этапа
+                                        {{ t('settings.funnels.stageRules.title') }}
                                         <span
                                             v-if="stageRuleIssues(stage, idx, funnel.stages.length).length > 0"
                                             class="ml-2 rounded-full px-2 py-0.5 text-[10px]"
                                             :style="{ color: stageRuleHealthColor(stage, idx, funnel.stages.length), background: `${stageRuleHealthColor(stage, idx, funnel.stages.length)}1A` }"
                                         >
-                                            {{ stageRuleIssues(stage, idx, funnel.stages.length).length }} проблем
+                                            {{ t('settings.funnels.issuesCount', { count: stageRuleIssues(stage, idx, funnel.stages.length).length }) }}
                                         </span>
                                     </summary>
                                     <div
@@ -1225,14 +1233,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         :style="{ borderColor: 'rgba(217, 119, 6, .35)', background: 'rgba(217, 119, 6, .08)' }"
                                     >
                                         <div class="mb-1 flex items-center justify-between gap-2">
-                                            <div class="text-xs font-semibold" :style="{ color: '#d97706' }">Что поправить</div>
+                                            <div class="text-xs font-semibold" :style="{ color: '#d97706' }">{{ t('settings.funnels.stageRules.fixWhat') }}</div>
                                             <button
                                                 type="button"
                                                 class="rounded-md px-2 py-1 text-[11px] font-semibold"
                                                 :style="{ background: 'rgba(217, 119, 6, .14)', color: '#d97706' }"
                                                 @click.prevent="applySuggestedStageRule(funnel, stage, idx, funnel.stages.length)"
                                             >
-                                                Починить базово
+                                                {{ t('settings.funnels.stageRules.fixBasic') }}
                                             </button>
                                         </div>
                                         <ul class="space-y-1 text-xs text-[var(--ui-text-secondary)]">
@@ -1243,7 +1251,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     </div>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-xs">
                                         <label class="space-y-1">
-                                            <span class="text-[var(--ui-text-secondary)]">Цель этапа</span>
+                                            <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.stageRules.goal') }}</span>
                                             <textarea
                                                 rows="2"
                                                 class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
@@ -1252,7 +1260,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             />
                                         </label>
                                         <label class="space-y-1">
-                                            <span class="text-[var(--ui-text-secondary)]">Условия перехода</span>
+                                            <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.stageRules.transitionConditions') }}</span>
                                             <textarea
                                                 rows="2"
                                                 class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
@@ -1261,7 +1269,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             />
                                         </label>
                                         <label class="space-y-1">
-                                            <span class="text-[var(--ui-text-secondary)]">Вопросы клиенту, по одному в строке</span>
+                                            <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.stageRules.requiredQuestions') }}</span>
                                             <textarea
                                                 rows="3"
                                                 class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
@@ -1270,7 +1278,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             />
                                         </label>
                                         <div class="space-y-1">
-                                            <span class="text-[var(--ui-text-secondary)]">Разрешённые действия</span>
+                                            <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.stageRules.allowedActions') }}</span>
                                             <div class="flex flex-wrap gap-2">
                                                 <span
                                                     v-for="action in aiActionOptions"
@@ -1293,30 +1301,30 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             </div>
                                         </div>
                                         <label class="space-y-1">
-                                            <span class="text-[var(--ui-text-secondary)]">Отдел исполнителей</span>
+                                            <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.stageRules.assigneeDepartment') }}</span>
                                             <select
                                                 class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                 :value="stageRuleDraft(stage).assignee_department_id ?? ''"
                                                 @change="saveStageAiRule(funnel, stage, { assignee_department_id: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null })"
                                             >
-                                                <option value="">Не выбран</option>
+                                                <option value="">{{ t('settings.funnels.notSelected') }}</option>
                                                 <option v-for="d in aiScenarioDepartments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
                                             </select>
                                         </label>
                                         <span class="inline-flex items-center gap-2 text-[var(--ui-text)]">
                                             <UiCheckbox
                                                 :model-value="stageRuleDraft(stage).require_manager_confirmation"
-                                                aria-label="Спорные действия подтверждает менеджер"
+                                                :aria-label="t('settings.funnels.stageRules.managerConfirmAria')"
                                                 @update:model-value="(v) => saveStageAiRule(funnel, stage, { require_manager_confirmation: v })"
                                             />
-                                            Спорные действия подтверждает менеджер
+                                            {{ t('settings.funnels.stageRules.managerConfirm') }}
                                         </span>
                                         <div
                                             class="md:col-span-2 rounded-xl border px-3 py-3 space-y-3"
                                             :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-inset)' }"
                                         >
                                             <label class="block space-y-1">
-                                                <span class="text-[var(--ui-text)] font-medium">Дожим клиентов</span>
+                                                <span class="text-[var(--ui-text)] font-medium">{{ t('settings.funnels.followUp.title') }}</span>
                                                 <select
                                                     class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                     :value="stageRuleDraft(stage).follow_up_strategy ?? 'off'"
@@ -1335,15 +1343,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 v-if="stageRuleDraft(stage).follow_up_strategy === 'manager_proposals'"
                                                 class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]"
                                             >
-                                                После тишины клиента AI подготовит 2–3 варианта сообщения; менеджер выберет и отправит.
-                                                По умолчанию AI использует все активные акции компании.
+                                                {{ t('settings.funnels.followUp.managerProposalsHint') }}
                                             </p>
                                             <div
                                                 v-if="stageRuleDraft(stage).follow_up_strategy === 'manager_proposals'"
                                                 class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                                             >
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Ждать (часов)</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.waitHours') }}</span>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -1354,18 +1361,18 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     />
                                                 </label>
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Тишина после</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.silenceAfter') }}</span>
                                                     <select
                                                         class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                         :value="stageRuleDraft(stage).follow_up_silence_after ?? 'outbound'"
                                                         @change="saveStageAiRule(funnel, stage, { follow_up_silence_after: ($event.target as HTMLSelectElement).value as 'inbound' | 'outbound' })"
                                                     >
-                                                        <option value="outbound">Нашего сообщения (КП/цена)</option>
-                                                        <option value="inbound">Сообщения клиента</option>
+                                                        <option value="outbound">{{ t('settings.funnels.followUp.silenceOutbound') }}</option>
+                                                        <option value="inbound">{{ t('settings.funnels.followUp.silenceInbound') }}</option>
                                                     </select>
                                                 </label>
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Макс. предложений / период</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.maxProposalsPerPeriod') }}</span>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -1383,10 +1390,10 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 <span class="inline-flex items-center gap-2 text-sm text-[var(--ui-text)]">
                                                     <UiCheckbox
                                                         :model-value="stageRuleDraft(stage).follow_up_use_promotions ?? true"
-                                                        aria-label="Предлагать акции в дожиме"
+                                                        :aria-label="t('settings.funnels.followUp.usePromotionsAria')"
                                                         @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_use_promotions: v })"
                                                     />
-                                                    Предлагать акции в дожиме
+                                                    {{ t('settings.funnels.followUp.usePromotions') }}
                                                 </span>
                                                 <div
                                                     v-if="stageRuleDraft(stage).follow_up_use_promotions !== false"
@@ -1395,23 +1402,23 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 >
                                                     <div class="flex flex-wrap items-center justify-between gap-2">
                                                         <span class="text-[var(--ui-text-secondary)] text-sm">
-                                                            Ограничить список (необязательно)
+                                                            {{ t('settings.funnels.followUp.limitPromotionsList') }}
                                                         </span>
                                                         <Link
                                                             :href="route('settings.promotions')"
                                                             class="text-[11px] text-[var(--ui-accent)] hover:underline"
                                                         >
-                                                            Управление акциями
+                                                            {{ t('settings.funnels.followUp.managePromotions') }}
                                                         </Link>
                                                     </div>
                                                     <p class="text-[11px] text-[var(--ui-text-secondary)]">
-                                                        Если ничего не выбрано — AI использует все активные акции.
+                                                        {{ t('settings.funnels.followUp.allPromotionsHint') }}
                                                     </p>
                                                     <p
                                                         v-if="!(promotions ?? []).length"
                                                         class="text-[11px] text-[var(--ui-text-secondary)]"
                                                     >
-                                                        Сначала добавьте акции в разделе «Акции и скидки».
+                                                        {{ t('settings.funnels.followUp.addPromotionsFirst') }}
                                                     </p>
                                                     <div v-else class="flex flex-col gap-2">
                                                         <label
@@ -1429,7 +1436,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                                 <span
                                                                     v-if="!promo.is_currently_valid"
                                                                     class="ml-1 text-[11px] opacity-60"
-                                                                >(срок истёк)</span>
+                                                                >{{ t('settings.funnels.followUp.promoExpired') }}</span>
                                                             </span>
                                                         </label>
                                                     </div>
@@ -1438,22 +1445,21 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             <span class="inline-flex items-center gap-2 text-[var(--ui-text)] font-medium">
                                                 <UiCheckbox
                                                     :model-value="stageRuleDraft(stage).follow_up_enabled"
-                                                    aria-label="Авто follow-up клиенту"
+                                                    :aria-label="t('settings.funnels.followUp.clientFollowUpAria')"
                                                     :disabled="stageRuleDraft(stage).follow_up_strategy !== 'auto_cron'"
                                                     @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_enabled: v })"
                                                 />
-                                                Авто follow-up клиенту
+                                                {{ t('settings.funnels.followUp.clientFollowUp') }}
                                             </span>
                                             <p class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]">
-                                                Если клиент не ответил после вашего последнего сообщения, система отправит мягкое напоминание через отложенное сообщение.
-                                                Плейсхолдеры: <code>{chat_name}</code>, <code>{stage_name}</code>.
+                                                {{ t('settings.funnels.followUp.clientFollowUpHint') }}
                                             </p>
                                             <div
                                                 v-if="stageRuleDraft(stage).follow_up_enabled && stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
                                                 class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                                             >
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Ждать (часов)</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.waitHours') }}</span>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -1464,7 +1470,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     />
                                                 </label>
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Пауза (часов)</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.pauseHours') }}</span>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -1475,7 +1481,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     />
                                                 </label>
                                                 <label class="space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Макс. за период</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.maxPerPeriod') }}</span>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -1491,7 +1497,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 class="space-y-3"
                                             >
                                                 <label class="block space-y-1">
-                                                    <span class="text-[var(--ui-text-secondary)]">Режим текста</span>
+                                                    <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.textMode') }}</span>
                                                     <select
                                                         class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                         :value="stageRuleDraft(stage).follow_up_mode"
@@ -1509,13 +1515,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 <template v-if="stageRuleDraft(stage).follow_up_mode !== 'ai'">
                                                     <label class="block space-y-1">
                                                         <span class="text-[var(--ui-text-secondary)]">
-                                                            {{ stageRuleDraft(stage).follow_up_mode === 'ab' ? 'Вариант A' : 'Текст сообщения' }}
+                                                            {{ stageRuleDraft(stage).follow_up_mode === 'ab' ? t('settings.funnels.followUp.variantA') : t('settings.funnels.followUp.messageText') }}
                                                         </span>
                                                         <textarea
                                                             rows="3"
                                                             class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                             :value="stageRuleDraft(stage).follow_up_message ?? ''"
-                                                            placeholder="Добрый день, {chat_name}! Вы ещё рассматриваете предложение?"
+                                                            :placeholder="t('settings.funnels.followUp.messagePlaceholder')"
                                                             @change="saveStageAiRule(funnel, stage, { follow_up_message: ($event.target as HTMLTextAreaElement).value })"
                                                         />
                                                     </label>
@@ -1523,12 +1529,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                         v-if="stageRuleDraft(stage).follow_up_mode === 'ab'"
                                                         class="block space-y-1"
                                                     >
-                                                        <span class="text-[var(--ui-text-secondary)]">Вариант B</span>
+                                                        <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.variantB') }}</span>
                                                         <textarea
                                                             rows="3"
                                                             class="ui-field w-full rounded-lg border px-2.5 py-2 text-[var(--ui-text)]"
                                                             :value="stageRuleDraft(stage).follow_up_message_b ?? ''"
-                                                            placeholder="Альтернативная формулировка…"
+                                                            :placeholder="t('settings.funnels.followUp.variantBPlaceholder')"
                                                             @change="saveStageAiRule(funnel, stage, { follow_up_message_b: ($event.target as HTMLTextAreaElement).value })"
                                                         />
                                                     </label>
@@ -1536,7 +1542,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                         v-if="stageRuleDraft(stage).follow_up_mode === 'ab'"
                                                         class="block space-y-1 max-w-xs"
                                                     >
-                                                        <span class="text-[var(--ui-text-secondary)]">Доля варианта B (%)</span>
+                                                        <span class="text-[var(--ui-text-secondary)]">{{ t('settings.funnels.followUp.abRatio') }}</span>
                                                         <input
                                                             type="number"
                                                             min="0"
@@ -1551,7 +1557,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     v-else
                                                     class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]"
                                                 >
-                                                    Текст follow-up будет сгенерирован AI по цели этапа и последним сообщениям в чате (профиль тона компании учитывается).
+                                                    {{ t('settings.funnels.followUp.aiGeneratedHint') }}
                                                 </p>
                                             </div>
                                         </div>
@@ -1584,12 +1590,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         :style="{ borderColor: 'var(--ui-border)' }"
                     >
                         <h3 class="text-base font-medium text-[var(--ui-text)]">
-                            {{ editingFunnelId === null ? 'Новая воронка' : 'Редактировать воронку' }}
+                            {{ editingFunnelId === null ? t('settings.funnels.modals.newFunnel') : t('settings.funnels.modals.editFunnel') }}
                         </h3>
                         <button
                             type="button"
                             class="text-sm text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)] px-2 py-1 rounded"
-                            aria-label="Закрыть"
+                            :aria-label="t('common.close')"
                             @click="closeFunnelModal"
                         >
                             ✕
@@ -1612,7 +1618,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     : { color: 'var(--ui-text-secondary)' }"
                                 @click="switchFunnelMode('manual')"
                             >
-                                Вручную
+                                {{ t('settings.funnels.modals.manual') }}
                             </button>
                             <button
                                 type="button"
@@ -1625,7 +1631,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" />
                                 </svg>
-                                AI-конструктор
+                                {{ t('settings.funnels.aiBuilder') }}
                             </button>
                         </div>
                     </div>
@@ -1639,13 +1645,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         </template>
 
                         <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Название</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.name') }}</label>
                             <input
                                 v-model="funnelForm.name"
                                 type="text"
                                 class="settings-input"
                                 :class="{ 'settings-input-error': funnelErrors.name }"
-                                placeholder="Например: Продажи B2B"
+                                :placeholder="t('settings.funnels.modals.namePlaceholderFunnel')"
                             />
                             <div v-if="funnelErrors.name" class="text-xs text-red-400 mt-1 whitespace-pre-line">
                                 {{ funnelErrors.name }}
@@ -1653,17 +1659,17 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         </div>
 
                         <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Описание (необязательно)</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.descriptionOptional') }}</label>
                             <textarea
                                 v-model="funnelForm.description"
                                 class="settings-input min-h-[64px]"
                                 rows="2"
-                                placeholder="Краткое описание воронки"
+                                :placeholder="t('settings.funnels.modals.descriptionPlaceholder')"
                             ></textarea>
                         </div>
 
                         <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Цвет</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.color') }}</label>
                             <div class="flex flex-wrap gap-2">
                                 <button
                                     v-for="c in palette"
@@ -1685,7 +1691,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         >
                             <UiCheckbox id="funnel-active" v-model="funnelForm.is_active" />
                             <label for="funnel-active" class="text-sm text-[var(--ui-text)] cursor-pointer">
-                                Активна
+                                {{ t('settings.funnels.modals.active') }}
                             </label>
                         </div>
 
@@ -1697,7 +1703,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         >
                             <div class="flex items-center justify-between mb-2 mt-2">
                                 <label class="text-sm text-[var(--ui-text-secondary)]">
-                                    Этапы воронки ({{ aiStages.length }})
+                                    {{ t('settings.funnels.modals.stagesInFunnel', { count: aiStages.length }) }}
                                 </label>
                                 <button
                                     type="button"
@@ -1705,7 +1711,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                     :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
                                     @click="addAiStage"
                                 >
-                                    + Этап
+                                    {{ t('settings.funnels.addStage') }}
                                 </button>
                             </div>
 
@@ -1729,14 +1735,14 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         v-model="stage.name"
                                         type="text"
                                         class="settings-input flex-1 min-w-0"
-                                        placeholder="Название этапа"
+                                        :placeholder="t('settings.funnels.modals.stageNamePlaceholder')"
                                     />
                                     <div class="flex items-center gap-0.5 shrink-0">
                                         <button
                                             type="button"
                                             class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
                                             :disabled="idx === 0"
-                                            title="Переместить выше"
+                                            :title="t('settings.funnels.moveUp')"
                                             @click="moveAiStage(idx, -1)"
                                         >
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1747,7 +1753,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                             type="button"
                                             class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
                                             :disabled="idx === aiStages.length - 1"
-                                            title="Переместить ниже"
+                                            :title="t('settings.funnels.moveDown')"
                                             @click="moveAiStage(idx, 1)"
                                         >
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1757,7 +1763,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                         <button
                                             type="button"
                                             class="px-1.5 py-1 rounded text-red-400 hover:bg-red-500/10"
-                                            title="Удалить этап"
+                                            :title="t('settings.funnels.removeStage')"
                                             @click="removeAiStage(idx)"
                                         >
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1768,7 +1774,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                 </li>
                             </ol>
                             <div v-else class="text-xs text-[var(--ui-text-secondary)] italic">
-                                Этапов нет — нажмите «+ Этап», чтобы добавить.
+                                {{ t('settings.funnels.modals.noStagesInModal') }}
                             </div>
                         </div>
                     </div>
@@ -1783,7 +1789,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             class="ui-btn ui-btn--secondary"
                             @click="closeFunnelModal"
                         >
-                            Отмена
+                            {{ t('common.cancel') }}
                         </button>
                         <button
                             type="button"
@@ -1791,12 +1797,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
                             @click="saveFunnel"
                         >
-                            <template v-if="savingFunnel">Сохранение…</template>
-                            <template v-else-if="editingFunnelId !== null">Сохранить</template>
+                            <template v-if="savingFunnel">{{ t('settings.funnels.savingEllipsis') }}</template>
+                            <template v-else-if="editingFunnelId !== null">{{ t('common.save') }}</template>
                             <template v-else-if="funnelMode === 'ai' && aiSuggested">
-                                Создать с {{ aiStages.length }} этап(ами)
+                                {{ t('settings.funnels.modals.createWithStages', { count: aiStages.length }) }}
                             </template>
-                            <template v-else>Создать</template>
+                            <template v-else>{{ t('settings.funnels.create') }}</template>
                         </button>
                     </div>
                 </div>
@@ -1823,10 +1829,10 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                     >
                         <h3 class="text-base font-medium text-[var(--ui-text)]">
                             <template v-if="stageContext.editingStageId === null">
-                                Новый этап
+                                {{ t('settings.funnels.modals.newStage') }}
                             </template>
                             <template v-else>
-                                Редактировать этап
+                                {{ t('settings.funnels.modals.editStage') }}
                             </template>
                             <span class="text-xs text-[var(--ui-text-secondary)] ml-1">
                                 — {{ stageContext.funnel?.name }}
@@ -1835,7 +1841,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         <button
                             type="button"
                             class="text-sm text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)] px-2 py-1 rounded"
-                            aria-label="Закрыть"
+                            :aria-label="t('common.close')"
                             @click="closeStageModal"
                         >
                             ✕
@@ -1844,13 +1850,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 
                     <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
                         <div>
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Название</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.name') }}</label>
                             <input
                                 v-model="stageForm.name"
                                 type="text"
                                 class="settings-input"
                                 :class="{ 'settings-input-error': stageErrors.name }"
-                                placeholder="Например: Первичный контакт"
+                                :placeholder="t('settings.funnels.modals.stageNamePlaceholder')"
                             />
                             <div v-if="stageErrors.name" class="text-xs text-red-400 mt-1 whitespace-pre-line">
                                 {{ stageErrors.name }}
@@ -1858,7 +1864,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         </div>
 
                         <div>
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">Цвет</label>
+                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.color') }}</label>
                             <div class="flex flex-wrap gap-2">
                                 <button
                                     v-for="c in palette"
@@ -1876,13 +1882,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 
                         <div>
                             <div class="mb-2 flex items-center justify-between gap-2">
-                                <label class="block text-sm text-[var(--ui-text-secondary)]">Тип этапа</label>
+                                <label class="block text-sm text-[var(--ui-text-secondary)]">{{ t('settings.funnels.modals.stageType') }}</label>
                                 <button
                                     type="button"
                                     class="text-xs text-[var(--ui-accent)] hover:underline"
                                     @click="stageForm.stage_type = guessStageTypeFromName(stageForm.name)"
                                 >
-                                    Подобрать по названию
+                                    {{ t('settings.funnels.modals.guessTypeFromName') }}
                                 </button>
                             </div>
                             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1906,25 +1912,25 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 
                         <div>
                             <label class="mb-1 block text-xs font-medium text-[var(--ui-text-secondary)]">
-                                Лимит WIP (необязательно)
+                                {{ t('settings.funnels.modals.wipLimit') }}
                             </label>
                             <input
                                 v-model="stageForm.wip_limit"
                                 type="number"
                                 min="1"
                                 max="999"
-                                placeholder="Без лимита"
+                                :placeholder="t('settings.funnels.modals.wipLimitPlaceholder')"
                                 class="ui-input w-full"
                             />
                             <p class="mt-1 mb-0 text-[11px] text-[var(--ui-text-secondary)]">
-                                Максимум карточек на этапе на доске воронки
+                                {{ t('settings.funnels.modals.wipLimitHint') }}
                             </p>
                         </div>
 
                         <div class="flex items-center gap-2 pt-1">
                             <UiCheckbox id="stage-active" v-model="stageForm.is_active" />
                             <label for="stage-active" class="text-sm text-[var(--ui-text)] cursor-pointer">
-                                Активен
+                                {{ t('settings.funnels.modals.activeStage') }}
                             </label>
                         </div>
                     </div>
@@ -1938,7 +1944,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             class="ui-btn ui-btn--secondary"
                             @click="closeStageModal"
                         >
-                            Отмена
+                            {{ t('common.cancel') }}
                         </button>
                         <button
                             type="button"
@@ -1946,7 +1952,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             :disabled="savingStage"
                             @click="saveStage"
                         >
-                            {{ savingStage ? 'Сохранение…' : (stageContext.editingStageId === null ? 'Создать' : 'Сохранить') }}
+                            {{ savingStage ? t('settings.funnels.savingEllipsis') : (stageContext.editingStageId === null ? t('settings.funnels.create') : t('common.save')) }}
                         </button>
                     </div>
                 </div>
