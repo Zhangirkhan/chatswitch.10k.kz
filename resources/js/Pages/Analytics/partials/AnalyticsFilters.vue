@@ -32,19 +32,10 @@ const { t } = useI18n();
 </script>
 
 <template>
-    <section class="ui-panel ui-analytics-filters">
-        <div class="ui-analytics-filters__head">
-            <div>
-                <h2 class="ui-analytics-filters__title">{{ t('analytics.filtersTitle') }}</h2>
-                <p class="ui-analytics-filters__hint">{{ t('analytics.filtersHint') }}</p>
-            </div>
-            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="emit('reset')">
-                {{ t('analytics.resetAll') }}
-            </button>
-        </div>
+    <section class="ui-panel ui-analytics-filters" :aria-label="t('analytics.filtersTitle')">
+        <div class="ui-analytics-filters__row ui-analytics-filters__row--period">
+            <span class="ui-analytics-filters__title">{{ t('analytics.filtersTitle') }}</span>
 
-        <div class="ui-analytics-filters__period">
-            <span class="ui-analytics-filters__label">{{ t('analytics.period') }}</span>
             <div class="ui-analytics-filters__pills">
                 <button
                     type="button"
@@ -71,23 +62,30 @@ const { t } = useI18n();
                     {{ t('analytics.days30') }}
                 </button>
             </div>
-            <span class="ui-analytics-filters__label">{{ t('analytics.customDates') }}</span>
-            <input
-                :value="from"
-                type="date"
-                class="ui-analytics-input"
-                @input="emit('update:from', ($event.target as HTMLInputElement).value); emit('update:periodPreset', 'custom')"
-            />
-            <span class="ui-analytics-filters__dash">—</span>
-            <input
-                :value="to"
-                type="date"
-                class="ui-analytics-input"
-                @input="emit('update:to', ($event.target as HTMLInputElement).value); emit('update:periodPreset', 'custom')"
-            />
+
+            <div class="ui-analytics-filters__dates">
+                <input
+                    :value="from"
+                    type="date"
+                    class="ui-analytics-input ui-analytics-input--date"
+                    :aria-label="t('analytics.customDates')"
+                    @input="emit('update:from', ($event.target as HTMLInputElement).value); emit('update:periodPreset', 'custom')"
+                />
+                <span class="ui-analytics-filters__dash" aria-hidden="true">—</span>
+                <input
+                    :value="to"
+                    type="date"
+                    class="ui-analytics-input ui-analytics-input--date"
+                    @input="emit('update:to', ($event.target as HTMLInputElement).value); emit('update:periodPreset', 'custom')"
+                />
+            </div>
+
+            <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-analytics-filters__reset" @click="emit('reset')">
+                {{ t('analytics.resetAll') }}
+            </button>
         </div>
 
-        <div class="ui-analytics-filters__grid">
+        <div class="ui-analytics-filters__row ui-analytics-filters__grid">
             <label class="ui-analytics-field">
                 <span class="ui-analytics-field__label">{{ t('analytics.department') }}</span>
                 <select

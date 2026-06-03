@@ -108,8 +108,9 @@ function onProblemNext() {
             </header>
 
             <div class="ui-tool-page__main ui-analytics-page__main wa-scrollbar">
-                <AnalyticsFilters
-                    :analytics-type="analytics.analyticsType.value"
+                <div class="ui-analytics-page__sticky-bar">
+                    <AnalyticsFilters
+                        :analytics-type="analytics.analyticsType.value"
                     :period-preset="analytics.periodPreset.value"
                     :from="analytics.from.value"
                     :to="analytics.to.value"
@@ -129,9 +130,9 @@ function onProblemNext() {
                     @update:period-preset="analytics.periodPreset.value = $event"
                     @preset="onPreset"
                     @reset="onResetFilters"
-                />
+                    />
 
-                <div class="ui-analytics-page__tabs">
+                    <div class="ui-analytics-page__tabs">
                     <UiPillNav v-if="analytics.analyticsType.value === 'dialogs'">
                         <button
                             type="button"
@@ -197,7 +198,9 @@ function onProblemNext() {
                         </button>
                     </UiPillNav>
                 </div>
+                </div>
 
+                <div class="ui-analytics-page__body">
                 <div
                     v-if="analytics.error.value"
                     class="ui-alert ui-analytics-error"
@@ -288,6 +291,7 @@ function onProblemNext() {
                         />
                     </template>
                 </template>
+                </div>
             </div>
         </div>
     </AuthenticatedLayout>
