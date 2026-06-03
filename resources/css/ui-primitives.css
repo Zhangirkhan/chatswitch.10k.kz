@@ -2567,7 +2567,28 @@
 
     /* ─── Analytics page ─────────────────────────────────────────────────── */
     .ui-analytics-page {
+        flex-direction: column;
         min-height: 0;
+    }
+
+    .ui-analytics-page .ui-tool-page__header {
+        flex-shrink: 0;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 1rem 1rem 0.875rem;
+        border-right: none;
+        border-bottom: 1px solid var(--wa-border);
+        background: linear-gradient(180deg, var(--wa-panel) 0%, color-mix(in srgb, var(--wa-page-bg) 92%, var(--wa-panel)) 100%);
+    }
+
+    @media (min-width: 768px) {
+        .ui-analytics-page .ui-tool-page__header {
+            padding: 1.25rem 1.5rem 1rem;
+        }
+    }
+
+    .ui-analytics-page .ui-tool-page__main {
+        border-right: none;
     }
 
     .ui-analytics-page__header {
@@ -2577,8 +2598,27 @@
         position: sticky;
         top: 0;
         z-index: 20;
-        background: linear-gradient(180deg, var(--wa-panel) 0%, color-mix(in srgb, var(--wa-page-bg) 92%, var(--wa-panel)) 100%);
-        border-bottom: 1px solid var(--wa-border);
+    }
+
+    @media (min-width: 900px) {
+        .ui-analytics-page__header {
+            flex-direction: row;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 1.5rem;
+        }
+
+        .ui-analytics-page__intro {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .ui-analytics-type-nav {
+            flex-shrink: 0;
+            flex-direction: column;
+            align-items: flex-end;
+            padding-top: 0;
+        }
     }
 
     .ui-analytics-page__intro {
@@ -2645,6 +2685,7 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 0.75rem;
+        padding-top: 0.25rem;
     }
 
     .ui-analytics-type-nav__label {
