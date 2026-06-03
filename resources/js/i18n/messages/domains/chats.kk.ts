@@ -468,8 +468,14 @@ export const chats = {
         aiEmptyResponse: 'AI bos juau qaytarady. Qayta kórіńіz.',
         aiActionFailed: 'AI áreketіn oryndau sátsiz ayaqtaldy.',
         aiNeedText: 'Álde jaksartu kerek mátіndі jazyńyz.',
-        translateDraft: '{language} тіліне',
-        translateDraftHint: 'Хабарламаны {language} тіліне аудару',
+        translateDraftLang: {
+            ru: 'орысша',
+            kk: 'қазақша',
+            en: 'ағылшынша',
+            zh: 'қытайша',
+            tr: 'түрікше',
+            ar: 'арабша',
+        },
         translateDraftFailed: 'Хабарламаны аудару сәтсіз аяқталды.',
         translateDraftEmpty: 'Аударма бос — қайта көріңіз.',
         aiPromptReply:

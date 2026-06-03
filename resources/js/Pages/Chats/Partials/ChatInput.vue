@@ -9,7 +9,6 @@ import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { useI18n } from '@/composables/useI18n';
 import { useTranslationLang } from '@/composables/useTranslationLang';
 import {
-    MESSAGE_LANGUAGE_LABELS,
     resolveOutgoingTargetLanguage,
     type MessageLanguageTarget,
 } from '@/utils/messageLanguage';
@@ -63,9 +62,13 @@ const outgoingTranslateTarget = computed(() =>
     resolveOutgoingTargetLanguage(messageText.value, props.clientLanguage ?? null),
 );
 
-const outgoingTranslateLabel = computed(() => {
+const outgoingTranslateButtonText = computed(() => {
     const target = outgoingTranslateTarget.value;
-    return target ? MESSAGE_LANGUAGE_LABELS[target] : '';
+    if (!target) {
+        return '';
+    }
+
+    return t(`chats.input.translateDraftLang.${target}`);
 });
 
 const showDraftTranslate = computed(
@@ -1427,14 +1430,14 @@ watch(anyOverlayOpen, (open) => {
                 type="button"
                 class="wa-ai-input-chip wa-draft-translate-chip"
                 :disabled="draftTranslateLoading || aiActionBusy"
-                :title="t('chats.input.translateDraftHint', { language: outgoingTranslateLabel })"
+                :title="outgoingTranslateButtonText"
                 @click="translateDraft"
             >
                 <span v-if="draftTranslateLoading" class="wa-ai-dot" aria-hidden="true"></span>
                 {{
                     draftTranslateLoading
                         ? t('chats.message.translating')
-                        : t('chats.input.translateDraft', { language: outgoingTranslateLabel })
+                        : outgoingTranslateButtonText
                 }}
             </button>
             <button
