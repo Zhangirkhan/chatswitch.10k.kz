@@ -7,6 +7,8 @@ export const analyticsRu = {
     slice: 'Срез:',
     filtersTitle: 'Фильтры',
     filtersHint: 'Выберите тип аналитики, затем уточните доступные фильтры.',
+    filtersExpand: 'Развернуть',
+    filtersCollapse: 'Свернуть',
     resetAll: 'Сбросить всё',
     typeLabel: 'Тип аналитики',
     typeDialogs: 'Диалоги',

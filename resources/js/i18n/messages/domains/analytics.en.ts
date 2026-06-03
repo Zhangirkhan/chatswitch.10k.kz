@@ -7,6 +7,8 @@ export const analyticsEn = {
     slice: 'Slice:',
     filtersTitle: 'Filters',
     filtersHint: 'Pick analytics type, then refine available filters.',
+    filtersExpand: 'Expand',
+    filtersCollapse: 'Collapse',
     resetAll: 'Reset all',
     typeLabel: 'Analytics type',
     typeDialogs: 'Dialogs',

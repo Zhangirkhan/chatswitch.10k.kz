@@ -7,6 +7,8 @@ export const analyticsKk = {
     slice: 'Кесінді:',
     filtersTitle: 'Сүзгілер',
     filtersHint: 'Аналитика түрін таңdaп, сүзгілерді нақтылаңыз.',
+    filtersExpand: 'Ашу',
+    filtersCollapse: 'Жию',
     resetAll: 'Барлығын тastau',
     typeLabel: 'Аналитика түрі',
     typeDialogs: 'Диалогтар',
