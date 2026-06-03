@@ -67,6 +67,7 @@ const teamConversations = ref<TeamConvRow[]>([]);
 const contacts = ref<ContactRow[]>([]);
 const chatSidebarMode = ref<'chats' | 'contacts'>('chats');
 const conversationFilter = ref<'' | 'unread' | 'department' | 'direct'>('');
+const teamFiltersExpanded = ref(false);
 const teamListLoading = ref(false);
 const contactSearch = ref('');
 
@@ -121,6 +122,46 @@ async function loadTeamConversations() {
 function setConvFilter(f: '' | 'unread' | 'department' | 'direct') {
     conversationFilter.value = f;
     void loadTeamConversations();
+}
+
+const teamFilterSummary = computed((): string => {
+    const parts: string[] = [];
+    if (chatSidebarMode.value === 'contacts') {
+        parts.push(t('organization.people'));
+    } else {
+        parts.push(t('organization.conversations'));
+        if (conversationFilter.value === 'unread') {
+            parts.push(t('organization.filterUnread'));
+        } else if (conversationFilter.value === 'department') {
+            parts.push(t('organization.filterDepartment'));
+        } else if (conversationFilter.value === 'direct') {
+            parts.push(t('organization.filterDirect'));
+        } else {
+            parts.push(t('organization.filterAll'));
+        }
+    }
+    return parts.join(' · ');
+});
+
+function formatTeamListTime(dateStr: string | null): string {
+    if (!dateStr) {
+        return '';
+    }
+    const d = new Date(dateStr);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) {
+        return t('organization.yesterday');
+    }
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function toggleTeamFiltersExpanded(): void {
+    teamFiltersExpanded.value = !teamFiltersExpanded.value;
 }
 
 const teamDepartmentConversations = computed(() =>
@@ -512,88 +553,113 @@ function clearSearch() {
                 <SidebarSectionTabs active="organization" />
 
                 <div class="ui-sidebar-filters__group">
-                <UiPillNav v-if="orgTasksEnabled">
-                    <Link
-                        :href="route('organization.index')"
-                        class="ui-pill-nav__item"
-                        :class="{ 'is-active': !teamChatActive }"
-                    >
-                        {{ t('organization.tasksTab') }}
-                    </Link>
-                    <Link
-                        :href="route('organization.team-chat.index')"
-                        class="ui-pill-nav__item"
-                        :class="{ 'is-active': teamChatActive }"
-                    >
-                        <span class="truncate">{{ t('organization.chatTab') }}</span>
-                        <span
-                            v-if="teamChatUnread > 0"
-                            class="ui-pill-nav__badge"
-                            :title="t('organization.teamChatUnread', { count: teamChatUnread })"
-                        >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
-                    </Link>
-                </UiPillNav>
-                <p
-                    v-else
-                    class="m-0 px-1 text-xs text-[var(--wa-text-secondary)] leading-snug"
-                >
-                    {{ t('organization.internalChat') }}
-                </p>
-                    <template v-if="teamChatActive">
-                        <UiPillNav>
-                            <button
-                                type="button"
-                                class="ui-pill-nav__item"
-                                :class="{ 'is-active': chatSidebarMode === 'chats' }"
-                                @click="chatSidebarMode = 'chats'"
-                            >
-                                {{ t('organization.conversations') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-pill-nav__item"
-                                :class="{ 'is-active': chatSidebarMode === 'contacts' }"
-                                @click="chatSidebarMode = 'contacts'"
-                            >
-                                {{ t('organization.people') }}
-                            </button>
-                        </UiPillNav>
-                        <div
-                            v-if="chatSidebarMode === 'chats'"
-                            class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
+                    <UiPillNav v-if="orgTasksEnabled">
+                        <Link
+                            :href="route('organization.index')"
+                            class="ui-pill-nav__item"
+                            :class="{ 'is-active': !teamChatActive }"
                         >
-                            <button
-                                type="button"
-                                class="ui-chip shrink-0"
-                                :class="{ 'is-active': conversationFilter === '' }"
-                                @click="setConvFilter('')"
+                            {{ t('organization.tasksTab') }}
+                        </Link>
+                        <Link
+                            :href="route('organization.team-chat.index')"
+                            class="ui-pill-nav__item"
+                            :class="{ 'is-active': teamChatActive }"
+                        >
+                            <span class="truncate">{{ t('organization.chatTab') }}</span>
+                            <span
+                                v-if="teamChatUnread > 0"
+                                class="ui-pill-nav__badge"
+                                :title="t('organization.teamChatUnread', { count: teamChatUnread })"
+                            >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>
+                        </Link>
+                    </UiPillNav>
+                    <p
+                        v-else
+                        class="m-0 px-1 text-xs text-[var(--wa-text-secondary)] leading-snug"
+                    >
+                        {{ t('organization.internalChat') }}
+                    </p>
+
+                    <template v-if="teamChatActive">
+                        <button
+                            type="button"
+                            class="ui-team-chat-filters-toggle"
+                            :aria-expanded="teamFiltersExpanded"
+                            @click="toggleTeamFiltersExpanded"
+                        >
+                            <span class="ui-team-chat-filters-toggle__label">{{ t('organization.filtersTitle') }}</span>
+                            <span v-if="!teamFiltersExpanded" class="ui-team-chat-filters-toggle__summary">{{ teamFilterSummary }}</span>
+                            <svg
+                                class="ui-team-chat-filters-toggle__chevron"
+                                :class="{ 'is-open': teamFiltersExpanded }"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
                             >
-                                {{ t('organization.filterAll') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-chip shrink-0"
-                                :class="{ 'is-active': conversationFilter === 'unread' }"
-                                @click="setConvFilter('unread')"
-                            >
-                                {{ t('organization.filterUnread') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-chip shrink-0"
-                                :class="{ 'is-active': conversationFilter === 'department' }"
-                                @click="setConvFilter('department')"
-                            >
-                                {{ t('organization.filterDepartment') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="ui-chip shrink-0"
-                                :class="{ 'is-active': conversationFilter === 'direct' }"
-                                @click="setConvFilter('direct')"
-                            >
-                                {{ t('organization.filterDirect') }}
-                            </button>
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        <div v-show="teamFiltersExpanded" class="ui-team-chat-filters-body">
+                            <div class="ui-team-chat-filters-row">
+                                <UiPillNav>
+                                    <button
+                                        type="button"
+                                        class="ui-pill-nav__item"
+                                        :class="{ 'is-active': chatSidebarMode === 'chats' }"
+                                        @click="chatSidebarMode = 'chats'"
+                                    >
+                                        {{ t('organization.conversations') }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="ui-pill-nav__item"
+                                        :class="{ 'is-active': chatSidebarMode === 'contacts' }"
+                                        @click="chatSidebarMode = 'contacts'"
+                                    >
+                                        {{ t('organization.people') }}
+                                    </button>
+                                </UiPillNav>
+                                <div
+                                    v-if="chatSidebarMode === 'chats'"
+                                    class="ui-chip-row ui-chip-row--scroll wa-scrollbar min-w-0 flex-1"
+                                >
+                                    <button
+                                        type="button"
+                                        class="ui-chip shrink-0"
+                                        :class="{ 'is-active': conversationFilter === '' }"
+                                        @click="setConvFilter('')"
+                                    >
+                                        {{ t('organization.filterAll') }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="ui-chip shrink-0"
+                                        :class="{ 'is-active': conversationFilter === 'unread' }"
+                                        @click="setConvFilter('unread')"
+                                    >
+                                        {{ t('organization.filterUnread') }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="ui-chip shrink-0"
+                                        :class="{ 'is-active': conversationFilter === 'department' }"
+                                        @click="setConvFilter('department')"
+                                    >
+                                        {{ t('organization.filterDepartment') }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="ui-chip shrink-0"
+                                        :class="{ 'is-active': conversationFilter === 'direct' }"
+                                        @click="setConvFilter('direct')"
+                                    >
+                                        {{ t('organization.filterDirect') }}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </template>
                     <div v-else class="ui-sidebar-filters__chips-slot" aria-hidden="true" />
@@ -665,7 +731,10 @@ function clearSearch() {
                     class="flex flex-1 flex-col min-h-0 overflow-hidden"
                 >
                 <div v-if="chatSidebarMode === 'chats'" class="px-3 pb-2 shrink-0 space-y-2">
-                    <p class="text-xs text-[var(--wa-text-secondary)] m-0 leading-snug">
+                    <p
+                        v-if="conversationFilter === ''"
+                        class="text-[0.65rem] text-[var(--wa-text-secondary)] m-0 leading-snug opacity-80"
+                    >
                         {{ t('organization.deptChatsFirst') }}
                     </p>
                     <button
@@ -780,37 +849,75 @@ function clearSearch() {
                             <div
                                 v-for="c in section.items"
                                 :key="c.id"
-                                class="ui-team-chat-row"
+                                class="ui-team-chat-row group"
                                 :class="{ 'is-selected': c.id === selectedConversationId }"
                             >
                                 <Link
                                     :href="route('organization.team-chat.show', c.id)"
-                                    class="ui-team-chat-row__link"
+                                    class="ui-team-chat-row__link chat-list-item"
+                                    :class="{ 'is-selected': c.id === selectedConversationId }"
                                 >
                                     <Avatar
                                         :name="c.title"
-                                        :size="40"
+                                        :size="49"
                                         :variant="c.type === 'department' ? 'group' : 'staff'"
                                         fallback-initials
+                                        class="shrink-0"
                                     />
-                                    <div class="flex-1 min-w-0">
-                                        <div class="ui-org-sidebar-item__name truncate flex items-center gap-1">
-                                            <span v-if="c.is_pinned" class="text-[var(--wa-accent)] shrink-0" :title="t('organization.pinned')">📌</span>
-                                            <span class="truncate">{{ c.title }}</span>
+                                    <div class="flex-1 min-w-0 border-b border-[var(--wa-divider)] group-hover:border-transparent pb-3 -mb-3 pt-0.5">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span class="text-[var(--wa-text)] text-base truncate">{{ c.title }}</span>
+                                            <span
+                                                class="text-xs shrink-0 ml-1"
+                                                :style="{ color: c.unread_count > 0 ? 'var(--wa-accent)' : 'var(--wa-text-secondary)' }"
+                                            >
+                                                {{ formatTeamListTime(c.last_message_at) }}
+                                            </span>
                                         </div>
-                                        <div v-if="c.last_message_preview" class="ui-org-sidebar-item__meta truncate">{{ c.last_message_preview }}</div>
-                                        <div v-else-if="c.subtitle" class="ui-org-sidebar-item__meta truncate">{{ c.subtitle }}</div>
+                                        <div class="flex items-start justify-between gap-1 mt-1">
+                                            <div class="text-sm text-[var(--wa-text-secondary)] truncate min-w-0 flex-1">
+                                                {{ c.last_message_preview || c.subtitle || '' }}
+                                            </div>
+                                            <div class="ml-1 shrink-0 flex items-center gap-1 self-center">
+                                                <svg
+                                                    v-if="c.is_pinned"
+                                                    class="w-4 h-4 text-[var(--wa-text-secondary)] shrink-0"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                    :title="t('organization.pinned')"
+                                                    aria-hidden="true"
+                                                >
+                                                    <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+                                                </svg>
+                                                <span
+                                                    v-if="c.unread_count > 0"
+                                                    class="unread-badge min-w-[20px] h-[20px] rounded-full text-[11px] font-semibold flex items-center justify-center px-1.5 shrink-0"
+                                                    :style="{ background: 'var(--wa-unread)', color: 'var(--wa-unread-text)' }"
+                                                >
+                                                    {{ c.unread_count > 99 ? '99+' : c.unread_count }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span v-if="c.unread_count > 0" class="ui-tab-badge ui-tab-badge--team shrink-0">{{ c.unread_count > 99 ? '99+' : c.unread_count }}</span>
                                 </Link>
                                 <button
                                     type="button"
                                     class="ui-team-chat-row__pin"
+                                    :class="{ 'is-active': c.is_pinned }"
                                     :title="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
                                     :aria-label="c.is_pinned ? t('organization.unpin') : t('organization.pin')"
                                     @click.prevent.stop="toggleTeamPin(c)"
                                 >
-                                    <span class="text-base leading-none">{{ c.is_pinned ? '★' : '☆' }}</span>
+                                    <svg
+                                        class="w-4 h-4"
+                                        :fill="c.is_pinned ? 'currentColor' : 'none'"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 00.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                                    </svg>
                                 </button>
                             </div>
                         </template>

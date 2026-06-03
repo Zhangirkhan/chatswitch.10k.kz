@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import { useI18n } from '@/composables/useI18n';
 import { computed, ref } from 'vue';
 import Avatar from '@/Components/Avatar.vue';
+import '@/Pages/Chats/Partials/chat-header.css';
 
 const { t } = useI18n();
 
@@ -29,6 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     pin: [];
     calendar: [];
+    'toggle-search': [];
 }>();
 
 const participantsOpen = ref(false);
@@ -108,11 +110,22 @@ const participantsSorted = computed(() =>
             </p>
         </button>
 
-        <div class="flex items-center gap-0.5 shrink-0">
+        <div class="chat-header-toolbar flex items-center gap-0.5 shrink-0">
+            <button
+                type="button"
+                class="wa-header-btn"
+                :title="t('organization.searchInThread')"
+                :aria-label="t('organization.searchInThread')"
+                @click="emit('toggle-search')"
+            >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </button>
             <button
                 v-if="(participants ?? []).length > 0"
                 type="button"
-                class="team-chat-header-btn"
+                class="wa-header-btn"
                 :title="t('organization.calendarMeeting')"
                 :aria-label="t('organization.calendarMeeting')"
                 @click="emit('calendar')"
@@ -124,7 +137,7 @@ const participantsSorted = computed(() =>
             <button
                 v-if="isDepartment"
                 type="button"
-                class="team-chat-header-btn"
+                class="wa-header-btn"
                 :title="t('organization.participants')"
                 :aria-label="t('organization.participants')"
                 @click="participantsOpen = true"
@@ -135,7 +148,7 @@ const participantsSorted = computed(() =>
             </button>
             <button
                 type="button"
-                class="team-chat-header-btn"
+                class="wa-header-btn"
                 :class="{ 'text-[var(--wa-accent)]': header.is_pinned }"
                 :title="header.is_pinned ? t('organization.unpinConversation') : t('organization.pinConversation')"
                 :aria-label="header.is_pinned ? t('organization.unpinConversation') : t('organization.pinConversation')"
@@ -150,7 +163,7 @@ const participantsSorted = computed(() =>
                     viewBox="0 0 24 24"
                     aria-hidden="true"
                 >
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 00.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
                 </svg>
             </button>
         </div>
@@ -193,27 +206,6 @@ const participantsSorted = computed(() =>
 </template>
 
 <style scoped>
-.team-chat-header-btn {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 9999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--wa-icon);
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-}
-.team-chat-header-btn:hover:not(:disabled) {
-    background-color: var(--wa-rail-btn-hover);
-}
-.team-chat-header-btn:disabled {
-    opacity: 0.45;
-    pointer-events: none;
-}
 :deep(.team-chat-header-avatar--group .avatar__initials) {
     color: var(--org-task-dept-fg);
     background:

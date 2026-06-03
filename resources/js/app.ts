@@ -1,5 +1,6 @@
 import '../css/app.css';
 import '../css/wa-chat-composer.css';
+import '../css/wa-message-bubbles.css';
 import './bootstrap';
 import { initTheme } from './composables/useTheme';
 import { initI18n } from './composables/useI18n';

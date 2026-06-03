@@ -1391,7 +1391,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div
-            class="wa-msg-bubble relative w-full min-w-0 text-[14.2px] leading-[19px]"
+            class="wa-msg-bubble wa-msg-bubble--wide relative w-full min-w-0 text-[14.2px] leading-[19px]"
             :data-message-id="message.id"
             :class="[
                 fullBleedVisualBubble ? 'px-0 py-0' : 'px-2 py-1',
@@ -2138,26 +2138,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.wa-msg-bubble-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.35rem;
-    margin-top: 1px;
-    min-height: 14px;
-}
-
-.wa-msg-bubble-footer__meta {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    margin-left: auto;
-    font-size: 11px;
-    line-height: 1;
-    opacity: 0.8;
-    white-space: nowrap;
-}
-
 .ai-message-badge {
     display: block;
     font-size: 11px;
@@ -2171,80 +2151,6 @@ onBeforeUnmount(() => {
 
 .wa-msg-bubble-out .ai-message-badge {
     color: color-mix(in srgb, var(--wa-bubble-text-out, var(--wa-bubble-text)) 90%, transparent);
-}
-
-.wa-msg-bubble {
-    border-radius: 7.5px;
-    box-shadow: 0 1px 0.5px var(--wa-bubble-tail-shadow);
-    overflow: visible;
-    width: fit-content;
-    max-width: min(72%, 42rem);
-}
-
-.wa-msg-text {
-    display: block;
-    min-width: 0;
-    max-width: 100%;
-}
-
-.wa-msg-text::after {
-    content: "";
-    display: inline-block;
-    width: 3.7rem;
-}
-
-.wa-msg-bubble::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    width: 9px;
-    height: 13px;
-    background: inherit;
-    pointer-events: none;
-}
-
-.wa-msg-bubble-in {
-    border-top-left-radius: 0;
-}
-
-.wa-msg-bubble-in::before {
-    left: -8px;
-    clip-path: polygon(100% 0, 0 0, 100% 100%);
-}
-
-.wa-msg-bubble-out {
-    border-top-right-radius: 0;
-}
-
-.wa-msg-bubble-out::before {
-    right: -8px;
-    clip-path: polygon(0 0, 100% 0, 0 100%);
-}
-
-.msg-hover-menu-btn {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 28px;
-    height: 28px;
-    border-radius: 9999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--wa-text-secondary);
-    background: transparent;
-    opacity: 0;
-    transform: translateY(-2px);
-    transition: opacity 0.12s ease, transform 0.12s ease, background-color 0.12s ease, color 0.12s ease;
-    z-index: 5;
-}
-.group:hover .msg-hover-menu-btn {
-    opacity: 1;
-    transform: translateY(0);
-}
-.msg-hover-menu-btn:hover {
-    background: var(--wa-panel-hover);
-    color: var(--wa-text);
 }
 
 .msg-menu-panel {
@@ -2301,10 +2207,6 @@ onBeforeUnmount(() => {
 }
 .msg-menu-item-danger:hover {
     background-color: color-mix(in srgb, var(--wa-danger) 10%, transparent);
-}
-
-.wa-msg-selected {
-    box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.25);
 }
 
 .wa-contact-card {

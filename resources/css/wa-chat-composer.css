@@ -99,6 +99,23 @@
     color: var(--wa-text-secondary);
 }
 
+.wa-rich-editor {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-y: auto;
+}
+
+.wa-rich-editor:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.wa-rich-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--wa-text-secondary);
+    pointer-events: none;
+}
+
 .attach-menu {
     animation: wa-composer-picker-pop 0.14s ease-out;
     z-index: 50;

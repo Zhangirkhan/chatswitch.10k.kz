@@ -760,6 +760,7 @@ final class OrganizationTeamChatController extends Controller
     {
         return [
             'conversation_type' => $conversation->type,
+            'viewer_last_read_message_id' => $this->viewerLastReadMessageId($viewer, $conversation),
             'peer_last_read_message_id' => $this->directPeerLastReadMessageId($viewer, $conversation),
             'peer_last_delivered_message_id' => $this->directPeerLastDeliveredMessageId($viewer, $conversation),
             'others_min_last_delivered_message_id' => $conversation->isDepartment()
@@ -769,6 +770,20 @@ final class OrganizationTeamChatController extends Controller
                 ? $this->departmentOthersMinLastReadMessageId($viewer, $conversation)
                 : null,
         ];
+    }
+
+    private function viewerLastReadMessageId(User $viewer, TeamConversation $conversation): ?int
+    {
+        $raw = DB::table('team_conversation_user')
+            ->where('team_conversation_id', $conversation->id)
+            ->where('user_id', $viewer->id)
+            ->value('last_read_message_id');
+
+        if ($raw === null) {
+            return null;
+        }
+
+        return (int) $raw;
     }
 
     private function directPeerLastReadMessageId(User $viewer, TeamConversation $conversation): ?int

@@ -10,7 +10,7 @@ import {
 } from '@/composables/useResizablePanelWidth';
 import AuthenticatedLayout from './AuthenticatedLayout.vue';
 
-defineProps<{
+const props = defineProps<{
     departments: OrgDepartment[];
     selectedDepartmentId?: number | null;
     archiveActive?: boolean;
@@ -21,6 +21,23 @@ const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? 
 const isTeamChatUrl = computed(
     () => !orgTasksEnabled.value
         || (typeof page.url === 'string' && page.url.startsWith('/organization/chat')),
+);
+
+const selectedConversationId = computed(() => {
+    const v = page.props.selectedConversationId;
+    return typeof v === 'number' ? v : null;
+});
+
+const hideSidebarOnMobile = computed(
+    () =>
+        ((props.selectedDepartmentId || props.archiveActive) && !isTeamChatUrl.value)
+        || (isTeamChatUrl.value && selectedConversationId.value !== null),
+);
+
+const hideMainOnMobile = computed(
+    () =>
+        (!props.selectedDepartmentId && !props.archiveActive && !isTeamChatUrl.value)
+        || (isTeamChatUrl.value && selectedConversationId.value === null),
 );
 
 const sidebarResize = useResizablePanelWidth({
@@ -41,7 +58,7 @@ const sidebarResizing = computed(() => sidebarResize.isResizing.value);
         <div class="flex h-full min-h-0 w-full bg-[var(--wa-bg)]">
             <div
                 class="flex h-full shrink-0 overflow-hidden"
-                :class="{ 'hidden sm:flex': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
+                :class="{ 'hidden sm:flex': hideSidebarOnMobile }"
                 :style="sidebarWidthStyle"
             >
                 <OrganizationSidebar
@@ -53,14 +70,14 @@ const sidebarResizing = computed(() => sidebarResize.isResizing.value);
             </div>
             <PanelResizeHandle
                 class="hidden sm:block"
-                :class="{ 'sm:hidden': (selectedDepartmentId || archiveActive) && !isTeamChatUrl }"
+                :class="{ 'sm:hidden': hideSidebarOnMobile }"
                 :active="sidebarResizing"
                 @pointerdown="sidebarResize.onResizePointerDown"
             />
             <div
                 class="flex min-h-0 min-w-0 flex-1 flex-col border-l"
                 :style="{ borderColor: 'var(--wa-sidebar-divider)' }"
-                :class="{ 'hidden sm:flex': !selectedDepartmentId && !archiveActive && !isTeamChatUrl }"
+                :class="{ 'hidden sm:flex': hideMainOnMobile }"
             >
                 <slot />
             </div>
