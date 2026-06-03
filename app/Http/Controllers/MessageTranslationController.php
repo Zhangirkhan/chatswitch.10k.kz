@@ -6,8 +6,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Services\AI\AiUsageOptions;
-use App\Services\AI\OpenAiChatService;
+use App\Services\AI\MessageTranslationService;
 use App\Support\MessageInboundText;
+use App\Support\MessageLanguageHeuristics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,19 +20,7 @@ use Illuminate\Http\Request;
  */
 final class MessageTranslationController extends Controller
 {
-    private const SUPPORTED_LANGS = [
-        'ru' => 'русский',
-        'kk' => 'казахский',
-        'en' => 'английский',
-        'zh' => 'китайский',
-        'tr' => 'турецкий',
-        'ar' => 'арабский',
-    ];
-
-    /** Максимальная длина тела сообщения для перевода (символов). */
-    private const MAX_BODY_LEN = 4000;
-
-    public function __construct(private readonly OpenAiChatService $openAi) {}
+    public function __construct(private readonly MessageTranslationService $translation) {}
 
     public function translate(Request $request, Message $message): JsonResponse
     {
@@ -43,7 +32,7 @@ final class MessageTranslationController extends Controller
         $this->authorize('view', $message->chat);
 
         $validated = $request->validate([
-            'lang' => ['required', 'string', 'in:'.implode(',', array_keys(self::SUPPORTED_LANGS))],
+            'lang' => ['required', 'string', 'in:'.implode(',', MessageLanguageHeuristics::SUPPORTED)],
         ]);
 
         $body = MessageInboundText::forMessage($message);
@@ -51,38 +40,12 @@ final class MessageTranslationController extends Controller
             return response()->json(['translation' => '']);
         }
 
-        $body = mb_substr($body, 0, self::MAX_BODY_LEN);
-        $langName = self::SUPPORTED_LANGS[$validated['lang']];
-
-        $messages = [
-            [
-                'role' => 'system',
-                'content' => <<<PROMPT
-Ты — профессиональный переводчик. Переведи текст на {$langName} язык.
-Правила:
-— Возвращай ТОЛЬКО перевод, без пояснений, кавычек и дополнительного текста.
-— Сохраняй форматирование: переносы строк, знаки препинания, эмодзи.
-— Если текст уже на нужном языке — верни его без изменений.
-— Не добавляй ни одного лишнего слова.
-PROMPT,
-            ],
-            [
-                'role' => 'user',
-                'content' => $body,
-            ],
-        ];
-
         try {
-            $translation = $this->openAi->chat(
-                $messages,
-                0.2,
-                1000,
-                new AiUsageOptions('translation', $message->chat->company_id),
-            );
-        } catch (\Throwable $e) {
+            $translation = $this->translation->translate($body, $validated['lang'], $message->chat->company_id);
+        } catch (\Throwable) {
             return response()->json(['error' => 'Сервис перевода недоступен.'], 503);
         }
 
-        return response()->json(['translation' => trim($translation)]);
+        return response()->json(['translation' => $translation]);
     }
 }

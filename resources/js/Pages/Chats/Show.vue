@@ -17,6 +17,7 @@ import axios from 'axios';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, MessageReaction, Paginated } from '@/types';
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
+import { detectClientLanguage } from '@/utils/messageLanguage';
 
 const props = defineProps<{
     chat: Chat;
@@ -158,6 +159,14 @@ watch(
 );
 
 const localMessages = ref<Message[]>([...props.messages.data].reverse());
+const clientMessageLanguage = computed(() =>
+    detectClientLanguage(
+        localMessages.value
+            .filter((message) => message.direction === 'inbound')
+            .slice(-20)
+            .map((message) => message.body),
+    ),
+);
 const localChats = ref<Paginated<Chat>>({
     ...props.chats,
     data: [...props.chats.data],
@@ -883,6 +892,7 @@ function cleanupEcho() {
                         :reply-to="replyTo"
                         :is-group="chat.is_group"
                         :suggested-draft="aiStatus?.draft_reply || null"
+                        :client-language="clientMessageLanguage"
                         @message-sent="onMessageSent"
                         @cancel-reply="clearReply"
                     />

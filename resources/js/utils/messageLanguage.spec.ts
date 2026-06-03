@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { messageMatchesTargetLanguage, messageNeedsTranslation } from './messageLanguage';
+import { messageMatchesTargetLanguage, messageNeedsTranslation, resolveOutgoingTargetLanguage } from './messageLanguage';
 
 describe('messageLanguage', () => {
     it('detects Russian text for ru target', () => {
@@ -36,5 +36,14 @@ describe('messageLanguage', () => {
 
     it('strips WhatsApp markup before detection', () => {
         expect(messageNeedsTranslation('*Manager*\nHello team', 'ru')).toBe(true);
+    });
+
+    it('resolves outgoing target from client language', () => {
+        expect(resolveOutgoingTargetLanguage('Здравствуйте, цена 5000', 'kk')).toBe('kk');
+        expect(resolveOutgoingTargetLanguage('Сәлеметсіз бе', 'kk')).toBeNull();
+    });
+
+    it('falls back to kazakh when client language unknown and draft is russian', () => {
+        expect(resolveOutgoingTargetLanguage('Добрый день, цена 5000', null)).toBe('kk');
     });
 });

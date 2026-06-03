@@ -2,6 +2,15 @@ import { stripWaMarkup } from '@/utils/waMarkup';
 
 export type MessageLanguageTarget = 'ru' | 'kk' | 'en' | 'zh' | 'tr' | 'ar';
 
+export const MESSAGE_LANGUAGE_LABELS: Record<MessageLanguageTarget, string> = {
+    ru: 'русский',
+    kk: 'қазақша',
+    en: 'English',
+    zh: '中文',
+    tr: 'Türkçe',
+    ar: 'العربية',
+};
+
 const KAZAKH_LETTERS = /[әғқңөұүһіӘҒҚҢӨҰҮҺІ]/u;
 const TURKISH_LETTERS = /[ğşıöüçĞŞİÖÜÇ]/u;
 
@@ -146,4 +155,73 @@ export function messageNeedsTranslation(
     }
 
     return !messageMatchesTargetLanguage(text, target);
+}
+
+/** Язык клиента по последним входящим сообщениям. */
+export function detectClientLanguage(samples: (string | null | undefined)[]): MessageLanguageTarget | null {
+    const scores: Record<MessageLanguageTarget, number> = {
+        ru: 0,
+        kk: 0,
+        en: 0,
+        zh: 0,
+        tr: 0,
+        ar: 0,
+    };
+
+    for (const raw of samples) {
+        const text = sampleMessageText(raw);
+        if (letterCount(text) < MIN_SAMPLE_LEN) {
+            continue;
+        }
+
+        if (isLikelyKazakh(text)) {
+            scores.kk += 3;
+        } else if (isLikelyRussian(text)) {
+            scores.ru += 2;
+        } else if (isLikelyEnglish(text)) {
+            scores.en += 2;
+        } else if (isLikelyArabic(text)) {
+            scores.ar += 2;
+        } else if (isLikelyChinese(text)) {
+            scores.zh += 2;
+        } else if (isLikelyTurkish(text)) {
+            scores.tr += 2;
+        }
+    }
+
+    const [best] = (Object.entries(scores) as [MessageLanguageTarget, number][]).sort((a, b) => b[1] - a[1]);
+    if (!best || best[1] === 0) {
+        return null;
+    }
+
+    return best[0];
+}
+
+/** Целевой язык для перевода исходящего черновика оператора. */
+export function resolveOutgoingTargetLanguage(
+    draft: string | null | undefined,
+    clientLanguage: MessageLanguageTarget | null,
+): MessageLanguageTarget | null {
+    const text = sampleMessageText(draft);
+    if (letterCount(text) < MIN_SAMPLE_LEN) {
+        return null;
+    }
+
+    if (clientLanguage !== null) {
+        return messageMatchesTargetLanguage(text, clientLanguage) ? null : clientLanguage;
+    }
+
+    if (isLikelyRussian(text)) {
+        return 'kk';
+    }
+
+    if (isLikelyKazakh(text)) {
+        return 'ru';
+    }
+
+    if (isLikelyEnglish(text)) {
+        return 'ru';
+    }
+
+    return null;
 }

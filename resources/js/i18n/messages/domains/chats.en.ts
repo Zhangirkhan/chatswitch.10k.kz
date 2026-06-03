@@ -468,6 +468,10 @@ export const chats = {
         aiEmptyResponse: 'AI returned an empty response. Try again.',
         aiActionFailed: 'Failed to perform AI action.',
         aiNeedText: 'Write the text to improve first.',
+        translateDraft: 'To {language}',
+        translateDraftHint: 'Translate the message to {language}',
+        translateDraftFailed: 'Could not translate the message.',
+        translateDraftEmpty: 'Translation was empty — try again.',
         aiPromptReply:
             'Draft one ready reply to the client for this chat. Write as the operator, no explanations or alternatives.',
         aiPromptShorter: 'Make this text shorter, keep the meaning and friendly tone. Return only the final text:\n\n{text}',

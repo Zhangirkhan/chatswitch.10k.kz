@@ -15,6 +15,7 @@ use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\ChatDraftTranslationController;
 use App\Http\Controllers\ChatFollowUpProposalController;
 use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
@@ -149,6 +150,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/chats/{chat}/ai-simulate', [ChatController::class, 'simulateAi'])
             ->middleware('throttle:20,1')
             ->name('chats.ai-simulate');
+        Route::post('/chats/{chat}/translate-draft', [ChatDraftTranslationController::class, 'translate'])
+            ->middleware('throttle:chat-translate')
+            ->name('chats.translate-draft');
         Route::post('/chats/{chat}/orchestrator-runs/{run}/approve', [ChatController::class, 'approveOrchestrator'])
             ->middleware('throttle:30,1')
             ->name('chats.orchestrator.approve');

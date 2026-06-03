@@ -468,6 +468,10 @@ export const chats = {
         aiEmptyResponse: 'AI bos juau qaytarady. Qayta kórіńіz.',
         aiActionFailed: 'AI áreketіn oryndau sátsiz ayaqtaldy.',
         aiNeedText: 'Álde jaksartu kerek mátіndі jazyńyz.',
+        translateDraft: '{language} тіліне',
+        translateDraftHint: 'Хабарламаны {language} тіліне аудару',
+        translateDraftFailed: 'Хабарламаны аудару сәтсіз аяқталды.',
+        translateDraftEmpty: 'Аударма бос — қайта көріңіз.',
         aiPromptReply:
             'Ázіrgі chat boyynsha klientke dayyn bir jauap daiyńda. Operator retіnde jaz, túsіndіrmesіz jane nusqalarsyz.',
         aiPromptShorter: 'Bul mátіndі qısqart, maǵynasyn saqta, dos bolyp soyle. Tek dayyn mátіndі qaitar:\n\n{text}',

@@ -7,6 +7,12 @@ import EmojiPicker from './EmojiPicker.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { useI18n } from '@/composables/useI18n';
+import { useTranslationLang } from '@/composables/useTranslationLang';
+import {
+    MESSAGE_LANGUAGE_LABELS,
+    resolveOutgoingTargetLanguage,
+    type MessageLanguageTarget,
+} from '@/utils/messageLanguage';
 
 const props = defineProps<{
     chatId: number;
@@ -14,6 +20,7 @@ const props = defineProps<{
     replyTo?: Message | null;
     isGroup?: boolean;
     suggestedDraft?: string | null;
+    clientLanguage?: MessageLanguageTarget | null;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +28,8 @@ const emit = defineEmits<{
     (e: 'cancelReply'): void;
 }>();
 
-const { t } = useI18n();
+const { t, locale: uiLocale } = useI18n();
+const { enabled: translateEnabled } = useTranslationLang(uiLocale);
 const { show: showToast } = useToastStore();
 
 // Plain text that will be sent to backend/WhatsApp.
@@ -30,6 +38,8 @@ const isSending = ref(false);
 const editorRef = ref<HTMLDivElement | null>(null);
 const aiActionLoading = ref<string | null>(null);
 const aiActionError = ref<string | null>(null);
+const draftTranslateLoading = ref(false);
+const draftTranslateError = ref<string | null>(null);
 
 // Formatting toolbar (like WhatsApp Web)
 const formatBarOpen = ref(false);
@@ -47,7 +57,20 @@ let typingTimeout: ReturnType<typeof setTimeout>;
 
 const hasText = computed(() => messageText.value.trim().length > 0);
 const canSend = computed(() => hasText.value || selectedProduct.value !== null);
-const aiActionBusy = computed(() => aiActionLoading.value !== null);
+const aiActionBusy = computed(() => aiActionLoading.value !== null || draftTranslateLoading.value);
+
+const outgoingTranslateTarget = computed(() =>
+    resolveOutgoingTargetLanguage(messageText.value, props.clientLanguage ?? null),
+);
+
+const outgoingTranslateLabel = computed(() => {
+    const target = outgoingTranslateTarget.value;
+    return target ? MESSAGE_LANGUAGE_LABELS[target] : '';
+});
+
+const showDraftTranslate = computed(
+    () => translateEnabled.value && !props.isGroup && hasText.value && outgoingTranslateTarget.value !== null,
+);
 
 type ChatProductPickerItem = MessageProductAttachment;
 
@@ -484,6 +507,40 @@ function aiPromptFor(action: AiInputAction): string {
     }
 
     return t('chats.input.aiPromptImprove', { text: currentText });
+}
+
+async function translateDraft(): Promise<void> {
+    if (!showDraftTranslate.value || draftTranslateLoading.value) {
+        return;
+    }
+
+    const text = messageText.value.trim();
+    const target = outgoingTranslateTarget.value;
+    if (!text || !target) {
+        return;
+    }
+
+    draftTranslateLoading.value = true;
+    draftTranslateError.value = null;
+
+    try {
+        const { data } = await axios.post(route('chats.translate-draft', props.chatId), {
+            text,
+            lang: target,
+        });
+        const translation = String(data?.translation ?? '').trim();
+        if (translation === '') {
+            draftTranslateError.value = t('chats.input.translateDraftEmpty');
+            return;
+        }
+
+        setEditorPlainText(translation);
+        editorRef.value?.focus();
+    } catch (e: any) {
+        draftTranslateError.value = e?.response?.data?.error || t('chats.input.translateDraftFailed');
+    } finally {
+        draftTranslateLoading.value = false;
+    }
 }
 
 async function runAiInputAction(action: AiInputAction): Promise<void> {
@@ -1366,6 +1423,21 @@ watch(anyOverlayOpen, (open) => {
 
         <div v-if="!recording" class="wa-ai-input-actions">
             <button
+                v-if="showDraftTranslate"
+                type="button"
+                class="wa-ai-input-chip wa-draft-translate-chip"
+                :disabled="draftTranslateLoading || aiActionBusy"
+                :title="t('chats.input.translateDraftHint', { language: outgoingTranslateLabel })"
+                @click="translateDraft"
+            >
+                <span v-if="draftTranslateLoading" class="wa-ai-dot" aria-hidden="true"></span>
+                {{
+                    draftTranslateLoading
+                        ? t('chats.message.translating')
+                        : t('chats.input.translateDraft', { language: outgoingTranslateLabel })
+                }}
+            </button>
+            <button
                 v-for="action in aiInputActions"
                 :key="action.key"
                 type="button"
@@ -1377,6 +1449,9 @@ watch(anyOverlayOpen, (open) => {
                 <span v-if="aiActionLoading === action.key" class="wa-ai-dot" aria-hidden="true"></span>
                 {{ aiActionLoading === action.key ? t('chats.input.aiThinking') : action.label }}
             </button>
+            <span v-if="draftTranslateError" class="wa-ai-input-error">
+                {{ draftTranslateError }}
+            </span>
             <span v-if="aiActionError" class="wa-ai-input-error">
                 {{ aiActionError }}
             </span>
@@ -2105,6 +2180,12 @@ watch(anyOverlayOpen, (open) => {
 .wa-ai-input-chip:disabled {
     cursor: not-allowed;
     opacity: 0.52;
+}
+
+.wa-draft-translate-chip {
+    color: var(--wa-accent);
+    border-color: color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 12%, var(--wa-panel));
 }
 
 .wa-ai-dot {
