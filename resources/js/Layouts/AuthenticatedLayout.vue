@@ -40,6 +40,11 @@ const unreadChatsCount = computed<number>(() => {
 
 const calendarBadgeCount = computed<number>(() => Number(page.props.calendarBadgeCount || 0));
 
+const nav = computed<Record<string, boolean>>(() => {
+    const sections = page.props.nav as Record<string, boolean> | undefined;
+    return sections ?? {};
+});
+
 // Синхронизируем синглтон когда Inertia обновляет пропы (навигация, reload)
 watch(
     () => page.props.unreadChatsCount as number | undefined,
@@ -191,7 +196,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('clients.index')"
+                    v-if="nav.clients"
                     :href="route('clients.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('clients.*') }"
@@ -205,7 +210,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('broadcasts.index')"
+                    v-if="nav.broadcasts"
                     :href="route('broadcasts.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('broadcasts.*') }"
@@ -219,7 +224,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('ai-chat.index')"
+                    v-if="nav.ai_chat"
                     :href="route('ai-chat.index')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('ai-chat.*') }"
@@ -233,7 +238,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('analytics.dialogs') && (page.props.modules?.analytics || page.props.modules?.funnels)"
+                    v-if="nav.analytics"
                     :href="route('analytics.dialogs')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('analytics.*') }"
@@ -247,7 +252,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('calendar.index') && page.props.modules?.calendar"
+                    v-if="nav.calendar"
                     :href="route('calendar.index')"
                     class="wa-rail-btn relative"
                     :class="{ active: route().current('calendar.*') }"
@@ -272,7 +277,7 @@ onUnmounted(() => {
                 </Link>
 
                 <Link
-                    v-if="route().has('funnels.board') && page.props.modules?.funnels"
+                    v-if="nav.funnels"
                     :href="route('funnels.board')"
                     class="wa-rail-btn"
                     :class="{ active: route().current('funnels.board') }"

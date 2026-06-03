@@ -195,6 +195,12 @@ export const en: MessageCatalog = {
             errorSave: 'Could not save',
             remindersToggleOff: 'Disable reminders',
             remindersToggleOn: 'Enable reminders',
+            sectionModules: 'App sections',
+            modulesHint: 'Enable or disable sections for everyone in the company. Disabled sections are hidden from the sidebar.',
+            modulesSave: 'Save sections',
+            modulesToggleOff: 'Disable section',
+            modulesToggleOn: 'Enable section',
+            modulesErrorSave: 'Could not save sections',
         },
         funnels: {
             title: 'Sales funnels',

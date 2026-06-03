@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Models\SystemSetting;
 use App\Services\Calendar\AppointmentReminderSettings;
+use App\Services\SuperAdmin\CompanyModuleSettingsService;
 use App\Support\CompanyModules;
 use App\Support\QuickReactions;
 use App\Support\SlaReminderSettings;
 use App\Support\SystemSettingKeys;
+use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +21,10 @@ use Inertia\Response;
 
 final class SettingsController extends Controller
 {
+    public function __construct(
+        private readonly CompanyModuleSettingsService $moduleSettings,
+    ) {}
+
     public function index(): Response
     {
         $settings = collect(AppointmentReminderSettings::defaults())
@@ -25,8 +32,13 @@ final class SettingsController extends Controller
             ->merge(SlaReminderSettings::defaults())
             ->merge(SystemSetting::all()->pluck('value', 'key'));
 
+        $company = Company::query()
+            ->withoutGlobalScope('tenant')
+            ->findOrFail(TenantCompany::id());
+
         return Inertia::render('Settings/System', [
             'settings' => $settings,
+            'modules' => $this->moduleSettings->payloadFor($company),
         ]);
     }
 
@@ -48,6 +60,25 @@ final class SettingsController extends Controller
 
             SystemSetting::setValue($key, $value);
         }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function updateModules(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'modules' => ['required', 'array'],
+            'modules.*' => ['required', 'boolean'],
+        ]);
+
+        $company = Company::query()
+            ->withoutGlobalScope('tenant')
+            ->findOrFail(TenantCompany::id());
+
+        $allowed = array_fill_keys(CompanyModules::keys(), true);
+        $payload = array_intersect_key($validated['modules'], $allowed);
+
+        $this->moduleSettings->update($company, $payload, $request->user());
 
         return response()->json(['success' => true]);
     }

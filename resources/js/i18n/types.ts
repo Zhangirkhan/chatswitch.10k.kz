@@ -224,6 +224,12 @@ export interface MessageCatalog {
             errorSave: string;
             remindersToggleOff: string;
             remindersToggleOn: string;
+            sectionModules: string;
+            modulesHint: string;
+            modulesSave: string;
+            modulesToggleOff: string;
+            modulesToggleOn: string;
+            modulesErrorSave: string;
         };
         funnels: {
             title: string;

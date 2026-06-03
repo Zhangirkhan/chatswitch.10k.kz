@@ -335,6 +335,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');
+        Route::post('/system/modules', [SettingsController::class, 'updateModules'])->name('settings.system.modules.update');
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

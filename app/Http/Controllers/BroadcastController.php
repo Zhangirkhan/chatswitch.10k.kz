@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\Broadcast\BroadcastCampaignService;
 use App\Services\Broadcast\BroadcastSendRateLimiter;
-use Illuminate\Http\JsonResponse;
+use App\Support\NavSectionAccess;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -145,6 +145,7 @@ final class BroadcastController extends Controller
             403,
             'Рассылки доступны администратору и руководителю.',
         );
+        NavSectionAccess::assertModuleEnabled('module_broadcasts');
     }
 
     /** @return list<array<string, mixed>> */

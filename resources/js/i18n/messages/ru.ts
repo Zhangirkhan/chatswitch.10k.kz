@@ -195,6 +195,12 @@ export const ru: MessageCatalog = {
             errorSave: 'Ошибка сохранения',
             remindersToggleOff: 'Выключить напоминания',
             remindersToggleOn: 'Включить напоминания',
+            sectionModules: 'Разделы приложения',
+            modulesHint: 'Включайте и выключайте разделы для всех пользователей компании. Сотрудники не увидят отключённые разделы в меню.',
+            modulesSave: 'Сохранить разделы',
+            modulesToggleOff: 'Выключить раздел',
+            modulesToggleOn: 'Включить раздел',
+            modulesErrorSave: 'Не удалось сохранить разделы',
         },
         funnels: {
             title: 'Воронки продаж',

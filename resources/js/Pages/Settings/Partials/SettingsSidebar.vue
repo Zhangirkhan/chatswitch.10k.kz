@@ -94,6 +94,7 @@ const adminItems: AdminItem[] = [
         i18nKey: 'clients',
         icon: 'clients',
         routeName: 'clients.index',
+        moduleKey: 'clients',
     },
     {
         kind: 'admin',

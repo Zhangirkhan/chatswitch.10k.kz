@@ -18,6 +18,12 @@ const slaMinutesKey = 'chats.sla_reminder_minutes';
 
 const props = defineProps<{
     settings: Record<string, string>;
+    modules: Array<{
+        key: string;
+        label: string;
+        description: string;
+        enabled: boolean;
+    }>;
 }>();
 
 const form = ref<Record<string, string>>(
@@ -27,6 +33,11 @@ const form = ref<Record<string, string>>(
 );
 const isSaving = ref(false);
 const saved = ref(false);
+const moduleForm = ref<Record<string, boolean>>(
+    Object.fromEntries(props.modules.map((module) => [module.key, module.enabled])),
+);
+const isSavingModules = ref(false);
+const modulesSaved = ref(false);
 const quickReactionKey = 'chat.quick_reaction_emojis';
 const defaultQuickReactions = ['👍', '❤️', '😂', '😮', '😢'];
 const quickReactions = ref<string[]>(parseQuickReactions(form.value[quickReactionKey]));
@@ -119,6 +130,24 @@ function slaRemindersEnabled(): boolean {
 
 function toggleSlaReminders(): void {
     form.value[slaEnabledKey] = slaRemindersEnabled() ? 'off' : 'on';
+}
+
+function toggleModule(key: string): void {
+    moduleForm.value[key] = !moduleForm.value[key];
+}
+
+async function saveModules() {
+    isSavingModules.value = true;
+    modulesSaved.value = false;
+    try {
+        await axios.post(route('settings.system.modules.update'), { modules: moduleForm.value });
+        modulesSaved.value = true;
+        setTimeout(() => modulesSaved.value = false, 3000);
+    } catch (err: any) {
+        showToast({ message: err.response?.data?.message || t('settings.system.modulesErrorSave'), type: 'warning' });
+    } finally {
+        isSavingModules.value = false;
+    }
 }
 
 async function save() {
@@ -235,6 +264,52 @@ async function save() {
                             {{ t('settings.system.slaMinutesHint') }}
                         </p>
                     </div>
+                </div>
+            </div>
+
+            <!-- Разделы приложения -->
+            <div
+                class="ui-settings-section ui-settings-section--narrow"
+            >
+                <h2 class="text-sm font-semibold mb-1" :style="{ color: 'var(--ui-text)' }">{{ t('settings.system.sectionModules') }}</h2>
+                <p class="text-xs mb-4" :style="{ color: 'var(--ui-text-secondary)' }">
+                    {{ t('settings.system.modulesHint') }}
+                </p>
+
+                <div class="space-y-3">
+                    <div
+                        v-for="mod in modules"
+                        :key="mod.key"
+                        class="module-row"
+                        :class="{ 'module-row-on': moduleForm[mod.key] }"
+                    >
+                        <div class="module-info">
+                            <span class="module-label">{{ mod.label }}</span>
+                            <span class="module-desc">{{ mod.description }}</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="toggle-btn"
+                            :class="{ 'toggle-btn-on': moduleForm[mod.key] }"
+                            :aria-pressed="moduleForm[mod.key]"
+                            :title="moduleForm[mod.key] ? t('settings.system.modulesToggleOff') : t('settings.system.modulesToggleOn')"
+                            @click="toggleModule(mod.key)"
+                        >
+                            <span class="toggle-thumb"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex items-center gap-3">
+                    <button
+                        type="button"
+                        class="ui-btn ui-btn--secondary"
+                        :disabled="isSavingModules"
+                        @click="saveModules"
+                    >
+                        {{ isSavingModules ? t('settings.system.saving') : t('settings.system.modulesSave') }}
+                    </button>
+                    <span v-if="modulesSaved" class="text-sm" :style="{ color: 'var(--ui-accent)' }">{{ t('settings.system.saved') }}</span>
                 </div>
             </div>
 
@@ -370,5 +445,35 @@ async function save() {
 }
 .toggle-btn-on .toggle-thumb {
     transform: translateX(1.25rem);
+}
+
+.module-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-surface);
+}
+.module-row-on {
+    border-color: var(--ui-accent-border);
+    background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface));
+}
+.module-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+.module-label {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--ui-text);
+}
+.module-desc {
+    font-size: 0.75rem;
+    color: var(--ui-text-secondary);
 }
 </style>

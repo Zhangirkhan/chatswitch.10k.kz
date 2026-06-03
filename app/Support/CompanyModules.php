@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\SystemSetting;
+
 final class CompanyModules
 {
     /** @return list<string> */
@@ -18,6 +20,21 @@ final class CompanyModules
     public static function definitions(): array
     {
         return [
+            'module_clients' => [
+                'label' => 'Клиенты',
+                'description' => 'Раздел «Клиенты»: карточки, компании и профили.',
+                'inertia_key' => 'clients',
+            ],
+            'module_broadcasts' => [
+                'label' => 'Рассылки',
+                'description' => 'Массовые WhatsApp-рассылки для администратора и руководителя.',
+                'inertia_key' => 'broadcasts',
+            ],
+            'module_ai_chat' => [
+                'label' => 'AI-чат',
+                'description' => 'Отдельный чат с AI-ассистентом по данным компании.',
+                'inertia_key' => 'ai_chat',
+            ],
             'module_tasks' => [
                 'label' => 'Задачи и отделы',
                 'description' => 'Раздел «Организация»: отделы, задачи, комментарии и архив.',
@@ -70,5 +87,17 @@ final class CompanyModules
     public static function defaultValues(): array
     {
         return array_fill_keys(self::keys(), 'on');
+    }
+
+    /** @return array<string, bool> */
+    public static function inertiaFlags(): array
+    {
+        $flags = [];
+
+        foreach (self::definitions() as $key => $definition) {
+            $flags[$definition['inertia_key']] = SystemSetting::getValue($key, 'on') === 'on';
+        }
+
+        return $flags;
     }
 }

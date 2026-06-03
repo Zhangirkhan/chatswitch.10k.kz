@@ -138,7 +138,8 @@ function onContactFieldsUpdated(): void {
 }
 
 const clientsFullProfileUrl = computed(() => {
-    if (!props.chat.contact_id || !route().has('clients.index')) {
+    const nav = page.props.nav as Record<string, boolean> | undefined;
+    if (!props.chat.contact_id || !nav?.clients) {
         return null;
     }
     return route('clients.index', { contact: props.chat.contact_id });

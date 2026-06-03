@@ -15,6 +15,8 @@ use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\Security\RecaptchaVerifier;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\TeamDepartmentChatSyncService;
+use App\Support\CompanyModules;
+use App\Support\NavSectionAccess;
 use App\Support\OrganizationDepartmentTasks;
 use App\Support\QuickReactions;
 use App\Support\TenantCompany;
@@ -122,16 +124,10 @@ final class HandleInertiaRequests extends Middleware
                 'version' => config('recaptcha.version') === 'v2' ? 'v2' : 'v3',
             ],
             'modules' => fn () => [
-                'calendar' => SystemSetting::getValue('module_calendar', 'on') === 'on',
-                'analytics' => SystemSetting::getValue('module_analytics', 'on') === 'on',
-                'tasks' => SystemSetting::getValue('module_tasks', 'on') === 'on',
+                ...CompanyModules::inertiaFlags(),
                 'org_tasks' => OrganizationDepartmentTasks::enabled(),
-                'funnels' => SystemSetting::getValue('module_funnels', 'on') === 'on',
-                'products' => SystemSetting::getValue('module_products', 'on') === 'on',
-                'services' => SystemSetting::getValue('module_services', 'on') === 'on',
-                'knowledge' => SystemSetting::getValue('module_knowledge', 'on') === 'on',
-                'ai_quality' => SystemSetting::getValue('module_ai_quality', 'on') === 'on',
             ],
+            'nav' => fn () => NavSectionAccess::visibleFor($user),
         ];
     }
 

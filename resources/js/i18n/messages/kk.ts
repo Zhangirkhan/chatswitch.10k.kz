@@ -195,6 +195,12 @@ export const kk: MessageCatalog = {
             errorSave: 'Сақтау қатесі',
             remindersToggleOff: 'Еске салуларды өшіру',
             remindersToggleOn: 'Еске салуларды қосу',
+            sectionModules: 'Қосымша бөлімдер',
+            modulesHint: 'Компаниядағы барлық пайдаланушылар үшін бөлімдерді қосу немесе өшіру. Өшірілген бөлімдер мәзірде көрінбейді.',
+            modulesSave: 'Бөлімдерді сақтау',
+            modulesToggleOff: 'Бөлімді өшіру',
+            modulesToggleOn: 'Бөлімді қосу',
+            modulesErrorSave: 'Бөлімдерді сақтау сәтсіз',
         },
         funnels: {
             title: 'Сату шұңқырлары',

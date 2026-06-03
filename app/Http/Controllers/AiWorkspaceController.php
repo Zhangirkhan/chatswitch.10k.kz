@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Services\AI\AiWorkspaceClientSummaryService;
 use App\Services\AI\AiWorkspaceService;
+use App\Support\NavSectionAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,8 @@ final class AiWorkspaceController extends Controller
 {
     public function index(): Response
     {
+        NavSectionAccess::assertModuleEnabled('module_ai_chat');
+
         return Inertia::render('AiChat/Index', [
             'suggestions' => [
                 'Какие записи у Михаила на этой неделе — когда занят, когда свободен?',
@@ -32,6 +35,8 @@ final class AiWorkspaceController extends Controller
 
     public function query(Request $request, AiWorkspaceService $workspace): JsonResponse
     {
+        NavSectionAccess::assertModuleEnabled('module_ai_chat');
+
         $data = $request->validate([
             'message' => ['required', 'string', 'max:4000'],
             'history' => ['nullable', 'array', 'max:30'],

@@ -18,10 +18,13 @@ const unread = computed<number>(() => {
 });
 const orgOpen = computed<number>(() => Number(page.props.orgOpenTasksCount || 0));
 const teamChatUnread = computed<number>(() => Number(page.props.teamChatUnreadCount || 0));
-const tasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.tasks ?? true));
-const orgTasksEnabled = computed<boolean>(() => Boolean(page.props.modules?.org_tasks ?? false));
+const nav = computed<Record<string, boolean>>(() => {
+    const sections = page.props.nav as Record<string, boolean> | undefined;
+    return sections ?? {};
+});
+const organizationVisible = computed<boolean>(() => Boolean(nav.value.organization));
 const organizationHref = computed(() =>
-    orgTasksEnabled.value ? route('organization.index') : route('organization.team-chat.index'),
+    page.props.modules?.org_tasks ? route('organization.index') : route('organization.team-chat.index'),
 );
 </script>
 
@@ -45,7 +48,7 @@ const organizationHref = computed(() =>
             >{{ unread > 99 ? '99+' : unread }}</span>
         </Link>
         <Link
-            v-if="tasksEnabled"
+            v-if="organizationVisible"
             :href="organizationHref"
             class="ui-pill-nav__item"
             :class="{ 'is-active': active === 'organization' }"
@@ -55,12 +58,12 @@ const organizationHref = computed(() =>
             </svg>
             <span class="truncate">{{ t('misc.sidebarOrganization') }}</span>
             <span
-                v-if="orgTasksEnabled && orgOpen > 0"
+                v-if="page.props.modules?.org_tasks && orgOpen > 0"
                 class="ui-tab-badge ui-tab-badge--warn"
                 :title="t('misc.sidebarActiveTasks', { count: orgOpen })"
             >{{ orgOpen > 99 ? '99+' : orgOpen }}</span>
             <span
-                v-else-if="!orgTasksEnabled && teamChatUnread > 0"
+                v-else-if="!page.props.modules?.org_tasks && teamChatUnread > 0"
                 class="ui-tab-badge ui-tab-badge--team"
                 :title="t('misc.sidebarTeamChatUnread', { count: teamChatUnread })"
             >{{ teamChatUnread > 99 ? '99+' : teamChatUnread }}</span>

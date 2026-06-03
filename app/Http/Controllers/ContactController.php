@@ -18,7 +18,7 @@ use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
 use App\Services\Contact\ContactListFilterService;
 use App\Support\ContactListFilters;
-use App\Support\PhoneFormatter;
+use App\Support\NavSectionAccess;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -49,6 +49,7 @@ final class ContactController extends Controller
     {
         $user = $request->user();
         abort_unless($user, 403);
+        NavSectionAccess::assertModuleEnabled('module_clients');
 
         $search = trim((string) $request->input('search', ''));
         $listFilters = ContactListFilters::fromRequest($request);
