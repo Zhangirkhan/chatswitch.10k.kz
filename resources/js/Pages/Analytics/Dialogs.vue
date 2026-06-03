@@ -108,96 +108,96 @@ function onProblemNext() {
             </header>
 
             <div class="ui-tool-page__main ui-analytics-page__main wa-scrollbar">
-                <div class="ui-analytics-page__sticky-bar">
+                <div class="ui-analytics-page__toolbar">
                     <AnalyticsFilters
                         :analytics-type="analytics.analyticsType.value"
-                    :period-preset="analytics.periodPreset.value"
-                    :from="analytics.from.value"
-                    :to="analytics.to.value"
-                    :department-id="analytics.departmentId.value"
-                    :employee-id="analytics.employeeId.value"
-                    :status="analytics.status.value"
-                    :channel="analytics.channel.value"
-                    :filtered-employees="analytics.filteredEmployees.value"
-                    :departments="filterOptions.departments"
-                    :is-employee="isEmployee"
-                    @update:from="analytics.from.value = $event"
-                    @update:to="analytics.to.value = $event"
-                    @update:department-id="analytics.departmentId.value = $event"
-                    @update:employee-id="analytics.employeeId.value = $event"
-                    @update:status="analytics.status.value = $event"
-                    @update:channel="analytics.channel.value = $event"
-                    @update:period-preset="analytics.periodPreset.value = $event"
-                    @preset="onPreset"
-                    @reset="onResetFilters"
+                        :period-preset="analytics.periodPreset.value"
+                        :from="analytics.from.value"
+                        :to="analytics.to.value"
+                        :department-id="analytics.departmentId.value"
+                        :employee-id="analytics.employeeId.value"
+                        :status="analytics.status.value"
+                        :channel="analytics.channel.value"
+                        :filtered-employees="analytics.filteredEmployees.value"
+                        :departments="filterOptions.departments"
+                        :is-employee="isEmployee"
+                        @update:from="analytics.from.value = $event"
+                        @update:to="analytics.to.value = $event"
+                        @update:department-id="analytics.departmentId.value = $event"
+                        @update:employee-id="analytics.employeeId.value = $event"
+                        @update:status="analytics.status.value = $event"
+                        @update:channel="analytics.channel.value = $event"
+                        @update:period-preset="analytics.periodPreset.value = $event"
+                        @preset="onPreset"
+                        @reset="onResetFilters"
                     />
 
                     <div class="ui-analytics-page__tabs">
-                    <UiPillNav v-if="analytics.analyticsType.value === 'dialogs'">
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.dialogsTab.value === 'overview' }"
-                            @click="analytics.setDialogsTab('overview')"
-                        >
-                            {{ t('analytics.tabOverview') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.dialogsTab.value === 'dynamics' }"
-                            @click="analytics.setDialogsTab('dynamics')"
-                        >
-                            {{ t('analytics.tabDynamics') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.dialogsTab.value === 'team' }"
-                            @click="analytics.setDialogsTab('team')"
-                        >
-                            {{ t('analytics.tabTeam') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.dialogsTab.value === 'problems' }"
-                            @click="analytics.setDialogsTab('problems')"
-                        >
-                            {{ t('analytics.tabProblems') }}
-                            <span v-if="analytics.problemMeta.value.total > 0" class="ui-analytics-tab-badge">
-                                {{ analytics.problemMeta.value.total > 99 ? '99+' : analytics.problemMeta.value.total }}
-                            </span>
-                        </button>
-                    </UiPillNav>
+                        <UiPillNav v-if="analytics.analyticsType.value === 'dialogs'">
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.dialogsTab.value === 'overview' }"
+                                @click="analytics.setDialogsTab('overview')"
+                            >
+                                {{ t('analytics.tabOverview') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.dialogsTab.value === 'dynamics' }"
+                                @click="analytics.setDialogsTab('dynamics')"
+                            >
+                                {{ t('analytics.tabDynamics') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.dialogsTab.value === 'team' }"
+                                @click="analytics.setDialogsTab('team')"
+                            >
+                                {{ t('analytics.tabTeam') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.dialogsTab.value === 'problems' }"
+                                @click="analytics.setDialogsTab('problems')"
+                            >
+                                {{ t('analytics.tabProblems') }}
+                                <span v-if="analytics.problemMeta.value.total > 0" class="ui-analytics-tab-badge">
+                                    {{ analytics.problemMeta.value.total > 99 ? '99+' : analytics.problemMeta.value.total }}
+                                </span>
+                            </button>
+                        </UiPillNav>
 
-                    <UiPillNav v-else>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.funnelsTab.value === 'overview' }"
-                            @click="analytics.setFunnelsTab('overview')"
-                        >
-                            {{ t('analytics.tabOverview') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.funnelsTab.value === 'conversion' }"
-                            @click="analytics.setFunnelsTab('conversion')"
-                        >
-                            {{ t('analytics.tabConversion') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-pill-nav__item"
-                            :class="{ 'is-active': analytics.funnelsTab.value === 'coverage' }"
-                            @click="analytics.setFunnelsTab('coverage')"
-                        >
-                            {{ t('analytics.tabCoverage') }}
-                        </button>
-                    </UiPillNav>
-                </div>
+                        <UiPillNav v-else>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.funnelsTab.value === 'overview' }"
+                                @click="analytics.setFunnelsTab('overview')"
+                            >
+                                {{ t('analytics.tabOverview') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.funnelsTab.value === 'conversion' }"
+                                @click="analytics.setFunnelsTab('conversion')"
+                            >
+                                {{ t('analytics.tabConversion') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="ui-pill-nav__item"
+                                :class="{ 'is-active': analytics.funnelsTab.value === 'coverage' }"
+                                @click="analytics.setFunnelsTab('coverage')"
+                            >
+                                {{ t('analytics.tabCoverage') }}
+                            </button>
+                        </UiPillNav>
+                    </div>
                 </div>
 
                 <div class="ui-analytics-page__body">
