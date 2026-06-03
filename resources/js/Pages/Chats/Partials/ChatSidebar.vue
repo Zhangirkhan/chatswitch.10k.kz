@@ -19,7 +19,7 @@ const { t } = useI18n();
 
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
-type SegmentKey = 'favorites' | 'clients' | 'staff';
+type SegmentKey = 'all' | 'favorites' | 'clients' | 'staff';
 type ListFilterKey = 'attention' | null;
 
 const props = withDefaults(
@@ -290,7 +290,7 @@ function teardownListEcho(): void {
     }
     listEchoChannel = null;
 }
-const activeSegment = ref<SegmentKey>('clients');
+const activeSegment = ref<SegmentKey>('all');
 const headerMenuOpen = ref(false);
 const showNewChat = ref(false);
 
@@ -319,7 +319,7 @@ onMounted(() => {
     }
 
     const storedSegment = localStorage.getItem(SEGMENT_KEY);
-    if (storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
+    if (storedSegment === 'all' || storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
         activeSegment.value = storedSegment;
     }
 
@@ -464,7 +464,7 @@ const filteredChats = computed(() => {
     } else if (activeSegment.value === 'clients') {
         // Клиенты: последнее сообщение от клиента (или ещё нет переписки).
         list = list.filter((c) => !isStaffLastMessage(c));
-    } else {
+    } else if (activeSegment.value === 'staff') {
         // Сотрудники: последнее сообщение от компании (оператор / AI).
         list = list.filter((c) => isStaffLastMessage(c));
     }
@@ -509,6 +509,9 @@ function setAttentionFilter(): void {
 }
 
 function setOwnership(key: OwnershipKey) {
+    if (key === 'all') {
+        activeSegment.value = 'all';
+    }
     const q: Record<string, string | undefined> = {};
     if (props.search) {
         q.search = props.search;
@@ -791,7 +794,7 @@ onBeforeUnmount(() => {
                         <button
                             type="button"
                             class="ui-chip shrink-0"
-                            :class="{ 'is-active': listOwnership === 'all' }"
+                            :class="{ 'is-active': listOwnership === 'all' && activeSegment === 'all' && listFilter !== 'attention' }"
                             @click="setOwnership('all')"
                         >
                             {{ t('chats.sidebar.all') }}
@@ -807,6 +810,15 @@ onBeforeUnmount(() => {
                         </button>
                         <span class="ui-sidebar-filters__sep" aria-hidden="true" />
                     </template>
+                    <button
+                        v-if="!canFilterByOwnership"
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': activeSegment === 'all' && listFilter !== 'attention' }"
+                        @click="setSegment('all')"
+                    >
+                        {{ t('chats.sidebar.all') }}
+                    </button>
                     <button
                         type="button"
                         class="ui-chip shrink-0"
