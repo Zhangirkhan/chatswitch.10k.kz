@@ -116,7 +116,8 @@ function toggleExpanded(): void {
 
         <div v-show="expanded" class="ui-analytics-filters__body">
             <div class="ui-analytics-filters__row ui-analytics-filters__row--period">
-                <div class="ui-analytics-filters__pills">
+                <div class="ui-analytics-filters__period-controls">
+                    <div class="ui-analytics-filters__pills">
                     <button
                         type="button"
                         class="ui-analytics-filter-pill"
@@ -158,6 +159,7 @@ function toggleExpanded(): void {
                         class="ui-analytics-input ui-analytics-input--date"
                         @input="emit('update:to', ($event.target as HTMLInputElement).value); emit('update:periodPreset', 'custom')"
                     />
+                </div>
                 </div>
 
                 <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-analytics-filters__reset" @click="emit('reset')">
