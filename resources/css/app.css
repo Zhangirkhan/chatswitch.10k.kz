@@ -54,7 +54,8 @@
     /* Фон приложения вне чата (рассылки, календарь, аналитика, настройки) */
     --wa-page-bg: #161717;
     --wa-composer-bg: var(--wa-panel);
-    --wa-composer-field-bg: #2a3944;
+    /* Нейтральный graphite, без синего оттенка #2a3944 */
+    --wa-composer-field-bg: color-mix(in srgb, #ffffff 9%, var(--wa-bg));
 
     /* Borders & dividers */
     --wa-border: rgba(134, 150, 160, 0.13);
@@ -336,7 +337,7 @@
     /* Нейтральный фон вне чата — без бежевого пергамента чата */
     --wa-page-bg: #F0F2F5;
     --wa-composer-bg: var(--wa-panel);
-    --wa-composer-field-bg: #ffffff;
+    --wa-composer-field-bg: var(--wa-panel-input);
 
     /* Borders & dividers */
     --wa-border: #D1D7DB;
