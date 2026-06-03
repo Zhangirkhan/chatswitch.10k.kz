@@ -226,28 +226,24 @@
     margin-bottom: 0;
 }
 
-/* Floating glass composer on chat wallpaper (team + client chat) */
+/* Floating composer on chat wallpaper — opaque graphite, no blue #202c33 / blur bleed */
 .chat-bg .wa-composer-root {
     width: 100%;
 }
 
 .chat-bg .wa-input-bar--unified {
-    border: 1px solid color-mix(in srgb, var(--wa-control-rim) 72%, transparent);
-    background: color-mix(in srgb, var(--wa-panel-header) 84%, transparent);
+    border: 1px solid var(--wa-border);
+    background: var(--wa-composer-field-bg);
     box-shadow:
-        0 4px 24px rgba(0, 0, 0, 0.22),
+        0 4px 18px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent);
-    backdrop-filter: blur(14px) saturate(1.12);
-    -webkit-backdrop-filter: blur(14px) saturate(1.12);
-}
-
-[data-theme='dark'] .chat-bg .wa-input-bar--unified {
-    background: color-mix(in srgb, #202c33 88%, transparent);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 [data-theme='light'] .chat-bg .wa-input-bar--unified {
-    background: color-mix(in srgb, var(--wa-panel) 94%, transparent);
-    box-shadow: 0 2px 14px rgba(11, 20, 26, 0.1);
+    background: var(--wa-panel-input);
+    box-shadow: 0 2px 12px rgba(11, 20, 26, 0.08);
 }
 
 .chat-bg .wa-input-bar--unified .wa-input-btn {
@@ -269,8 +265,8 @@
     min-height: 44px;
     padding: 0 10px 0 4px;
     border-radius: 24px;
-    border: 1px solid color-mix(in srgb, var(--wa-control-rim) 55%, transparent);
-    background: color-mix(in srgb, #202c33 92%, transparent);
+    border: 1px solid var(--wa-border);
+    background: var(--wa-composer-field-bg);
     box-shadow:
         inset 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent),
         0 1px 3px rgba(0, 0, 0, 0.18);
