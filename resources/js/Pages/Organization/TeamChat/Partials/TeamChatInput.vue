@@ -433,13 +433,13 @@ onBeforeUnmount(() => {
 <template>
     <WaComposerBar :recording="recording">
         <template #attachments>
-            <div v-if="pendingFiles.length" class="px-3 pb-1 flex flex-wrap gap-1.5">
+            <div v-if="pendingFiles.length" class="wa-composer-attachments">
                 <span
                     v-for="(f, fi) in pendingFiles"
                     :key="`${f.name}-${fi}-${f.size}`"
-                    class="inline-flex items-center gap-1 rounded-full border border-[var(--wa-border)] bg-[var(--wa-panel-header)] pl-2 pr-1 py-0.5 text-xs max-w-full"
+                    class="wa-composer-attachment-chip"
                 >
-                    <span class="truncate max-w-[10rem] text-[var(--wa-text)]">{{ f.name }}</span>
+                    <span class="truncate max-w-[10rem]">{{ f.name }}</span>
                     <button
                         type="button"
                         class="shrink-0 rounded-full px-1 opacity-60 hover:opacity-100"
@@ -457,11 +457,13 @@ onBeforeUnmount(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                 </svg>
             </button>
-            <div class="wa-input-pill flex-1 flex items-center gap-3 px-3">
-                <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                <span class="text-sm text-[var(--wa-text)]">{{ t('organization.recording', { time: formatRecordTime(recordingTime) }) }}</span>
+            <div class="wa-input-field-group">
+                <div class="wa-input-pill flex-1 flex items-center gap-3 px-2">
+                    <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0" />
+                    <span class="text-sm text-[var(--wa-text)] truncate">{{ t('organization.recording', { time: formatRecordTime(recordingTime) }) }}</span>
+                </div>
             </div>
-            <button type="button" class="wa-input-btn" :title="t('organization.sendComment')" @click="stopRecording">
+            <button type="button" class="wa-input-btn wa-input-btn--send" :title="t('organization.sendComment')" @click="stopRecording">
                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" :style="{ color: 'var(--wa-accent)' }">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                 </svg>
@@ -511,53 +513,55 @@ onBeforeUnmount(() => {
         <input ref="mediaInput" type="file" accept="image/*,video/*" class="hidden" multiple @change="onMediaSelected" />
         <input ref="docInput" type="file" class="hidden" multiple @change="onDocSelected" />
 
-        <button
-            type="button"
-            class="wa-input-btn"
-            :class="{ 'wa-input-btn-active': showEmoji }"
-            :title="t('organization.emoji')"
-            :disabled="disabled"
-            @click="toggleEmoji"
-        >
-            <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-        </button>
-
-        <div class="wa-input-pill relative">
-            <div
-                v-if="mentionOpen"
-                class="team-mention-menu"
+        <div class="wa-input-field-group">
+            <button
+                type="button"
+                class="wa-input-btn"
+                :class="{ 'wa-input-btn-active': showEmoji }"
+                :title="t('organization.emoji')"
+                :disabled="disabled"
+                @click="toggleEmoji"
             >
-                <button
-                    v-for="(p, idx) in filteredMentionCandidates"
-                    :key="p.id"
-                    type="button"
-                    class="team-mention-menu__item"
-                    :class="{ 'is-active': mentionActiveIndex === idx }"
-                    @mousedown.prevent
-                    @click="applyMention(p)"
+                <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </button>
+
+            <div class="wa-input-pill relative">
+                <div
+                    v-if="mentionOpen"
+                    class="team-mention-menu"
                 >
-                    <span class="team-mention-menu__at">@</span>{{ p.name }}
-                </button>
-                <p
-                    v-if="filteredMentionCandidates.length === 0"
-                    class="team-mention-menu__empty"
-                >
-                    {{ t('organization.noMentionMatches') }}
-                </p>
+                    <button
+                        v-for="(p, idx) in filteredMentionCandidates"
+                        :key="p.id"
+                        type="button"
+                        class="team-mention-menu__item"
+                        :class="{ 'is-active': mentionActiveIndex === idx }"
+                        @mousedown.prevent
+                        @click="applyMention(p)"
+                    >
+                        <span class="team-mention-menu__at">@</span>{{ p.name }}
+                    </button>
+                    <p
+                        v-if="filteredMentionCandidates.length === 0"
+                        class="team-mention-menu__empty"
+                    >
+                        {{ t('organization.noMentionMatches') }}
+                    </p>
+                </div>
+                <div
+                    ref="editorRef"
+                    class="wa-composer-field wa-rich-editor wa-scrollbar"
+                    :contenteditable="disabled ? 'false' : 'true'"
+                    role="textbox"
+                    aria-multiline="true"
+                    :data-placeholder="editorPlaceholder"
+                    @input="onInput"
+                    @keydown="onKeydown"
+                    @click="onClick"
+                />
             </div>
-            <div
-                ref="editorRef"
-                class="wa-composer-field wa-rich-editor wa-scrollbar"
-                :contenteditable="disabled ? 'false' : 'true'"
-                role="textbox"
-                aria-multiline="true"
-                :data-placeholder="editorPlaceholder"
-                @input="onInput"
-                @keydown="onKeydown"
-                @click="onClick"
-            />
         </div>
 
         <EmojiPicker v-if="showEmoji" class="z-50" @select="insertEmoji" @close="showEmoji = false" />
@@ -565,7 +569,7 @@ onBeforeUnmount(() => {
         <button
             v-if="canSend"
             type="button"
-            class="wa-input-btn"
+            class="wa-input-btn wa-input-btn--send"
             :title="t('organization.sendComment')"
             :disabled="disabled"
             @click="trySubmit"

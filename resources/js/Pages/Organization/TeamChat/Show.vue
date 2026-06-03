@@ -218,8 +218,8 @@ const {
                 </svg>
             </button>
 
-            <div class="team-chat-composer shrink-0 px-3 sm:px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                <div class="mx-auto flex max-w-4xl flex-col gap-2">
+            <div class="team-chat-composer shrink-0 px-2 sm:px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1">
+                <div class="mx-auto flex w-full max-w-4xl flex-col gap-2">
                     <div
                         v-if="replyToMessage"
                         class="ui-result-card flex items-start gap-2 border-[color-mix(in_srgb,var(--wa-accent)_40%,var(--wa-border))] bg-[var(--wa-selected)]/25 text-xs text-[var(--wa-text)]"

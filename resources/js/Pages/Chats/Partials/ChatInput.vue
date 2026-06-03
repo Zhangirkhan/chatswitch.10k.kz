@@ -1452,7 +1452,7 @@ watch(anyOverlayOpen, (open) => {
         </div>
 
         <!-- Main input bar -->
-        <div class="wa-input-bar">
+        <div class="wa-input-bar wa-input-bar--unified">
             <!-- Recording state -->
             <template v-if="recording">
                 <button @click="cancelRecording" class="wa-input-btn text-red-500" :title="t('chats.input.cancel')">
