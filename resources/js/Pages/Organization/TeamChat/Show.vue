@@ -218,7 +218,7 @@ const {
                 </svg>
             </button>
 
-            <div class="team-chat-composer shrink-0 px-2 sm:px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1">
+            <div class="team-chat-composer shrink-0 px-3 sm:px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2">
                 <div class="mx-auto flex w-full max-w-4xl flex-col gap-2">
                     <div
                         v-if="replyToMessage"

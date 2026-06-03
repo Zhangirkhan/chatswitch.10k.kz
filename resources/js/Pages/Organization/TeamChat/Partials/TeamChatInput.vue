@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <WaComposerBar :recording="recording">
+    <WaComposerBar :recording="recording" variant="unified">
         <template #attachments>
             <div v-if="pendingFiles.length" class="wa-composer-attachments">
                 <span
@@ -457,14 +457,12 @@ onBeforeUnmount(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M8 7V4a1 1 0 011-1h6a1 1 0 011 1v3" />
                 </svg>
             </button>
-            <div class="wa-input-field-group">
-                <div class="wa-input-pill flex-1 flex items-center gap-3 px-2">
-                    <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0" />
-                    <span class="text-sm text-[var(--wa-text)] truncate">{{ t('organization.recording', { time: formatRecordTime(recordingTime) }) }}</span>
-                </div>
+            <div class="wa-input-pill flex-1 flex items-center gap-3 px-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <span class="text-sm text-[var(--wa-text)] truncate">{{ t('organization.recording', { time: formatRecordTime(recordingTime) }) }}</span>
             </div>
             <button type="button" class="wa-input-btn wa-input-btn--send" :title="t('organization.sendComment')" @click="stopRecording">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" :style="{ color: 'var(--wa-accent)' }">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                 </svg>
             </button>
@@ -513,55 +511,53 @@ onBeforeUnmount(() => {
         <input ref="mediaInput" type="file" accept="image/*,video/*" class="hidden" multiple @change="onMediaSelected" />
         <input ref="docInput" type="file" class="hidden" multiple @change="onDocSelected" />
 
-        <div class="wa-input-field-group">
-            <button
-                type="button"
-                class="wa-input-btn"
-                :class="{ 'wa-input-btn-active': showEmoji }"
-                :title="t('organization.emoji')"
-                :disabled="disabled"
-                @click="toggleEmoji"
-            >
-                <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </button>
+        <button
+            type="button"
+            class="wa-input-btn"
+            :class="{ 'wa-input-btn-active': showEmoji }"
+            :title="t('organization.emoji')"
+            :disabled="disabled"
+            @click="toggleEmoji"
+        >
+            <svg class="w-6 h-6 block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </button>
 
-            <div class="wa-input-pill relative">
-                <div
-                    v-if="mentionOpen"
-                    class="team-mention-menu"
+        <div class="wa-input-pill flex-1 relative min-w-0">
+            <div
+                v-if="mentionOpen"
+                class="team-mention-menu"
+            >
+                <button
+                    v-for="(p, idx) in filteredMentionCandidates"
+                    :key="p.id"
+                    type="button"
+                    class="team-mention-menu__item"
+                    :class="{ 'is-active': mentionActiveIndex === idx }"
+                    @mousedown.prevent
+                    @click="applyMention(p)"
                 >
-                    <button
-                        v-for="(p, idx) in filteredMentionCandidates"
-                        :key="p.id"
-                        type="button"
-                        class="team-mention-menu__item"
-                        :class="{ 'is-active': mentionActiveIndex === idx }"
-                        @mousedown.prevent
-                        @click="applyMention(p)"
-                    >
-                        <span class="team-mention-menu__at">@</span>{{ p.name }}
-                    </button>
-                    <p
-                        v-if="filteredMentionCandidates.length === 0"
-                        class="team-mention-menu__empty"
-                    >
-                        {{ t('organization.noMentionMatches') }}
-                    </p>
-                </div>
-                <div
-                    ref="editorRef"
-                    class="wa-composer-field wa-rich-editor wa-scrollbar"
-                    :contenteditable="disabled ? 'false' : 'true'"
-                    role="textbox"
-                    aria-multiline="true"
-                    :data-placeholder="editorPlaceholder"
-                    @input="onInput"
-                    @keydown="onKeydown"
-                    @click="onClick"
-                />
+                    <span class="team-mention-menu__at">@</span>{{ p.name }}
+                </button>
+                <p
+                    v-if="filteredMentionCandidates.length === 0"
+                    class="team-mention-menu__empty"
+                >
+                    {{ t('organization.noMentionMatches') }}
+                </p>
             </div>
+            <div
+                ref="editorRef"
+                class="wa-composer-field wa-rich-editor wa-scrollbar"
+                :contenteditable="disabled ? 'false' : 'true'"
+                role="textbox"
+                aria-multiline="true"
+                :data-placeholder="editorPlaceholder"
+                @input="onInput"
+                @keydown="onKeydown"
+                @click="onClick"
+            />
         </div>
 
         <EmojiPicker v-if="showEmoji" class="z-50" @select="insertEmoji" @close="showEmoji = false" />
