@@ -1379,7 +1379,7 @@ watch(resultsOpen, (open) => {
 
 .ai-workspace__turn-bubble--user {
     background: var(--wa-bubble-out);
-    color: var(--wa-bubble-text);
+    color: var(--wa-bubble-text-out, var(--wa-bubble-text));
     border-bottom-right-radius: 6px;
     box-shadow: 0 2px 10px color-mix(in srgb, var(--wa-accent) 14%, transparent);
 }

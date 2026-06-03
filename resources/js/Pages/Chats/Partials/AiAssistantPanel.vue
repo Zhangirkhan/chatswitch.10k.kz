@@ -890,7 +890,9 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                     ]"
                     :style="{
                         background: turn.role === 'user' ? 'var(--wa-bubble-out)' : 'var(--wa-bubble-in)',
-                        color: 'var(--wa-bubble-text)',
+                        color: turn.role === 'user'
+                            ? 'var(--wa-bubble-text-out, var(--wa-bubble-text))'
+                            : 'var(--wa-bubble-text-in, var(--wa-bubble-text))',
                     }"
                 >
                     <div>{{ turn.content }}</div>
