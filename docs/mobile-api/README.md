@@ -9,6 +9,8 @@ https://{slug}.accel.kz/api/v1/...
 OpenAPI-спека: [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml)  
 Swagger UI (на поддомене тенанта): `https://{slug}.accel.kz/docs/api`
 
+**Полный каталог функций по ролям (Flutter):** [FEATURES_BY_ROLE.md](./FEATURES_BY_ROLE.md)
+
 ## Быстрый старт
 
 ### 1. Проверка workspace
