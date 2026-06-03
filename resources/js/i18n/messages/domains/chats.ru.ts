@@ -468,14 +468,7 @@ export const chats = {
         aiEmptyResponse: 'AI вернул пустой ответ. Попробуйте ещё раз.',
         aiActionFailed: 'Не удалось выполнить AI-действие.',
         aiNeedText: 'Сначала напишите текст, который нужно улучшить.',
-        translateDraftLang: {
-            ru: 'на русский',
-            kk: 'на казахский',
-            en: 'на английский',
-            zh: 'на китайский',
-            tr: 'на турецкий',
-            ar: 'на арабский',
-        },
+        translateDraft: 'Перевести',
         translateDraftFailed: 'Не удалось перевести сообщение.',
         translateDraftEmpty: 'Перевод пустой — попробуйте ещё раз.',
         aiPromptReply:

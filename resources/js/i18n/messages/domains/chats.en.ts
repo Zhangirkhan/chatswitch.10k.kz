@@ -468,14 +468,7 @@ export const chats = {
         aiEmptyResponse: 'AI returned an empty response. Try again.',
         aiActionFailed: 'Failed to perform AI action.',
         aiNeedText: 'Write the text to improve first.',
-        translateDraftLang: {
-            ru: 'to Russian',
-            kk: 'to Kazakh',
-            en: 'to English',
-            zh: 'to Chinese',
-            tr: 'to Turkish',
-            ar: 'to Arabic',
-        },
+        translateDraft: 'Translate',
         translateDraftFailed: 'Could not translate the message.',
         translateDraftEmpty: 'Translation was empty — try again.',
         aiPromptReply:

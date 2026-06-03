@@ -62,15 +62,6 @@ const outgoingTranslateTarget = computed(() =>
     resolveOutgoingTargetLanguage(messageText.value, props.clientLanguage ?? null),
 );
 
-const outgoingTranslateButtonText = computed(() => {
-    const target = outgoingTranslateTarget.value;
-    if (!target) {
-        return '';
-    }
-
-    return t(`chats.input.translateDraftLang.${target}`);
-});
-
 const showDraftTranslate = computed(
     () => translateEnabled.value && !props.isGroup && hasText.value && outgoingTranslateTarget.value !== null,
 );
@@ -1430,14 +1421,14 @@ watch(anyOverlayOpen, (open) => {
                 type="button"
                 class="wa-ai-input-chip wa-draft-translate-chip"
                 :disabled="draftTranslateLoading || aiActionBusy"
-                :title="outgoingTranslateButtonText"
+                :title="t('chats.input.translateDraft')"
                 @click="translateDraft"
             >
                 <span v-if="draftTranslateLoading" class="wa-ai-dot" aria-hidden="true"></span>
                 {{
                     draftTranslateLoading
                         ? t('chats.message.translating')
-                        : outgoingTranslateButtonText
+                        : t('chats.input.translateDraft')
                 }}
             </button>
             <button
