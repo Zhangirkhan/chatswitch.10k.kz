@@ -56,6 +56,7 @@ const editorPlaceholder = computed(() =>
 
 const showAttach = ref(false);
 const showEmoji = ref(false);
+const emojiBtnRef = ref<HTMLButtonElement | null>(null);
 const mediaInput = ref<HTMLInputElement | null>(null);
 const docInput = ref<HTMLInputElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
@@ -105,6 +106,50 @@ const recordStream = ref<MediaStream | null>(null);
 const recordedChunks = ref<Blob[]>([]);
 let recordInterval: ReturnType<typeof setInterval> | null = null;
 let recordingCancelled = false;
+
+const EMOJI_PICKER_WIDTH = 340;
+const EMOJI_PICKER_HEIGHT = 340;
+const EMOJI_PICKER_GAP = 10;
+
+const emojiPickerStyle = ref<{ left: string; bottom: string }>({ left: '0px', bottom: '0px' });
+
+function repositionEmojiPicker(): void {
+    const btn = emojiBtnRef.value;
+    if (!btn) {
+        return;
+    }
+
+    const rect = btn.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - EMOJI_PICKER_WIDTH / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - EMOJI_PICKER_WIDTH - 8));
+    const bottom = window.innerHeight - rect.top + EMOJI_PICKER_GAP;
+
+    emojiPickerStyle.value = {
+        left: `${left}px`,
+        bottom: `${bottom}px`,
+    };
+}
+
+function bindEmojiPickerListeners(): void {
+    window.addEventListener('resize', repositionEmojiPicker, { passive: true });
+    window.addEventListener('scroll', repositionEmojiPicker, { passive: true, capture: true });
+}
+
+function unbindEmojiPickerListeners(): void {
+    window.removeEventListener('resize', repositionEmojiPicker);
+    window.removeEventListener('scroll', repositionEmojiPicker, true);
+}
+
+watch(showEmoji, (open) => {
+    if (open) {
+        nextTick(() => {
+            repositionEmojiPicker();
+            bindEmojiPickerListeners();
+        });
+    } else {
+        unbindEmojiPickerListeners();
+    }
+});
 
 function normalizePlainText(text: string): string {
     return text.replace(/\u00A0/g, ' ').replace(/\n$/, '');
@@ -187,6 +232,9 @@ function toggleAttach(): void {
 function toggleEmoji(): void {
     showEmoji.value = !showEmoji.value;
     showAttach.value = false;
+    if (showEmoji.value) {
+        nextTick(repositionEmojiPicker);
+    }
 }
 
 function pickPhotoVideo(): void {
@@ -426,6 +474,7 @@ function cancelRecording(): void {
 }
 
 onBeforeUnmount(() => {
+    unbindEmojiPickerListeners();
     if (recording.value) cancelRecording();
 });
 </script>
@@ -512,7 +561,9 @@ onBeforeUnmount(() => {
         <input ref="docInput" type="file" class="hidden" multiple @change="onDocSelected" />
 
         <button
+            ref="emojiBtnRef"
             type="button"
+            data-emoji-trigger
             class="wa-input-btn"
             :class="{ 'wa-input-btn-active': showEmoji }"
             :title="t('organization.emoji')"
@@ -560,7 +611,15 @@ onBeforeUnmount(() => {
             />
         </div>
 
-        <EmojiPicker v-if="showEmoji" class="z-50" @select="insertEmoji" @close="showEmoji = false" />
+        <Teleport to="body">
+            <div
+                v-if="showEmoji"
+                class="team-emoji-popover fixed z-[120]"
+                :style="emojiPickerStyle"
+            >
+                <EmojiPicker @select="insertEmoji" @close="showEmoji = false" />
+            </div>
+        </Teleport>
 
         <button
             v-if="canSend"
@@ -590,6 +649,13 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.team-emoji-popover :deep(.emoji-picker) {
+    width: 340px !important;
+    height: 340px !important;
+    max-width: min(340px, calc(100vw - 16px));
+    max-height: min(340px, calc(100vh - 120px));
+}
+
 .team-mention-menu {
     position: absolute;
     left: 0;
