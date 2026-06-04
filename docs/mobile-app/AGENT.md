@@ -19,6 +19,7 @@ https://{slug}.accel.kz/api/v1/...
 - **Все функции по ролям + API:** см. `docs/mobile-api/FEATURES_BY_ROLE.md`
 - **Мобильные экраны и TabBar (воронки, чаты, AI, календарь, рассылки):** см. `docs/mobile-api/FLUTTER_MOBILE_UI.md`
 - **Внедрение API в приложение (фазы, backend-задачи, JSON-контракты, чеклисты):** см. `docs/mobile-api/MOBILE_IMPLEMENTATION_GUIDE.md`
+- **Перевод и AI-подсказки в чате:** см. `docs/mobile-api/CHAT_TRANSLATION_AND_AI_HINTS.md`
 - PIN-вход: см. `docs/mobile-api/PIN.md` в репозитории бэкенда
 
 ## Цель интеграции

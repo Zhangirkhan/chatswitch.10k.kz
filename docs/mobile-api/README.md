@@ -15,6 +15,8 @@ Swagger UI (на поддомене тенанта): `https://{slug}.accel.kz/do
 
 **Внедрение в Flutter (пошагово: backend P0/P1, контракты JSON, QA):** [MOBILE_IMPLEMENTATION_GUIDE.md](./MOBILE_IMPLEMENTATION_GUIDE.md)
 
+**Перевод сообщений и AI-чипы в чате (Перевести / Ответить / улучшить текст):** [CHAT_TRANSLATION_AND_AI_HINTS.md](./CHAT_TRANSLATION_AND_AI_HINTS.md)
+
 ## Быстрый старт
 
 ### 1. Проверка workspace
