@@ -379,6 +379,36 @@ paths:
         "403":
           description: Нет view
 
+  /api/v1/chats/{chat}/translate-draft:
+    post:
+      tags: [Chats]
+      summary: Перевод черновика исходящего сообщения
+      operationId: chatTranslateDraft
+      description: |
+        Переводит текст в поле ввода на язык клиента (OpenAI).
+        `lang` опционален — если не передан, backend определяет целевой язык по переписке.
+        Лимит — 30 запросов в минуту.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatDraftTranslationRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatDraftTranslationResponse"
+        "403":
+          description: Нет view на чат
+        "503":
+          description: Сервис перевода недоступен
+
   /api/v1/chats/{chat}/ai:
     patch:
       tags: [Chats]
@@ -1058,6 +1088,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Department"
+
+    ChatDraftTranslationRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          maxLength: 4000
+        lang:
+          type: string
+          enum: [ru, kk, en, zh, tr, ar]
+          nullable: true
+
+    ChatDraftTranslationResponse:
+      type: object
+      required: [translation]
+      properties:
+        translation:
+          type: string
+        target_lang:
+          type: string
+          nullable: true
+        target_label:
+          type: string
+          nullable: true
+        unchanged:
+          type: boolean
 
     ChatAiSettingsRequest:
       type: object

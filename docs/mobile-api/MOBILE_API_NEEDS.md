@@ -31,6 +31,8 @@
 | Список чатов | `GET /api/v1/chats` | ✅ OK | Расширить `ChatResource` (см. ниже) |
 | Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | — |
 | AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
+| Перевод черновика («Перевести») | `POST /api/v1/chats/{id}/translate-draft` | ✅ OK | — |
+| Перевод входящего | `POST /api/v1/messages/{id}/translate` | ✅ OK | — |
 | **AI toggle auto/manual** | ✅ `PATCH /api/v1/chats/{id}/ai` | OK | — |
 | Воронка: доска, карточки, PATCH | `funnels/board/*`, `PATCH chats/{id}/funnel` | ✅ OK | — |
 | Полоска воронки в чате | ✅ `GET /api/v1/chats/{id}` | OK | `funnel`, `funnel_stage`, `funnel_progress` в ChatResource |

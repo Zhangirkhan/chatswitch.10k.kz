@@ -17,6 +17,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
+use App\Http\Controllers\ChatDraftTranslationController;
 use App\Http\Controllers\ChatController as WebChatController;
 use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
@@ -60,6 +61,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::post('chats/{chat}/read', [ChatController::class, 'markRead']);
         Route::post('chats/{chat}/typing', [ChatController::class, 'typing']);
         Route::post('chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
+            ->middleware('throttle:30,1');
+        Route::post('chats/{chat}/translate-draft', [ChatDraftTranslationController::class, 'translate'])
             ->middleware('throttle:30,1');
         Route::patch('chats/{chat}/ai', [ChatAiSettingsController::class, 'updateForApi'])
             ->middleware('throttle:30,1');

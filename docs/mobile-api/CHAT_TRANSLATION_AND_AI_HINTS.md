@@ -215,21 +215,27 @@ POST /chats/{chat}/translate-draft
 
 **Throttle (веб):** `throttle:chat-translate` — 30 req/min per user.
 
-### Mobile API — пробел
+### Mobile API — **реализовано**
+
+```http
+POST /api/v1/chats/{chat}/translate-draft
+Authorization: Bearer {sanctum_token}
+Content-Type: application/json
+
+{
+  "text": "привет, как дела?",
+  "lang": "kk"
+}
+```
+
+Маршрут: [`routes/api-tenant.php`](../../routes/api-tenant.php) → [`ChatDraftTranslationController::translate`](../../app/Http/Controllers/ChatDraftTranslationController.php), `throttle:30,1`.
 
 | Endpoint | В `/api/v1` |
 |----------|-------------|
-| `POST /chats/{chat}/translate-draft` | **Нет** (только [`routes/tenant.php`](../../routes/tenant.php)) |
-| `POST /messages/{message}/translate` | **Есть** |
+| `POST /chats/{chat}/translate-draft` | ✅ |
+| `POST /messages/{message}/translate` | ✅ |
 
-**Варианты для Flutter:**
-
-1. **Рекомендуется:** добавить на backend зеркало  
-   `POST /api/v1/chats/{chat}/translate-draft` → тот же [`ChatDraftTranslationController::translate`](../../app/Http/Controllers/ChatDraftTranslationController.php), throttle `chat-translate` или `30,1`.
-2. **Временно:** не показывать чип «Перевести» до появления маршрута.
-3. **Не использовать** `messages/{id}/translate` для черновика — другой контракт и привязка к `Message`.
-
-### Flutter — после появления API
+### Flutter
 
 ```dart
 final response = await api.post(
@@ -332,20 +338,12 @@ bool showTranslateButton(Message m, String targetLang, bool enabled) {
 |----------|--------|------|--------|
 | AI-подсказки / черновик | `POST` | `/api/v1/chats/{chat}/ai/chat` | ✅ |
 | Перевод входящего | `POST` | `/api/v1/messages/{message}/translate` | ✅ |
-| Перевод черновика | `POST` | `/api/v1/chats/{chat}/translate-draft` | ❌ нужен проброс |
+| Перевод черновика | `POST` | `/api/v1/chats/{chat}/translate-draft` | ✅ |
 | Отправка текста | `POST` | `/api/v1/chats/{chat}/messages` | ✅ |
 
 **Права:** `view` на чат ([`ChatPolicy`](../../app/Policies/ChatPolicy.php)).
 
 **OpenAPI:** схемы `AiChatRequest` / `AiChatResponse` в [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml); для translate добавить paths при расширении спеки.
-
-**Рекомендуемый backend follow-up (одна задача):**
-
-```php
-// routes/api-tenant.php, в группе chats
-Route::post('chats/{chat}/translate-draft', [ChatDraftTranslationController::class, 'translate'])
-    ->middleware('throttle:30,1');
-```
 
 ---
 
@@ -444,4 +442,4 @@ Future<String> translateMessage(int messageId, String lang) async {
 
 ---
 
-*При добавлении `POST /api/v1/chats/{chat}/translate-draft` обновите этот файл и OpenAPI.*
+*OpenAPI: `ChatDraftTranslationRequest` / `ChatDraftTranslationResponse` в [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml).*

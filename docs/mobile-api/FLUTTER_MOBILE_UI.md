@@ -758,6 +758,8 @@ Query `filters` — nested: `filters[funnel_stage]=3`, `filters[assignee]=5` (к
 | Рассылки preview/store/list | `broadcasts/*` | OK | `GET /broadcasts` + preview/store/show |
 | AI toggle в чате | `PATCH /chats/{id}/ai` | OK | Ответ `{ data, requires_confirmation, warnings }` |
 | AI панель в чате | `chats/{id}/ai/chat` | OK | |
+| Перевод черновика | `POST /chats/{id}/translate-draft` | OK | см. [CHAT_TRANSLATION_AND_AI_HINTS.md](./CHAT_TRANSLATION_AND_AI_HINTS.md) |
+| Перевод inbound | `POST /messages/{id}/translate` | OK | |
 | Карточка контакта | `contacts/{id}/*` | OK | |
 | Funnel bar данные | `GET /chats/{id}` | OK | `funnel`, `funnel_progress` в ответе |
 | Funnel modal save | `PATCH /chats/{id}/funnel` | OK | + `funnel_catalog` в ответе |

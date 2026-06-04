@@ -260,7 +260,8 @@ sequenceDiagram
 
 - **Модуль:** косвенно AI
 - **API:** `POST /api/v1/chats/{chat}/ai/chat` — throttle 30/min; policy `manageAi`
-- **Веб:** `PATCH /chats/{chat}/ai` — режим auto/manual (**только веб**)
+- **API:** `PATCH /api/v1/chats/{chat}/ai` — toggle auto/manual
+- **Веб:** тот же `PATCH /chats/{chat}/ai` (session)
 
 #### Начать новый диалог / создать группу / синхронизация групп
 
@@ -312,7 +313,8 @@ sequenceDiagram
 
 #### Массовая пересылка, share to team, AI feedback, draft translate
 
-- **Доступ:** Только веб — `/messages/forward-bulk`, `/messages/{id}/share-to-team`, `/messages/{id}/ai-feedback`, `/chats/{chat}/translate-draft`
+- **Доступ:** Только веб — `/messages/forward-bulk`, `/messages/{id}/share-to-team`, `/messages/{id}/ai-feedback`
+- **Перевод черновика:** `POST /api/v1/chats/{chat}/translate-draft` (Sanctum) — см. [CHAT_TRANSLATION_AND_AI_HINTS.md](./CHAT_TRANSLATION_AND_AI_HINTS.md)
 
 #### Отправить контакт / опрос
 
@@ -383,9 +385,10 @@ sequenceDiagram
 
 - **API:** `POST /api/v1/chats/{chat}/ai/chat`
 
-#### Перевод входящего сообщения
+#### Перевод черновика и входящего
 
-- **API:** `POST /api/v1/messages/{message}/translate`
+- **API:** `POST /api/v1/chats/{chat}/translate-draft` — чип «Перевести» над полем ввода (см. [CHAT_TRANSLATION_AND_AI_HINTS.md](./CHAT_TRANSLATION_AND_AI_HINTS.md))
+- **API:** `POST /api/v1/messages/{message}/translate` — кнопка на inbound-сообщении
 
 #### База знаний, товары, услуги, правила, tone profile, AI quality, promotions
 
@@ -563,6 +566,8 @@ sequenceDiagram
 | GET | `/api/v1/chats/archived` | administrator, manager, employee | — | `ChatController@archivedIndex` |
 | GET | `/api/v1/chats/{chat}` | administrator, manager, employee | — | `ChatController@show` |
 | POST | `/api/v1/chats/{chat}/ai/chat` | administrator, manager, employee | 30,1 | `ChatAiAssistantController@chat` |
+| POST | `/api/v1/chats/{chat}/translate-draft` | administrator, manager, employee | 30,1 | `ChatDraftTranslationController@translate` |
+| PATCH | `/api/v1/chats/{chat}/ai` | administrator, manager, employee | 30,1 | `ChatAiSettingsController@updateForApi` |
 | POST | `/api/v1/chats/{chat}/archive` | administrator, manager, employee | — | `ChatController@archive` |
 | POST | `/api/v1/chats/{chat}/assign` | administrator, manager, employee | — | `ChatAssignmentController@store` |
 | GET | `/api/v1/chats/{chat}/assign/history` | administrator, manager, employee | — | `ChatAssignmentController@history` |

@@ -106,7 +106,7 @@ curl -s -X POST "https://demo.accel.kz/broadcasting/auth" \
 |---------|----------|
 | `/api/v1/workspace` | Публичная информация о тенанте |
 | `/api/v1/auth/*` | login, **login/pin**, logout, me |
-| `/api/v1/chats/*` | WhatsApp-диалоги |
+| `/api/v1/chats/*` | WhatsApp-диалоги (в т.ч. `translate-draft`, `ai/chat`) |
 | `/api/v1/messages/*` | Реакции, forward, translate |
 | `/api/v1/media/{id}` | Скачивание вложений (Bearer) |
 | `/api/v1/team-chat/*` | Внутренний чат |
