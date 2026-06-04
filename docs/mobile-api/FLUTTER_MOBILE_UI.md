@@ -5,6 +5,7 @@
 **Связанные документы:**
 
 - [FEATURES_BY_ROLE.md](./FEATURES_BY_ROLE.md) — полный каталог функций, роли, таблица ~98 endpoints
+- [MOBILE_IMPLEMENTATION_GUIDE.md](./MOBILE_IMPLEMENTATION_GUIDE.md) — пошаговое внедрение (backend P0/P1, Flutter, JSON-контракты, QA)
 - [README.md](./README.md) — быстрый старт API, Sanctum, Reverb
 - [PIN.md](./PIN.md) — вход по PIN
 - [../mobile-app/AGENT.md](../mobile-app/AGENT.md) — гайд для Cursor во Flutter-репо

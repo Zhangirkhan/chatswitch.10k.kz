@@ -403,7 +403,7 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 | Файл | Описание |
 |------|----------|
-| [`BACKEND_REQUESTS.md`](./BACKEND_REQUESTS.md) | Краткая техническая версия для трекера |
+| [`MOBILE_IMPLEMENTATION_GUIDE.md`](./MOBILE_IMPLEMENTATION_GUIDE.md) | Пошаговое внедрение в backend + Flutter (P0/P1/P2, контракты, QA) |
 | [`FLUTTER_MOBILE_UI.md`](./FLUTTER_MOBILE_UI.md) §3.3 | Детальный UX-паритет с вебом |
 | [`FEATURES_BY_ROLE.md`](./FEATURES_BY_ROLE.md) | Матрица ролей и routes |
 | `lib/features/chat/chat_screen.dart` | Заглушка AI toggle (строка ~1687) |

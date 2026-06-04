@@ -13,6 +13,8 @@ Swagger UI (на поддомене тенанта): `https://{slug}.accel.kz/do
 
 **Мобильный UI (tab bar, экраны, вёрстка веба, API/пробелы):** [FLUTTER_MOBILE_UI.md](./FLUTTER_MOBILE_UI.md)
 
+**Внедрение в Flutter (пошагово: backend P0/P1, контракты JSON, QA):** [MOBILE_IMPLEMENTATION_GUIDE.md](./MOBILE_IMPLEMENTATION_GUIDE.md)
+
 ## Быстрый старт
 
 ### 1. Проверка workspace
