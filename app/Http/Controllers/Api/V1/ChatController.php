@@ -31,6 +31,7 @@ final class ChatController extends Controller
 
         $chats = $this->chatService->getChatsForUser($request->user(), $request->query('search'))
             ->where('is_archived', false)
+            ->with(['funnelStage:id,funnel_id,name,color,position,stage_type'])
             ->paginate($perPage);
 
         return ChatResource::collection($chats)->response();
@@ -43,6 +44,7 @@ final class ChatController extends Controller
 
         $chats = $this->chatService->getChatsForUser($request->user(), $request->query('search'))
             ->where('is_archived', true)
+            ->with(['funnelStage:id,funnel_id,name,color,position,stage_type'])
             ->paginate($perPage);
 
         return ChatResource::collection($chats)->response();
@@ -54,6 +56,8 @@ final class ChatController extends Controller
 
         $chat->load([
             'contact',
+            'funnel:id,name,color',
+            'funnelStage:id,funnel_id,name,color,stage_type,position',
             'whatsappSession:id,session_name,display_name,display_color,phone_number,status',
             'assignments.user',
             'departments',
@@ -74,7 +78,7 @@ final class ChatController extends Controller
             },
         ]);
 
-        return (new ChatResource($chat))->response();
+        return ChatResource::withFunnelDetails($chat)->response();
     }
 
     public function messages(Request $request, Chat $chat): JsonResponse

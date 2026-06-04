@@ -438,6 +438,32 @@ paths:
         "403":
           description: Модуль воронок отключён
 
+  /api/v1/broadcasts:
+    get:
+      tags: [Broadcasts]
+      summary: Список кампаний рассылки
+      operationId: broadcastsIndex
+      description: |
+        Пагинированный список кампаний (administrator, manager).
+        Модуль `module_broadcasts` должен быть включён.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedBroadcastCampaigns"
+        "403":
+          description: Нет роли или модуль отключён
+
   # ──────────────────────────────────────────
   # AI-ассистент оператора (веб, сессия)
   # ──────────────────────────────────────────
@@ -1080,6 +1106,48 @@ components:
         color: { type: string }
         description: { type: string, nullable: true }
 
+    BroadcastCampaignSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string }
+        source: { type: string }
+        ready_count: { type: integer }
+        sent_count: { type: integer }
+        skipped_count: { type: integer }
+        failed_count: { type: integer }
+        created_at: { type: string, format: date-time, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        session:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            label: { type: string }
+        sender:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+
+    PaginatedBroadcastCampaigns:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BroadcastCampaignSummary"
+        meta:
+          type: object
+          properties:
+            current_page: { type: integer }
+            last_page: { type: integer }
+            per_page: { type: integer }
+            total: { type: integer }
+
     ChatResourceResponse:
       type: object
       required: [data]
@@ -1107,6 +1175,36 @@ components:
         muted_until: { type: string, format: date-time, nullable: true }
         is_favorite: { type: boolean }
         pinned_message_id: { type: integer, nullable: true }
+        ai_enabled: { type: boolean }
+        ai_mode: { type: string }
+        funnel_id: { type: integer, nullable: true }
+        funnel_stage_id: { type: integer, nullable: true }
+        funnel_tracking_enabled: { type: boolean }
+        funnel_stage_locked: { type: boolean }
+        funnel:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            color: { type: string }
+        funnel_stage:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            color: { type: string }
+            stage_type: { type: string, nullable: true }
+            position: { type: integer }
+        funnel_progress_percent: { type: number, nullable: true }
+        funnel_progress:
+          type: object
+          nullable: true
+          properties:
+            percent: { type: number }
+            stage_index: { type: integer, nullable: true }
+            stages_count: { type: integer }
 
     PaginatedChats:
       type: object

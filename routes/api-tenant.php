@@ -136,6 +136,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::delete('communities/{community}/groups/{chat}', [CommunityController::class, 'unlinkGroup']);
 
         Route::middleware('role:administrator,manager')->group(function (): void {
+            Route::get('broadcasts', [BroadcastController::class, 'apiIndex']);
             Route::get('broadcasts/{campaign}', [BroadcastController::class, 'show']);
             Route::post('broadcasts/preview', [BroadcastController::class, 'preview']);
             Route::post('broadcasts', [BroadcastController::class, 'store'])

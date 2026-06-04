@@ -754,11 +754,11 @@ Query `filters` — nested: `filters[funnel_stage]=3`, `filters[assignee]=5` (к
 |--------------|--------|--------|------------|
 | Inbox чатов | `GET /chats` | OK | |
 | Сообщения | `chats/{id}/messages`, POST | OK | |
-| Рассылки preview/store | `broadcasts/*` | Частично | Нет list campaigns |
+| Рассылки preview/store/list | `broadcasts/*` | OK | `GET /broadcasts` + preview/store/show |
 | AI toggle в чате | `PATCH /chats/{id}/ai` | OK | Ответ `{ data, requires_confirmation, warnings }` |
 | AI панель в чате | `chats/{id}/ai/chat` | OK | |
 | Карточка контакта | `contacts/{id}/*` | OK | |
-| Funnel bar данные | — | **Нет** в GET chat | PATCH + history OK |
+| Funnel bar данные | `GET /chats/{id}` | OK | `funnel`, `funnel_progress` в ответе |
 | Funnel modal save | `PATCH /chats/{id}/funnel` | OK | + `funnel_catalog` в ответе |
 | Доска воронок | `funnels/board/*` | OK | |
 | Список воронок picker | `GET /funnels/active` | OK | `{ data: [{ id, name, color }] }` |

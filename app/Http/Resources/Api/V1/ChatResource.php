@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Services\Funnel\ChatFunnelStateService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -15,6 +16,9 @@ final class ChatResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $funnel = $this->resolveFunnelPayload();
+        $funnelStage = $this->resolveFunnelStagePayload();
+
         return [
             'id' => $this->id,
             'whatsapp_chat_id' => $this->whatsapp_chat_id,
@@ -32,6 +36,22 @@ final class ChatResource extends JsonResource
             'muted_until' => $this->muted_until?->toIso8601String(),
             'is_favorite' => (bool) $this->is_favorite,
             'pinned_message_id' => $this->pinned_message_id,
+            'ai_enabled' => (bool) $this->ai_enabled,
+            'ai_mode' => (string) ($this->ai_mode ?? 'auto'),
+            'funnel_id' => $this->funnel_id,
+            'funnel_stage_id' => $this->funnel_stage_id,
+            'funnel_tracking_enabled' => (bool) $this->funnel_tracking_enabled,
+            'funnel_stage_locked' => (bool) $this->funnel_stage_locked,
+            'funnel' => $funnel,
+            'funnel_stage' => $funnelStage,
+            'funnel_progress_percent' => $this->when(
+                $this->getAttribute('funnel_progress_percent') !== null,
+                fn () => $this->getAttribute('funnel_progress_percent'),
+            ),
+            'funnel_progress' => $this->when(
+                $this->getAttribute('funnel_progress') !== null,
+                fn () => $this->getAttribute('funnel_progress'),
+            ),
             'contact' => $this->whenLoaded('contact', fn () => [
                 'id' => $this->contact?->id,
                 'name' => $this->contact?->name,
@@ -69,5 +89,49 @@ final class ChatResource extends JsonResource
                 ] : null;
             }),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveFunnelPayload(): ?array
+    {
+        $preset = $this->getAttribute('funnel');
+        if (is_array($preset)) {
+            return $preset;
+        }
+
+        if ($this->relationLoaded('funnel') && $this->funnel !== null) {
+            return $this->funnel->only(['id', 'name', 'color']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveFunnelStagePayload(): ?array
+    {
+        $preset = $this->getAttribute('funnel_stage');
+        if (is_array($preset)) {
+            return $preset;
+        }
+
+        if ($this->relationLoaded('funnelStage') && $this->funnelStage !== null) {
+            return $this->funnelStage->only(['id', 'name', 'color', 'stage_type', 'position']);
+        }
+
+        return null;
+    }
+
+    public static function withFunnelDetails(\App\Models\Chat $chat): self
+    {
+        $state = app(ChatFunnelStateService::class);
+        foreach ($state->inertiaExtras($chat) as $key => $value) {
+            $chat->setAttribute($key, $value);
+        }
+
+        return new self($chat);
     }
 }

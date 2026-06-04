@@ -129,12 +129,12 @@ flowchart LR
 | Сообщения | ✅ messages CRUD | — | Chat screen | Отправка/медиа/read |
 | **AI toggle** | ❌ | **P0:** `PATCH /chats/{id}/ai` | Switch вместо «скоро» | Toggle синхронен с вебом |
 | AI панель в чате | ✅ `POST .../ai/chat` | — | Bottom sheet / panel | Не путать с toggle |
-| **Funnel bar в чате** | ⚠️ workaround | **P0:** расширить `ChatResource` | Убрать лишний `board/card` | Одна загрузка чата |
+| **Funnel bar в чате** | ✅ `GET /chats/{id}` | OK | Убрать fallback `board/card` | Одна загрузка чата |
 | Funnel modal | ✅ `PATCH funnel`, history | — | Modal + catalog из ответа | Сохранение этапа |
 | Доска воронок | ✅ `board/*` | P0: `GET /funnels/active` | Picker + scope по роли | Карточки видны как на вебе |
 | Клиенты | ✅ contacts/* | — | Подтаб + profile | `profile.sections[]` рендер |
 | Карточка из чата | ✅ profile, `contact_id` в chat | — | Tap header → ContactDetail | Открывается по `contact_id` |
-| Рассылки | ⚠️ нет list | **P0:** `GET /broadcasts` | List вместо SharedPreferences | История кампаний с сервера |
+| Рассылки | ✅ list + preview/store | OK | `GET /broadcasts` вместо SharedPreferences | История с сервера |
 | AI workspace tab | ✅ `ai-chat/query` | P1: samples OpenAPI | Парсить `reply` top-level | Ответ не пустой на demo |
 | Календарь | ✅ CRUD events | — | Парсить **массив** корня | События в диапазоне видны |
 | Staff для рассылок | ❌ | **P1:** `GET /users` | Dropdown sender (admin) | Admin выбирает отправителя |
@@ -394,11 +394,13 @@ Route::patch('chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])
 
 ---
 
-### 6.2 Расширение `ChatResource`
+### 6.2 Расширение `ChatResource` — **реализовано**
 
 **Зачем:** полоска воронки + AI badge без `GET /funnels/board/card/{chat}`.
 
-#### Backend — шаги
+**Статус:** [`ChatResource`](../../app/Http/Resources/Api/V1/ChatResource.php), `ChatResource::withFunnelDetails()` в `show`, `funnelStage` в `index`.
+
+#### Backend — шаги (выполнено)
 
 1. [`ChatResource::toArray`](../../app/Http/Resources/Api/V1/ChatResource.php) — добавить скаляры с модели `Chat`:
 
@@ -434,11 +436,13 @@ Route::patch('chats/{chat}/ai', [ChatAiSettingsController::class, 'update'])
 
 ---
 
-### 6.3 `GET /api/v1/broadcasts`
+### 6.3 `GET /api/v1/broadcasts` — **реализовано**
 
 **Зачем:** экран «Последние рассылки» ([FLUTTER_MOBILE_UI.md §3.1](./FLUTTER_MOBILE_UI.md)).
 
-#### Backend — шаги
+**Статус:** [`BroadcastController::apiIndex`](../../app/Http/Controllers/BroadcastController.php).
+
+#### Backend — шаги (выполнено)
 
 1. Метод `index` в [`BroadcastController`](../../app/Http/Controllers/BroadcastController.php) **или** `Api\V1\BroadcastController`.
 

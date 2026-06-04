@@ -33,10 +33,10 @@
 | AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
 | **AI toggle auto/manual** | ✅ `PATCH /api/v1/chats/{id}/ai` | OK | — |
 | Воронка: доска, карточки, PATCH | `funnels/board/*`, `PATCH chats/{id}/funnel` | ✅ OK | — |
-| Полоска воронки в чате | частично | ⚠️ workaround | Расширить `GET /api/v1/chats/{id}` |
+| Полоска воронки в чате | ✅ `GET /api/v1/chats/{id}` | OK | `funnel`, `funnel_stage`, `funnel_progress` в ChatResource |
 | CRM профиль клиента | `GET /contacts/{id}/profile`, `summary` | ✅ OK | — |
 | Рассылки: preview + start + status | `POST preview`, `POST`, `GET {id}` | ✅ OK | — |
-| **История рассылок** | ❌ нет list | ⚠️ workaround | `GET /api/v1/broadcasts` |
+| **История рассылок** | ✅ `GET /api/v1/broadcasts` | OK | пагинация `page` / `per_page` |
 | AI workspace tab | `POST /api/v1/ai-chat/query` | ✅ OK | опционально `contacts[]` в ответе |
 | Календарь CRUD | `GET/POST/PUT/DELETE /calendar/events` | ✅ OK | — |
 | Задачи организации | только веб | ⚠️ web-fallback | REST API для tasks (v2) |
@@ -390,8 +390,8 @@ Flutter уже подписан на каналы. Нужно подтверди
 ## Чеклист для backend (минимум для снятия заглушек)
 
 - [x] **`PATCH /api/v1/chats/{id}/ai`** — `ChatAiSettingsController::updateForApi`, Sanctum auth
-- [ ] **`ChatResource`** — funnel + ai поля в `GET /api/v1/chats/{id}` (и желательно list)
-- [ ] **`GET /api/v1/broadcasts`** — paginated list campaigns
+- [x] **`ChatResource`** — funnel + ai поля в `GET /api/v1/chats/{id}`; в list — `funnel_stage` для badge
+- [x] **`GET /api/v1/broadcasts`** — `BroadcastController::apiIndex`
 - [ ] **Realtime** — funnel/AI events на `chat.{chatId}` и board events на `funnel-board.{funnelId}`
 - [x] **`GET /api/v1/funnels/active`** — `FunnelBoardController::active` (picker + first launch)
 - [ ] **Sample JSON** — board/data, calendar/events, ai-chat/query, contacts/profile (demo tenant)

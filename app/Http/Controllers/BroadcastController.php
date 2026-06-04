@@ -10,6 +10,7 @@ use App\Models\WhatsappSession;
 use App\Services\Broadcast\BroadcastCampaignService;
 use App\Services\Broadcast\BroadcastSendRateLimiter;
 use App\Support\NavSectionAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,6 +52,32 @@ final class BroadcastController extends Controller
             'senders' => $senders,
             'campaigns' => $campaigns,
             'rateLimit' => $rateLimit,
+        ]);
+    }
+
+    public function apiIndex(Request $request): JsonResponse
+    {
+        $this->authorizeBroadcast($request);
+
+        $perPage = (int) $request->query('per_page', 20);
+        $perPage = min(100, max(1, $perPage));
+
+        $paginator = BroadcastCampaign::query()
+            ->with(['whatsappSession:id,display_name,phone_number', 'sender:id,name', 'createdBy:id,name'])
+            ->latest('id')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => collect($paginator->items())
+                ->map(fn (BroadcastCampaign $c) => $this->campaignPayload($c))
+                ->values()
+                ->all(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
         ]);
     }
 
@@ -210,6 +237,7 @@ final class BroadcastController extends Controller
             'sent_count' => $campaign->sent_count,
             'skipped_count' => $campaign->skipped_count,
             'failed_count' => $campaign->failed_count,
+            'created_at' => $campaign->created_at?->toIso8601String(),
             'started_at' => $campaign->started_at?->toIso8601String(),
             'completed_at' => $campaign->completed_at?->toIso8601String(),
             'session' => $campaign->whatsappSession ? [
