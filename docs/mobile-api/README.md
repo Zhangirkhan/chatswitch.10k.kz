@@ -11,6 +11,8 @@ Swagger UI (на поддомене тенанта): `https://{slug}.accel.kz/do
 
 **Полный каталог функций по ролям (Flutter):** [FEATURES_BY_ROLE.md](./FEATURES_BY_ROLE.md)
 
+**Мобильный UI (tab bar, экраны, вёрстка веба, API/пробелы):** [FLUTTER_MOBILE_UI.md](./FLUTTER_MOBILE_UI.md)
+
 ## Быстрый старт
 
 ### 1. Проверка workspace

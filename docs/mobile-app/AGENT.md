@@ -17,6 +17,7 @@ https://{slug}.accel.kz/api/v1/...
 - OpenAPI: `https://{slug}.accel.kz/docs/api/openapi.yaml` (Basic Auth — см. README бэкенда)
 - Краткий гайд: см. `docs/mobile-api/README.md` в репозитории бэкенда
 - **Все функции по ролям + API:** см. `docs/mobile-api/FEATURES_BY_ROLE.md`
+- **Мобильные экраны и TabBar (воронки, чаты, AI, календарь, рассылки):** см. `docs/mobile-api/FLUTTER_MOBILE_UI.md`
 - PIN-вход: см. `docs/mobile-api/PIN.md` в репозитории бэкенда
 
 ## Цель интеграции
