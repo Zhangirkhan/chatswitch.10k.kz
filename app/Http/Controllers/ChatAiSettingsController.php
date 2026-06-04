@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Events\ChatAiOrchestratorUpdated;
 use App\Jobs\AnalyzeCompanyToneProfileJob;
 use App\Jobs\AnalyzeEmployeeToneProfileJob;
 use App\Models\AiResponseLog;
@@ -14,6 +15,7 @@ use App\Services\AI\AiReadinessService;
 use App\Services\AI\AiResponderResolver;
 use App\Services\AI\ChatIdleAiReplyService;
 use App\Support\TenantCompany;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,6 +30,33 @@ final class ChatAiSettingsController extends Controller
 
     public function update(Request $request, Chat $chat): JsonResponse
     {
+        $chat = $this->applyUpdate($request, $chat, forApi: false);
+
+        return response()->json([
+            'success' => true,
+            'chat' => $chat,
+        ]);
+    }
+
+    public function updateForApi(Request $request, Chat $chat): JsonResponse
+    {
+        $chat = $this->applyUpdate($request, $chat, forApi: true);
+
+        broadcast(new ChatAiOrchestratorUpdated($chat->id, [
+            'ai_enabled' => (bool) $chat->ai_enabled,
+            'ai_mode' => (string) $chat->ai_mode,
+            'ai_responder_user_id' => $chat->ai_responder_user_id,
+        ]));
+
+        return response()->json([
+            'data' => $this->apiChatAiPayload($chat),
+            'requires_confirmation' => false,
+            'warnings' => [],
+        ]);
+    }
+
+    private function applyUpdate(Request $request, Chat $chat, bool $forApi = false): Chat
+    {
         $this->authorize('manageAi', $chat);
 
         $validated = $request->validate([
@@ -39,6 +68,8 @@ final class ChatAiSettingsController extends Controller
         ]);
 
         $user = $request->user();
+        abort_unless($user !== null, 403);
+
         $responder = $this->resolveResponder($chat, $user, $validated['ai_responder_user_id'] ?? null)
             ?? $this->responderResolver->forChat($chat, $chat->funnel?->aiScenario);
         $companyId = $this->resolveCompanyId();
@@ -49,14 +80,17 @@ final class ChatAiSettingsController extends Controller
         if ($aiEnabled && ! $wasEnabled && ! (bool) ($validated['confirm_risky_enable'] ?? false)) {
             $warnings = $this->enableWarnings($chat, $responder);
             if ($warnings !== []) {
-                return response()->json([
-                    'success' => false,
-                    'requires_confirmation' => true,
+                $payload = [
                     'message' => 'Перед включением AI проверьте готовность системы.',
+                    'requires_confirmation' => true,
                     'warnings' => $warnings,
                     'readiness' => $this->readinessService->evaluate($companyId),
-                    'settings_url' => route('settings.ai-quality'),
-                ], 422);
+                ];
+                if (! $forApi) {
+                    $payload['success'] = false;
+                    $payload['settings_url'] = route('settings.ai-quality');
+                }
+                throw new HttpResponseException(response()->json($payload, 422));
             }
         }
 
@@ -78,13 +112,26 @@ final class ChatAiSettingsController extends Controller
             $this->dispatchReplyForLatestUnansweredInbound($chat);
         }
 
-        $chat->load(['assignments.user', 'departments', 'aiResponder:id,name']);
+        $chat->load(['assignments.user', 'departments', 'aiResponder:id,name', 'funnel:id,name,color', 'funnelStage:id,name,color']);
         $chat->setAttribute('can_manage_ai', $user->can('manageAi', $chat));
 
-        return response()->json([
-            'success' => true,
-            'chat' => $chat,
-        ]);
+        return $chat;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function apiChatAiPayload(Chat $chat): array
+    {
+        return [
+            'id' => $chat->id,
+            'ai_enabled' => (bool) $chat->ai_enabled,
+            'ai_mode' => (string) $chat->ai_mode,
+            'ai_responder_user_id' => $chat->ai_responder_user_id,
+            'contact_id' => $chat->contact_id,
+            'funnel_id' => $chat->funnel_id,
+            'funnel_stage_id' => $chat->funnel_stage_id,
+        ];
     }
 
     /**

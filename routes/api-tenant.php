@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\WorkspaceController;
 use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
+use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
 use App\Http\Controllers\ChatController as WebChatController;
 use App\Http\Controllers\ChatFunnelController;
@@ -59,6 +60,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::post('chats/{chat}/read', [ChatController::class, 'markRead']);
         Route::post('chats/{chat}/typing', [ChatController::class, 'typing']);
         Route::post('chats/{chat}/ai/chat', [ChatAiAssistantController::class, 'chat'])
+            ->middleware('throttle:30,1');
+        Route::patch('chats/{chat}/ai', [ChatAiSettingsController::class, 'updateForApi'])
             ->middleware('throttle:30,1');
 
         Route::post('chats/{chat}/pin', [WebChatController::class, 'togglePin']);
@@ -153,6 +156,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
             Route::post('funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest']);
         });
 
+        Route::get('funnels/active', [FunnelBoardController::class, 'active']);
         Route::get('funnels/board/data', [FunnelBoardController::class, 'data']);
         Route::get('funnels/board/stage-cards', [FunnelBoardController::class, 'stageCards']);
         Route::get('funnels/board/card/{chat}', [FunnelBoardController::class, 'card']);

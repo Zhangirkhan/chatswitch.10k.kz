@@ -62,6 +62,25 @@ final class FunnelBoardController extends Controller
         ]);
     }
 
+    public function active(Request $request): JsonResponse
+    {
+        $this->ensureModuleEnabled();
+
+        abort_unless($request->user() !== null, 403);
+
+        $funnels = $this->boardService->activeFunnels()
+            ->map(static fn ($funnel): array => [
+                'id' => (int) $funnel->id,
+                'name' => (string) $funnel->name,
+                'color' => (string) ($funnel->color ?: '#01b964'),
+                'description' => $funnel->description,
+            ])
+            ->values()
+            ->all();
+
+        return response()->json(['data' => $funnels]);
+    }
+
     public function data(Request $request): JsonResponse
     {
         $this->ensureModuleEnabled();

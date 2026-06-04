@@ -31,7 +31,7 @@
 | Список чатов | `GET /api/v1/chats` | ✅ OK | Расширить `ChatResource` (см. ниже) |
 | Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | — |
 | AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
-| **AI toggle auto/manual** | ❌ нет в `/api/v1` | **Блокер UI** | `PATCH /api/v1/chats/{id}/ai` |
+| **AI toggle auto/manual** | ✅ `PATCH /api/v1/chats/{id}/ai` | OK | — |
 | Воронка: доска, карточки, PATCH | `funnels/board/*`, `PATCH chats/{id}/funnel` | ✅ OK | — |
 | Полоска воронки в чате | частично | ⚠️ workaround | Расширить `GET /api/v1/chats/{id}` |
 | CRM профиль клиента | `GET /contacts/{id}/profile`, `summary` | ✅ OK | — |
@@ -269,7 +269,7 @@ Flutter уже подписан на каналы. Нужно подтверди
 | Проблема на mobile | Причина | Нужно от backend |
 |--------------------|---------|------------------|
 | Вечный skeleton / пустая доска | Parse падал на `{ data: { funnel, stages } }`; default scope был `mine` вместо `all`/`department` | **Sample JSON** ответа `board/data` с demo tenant |
-| Нет picker воронки | `GET /api/v1/funnels` **нет index для staff** (только admin CRUD) | **`GET /api/v1/funnels/active`** → `[{ id, name, color }]` для manager/employee |
+| Нет picker воронки | ✅ `GET /api/v1/funnels/active` | OK | `[{ id, name, color }]` для всех ролей с module_funnels |
 | Карточки есть на вебе, нет в app | Admin на вебе смотрит `scope=all`, mobile слал `mine` | Документировать default scope: admin=`all`, manager/employee=`department` |
 | `funnel_id` unknown on first launch | Нет list API | Либо `funnels/active`, либо onboarding setting `default_funnel_id` |
 
@@ -389,11 +389,11 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 ## Чеклист для backend (минимум для снятия заглушек)
 
-- [ ] **`PATCH /api/v1/chats/{id}/ai`** — проброс из `ChatAiSettingsController`, Sanctum auth
+- [x] **`PATCH /api/v1/chats/{id}/ai`** — `ChatAiSettingsController::updateForApi`, Sanctum auth
 - [ ] **`ChatResource`** — funnel + ai поля в `GET /api/v1/chats/{id}` (и желательно list)
 - [ ] **`GET /api/v1/broadcasts`** — paginated list campaigns
 - [ ] **Realtime** — funnel/AI events на `chat.{chatId}` и board events на `funnel-board.{funnelId}`
-- [ ] **`GET /api/v1/funnels/active`** — list воронок для staff (picker + first launch)
+- [x] **`GET /api/v1/funnels/active`** — `FunnelBoardController::active` (picker + first launch)
 - [ ] **Sample JSON** — board/data, calendar/events, ai-chat/query, contacts/profile (demo tenant)
 - [ ] **`contact_id` в ChatResource** — list + detail
 

@@ -317,11 +317,13 @@ Laravel Resource collection:
 
 ## 6. Phase 0 — снятие заглушек
 
-### 6.1 `PATCH /api/v1/chats/{chat}/ai`
+### 6.1 `PATCH /api/v1/chats/{chat}/ai` — **реализовано**
 
 **Зачем:** Switch автоответа AI в шапке чата (сейчас заглушка «скоро» в Flutter).
 
-#### Backend — шаги
+**Статус backend:** маршрут в [`routes/api-tenant.php`](../../routes/api-tenant.php), метод [`ChatAiSettingsController::updateForApi`](../../app/Http/Controllers/ChatAiSettingsController.php).
+
+#### Backend — шаги (выполнено)
 
 1. **Маршрут** в [`routes/api-tenant.php`](../../routes/api-tenant.php) после строки `chats/{chat}/ai/chat`:
 
@@ -487,11 +489,13 @@ GET /api/v1/broadcasts?page=1&per_page=20
 
 ---
 
-### 6.4 `GET /api/v1/funnels/active`
+### 6.4 `GET /api/v1/funnels/active` — **реализовано**
 
 **Зачем:** picker воронки на доске и первый запуск (сейчас нет list для staff).
 
-#### Backend — шаги
+**Статус backend:** [`FunnelBoardController::active`](../../app/Http/Controllers/FunnelBoardController.php), маршрут `GET /api/v1/funnels/active`.
+
+#### Backend — шаги (выполнено)
 
 1. Новый action, например в [`FunnelBoardController`](../../app/Http/Controllers/FunnelBoardController.php):
 

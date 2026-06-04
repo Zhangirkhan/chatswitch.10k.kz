@@ -379,6 +379,65 @@ paths:
         "403":
           description: Нет view
 
+  /api/v1/chats/{chat}/ai:
+    patch:
+      tags: [Chats]
+      summary: Включить/выключить автоответ AI в чате
+      operationId: chatAiSettingsUpdate
+      description: |
+        Toggle `ai_enabled` / `ai_mode` (как на вебе `PATCH /chats/{chat}/ai`).
+        Policy `manageAi`: administrator — все чаты; manager/employee — только назначенные.
+        Лимит — 30 запросов в минуту.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatAiSettingsRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatAiSettingsResponse"
+        "403":
+          description: Нет manageAi
+        "422":
+          description: Требуется подтверждение (risky enable) или ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatAiSettingsConfirmation"
+
+  /api/v1/funnels/active:
+    get:
+      tags: [Funnels]
+      summary: Список активных воронок (picker)
+      operationId: funnelsActive
+      description: |
+        Активные воронки tenant для выбора на доске и первого запуска приложения.
+        Доступно всем ролям с включённым модулем `module_funnels`.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ActiveFunnel"
+        "403":
+          description: Модуль воронок отключён
+
   # ──────────────────────────────────────────
   # AI-ассистент оператора (веб, сессия)
   # ──────────────────────────────────────────
@@ -973,6 +1032,53 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Department"
+
+    ChatAiSettingsRequest:
+      type: object
+      required: [ai_enabled]
+      properties:
+        ai_enabled: { type: boolean }
+        ai_mode: { type: string, enum: [auto, draft] }
+        ai_responder_user_id: { type: integer, nullable: true }
+        confirm_risky_enable: { type: boolean, default: false }
+
+    ChatAiSettingsResponse:
+      type: object
+      required: [data, requires_confirmation, warnings]
+      properties:
+        data:
+          type: object
+          properties:
+            id: { type: integer }
+            ai_enabled: { type: boolean }
+            ai_mode: { type: string }
+            ai_responder_user_id: { type: integer, nullable: true }
+            contact_id: { type: integer, nullable: true }
+            funnel_id: { type: integer, nullable: true }
+            funnel_stage_id: { type: integer, nullable: true }
+        requires_confirmation: { type: boolean }
+        warnings:
+          type: array
+          items: { type: string }
+
+    ChatAiSettingsConfirmation:
+      type: object
+      properties:
+        message: { type: string }
+        requires_confirmation: { type: boolean }
+        warnings:
+          type: array
+          items: { type: string }
+        readiness: { type: object }
+
+    ActiveFunnel:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        color: { type: string }
+        description: { type: string, nullable: true }
 
     ChatResourceResponse:
       type: object

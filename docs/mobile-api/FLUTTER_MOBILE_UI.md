@@ -755,13 +755,13 @@ Query `filters` — nested: `filters[funnel_stage]=3`, `filters[assignee]=5` (к
 | Inbox чатов | `GET /chats` | OK | |
 | Сообщения | `chats/{id}/messages`, POST | OK | |
 | Рассылки preview/store | `broadcasts/*` | Частично | Нет list campaigns |
-| AI toggle в чате | — | **Нет** | Нужен `PATCH /chats/{id}/ai` |
+| AI toggle в чате | `PATCH /chats/{id}/ai` | OK | Ответ `{ data, requires_confirmation, warnings }` |
 | AI панель в чате | `chats/{id}/ai/chat` | OK | |
 | Карточка контакта | `contacts/{id}/*` | OK | |
 | Funnel bar данные | — | **Нет** в GET chat | PATCH + history OK |
 | Funnel modal save | `PATCH /chats/{id}/funnel` | OK | + `funnel_catalog` в ответе |
 | Доска воронок | `funnels/board/*` | OK | |
-| Список воронок picker | — | **Нет** index | localStorage / admin CRUD |
+| Список воронок picker | `GET /funnels/active` | OK | `{ data: [{ id, name, color }] }` |
 | Клиенты | `GET /contacts` | OK | |
 | AI workspace tab | `ai-chat/query` | OK | |
 | Календарь | `calendar/events` | OK | |
