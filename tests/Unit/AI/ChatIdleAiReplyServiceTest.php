@@ -18,8 +18,6 @@ final class ChatIdleAiReplyServiceTest extends TestCase
 
     public function test_skips_scheduling_for_thank_you(): void
     {
-        config(['accel.ai_idle_reply_minutes' => 10]);
-
         $service = $this->app->make(ChatIdleAiReplyService::class);
         $company = $this->createTenantCompany(['name' => 'Co']);
         $session = WhatsappSession::factory()->create();
@@ -43,8 +41,6 @@ final class ChatIdleAiReplyServiceTest extends TestCase
 
     public function test_blocks_reply_when_manager_answered_after_trigger(): void
     {
-        config(['accel.ai_idle_reply_minutes' => 10]);
-
         $service = $this->app->make(ChatIdleAiReplyService::class);
         $company = $this->createTenantCompany(['name' => 'Co']);
         $manager = User::factory()->create(['company_id' => $company->id]);
@@ -80,10 +76,8 @@ final class ChatIdleAiReplyServiceTest extends TestCase
         $this->assertFalse($service->canExecuteReply($chat, $trigger));
     }
 
-    public function test_allows_reply_after_idle_when_client_still_waiting(): void
+    public function test_allows_immediate_reply_when_client_still_waiting(): void
     {
-        config(['accel.ai_idle_reply_minutes' => 10]);
-
         $service = $this->app->make(ChatIdleAiReplyService::class);
         $company = $this->createTenantCompany(['name' => 'Co']);
         $session = WhatsappSession::factory()->create();
@@ -100,7 +94,7 @@ final class ChatIdleAiReplyServiceTest extends TestCase
             'type' => 'chat',
             'body' => 'Hello, price?',
             'ack' => 'delivered',
-            'message_timestamp' => now()->subMinutes(12),
+            'message_timestamp' => now()->subMinutes(1),
         ]);
 
         $this->assertTrue($service->canExecuteReply($chat, $trigger));

@@ -66,6 +66,7 @@ final class FunnelFollowUpTest extends TestCase
             'goal' => 'Дожать клиента',
             'follow_up_enabled' => true,
             'follow_up_delay_hours' => 1,
+            'follow_up_silence_after' => FunnelStageAiRule::FOLLOW_UP_SILENCE_OUTBOUND,
             'follow_up_message' => 'Здравствуйте, {chat_name}!',
             'follow_up_cooldown_hours' => 48,
             'follow_up_max_count' => 2,
@@ -80,7 +81,7 @@ final class FunnelFollowUpTest extends TestCase
             'funnel_tracking_enabled' => true,
             'chat_name' => 'Айгуль',
             'is_group' => false,
-            'last_message_direction' => 'inbound',
+            'last_message_direction' => 'outbound',
             'last_message_at' => now()->subHours(3),
         ]);
 
@@ -96,7 +97,17 @@ final class FunnelFollowUpTest extends TestCase
             'direction' => 'inbound',
             'type' => 'text',
             'body' => 'Подумаю',
+            'message_timestamp' => now()->subHours(4),
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => 'Хорошо, напишите, если будут вопросы.',
             'message_timestamp' => now()->subHours(3),
+            'metadata' => ['ai' => ['generated' => true]],
         ]);
 
         $created = app(FunnelStageFollowUpService::class)->scheduleDue();
@@ -189,7 +200,7 @@ final class FunnelFollowUpTest extends TestCase
             'funnel_tracking_enabled' => true,
             'chat_name' => 'Тест',
             'is_group' => false,
-            'last_message_direction' => 'inbound',
+            'last_message_direction' => 'outbound',
             'last_message_at' => now()->subHours(3),
         ]);
 
@@ -205,7 +216,17 @@ final class FunnelFollowUpTest extends TestCase
             'direction' => 'inbound',
             'type' => 'text',
             'body' => 'Подумаю',
+            'message_timestamp' => now()->subHours(4),
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => 'Жду вашего решения.',
             'message_timestamp' => now()->subHours(3),
+            'metadata' => ['ai' => ['generated' => true]],
         ]);
 
         app(FunnelStageFollowUpService::class)->scheduleDue();

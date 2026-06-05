@@ -118,21 +118,8 @@ final class FunnelStageFollowUpService
      */
     private function eligibleChatsQuery(FunnelStageAiRule $rule, Carbon $threshold): Builder
     {
-        return Chat::query()
-            ->where('company_id', $rule->company_id)
-            ->where('funnel_id', $rule->funnel_id)
-            ->where('funnel_stage_id', $rule->funnel_stage_id)
-            ->where('funnel_tracking_enabled', true)
-            ->where('is_archived', false)
-            ->where('is_group', false)
-            ->where('last_message_direction', 'inbound')
-            ->whereNotNull('last_message_at')
-            ->where('last_message_at', '<=', $threshold)
-            ->whereDoesntHave('messages', function (Builder $query): void {
-                $query
-                    ->where('direction', 'outbound')
-                    ->whereColumn('message_timestamp', '>', 'chats.last_message_at');
-            })
+        return app(ConsultationFollowUpEligibilityService::class)
+            ->eligibleChatsQuery($rule, $threshold)
             ->whereDoesntHave('scheduledMessages', function (Builder $query) use ($rule): void {
                 $query
                     ->where('purpose', ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP)

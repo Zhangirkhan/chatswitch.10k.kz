@@ -56,7 +56,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         }
 
         if (! $idleAiReply->canExecuteReply($chat, $trigger)) {
-            Log::info('[ai-reply] skipped idle or manager replied', [
+            Log::info('[ai-reply] skipped manager replied or already handled', [
                 'chat_id' => $chat->id,
                 'trigger_message_id' => $trigger->id,
             ]);

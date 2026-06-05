@@ -13,21 +13,15 @@ use App\Support\MessageInboundText;
 use Illuminate\Support\Carbon;
 
 /**
- * Автоответ AI только после простоя в диалоге (по умолчанию 10 минут).
- * Не планирует ответ на «спасибо» и короткие подтверждения.
- * Если менеджер уже ответил клиенту — AI ждёт, пока снова не наступит простой
- * или оператор вручную включит AI (немедленный ответ на последнее входящее).
+ * Планирование и проверки автоответа AI на входящее сообщение клиента.
+ * Ответ уходит сразу после входящего (без задержки «простоя»).
+ * Дожим, когда клиент не отвечает на сообщение AI, — через follow-up правил этапа воронки.
  */
 final class ChatIdleAiReplyService
 {
     public function __construct(
         private readonly ClientMessageIntentDetector $clientIntents,
     ) {}
-
-    public function idleMinutes(): int
-    {
-        return max(0, (int) config('accel.ai_idle_reply_minutes', 10));
-    }
 
     public function shouldSkipScheduling(Message $trigger): bool
     {
@@ -55,12 +49,7 @@ final class ChatIdleAiReplyService
             return;
         }
 
-        $pending = GenerateAiReplyJob::dispatch($chat->id, $triggerMessageId, $chat->company_id);
-
-        $minutes = $this->idleMinutes();
-        if (! $immediate && $minutes > 0) {
-            $pending->delay(now()->addMinutes($minutes));
-        }
+        GenerateAiReplyJob::dispatch($chat->id, $triggerMessageId, $chat->company_id);
     }
 
     public function canExecuteReply(Chat $chat, Message $trigger): bool
@@ -89,27 +78,6 @@ final class ChatIdleAiReplyService
         }
 
         if ($this->alreadyAnsweredTrigger($chat, $trigger)) {
-            return false;
-        }
-
-        $minutes = $this->idleMinutes();
-        if ($minutes === 0) {
-            return $this->clientStillWaiting($chat, $trigger);
-        }
-
-        $lastMessage = $this->lastConversationMessage($chat);
-        if ($lastMessage === null) {
-            return false;
-        }
-
-        $idleThreshold = now()->subMinutes($minutes);
-        $lastAt = $this->messageAt($lastMessage);
-
-        if ($lastAt === null || $lastAt->greaterThan($idleThreshold)) {
-            return false;
-        }
-
-        if ($lastMessage->direction !== 'inbound') {
             return false;
         }
 
@@ -147,16 +115,6 @@ final class ChatIdleAiReplyService
             ->where('mode', $mode)
             ->whereIn('status', ['sent', 'drafted', 'generating'])
             ->exists();
-    }
-
-    private function lastConversationMessage(Chat $chat): ?Message
-    {
-        return Message::query()
-            ->where('chat_id', $chat->id)
-            ->whereIn('direction', ['inbound', 'outbound'])
-            ->orderByDesc('message_timestamp')
-            ->orderByDesc('id')
-            ->first();
     }
 
     private function messageAt(Message $message): ?Carbon

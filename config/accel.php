@@ -27,12 +27,6 @@ return [
     /** Автоответ AI на входящие голосовые (после расшифровки). */
     'ai_voice_replies' => filter_var(env('ACCEL_AI_VOICE_REPLIES', true), FILTER_VALIDATE_BOOLEAN),
 
-    /**
-     * Минуты простоя в чате перед автоответом AI на входящее (0 = сразу, как раньше).
-     * Не отвечает на «спасибо» / короткие подтверждения; после ответа менеджера ждёт простоя или ручного включения AI.
-     */
-    'ai_idle_reply_minutes' => max(0, (int) env('ACCEL_AI_IDLE_REPLY_MINUTES', 0)),
-
     'whisper_model' => env('OPENAI_WHISPER_MODEL', 'whisper-1'),
 
     /** Язык Whisper по умолчанию: auto, ru или kk. auto не отправляет language и даёт Whisper определить речь. */

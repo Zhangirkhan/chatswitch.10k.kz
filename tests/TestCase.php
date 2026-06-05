@@ -17,8 +17,6 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        config(['accel.ai_idle_reply_minutes' => 0]);
-
         $this->withoutMiddleware(ValidateCsrfToken::class);
 
         if (! Schema::hasTable('companies')) {
