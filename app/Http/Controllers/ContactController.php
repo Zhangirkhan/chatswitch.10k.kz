@@ -19,6 +19,7 @@ use App\Services\Contact\ContactCardAssembler;
 use App\Services\Contact\ContactListFilterService;
 use App\Support\ContactListFilters;
 use App\Support\NavSectionAccess;
+use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -423,6 +424,8 @@ final class ContactController extends Controller
 
     public function upsert(Request $request): JsonResponse
     {
+        $this->authorize('create', Contact::class);
+
         $data = $request->validate([
             'phone' => ['required', 'string', 'max:32'],
             'name' => ['nullable', 'string', 'max:120'],

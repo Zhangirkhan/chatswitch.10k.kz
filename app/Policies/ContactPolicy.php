@@ -25,6 +25,11 @@ final class ContactPolicy
         return $this->hasVisibleChat($user, $contact);
     }
 
+    public function create(User $user): bool
+    {
+        return $user->hasAnyRole(['administrator', 'manager']);
+    }
+
     private function hasVisibleChat(User $user, Contact $contact): bool
     {
         $chats = Chat::query()
