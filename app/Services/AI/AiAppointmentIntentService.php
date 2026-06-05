@@ -26,9 +26,10 @@ final class AiAppointmentIntentService
     public function __construct(
         private readonly OpenAiChatService $openAi,
         private readonly ReminderLeadTimeParser $reminderLeadParser,
+        private readonly ConversationAppointmentResolver $conversationAppointments,
     ) {}
 
-    public function shouldAnalyze(?Message $triggerMessage): bool
+    public function shouldAnalyze(Chat $chat, ?Message $triggerMessage): bool
     {
         $body = mb_strtolower(trim($triggerMessage !== null
             ? MessageInboundText::forMessage($triggerMessage)
@@ -37,23 +38,38 @@ final class AiAppointmentIntentService
             return false;
         }
 
-        $bookingWords = [
-            'запис', 'запиш', 'заброни', 'бронь', 'встреч', 'приед', 'приду', 'услуг', 'процедур', 'сеанс',
-            'замер', 'окон', 'окна', 'выезд', 'визит', 'монтаж', 'установк', 'демонстрац', 'консультац',
-            'инженер', 'замерщик', 'на объект',
-        ];
-        $timeWords = [
-            'сегодня', 'завтра', 'послезавтра', 'после завтра', 'час', ':', 'утра', 'вечера', 'днем', 'днём',
-            'понедель', 'вторник', 'среду', 'четвер', 'четвёрг', 'пятниц', 'суббот', 'воскресен',
-            'январ', 'феврал', 'марта', 'апрел', 'мая', 'июня', 'июля', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр',
-        ];
+        if ($this->conversationAppointments->textHasBookingSignals($body)
+            && $this->conversationAppointments->textHasTimeSignals($body)) {
+            return true;
+        }
 
-        return Str::contains($body, $bookingWords) && Str::contains($body, $timeWords);
+        if ($triggerMessage === null) {
+            return false;
+        }
+
+        $history = $chat->messages()
+            ->where('direction', 'inbound')
+            ->whereKeyNot($triggerMessage->id)
+            ->whereNotNull('body')
+            ->where('body', '!=', '')
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->limit(self::HISTORY_LIMIT)
+            ->pluck('body')
+            ->map(fn (mixed $text): string => mb_strtolower(trim((string) $text)));
+
+        if ($this->conversationAppointments->textHasBookingSignals($body)
+            && $history->contains(fn (string $text): bool => $this->conversationAppointments->textHasTimeSignals($text))) {
+            return true;
+        }
+
+        return $history->contains(fn (string $text): bool => $this->conversationAppointments->textHasBookingSignals($text))
+            && $this->conversationAppointments->textHasTimeSignals($body);
     }
 
     public function detect(Chat $chat, User $responder, Message $triggerMessage): ?AppointmentIntent
     {
-        if (! $this->shouldAnalyze($triggerMessage)) {
+        if (! $this->shouldAnalyze($chat, $triggerMessage)) {
             return null;
         }
 
@@ -120,10 +136,12 @@ TXT;
 4. starts_at всегда возвращай ISO-8601 с конкретной датой и часовым поясом приложения.
 5. duration_minutes бери из каталога услуг. Если точной услуги нет — null (система подставит длительность по умолчанию).
 6. Запись на замер окон/дверей, выезд на объект, монтаж, консультацию или демонстрацию — это тоже запись на услугу: service_name может быть свободной короткой формулировкой, даже если её нет в каталоге.
-7. client_reply — короткое готовое сообщение клиенту на русском от имени сотрудника. В нём не используй "сегодня", "завтра", "послезавтра"; пиши конкретную дату.
+7. client_reply — короткое готовое сообщение клиенту на языке последнего сообщения клиента. В нём не используй "сегодня", "завтра", "послезавтра"; пиши конкретную дату.
 8. Не выдумывай запись, если в переписке только интерес или вопрос о цене.
 9. Если клиент просит напомнить/предупредить за N часов или минут до визита — заполни reminder_lead_minutes (только число минут: 30 = полчаса, 120 = 2 часа). Если не просил — null.
 10. В client_reply при подтверждении записи кратко упомяни, что напомните за указанный клиентом интервал (если он просил).
+11. Дата и время могут быть в разных сообщениях истории: если клиент сначала спросил про запись/покупку на сегодня, а потом уточнил время (например «в 18» или «18:00-ге») — собери полную запись из всей истории и подтверди её.
+12. Казахский язык: бүгін=сегодня, ертең=завтра, жазылу/жазу=запись, сағат/уақыт=время, «18-де»=в 18:00.
 
 Каталог услуг:
 {$services}

@@ -11,7 +11,7 @@ import ShareMessageModal, { type ShareModalSource } from '@/Components/ShareMess
 import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
-import { useLocalSetting } from '@/composables/useLocalSetting';
+import { getChatAiPanelPrefs, updateChatAiPanelPrefs } from '@/composables/useChatAiPanelPrefs';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
@@ -266,33 +266,24 @@ const searchQuery = ref('');
 const contactInfoOpen = ref(false);
 const messageInfoOpen = ref(false);
 const messageInfoMessage = ref<Message | null>(null);
-const aiPanelPinned = useLocalSetting('chats.aiPanelOpen', false);
-const aiPanelOpen = ref(aiPanelPinned.value);
+const aiPanelStoredOpen = ref(getChatAiPanelPrefs(props.chat.id).open);
+const aiPanelOpen = computed({
+    get: () => aiPanelStoredOpen.value && !contactInfoOpen.value && !messageInfoOpen.value,
+    set: (open: boolean) => {
+        aiPanelStoredOpen.value = open;
+        updateChatAiPanelPrefs(props.chat.id, { open });
+    },
+});
 
 watch(
     () => props.chat.id,
-    () => {
-        if (!aiPanelPinned.value) {
-            return;
-        }
-        aiPanelOpen.value = true;
+    (chatId) => {
+        aiPanelStoredOpen.value = getChatAiPanelPrefs(chatId).open;
         contactInfoOpen.value = false;
         messageInfoOpen.value = false;
         messageInfoMessage.value = null;
     },
 );
-
-watch(contactInfoOpen, (open) => {
-    if (!open && aiPanelPinned.value && !messageInfoOpen.value) {
-        aiPanelOpen.value = true;
-    }
-});
-
-watch(messageInfoOpen, (open) => {
-    if (!open && aiPanelPinned.value && !contactInfoOpen.value) {
-        aiPanelOpen.value = true;
-    }
-});
 
 const contactPanelResize = useResizablePanelWidth({
     storageKey: 'chats.contactPanelWidth',
@@ -411,25 +402,21 @@ function toggleSearch() {
 
 function toggleContactInfo() {
     contactInfoOpen.value = !contactInfoOpen.value;
-    if (contactInfoOpen.value) aiPanelOpen.value = false;
 }
 
 function openAiFromContactPanel() {
     contactInfoOpen.value = false;
     aiPanelOpen.value = true;
-    aiPanelPinned.value = true;
 }
 
 function openAiPanel() {
     aiPanelOpen.value = true;
-    aiPanelPinned.value = true;
     contactInfoOpen.value = false;
     messageInfoOpen.value = false;
 }
 
 function closeAiPanel() {
     aiPanelOpen.value = false;
-    aiPanelPinned.value = false;
 }
 
 function openMessageInfo(msg: Message) {

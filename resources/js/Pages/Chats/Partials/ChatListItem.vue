@@ -15,7 +15,7 @@ import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import { whatsappSessionRingColor } from '@/utils/whatsappSessionColor';
 import {
     CHAT_SHOW_PARTIAL_PROPS,
-    isAiPanelPinned,
+    isAiPanelOpenForChat,
     prefetchClientSummary,
 } from '@/composables/useAiPanelDataCache';
 import type { WhatsappSession } from '@/types';
@@ -47,7 +47,7 @@ const chatShowHref = computed(() =>
 );
 
 const partialChatSwitch = computed(
-    () => Boolean(route().current('chats.show')) && isAiPanelPinned(),
+    () => Boolean(route().current('chats.show')) && isAiPanelOpenForChat(props.chat.id),
 );
 
 function prefetchChat(): void {

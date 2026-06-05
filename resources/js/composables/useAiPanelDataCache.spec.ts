@@ -4,10 +4,11 @@ import {
     fetchClientSummary,
     getCachedAutoDraft,
     getCachedClientSummary,
-    isAiPanelPinned,
+    isAiPanelOpenForChat,
     setCachedAutoDraft,
     setCachedClientSummary,
 } from './useAiPanelDataCache';
+import { updateChatAiPanelPrefs } from './useChatAiPanelPrefs';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 
 vi.mock('axios', () => ({
@@ -61,10 +62,12 @@ describe('useAiPanelDataCache', () => {
         expect(getCachedAutoDraft(10, 100)).toBeNull();
     });
 
-    it('reads ai panel pinned flag from localStorage', () => {
-        localStorage.setItem('accel.settings.chats.aiPanelOpen', 'true');
+    it('reads ai panel open flag per chat from localStorage', () => {
+        updateChatAiPanelPrefs(10, { open: true });
+        updateChatAiPanelPrefs(11, { open: false });
 
-        expect(isAiPanelPinned()).toBe(true);
+        expect(isAiPanelOpenForChat(10)).toBe(true);
+        expect(isAiPanelOpenForChat(11)).toBe(false);
     });
 
     it('falls back to memory after session read', () => {

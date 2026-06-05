@@ -4,7 +4,6 @@ import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
-import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import SkeletonBlock from '@/Components/SkeletonBlock.vue';
 import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
@@ -15,7 +14,7 @@ import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
 import {
     CHAT_SHOW_PARTIAL_PROPS,
-    isAiPanelPinned,
+    isAiPanelOpenForChat,
     prefetchClientSummary,
 } from '@/composables/useAiPanelDataCache';
 import axios from 'axios';
@@ -25,7 +24,7 @@ const { t } = useI18n();
 
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
-type SegmentKey = 'all' | 'favorites' | 'clients' | 'staff';
+type SegmentKey = 'all' | 'favorites' | 'clients' | 'staff' | 'closed';
 type ListFilterKey = 'attention' | null;
 
 const props = withDefaults(
@@ -350,8 +349,22 @@ onMounted(() => {
     }
 
     const storedSegment = localStorage.getItem(SEGMENT_KEY);
-    if (storedSegment === 'all' || storedSegment === 'favorites' || storedSegment === 'clients' || storedSegment === 'staff') {
+    if (props.scope === 'archived') {
+        activeSegment.value = 'closed';
+    } else if (
+        storedSegment === 'all'
+        || storedSegment === 'favorites'
+        || storedSegment === 'clients'
+        || storedSegment === 'staff'
+    ) {
         activeSegment.value = storedSegment;
+    } else if (storedSegment === 'closed') {
+        activeSegment.value = 'closed';
+        router.get(archivedListHref.value, {}, {
+            preserveState: true,
+            preserveScroll: true,
+            only: [...CHAT_LIST_RELOAD_PROPS],
+        });
     }
 
     removeListStart = router.on('start', (event) => {
@@ -490,6 +503,16 @@ const filteredChats = computed(() => {
             return bd - ad;
         });
     }
+    if (activeSegment.value === 'closed') {
+        return [...list].sort((a, b) => {
+            const ap = a.is_pinned ? 1 : 0;
+            const bp = b.is_pinned ? 1 : 0;
+            if (bp !== ap) return bp - ap;
+            const ad = new Date((a.last_message_at || (a as any).created_at || '') as any).getTime() || 0;
+            const bd = new Date((b.last_message_at || (b as any).created_at || '') as any).getTime() || 0;
+            return bd - ad;
+        });
+    }
     if (activeSegment.value === 'favorites') {
         list = list.filter((c) => c.is_pinned || c.is_favorite);
     } else if (activeSegment.value === 'clients') {
@@ -518,16 +541,36 @@ const clientsTotal = computed(() =>
     ownershipFilteredChats.value.filter((c) => !isStaffLastMessage(c)).length,
 );
 const staffTotal = computed(() => ownershipFilteredChats.value.filter((c) => isStaffLastMessage(c)).length);
+const closedTotal = computed(() => {
+    if (props.scope === 'archived') {
+        return props.chats.total ?? ownershipFilteredChats.value.length;
+    }
+
+    return archivedCount.value;
+});
 const mineChatsTotal = computed(() => Number(page.props.mineChatsTotal ?? 0));
+
+const segmentReloadOptions = {
+    preserveState: true,
+    preserveScroll: true,
+    only: [...CHAT_LIST_RELOAD_PROPS] as string[],
+};
 
 function setSegment(key: SegmentKey) {
     activeSegment.value = key;
+
+    if (key === 'closed') {
+        router.get(archivedListHref.value, {}, segmentReloadOptions);
+        return;
+    }
+
+    if (props.scope === 'archived') {
+        router.get(activeListHref.value, {}, segmentReloadOptions);
+        return;
+    }
+
     if (listFilter.value === 'attention') {
-        router.get(chatsListRoute(), chatsListQuery({ filter: undefined }), {
-            preserveState: true,
-            preserveScroll: true,
-            only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
-        });
+        router.get(chatsListRoute(), chatsListQuery({ filter: undefined }), segmentReloadOptions);
     }
 }
 
@@ -550,7 +593,10 @@ function setOwnership(key: OwnershipKey) {
     if (key === 'mine') {
         q.ownership = 'mine';
     }
-    router.get(chatsListRoute(), q, {
+    const targetRoute = key === 'all' && props.scope === 'archived'
+        ? route('chats.index')
+        : chatsListRoute();
+    router.get(targetRoute, q, {
         preserveState: true,
         preserveScroll: true,
         only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
@@ -584,7 +630,7 @@ function navigateChat(direction: 1 | -1) {
     }
     router.visit(
         appendChatListOwnership(route('chats.show', list[nextIdx].id), listOwnership.value),
-        isAiPanelPinned()
+        isAiPanelOpenForChat(list[nextIdx].id)
             ? { preserveState: true, only: [...CHAT_SHOW_PARTIAL_PROPS] }
             : { preserveState: true },
     );
@@ -798,31 +844,8 @@ onBeforeUnmount(() => {
             <SidebarSectionTabs active="clients" />
 
             <div class="ui-sidebar-filters__group">
-                <UiPillNav>
-                    <Link
-                        :href="activeListHref"
-                        class="ui-pill-nav__item"
-                        :class="{ 'is-active': scope === 'active' }"
-                    >
-                        {{ t('chats.sidebar.active') }}
-                    </Link>
-                    <Link
-                        :href="archivedListHref"
-                        class="ui-pill-nav__item"
-                        :class="{ 'is-active': scope === 'archived' }"
-                    >
-                        <span class="truncate">{{ t('chats.sidebar.archive') }}</span>
-                        <span
-                            v-if="archivedCount > 0"
-                            class="ui-tab-badge"
-                            :title="t('chats.sidebar.archivedCountTitle', { count: archivedCount })"
-                        >{{ archivedCount > 99 ? '99+' : archivedCount }}</span>
-                    </Link>
-                </UiPillNav>
-
                 <div class="ui-sidebar-filters__chips-slot">
                     <div
-                        v-if="scope === 'active'"
                         class="ui-chip-row ui-chip-row--scroll wa-scrollbar"
                         role="toolbar"
                         :aria-label="t('chats.sidebar.filtersAria')"
@@ -884,6 +907,16 @@ onBeforeUnmount(() => {
                         <span v-if="staffTotal" class="ui-chip__meta">{{ staffTotal }}</span>
                     </button>
                     <button
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': activeSegment === 'closed' && listFilter !== 'attention' }"
+                        @click="setSegment('closed')"
+                    >
+                        {{ t('chats.sidebar.closed') }}
+                        <span v-if="closedTotal" class="ui-chip__meta">{{ closedTotal > 99 ? '99+' : closedTotal }}</span>
+                    </button>
+                    <button
+                        v-if="scope === 'active'"
                         type="button"
                         class="ui-chip ui-chip--danger shrink-0"
                         :class="{ 'is-active': listFilter === 'attention' }"
@@ -1003,7 +1036,7 @@ onBeforeUnmount(() => {
                 v-else-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
                 class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
             >
-                <template v-if="scope === 'archived'">{{ t('chats.archived.emptyList') }}</template>
+                <template v-if="activeSegment === 'closed'">{{ t('chats.archived.emptyList') }}</template>
                 <template v-else>{{ t('chats.sidebar.emptySection') }}</template>
             </div>
             <ChatListItem

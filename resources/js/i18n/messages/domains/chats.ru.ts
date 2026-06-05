@@ -72,6 +72,7 @@ export const chats = {
         favorites: 'Избранные',
         clients: 'Клиенты',
         staff: 'Сотрудники',
+        closed: 'Закрытые',
         attention: 'Внимание',
         attentionTitle: 'AI: нужен менеджер, ошибка, низкая уверенность; непрочитанные',
         noAttentionChats: 'Сейчас нет чатов, требующих внимания.',

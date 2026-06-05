@@ -72,6 +72,7 @@ export const chats = {
         favorites: 'Favorites',
         clients: 'Clients',
         staff: 'Staff',
+        closed: 'Closed',
         attention: 'Attention',
         attentionTitle: 'AI: manager needed, error, low confidence; unread',
         noAttentionChats: 'No chats requiring attention right now.',

@@ -942,10 +942,42 @@ final class AiAssistantTest extends TestCase
     public function test_appointment_intent_analysis_triggers_for_window_measurement_booking(): void
     {
         $svc = app(AiAppointmentIntentService::class);
-        $msg = new Message([
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        $msg = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
             'body' => 'Да, жду замер окон завтра в 15:00',
+            'message_timestamp' => now(),
         ]);
 
-        $this->assertTrue($svc->shouldAnalyze($msg));
+        $this->assertTrue($svc->shouldAnalyze($chat, $msg));
+    }
+
+    public function test_appointment_intent_analysis_triggers_for_split_messages(): void
+    {
+        $svc = app(AiAppointmentIntentService::class);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'Можно сегодня записаться?',
+            'message_timestamp' => now()->subMinute(),
+        ]);
+        $msg = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'можно ли в 18',
+            'message_timestamp' => now(),
+        ]);
+
+        $this->assertTrue($svc->shouldAnalyze($chat, $msg));
     }
 }

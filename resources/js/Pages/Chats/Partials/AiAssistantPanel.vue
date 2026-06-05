@@ -14,7 +14,12 @@ import {
 } from '@/composables/useAiPanelDataCache';
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
-import { useLocalSetting } from '@/composables/useLocalSetting';
+import {
+    getChatAiPanelPrefs,
+    updateChatAiPanelPrefs,
+    type ChatAiPanelMode,
+    type ChatAiPanelTab,
+} from '@/composables/useChatAiPanelPrefs';
 import type { Message } from '@/types';
 
 type AiStatus = {
@@ -72,8 +77,8 @@ const props = defineProps<{
     panelWidth?: string;
 }>();
 
-type PanelTab = 'assistant' | 'ai-status' | 'draft';
-type PanelMode = 'overview' | 'chat';
+type PanelTab = ChatAiPanelTab;
+type PanelMode = ChatAiPanelMode;
 
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -98,22 +103,23 @@ const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const clearAiDialogOpen = ref(false);
-const activeTab = useLocalSetting<PanelTab>('chats.aiPanelTab', 'assistant');
-const panelMode = useLocalSetting<PanelMode>('chats.aiPanelMode', 'overview');
-function normalizePanelTab(value: unknown): PanelTab {
-    if (value === 'ai-status' || value === 'draft') {
-        return value;
-    }
+const activeTab = ref<PanelTab>('assistant');
+const panelMode = ref<PanelMode>('overview');
 
-    return 'assistant';
+function applyPanelPrefs(chatId: number): void {
+    const prefs = getChatAiPanelPrefs(chatId);
+    activeTab.value = prefs.tab;
+    panelMode.value = prefs.mode;
 }
 
-function normalizePanelMode(value: unknown): PanelMode {
-    return value === 'chat' ? 'chat' : 'overview';
+function persistPanelPrefs(): void {
+    updateChatAiPanelPrefs(props.chatId, {
+        mode: panelMode.value,
+        tab: activeTab.value,
+    });
 }
 
-activeTab.value = normalizePanelTab(activeTab.value);
-panelMode.value = normalizePanelMode(panelMode.value);
+applyPanelPrefs(props.chatId);
 const clientSummary = ref<ClientSummary | null>(null);
 const summaryLoading = ref(false);
 let autoDraftTimer: number | null = null;
@@ -218,7 +224,7 @@ function persistToStorage(): void {
 }
 
 watch(turns, persistToStorage, { deep: true });
-watch(() => props.chatId, loadFromStorage);
+watch([panelMode, activeTab], persistPanelPrefs);
 
 const canSend = computed(() => !sending.value && draft.value.trim().length > 0);
 const isEmpty = computed(() => turns.value.length === 0);
@@ -535,6 +541,7 @@ watch(() => props.chatId, () => {
     autoDraft.value = '';
     autoDraftError.value = null;
     autoDraftMessageId.value = null;
+    applyPanelPrefs(props.chatId);
     loadFromStorage();
     scheduleAutoDraft();
     if (panelMode.value === 'chat') {

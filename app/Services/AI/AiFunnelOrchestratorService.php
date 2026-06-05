@@ -33,6 +33,7 @@ final class AiFunnelOrchestratorService
         private readonly ClientMessageIntentDetector $clientIntents,
         private readonly OrchestratorDynamicReplyBuilder $dynamicReplies,
         private readonly ChatIdleAiReplyService $idleAiReply,
+        private readonly ConversationAppointmentResolver $conversationAppointments,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -156,6 +157,7 @@ final class AiFunnelOrchestratorService
                 $plan = $this->lowConfidencePlan($chat, $trigger, $rule, $plan, $minConfidence);
             }
             $plan = $this->finalizeCustomerFacingPlan($chat, $trigger, $plan);
+            $plan = $this->recoverSplitMessageAppointment($chat, $trigger, $plan, $availableSlots);
             $plan = $this->applyAppointmentCustomerReply($chat, $trigger, $plan);
             $pendingPlan = $this->buildPendingPlanSnapshot($chat, $trigger, $scenario, $rule, $plan);
             $plan = $this->applyAutomationPolicy($chat, $trigger, $scenario, $rule, $plan);
@@ -363,7 +365,7 @@ final class AiFunnelOrchestratorService
         }
 
         $isReschedule = $this->isAutomaticReschedule($chat, $trigger, $plan);
-        $requested = $this->requestedAppointmentTime($trigger);
+        $requested = $this->requestedAppointmentTime($chat, $trigger);
         $matchesRequested = $this->requestedTimeMatchesBooking($requested, $startsAt);
         $reply = trim((string) $plan->customerReply);
 
@@ -376,7 +378,7 @@ final class AiFunnelOrchestratorService
         }
 
         return new AiFunnelOrchestratorPlan(
-            customerReply: $this->buildAppointmentCustomerReply($trigger, $startsAt, $isReschedule),
+            customerReply: $this->buildAppointmentCustomerReply($chat, $trigger, $startsAt, $isReschedule),
             targetFunnelStageId: $plan->targetFunnelStageId,
             appointment: $plan->appointment,
             assigneeUserId: $plan->assigneeUserId,
@@ -388,10 +390,10 @@ final class AiFunnelOrchestratorService
         );
     }
 
-    private function buildAppointmentCustomerReply(Message $trigger, Carbon $bookedStartsAt, bool $isReschedule): string
+    private function buildAppointmentCustomerReply(Chat $chat, Message $trigger, Carbon $bookedStartsAt, bool $isReschedule): string
     {
         $bookedLabel = $this->formatAppointmentWhen($bookedStartsAt);
-        $requested = $this->requestedAppointmentTime($trigger);
+        $requested = $this->requestedAppointmentTime($chat, $trigger);
 
         if ($requested !== null && ! $this->requestedTimeMatchesBooking($requested, $bookedStartsAt)) {
             $requestedLabel = $this->formatAppointmentWhen($requested);
@@ -410,27 +412,58 @@ final class AiFunnelOrchestratorService
         return 'Записываю вас на замер '.$bookedLabel.'.';
     }
 
-    private function requestedAppointmentTime(Message $trigger): ?Carbon
+    private function requestedAppointmentTime(Chat $chat, Message $trigger): ?Carbon
     {
-        $body = mb_strtolower(trim((string) $trigger->body));
-        if ($body === '' || preg_match('/\b(\d{1,2})[:\.](\d{2})\b/u', $body, $matches) !== 1) {
-            return null;
+        $parsed = $this->conversationAppointments->parseDateTimeFromConversation($chat, $trigger);
+
+        return $parsed instanceof Carbon ? $parsed : null;
+    }
+
+    /**
+     * @param  list<array{user_id: int, user_name: string, starts_at: string, ends_at: string}>  $availableSlots
+     */
+    private function recoverSplitMessageAppointment(
+        Chat $chat,
+        Message $trigger,
+        AiFunnelOrchestratorPlan $plan,
+        array $availableSlots,
+    ): AiFunnelOrchestratorPlan {
+        if ($plan->appointment !== null) {
+            return $plan;
         }
 
-        $hour = (int) $matches[1];
-        $minute = (int) $matches[2];
-        if ($hour > 23 || $minute > 59) {
-            return null;
+        $shouldRecover = $this->conversationAppointments->conversationHasBookingIntent($chat, $trigger)
+            && (
+                $this->conversationAppointments->parseDateTimeFromConversation($chat, $trigger) !== null
+                || $this->conversationAppointments->replyPromisesBookingWithoutCalendar($plan->customerReply)
+            );
+
+        if (! $shouldRecover) {
+            return $plan;
         }
 
-        $date = now();
-        if (str_contains($body, 'послезавтра')) {
-            $date = now()->addDays(2);
-        } elseif (str_contains($body, 'завтра')) {
-            $date = now()->addDay();
+        $appointment = $this->conversationAppointments->resolve($chat, $trigger, $availableSlots);
+        if ($appointment === null) {
+            return $plan;
         }
 
-        return $date->copy()->setTime($hour, $minute, 0);
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $plan->customerReply,
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: [
+                'service_name' => $appointment['service_name'],
+                'starts_at' => $appointment['starts_at'],
+                'duration_minutes' => $appointment['duration_minutes'],
+                'client_note' => null,
+                'reminder_lead_minutes' => null,
+            ],
+            assigneeUserId: $appointment['assignee_user_id'],
+            managerNote: $plan->managerNote,
+            task: $plan->task,
+            requiresManagerAttention: $plan->requiresManagerAttention,
+            confidence: max($plan->confidence, 0.88),
+            reason: $plan->reason.' (запись собрана из контекста переписки)',
+        );
     }
 
     private function requestedTimeMatchesBooking(?Carbon $requested, Carbon $booked): bool
@@ -1449,6 +1482,15 @@ final class AiFunnelOrchestratorService
         Message $trigger,
         AiFunnelOrchestratorPlan $plan,
     ): AiFunnelOrchestratorPlan {
+        if ($plan->appointment !== null) {
+            return $plan;
+        }
+
+        if ($this->conversationAppointments->conversationHasBookingIntent($chat, $trigger)
+            && $this->conversationAppointments->parseDateTimeFromConversation($chat, $trigger) !== null) {
+            return $plan;
+        }
+
         $body = (string) $trigger->body;
         $intent = $this->clientIntents->detect($body);
         if (! $this->planConflictsWithIntent($plan, $intent)) {

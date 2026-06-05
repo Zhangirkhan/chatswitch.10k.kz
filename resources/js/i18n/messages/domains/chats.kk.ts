@@ -72,6 +72,7 @@ export const chats = {
         favorites: 'Таңдаулылар',
         clients: 'Клиенттер',
         staff: 'Қызметкерлер',
+        closed: 'Жабық',
         attention: 'Назар',
         attentionTitle: 'AI: менеджер керек, қате, төмен сенім; оқылмағандар',
         noAttentionChats: 'Қазір назар аудару керек чаттар жоқ.',

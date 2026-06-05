@@ -5,7 +5,6 @@ const SUMMARY_TTL_MS = 15 * 60 * 1000;
 const DRAFT_TTL_MS = 30 * 60 * 1000;
 const SUMMARY_STORAGE_PREFIX = 'accel.aiPanel.summary.';
 const DRAFT_STORAGE_PREFIX = 'accel.aiPanel.draft.';
-const AI_PANEL_PINNED_KEY = 'accel.settings.chats.aiPanelOpen';
 
 type CacheEntry<T> = {
     fetchedAt: number;
@@ -59,16 +58,7 @@ function writeSession<T>(key: string, entry: CacheEntry<T>): void {
     }
 }
 
-export function isAiPanelPinned(): boolean {
-    if (typeof window === 'undefined') {
-        return false;
-    }
-    try {
-        return window.localStorage.getItem(AI_PANEL_PINNED_KEY) === 'true';
-    } catch {
-        return false;
-    }
-}
+export { isAiPanelOpenForChat } from '@/composables/useChatAiPanelPrefs';
 
 /** Минимальный набор props при переключении чата с открытым AI-ассистентом. */
 export const CHAT_SHOW_PARTIAL_PROPS = [
