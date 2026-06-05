@@ -39,6 +39,29 @@ final class ChatIdleAiReplyServiceTest extends TestCase
         $this->assertTrue($service->shouldSkipScheduling($message));
     }
 
+    public function test_skips_scheduling_for_empty_inbound_without_media(): void
+    {
+        $service = $this->app->make(ChatIdleAiReplyService::class);
+        $company = $this->createTenantCompany(['name' => 'Co']);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+            'ai_enabled' => true,
+        ]);
+        $message = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => '',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $this->assertTrue($service->shouldSkipScheduling($message));
+    }
+
     public function test_blocks_reply_when_manager_answered_after_trigger(): void
     {
         $service = $this->app->make(ChatIdleAiReplyService::class);

@@ -152,4 +152,84 @@ final class WhatsappGhostChatTest extends TestCase
 
         $this->assertDatabaseMissing('chats', ['id' => $ghost->id]);
     }
+
+    public function test_feed_excludes_ai_only_ghost_chats(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create();
+
+        $ghost = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '247634962960547@lid',
+            'chat_name' => 'Контакт WhatsApp',
+            'last_message_at' => now(),
+        ]);
+
+        Message::create([
+            'chat_id' => $ghost->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'Не увидели текст сообщения. Напишите, пожалуйста, ваш вопрос — подскажем.',
+            'ack' => 'delivered',
+            'sent_by_user_id' => $admin->id,
+            'message_timestamp' => now(),
+            'metadata' => ['ai' => ['generated' => true]],
+        ]);
+
+        $real = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'last_message_at' => now(),
+        ]);
+
+        Message::create([
+            'chat_id' => $real->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Привет',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->getJson(route('chats.feed'));
+
+        $response->assertOk();
+        $ids = collect($response->json('data'))->pluck('id')->all();
+        $this->assertContains($real->id, $ids);
+        $this->assertNotContains($ghost->id, $ids);
+    }
+
+    public function test_prune_command_removes_ai_only_ghost_chats(): void
+    {
+        $session = WhatsappSession::factory()->create();
+
+        $ghost = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '247634962960547@lid',
+            'chat_name' => 'Контакт WhatsApp',
+            'last_message_at' => now(),
+        ]);
+
+        Message::create([
+            'chat_id' => $ghost->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'chat',
+            'body' => 'Сообщение снова пришло без текста. Отправьте, пожалуйста, текст вопроса.',
+            'ack' => 'delivered',
+            'sent_by_user_id' => User::factory()->create()->id,
+            'message_timestamp' => now(),
+            'metadata' => ['ai' => ['generated' => true]],
+        ]);
+
+        $this->assertFalse(app(ChatService::class)->chatHasRealConversation($ghost));
+
+        $this->artisan('chats:prune-ghost-whatsapp')
+            ->assertSuccessful();
+
+        $this->assertDatabaseMissing('chats', ['id' => $ghost->id]);
+    }
 }

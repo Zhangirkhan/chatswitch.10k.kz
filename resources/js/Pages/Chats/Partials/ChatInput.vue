@@ -51,6 +51,9 @@ const stickerInput = ref<HTMLInputElement | null>(null);
 
 const showEmoji = ref(false);
 const showAttach = ref(false);
+const attachBtnRef = ref<HTMLButtonElement | null>(null);
+const attachMenuRef = ref<HTMLDivElement | null>(null);
+const attachMenuPos = ref({ left: 0, bottom: 0 });
 
 let typingTimeout: ReturnType<typeof setTimeout>;
 
@@ -839,19 +842,70 @@ function onPaste(e: ClipboardEvent) {
 
 onMounted(() => {
     document.addEventListener('selectionchange', updateFormatBarFromSelection);
+    document.addEventListener('pointerdown', onAttachMenuOutsidePointerDown);
+    window.addEventListener('resize', onAttachMenuViewportChange);
+    window.addEventListener('scroll', onAttachMenuViewportChange, true);
     loadParticipants();
 });
 
 watch(() => props.chatId, () => loadParticipants());
 watch(() => props.isGroup, () => loadParticipants());
 
+watch(showAttach, (open) => {
+    if (open) {
+        nextTick(() => updateAttachMenuPosition());
+    }
+});
+
 onBeforeUnmount(() => {
     document.removeEventListener('selectionchange', updateFormatBarFromSelection);
+    document.removeEventListener('pointerdown', onAttachMenuOutsidePointerDown);
+    window.removeEventListener('resize', onAttachMenuViewportChange);
+    window.removeEventListener('scroll', onAttachMenuViewportChange, true);
 });
+
+function updateAttachMenuPosition(): void {
+    const btn = attachBtnRef.value;
+    if (!btn) {
+        return;
+    }
+
+    const rect = btn.getBoundingClientRect();
+    const gap = 8;
+    attachMenuPos.value = {
+        left: Math.max(8, rect.left),
+        bottom: Math.max(8, window.innerHeight - rect.top + gap),
+    };
+}
+
+function onAttachMenuViewportChange(): void {
+    if (showAttach.value) {
+        updateAttachMenuPosition();
+    }
+}
+
+function onAttachMenuOutsidePointerDown(event: PointerEvent): void {
+    if (!showAttach.value) {
+        return;
+    }
+
+    const target = event.target as Node | null;
+    if (attachBtnRef.value?.contains(target)) {
+        return;
+    }
+    if (attachMenuRef.value?.contains(target)) {
+        return;
+    }
+
+    showAttach.value = false;
+}
 
 function toggleAttach() {
     showAttach.value = !showAttach.value;
     showEmoji.value = false;
+    if (showAttach.value) {
+        nextTick(() => updateAttachMenuPosition());
+    }
 }
 
 function toggleEmoji() {
@@ -1360,7 +1414,7 @@ defineExpose({ insertDraft });
         <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">{{ t('chats.input.settingsLink') }}</a>.
     </div>
 
-    <div v-else class="relative shrink-0 min-w-0 w-full max-w-full overflow-hidden">
+    <div v-else class="relative shrink-0 min-w-0 w-full max-w-full overflow-x-hidden">
         <div
             v-if="selectedProduct"
             class="px-4 pt-2 pb-1 flex items-stretch gap-2 border-t"
@@ -1493,6 +1547,7 @@ defineExpose({ insertDraft });
                 <!-- Plus / attach button -->
                 <div class="wa-input-attach">
                     <button
+                        ref="attachBtnRef"
                         @click="toggleAttach"
                         class="wa-input-btn"
                         :class="{ 'wa-input-btn-active': showAttach }"
@@ -1503,64 +1558,6 @@ defineExpose({ insertDraft });
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
-
-                    <!-- Attach menu -->
-                    <transition name="attach">
-                        <div
-                            v-if="showAttach"
-                            class="absolute bottom-full left-0 mb-2 w-[220px] rounded-lg shadow-2xl border py-1.5 attach-menu"
-                            :style="{ background: 'var(--wa-panel-header)', borderColor: 'var(--wa-control-border)' }"
-                        >
-                            <button class="attach-item" @click="pickPhotoVideo" type="button">
-                                <span class="attach-icon" style="background: #bf59cf;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.photoOrVideo') }}
-                            </button>
-                            <button class="attach-item" @click="pickDocument" type="button">
-                                <span class="attach-icon" style="background: #5f66cd;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.document') }}
-                            </button>
-                            <button class="attach-item" @click="pickSticker" type="button">
-                                <span class="attach-icon" style="background: #02a698;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 2l6 6v10a4 4 0 01-4 4H8a4 4 0 01-4-4V6a4 4 0 014-4h6zm0 0v6h6" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.sticker') }}
-                            </button>
-                            <button class="attach-item" @click="openContactPicker" type="button">
-                                <span class="attach-icon" style="background: #0099ff;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.contact') }}
-                            </button>
-                            <button class="attach-item" @click="openPollModal" type="button">
-                                <span class="attach-icon" style="background: #ffa115;">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-4" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.poll') }}
-                            </button>
-                            <button class="attach-item" @click="openProductPicker" type="button">
-                                <span class="attach-icon" style="background: var(--wa-accent);">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                    </svg>
-                                </span>
-                                {{ t('chats.input.catalogProduct') }}
-                            </button>
-                        </div>
-                    </transition>
                 </div>
 
                 <input ref="mediaInput" type="file" accept="image/*,video/*" class="hidden" multiple @change="onMediaSelected" />
@@ -2154,6 +2151,71 @@ defineExpose({ insertDraft });
                 </div>
             </transition>
         </Teleport>
+
+        <Teleport to="body">
+            <transition name="attach">
+                <div
+                    v-if="showAttach"
+                    ref="attachMenuRef"
+                    class="attach-menu attach-menu--fixed w-[220px] rounded-lg shadow-2xl border py-1.5"
+                    :style="{
+                        left: `${attachMenuPos.left}px`,
+                        bottom: `${attachMenuPos.bottom}px`,
+                        background: 'var(--wa-panel-header)',
+                        borderColor: 'var(--wa-control-border)',
+                    }"
+                >
+                    <button class="attach-item" @click="pickPhotoVideo" type="button">
+                        <span class="attach-icon" style="background: #bf59cf;">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.photoOrVideo') }}
+                    </button>
+                    <button class="attach-item" @click="pickDocument" type="button">
+                        <span class="attach-icon" style="background: #5f66cd;">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.document') }}
+                    </button>
+                    <button class="attach-item" @click="pickSticker" type="button">
+                        <span class="attach-icon" style="background: #02a698;">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M14 2l6 6v10a4 4 0 01-4 4H8a4 4 0 01-4-4V6a4 4 0 014-4h6zm0 0v6h6" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.sticker') }}
+                    </button>
+                    <button class="attach-item" @click="openContactPicker" type="button">
+                        <span class="attach-icon" style="background: #0099ff;">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.contact') }}
+                    </button>
+                    <button class="attach-item" @click="openPollModal" type="button">
+                        <span class="attach-icon" style="background: #ffa115;">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6m4 6V7m4 10v-4" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.poll') }}
+                    </button>
+                    <button class="attach-item" @click="openProductPicker" type="button">
+                        <span class="attach-icon" style="background: var(--wa-accent);">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </span>
+                        {{ t('chats.input.catalogProduct') }}
+                    </button>
+                </div>
+            </transition>
+        </Teleport>
     </div>
 </template>
 
@@ -2164,6 +2226,7 @@ defineExpose({ insertDraft });
     max-width: 100%;
     padding: 4px 10px 8px;
     box-sizing: border-box;
+    overflow: visible;
 }
 
 .wa-ai-input-actions {
@@ -2236,6 +2299,7 @@ defineExpose({ insertDraft });
     padding: 6px 10px;
     min-height: 44px;
     margin: 0;
+    overflow: visible;
 
     /* Float on top of chat wallpaper (same pattern as messages). */
     border: 1px solid color-mix(in srgb, var(--wa-control-rim) 72%, transparent);
@@ -2379,6 +2443,13 @@ defineExpose({ insertDraft });
 .attach-menu {
     animation: picker-pop 0.14s ease-out;
     z-index: 50;
+}
+
+.attach-menu--fixed {
+    position: fixed;
+    z-index: 1200;
+    max-height: min(70vh, 420px);
+    overflow-y: auto;
 }
 @keyframes picker-pop {
     from { opacity: 0; transform: translateY(6px) scale(0.98); }

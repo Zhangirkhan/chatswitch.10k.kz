@@ -228,15 +228,22 @@ final class Chat extends Model
     }
 
     /**
-     * Чаты, в которых есть хотя бы одно сообщение, видимое оператору.
+     * Чаты, где есть переписка с клиентом или исходящее от менеджера (не только AI в пустоту).
      *
      * @param  Builder<Chat>  $query
      * @return Builder<Chat>
      */
     public function scopeWithOperatorVisibleActivity(Builder $query): Builder
     {
-        return $query->whereHas('messages', function (Builder $messageQuery): void {
-            WhatsappMessageType::applyOperatorVisibleScope($messageQuery);
+        return $query->where(function (Builder $scope): void {
+            $scope
+                ->whereHas('messages', function (Builder $messageQuery): void {
+                    $messageQuery->where('direction', 'inbound');
+                    WhatsappMessageType::applyOperatorVisibleScope($messageQuery);
+                })
+                ->orWhereHas('messages', function (Builder $messageQuery): void {
+                    $messageQuery->humanOutbound();
+                });
         });
     }
 }

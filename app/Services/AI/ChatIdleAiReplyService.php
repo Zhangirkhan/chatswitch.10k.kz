@@ -11,6 +11,8 @@ use App\Models\Message;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Support\MessageInboundText;
+use App\Support\VoiceInboundHelper;
+use App\Support\WhatsappMessageType;
 use Illuminate\Support\Carbon;
 
 /**
@@ -31,9 +33,31 @@ final class ChatIdleAiReplyService
             return true;
         }
 
+        if (! $this->inboundHasActionableContent($trigger)) {
+            return true;
+        }
+
         $body = MessageInboundText::forMessage($trigger);
 
         return $this->clientIntents->isAcknowledgement($body);
+    }
+
+    private function inboundHasActionableContent(Message $trigger): bool
+    {
+        if (VoiceInboundHelper::needsTranscriptionBeforeAi($trigger)) {
+            return true;
+        }
+
+        if ($trigger->media()->exists()) {
+            return true;
+        }
+
+        $type = strtolower(trim((string) $trigger->type));
+        if ($type !== '' && $type !== 'chat') {
+            return ! WhatsappMessageType::shouldIgnoreInbound($type);
+        }
+
+        return trim(MessageInboundText::forMessage($trigger)) !== '';
     }
 
     public function dispatchGenerateReply(Chat $chat, int $triggerMessageId, bool $immediate = false): void

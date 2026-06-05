@@ -1098,12 +1098,7 @@ final class ChatService
                 foreach ($chats as $chat) {
                     $this->refreshChatLastMessageSnapshot($chat);
 
-                    $hasVisibleMessages = Message::query()
-                        ->where('chat_id', $chat->id)
-                        ->tap(fn (Builder $query) => WhatsappMessageType::applyOperatorVisibleScope($query))
-                        ->exists();
-
-                    if ($hasVisibleMessages) {
+                    if ($this->chatHasRealConversation($chat)) {
                         continue;
                     }
 
@@ -1118,5 +1113,30 @@ final class ChatService
             'deleted_chats' => $deletedChats,
             'fixed_contacts' => $fixedContacts,
         ];
+    }
+
+    public function chatHasRealConversation(Chat $chat): bool
+    {
+        if ($chat->is_group) {
+            return Message::query()
+                ->where('chat_id', $chat->id)
+                ->tap(fn (Builder $query) => WhatsappMessageType::applyOperatorVisibleScope($query))
+                ->exists();
+        }
+
+        $hasInbound = Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('direction', 'inbound')
+            ->tap(fn (Builder $query) => WhatsappMessageType::applyOperatorVisibleScope($query))
+            ->exists();
+
+        if ($hasInbound) {
+            return true;
+        }
+
+        return Message::query()
+            ->where('chat_id', $chat->id)
+            ->humanOutbound()
+            ->exists();
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Support\PhoneFormatter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -89,5 +90,23 @@ final class Message extends Model
     public function quotedMessage(): BelongsTo
     {
         return $this->belongsTo(self::class, 'quoted_message_id', 'whatsapp_message_id');
+    }
+
+    /**
+     * Исходящее от менеджера, не сгенерированное AI.
+     *
+     * @param  Builder<Message>  $query
+     * @return Builder<Message>
+     */
+    public function scopeHumanOutbound(Builder $query): Builder
+    {
+        return $query
+            ->where('direction', 'outbound')
+            ->whereNotNull('sent_by_user_id')
+            ->where(function (Builder $scope): void {
+                $scope
+                    ->whereNull('metadata->ai->generated')
+                    ->orWhere('metadata->ai->generated', false);
+            });
     }
 }
