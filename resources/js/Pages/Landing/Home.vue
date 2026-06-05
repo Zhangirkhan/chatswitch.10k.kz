@@ -453,7 +453,7 @@ onMounted(() => {
     --landing-border: rgba(134, 150, 160, 0.18);
     --landing-text: #e9edef;
     --landing-muted: #8696a0;
-    --landing-accent: #01b964;
+    --landing-accent: #ff9900;
     --landing-accent-hover: #06d670;
 
     position: relative;
@@ -718,7 +718,7 @@ onMounted(() => {
 }
 
 .landing-modal-form__slug-status--ok {
-    color: #01b964;
+    color: var(--landing-accent, #ff9900);
 }
 
 .landing-modal-form__slug-status--bad {
@@ -786,7 +786,7 @@ onMounted(() => {
 
 .landing-modal-form__btn--primary {
     color: #fff;
-    background: var(--landing-accent, #01b964);
+    background: var(--landing-accent, #ff9900);
 }
 
 .landing-modal-form__btn--primary:disabled {

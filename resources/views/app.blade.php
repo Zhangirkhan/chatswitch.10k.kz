@@ -10,7 +10,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="Accel">
-        <meta name="theme-color" content="#25d366">
+        <meta name="theme-color" content="#ff9900">
         <meta name="application-name" content="Accel">
         <link rel="manifest" href="/build/manifest.webmanifest">
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
