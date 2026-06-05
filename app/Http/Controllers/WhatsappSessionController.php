@@ -46,26 +46,26 @@ final class WhatsappSessionController extends Controller
         ]);
     }
 
-    public function bootstrap(): JsonResponse
+    public function bootstrap(Request $request): JsonResponse
     {
-        if ($this->demoSessions->isDemoTenant()) {
-            $sessions = WhatsappSession::orderBy('created_at')->get();
-            $sessions->each(fn (WhatsappSession $session) => $this->demoSessions->markConnected($session));
+        $isDemo = $this->demoSessions->isDemoTenant();
+        $reachable = $isDemo ? true : $this->whatsappService->healthReachable();
 
-            return response()->json([
-                'whatsappServiceReachable' => true,
-                'sessions' => $this->formatSessionsForApi(
-                    WhatsappSession::orderBy('created_at')->get(),
-                ),
-            ]);
-        }
-
-        $reachable = $this->whatsappService->healthReachable();
         $sessions = WhatsappSession::orderBy('created_at')->get();
 
-        if ($reachable) {
+        if ($isDemo) {
+            $sessions->each(fn (WhatsappSession $session) => $this->demoSessions->markConnected($session));
+            $sessions = WhatsappSession::orderBy('created_at')->get();
+        } elseif ($reachable) {
             $this->reconcileSessionsWithMicroservice($sessions);
             $sessions = WhatsappSession::orderBy('created_at')->get();
+        }
+
+        $user = $request->user();
+        if ($user !== null) {
+            $sessions = $sessions->filter(
+                static fn (WhatsappSession $session): bool => $user->can('use', $session),
+            )->values();
         }
 
         return response()->json([
