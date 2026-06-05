@@ -495,7 +495,7 @@ final class ChatService
 
         if (str_ends_with(strtolower($whatsappId), '@c.us')) {
             $digits = preg_replace('/\D/', '', explode('@', $whatsappId)[0] ?? '');
-            if ($digits !== '') {
+            if ($digits !== '' && PhoneFormatter::isPlausibleE164($digits)) {
                 return $this->findOrCreateContactByPhone($digits, $senderName);
             }
         }
@@ -533,7 +533,12 @@ final class ChatService
 
         $senderPhoneRaw = isset($data['senderPhone']) ? (string) $data['senderPhone'] : null;
         $senderAuthorJid = isset($data['senderAuthorJid']) ? trim((string) $data['senderAuthorJid']) : '';
-        if ($senderAuthorJid !== '' && str_ends_with(strtolower($senderAuthorJid), '@lid')) {
+        $from = isset($data['from']) ? trim((string) $data['from']) : '';
+        $chatId = isset($data['chatId']) ? trim((string) $data['chatId']) : '';
+        $isLidSender = str_ends_with(strtolower($senderAuthorJid), '@lid')
+            || str_ends_with(strtolower($from), '@lid')
+            || str_ends_with(strtolower($chatId), '@lid');
+        if ($isLidSender) {
             $senderPhoneRaw = null;
         }
         $senderNameRaw = isset($data['senderName']) ? (string) $data['senderName'] : null;
@@ -610,6 +615,8 @@ final class ChatService
         }
 
         $this->applyLastMessageSnapshot($chat, $message, $preview);
+
+        $this->reopenChatAfterInbound($chat);
 
         // Atomic increment — избегаем race condition при параллельных webhook'ах.
         $chat->increment('unread_count');
@@ -848,7 +855,20 @@ final class ChatService
             ? now()->setTimestamp($timestamp)
             : now();
 
-        return $messageAt->lte($clearedAt);
+        return $messageAt->lt($clearedAt);
+    }
+
+    /**
+     * После «Очистить клиента» новые входящие принимаем, но cutoff на контакте
+     * остаётся — он блокирует только resync старых сообщений из WhatsApp.
+     */
+    private function reopenChatAfterInbound(Chat $chat): void
+    {
+        if ($chat->messages_cleared_at === null) {
+            return;
+        }
+
+        $chat->forceFill(['messages_cleared_at' => null])->save();
     }
 
     public function resolveInboundClearCutoff(Chat $chat): ?\Illuminate\Support\Carbon

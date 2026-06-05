@@ -122,6 +122,57 @@ final class ChatClearBlocksWhatsappResyncTest extends TestCase
         $message = Message::query()->where('whatsapp_message_id', 'wa-msg-new-1')->first();
         $this->assertNotNull($message);
         $this->assertSame('Новый вопрос', $message->body);
+        $chat->refresh();
+        $this->assertNull($chat->messages_cleared_at);
+    }
+
+    public function test_lid_inbound_after_client_clear_is_accepted(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create(['session_name' => 'default']);
+        $contact = Contact::factory()->create([
+            'whatsapp_id' => '33724234223783@lid',
+            'phone_number' => '',
+            'name' => 'Алымжан',
+        ]);
+        $chat = Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '33724234223783@lid',
+            'is_group' => false,
+            'ai_enabled' => false,
+            'funnel_tracking_enabled' => false,
+        ]);
+
+        $this->actingAs($admin)->post(route('clients.clear', $contact))->assertOk();
+
+        $payload = [
+            'session' => 'default',
+            'chatId' => '33724234223783@lid',
+            'chatName' => '+7 707 226 8668',
+            'from' => '33724234223783@lid',
+            'senderPhone' => '33724234223783',
+            'senderAuthorJid' => '',
+            'senderName' => 'Алымжан',
+            'body' => 'Новое сообщение после очистки',
+            'isGroup' => false,
+            'timestamp' => now()->getTimestamp(),
+            'messageId' => 'wa-msg-lid-new-1',
+            'type' => 'chat',
+        ];
+
+        $this->app->call([new ProcessWhatsappInboundJob($payload), 'handle']);
+
+        $message = Message::query()->where('whatsapp_message_id', 'wa-msg-lid-new-1')->first();
+        $this->assertNotNull($message);
+        $this->assertSame('Новое сообщение после очистки', $message->body);
+
+        $chat->refresh();
+        $this->assertNull($chat->messages_cleared_at);
+        $contact->refresh();
+        $this->assertNotNull($contact->messages_cleared_at);
     }
 
     public function test_should_skip_inbound_after_clear_helper(): void
