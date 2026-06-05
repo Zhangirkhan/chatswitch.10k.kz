@@ -119,6 +119,7 @@ const canShowAiFeedback = computed(() => showMessageBody.value && isAiGenerated.
 
 const aiDecision = computed<MessageAiDecision | null>(() => props.message.ai_decision ?? null);
 const showAiDecision = computed(() => isInternalUser.value && aiDecision.value !== null);
+const aiDecisionOpen = ref(false);
 const aiDecisionPlanOpen = ref(false);
 const aiDecisionPlanJson = computed(() => {
     const plan = aiDecision.value?.plan;
@@ -141,6 +142,13 @@ const aiDecisionConfidenceLabel = computed(() => {
     }
     return `${Math.round(Number(value) * 100)}%`;
 });
+
+function toggleAiDecision(): void {
+    aiDecisionOpen.value = !aiDecisionOpen.value;
+    if (!aiDecisionOpen.value) {
+        aiDecisionPlanOpen.value = false;
+    }
+}
 
 async function submitAiFeedback(rating: AiFeedbackRating): Promise<void> {
     if (aiFeedbackSubmitting.value) {
@@ -1347,47 +1355,68 @@ onBeforeUnmount(() => {
                 :aria-label="t('chats.message.aiHintAria')"
                 @click.stop
             >
-                <div class="flex items-center gap-1.5 mb-1">
-                    <span
-                        class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                        :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
-                    >
-                        AI
-                    </span>
-                    <span class="text-[10px] font-medium opacity-80">{{ t('chats.message.clientCantSee') }}</span>
-                    <span
-                        v-if="aiDecisionConfidenceLabel"
-                        class="ml-auto text-[10px] tabular-nums opacity-70"
-                    >
-                        {{ aiDecisionConfidenceLabel }}
-                    </span>
-                </div>
-                <p class="font-semibold text-[var(--wa-text)] m-0 text-[12px]">{{ aiDecision.label }}</p>
-                <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
-                <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
-                    <span
-                        v-for="(chip, chipIdx) in aiDecision.chips"
-                        :key="chipIdx"
-                        class="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                        :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
-                    >
-                        {{ chip.label }}
-                    </span>
-                </div>
                 <button
-                    v-if="showAiDecisionPlanToggle"
                     type="button"
-                    class="mt-2 text-[10px] font-medium hover:underline"
-                    :style="{ color: 'var(--wa-accent)' }"
-                    @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
+                    class="w-full text-left"
+                    :aria-expanded="aiDecisionOpen"
+                    :title="aiDecisionOpen ? t('chats.message.collapseAiDecision') : t('chats.message.open')"
+                    @click.stop="toggleAiDecision"
                 >
-                    {{ aiDecisionPlanOpen ? t('chats.message.hideAiPlan') : t('chats.message.showAiPlan') }}
+                    <div class="flex items-center gap-1.5">
+                        <span
+                            class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                            :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                        >
+                            AI
+                        </span>
+                        <span class="text-[10px] font-medium opacity-80">{{ t('chats.message.clientCantSee') }}</span>
+                        <span
+                            v-if="aiDecisionConfidenceLabel"
+                            class="ml-auto text-[10px] tabular-nums opacity-70"
+                        >
+                            {{ aiDecisionConfidenceLabel }}
+                        </span>
+                        <svg
+                            class="h-3.5 w-3.5 shrink-0 opacity-60 transition-transform"
+                            :class="{ 'rotate-180': aiDecisionOpen }"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                        >
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                    <p class="font-semibold text-[var(--wa-text)] m-0 mt-1 text-[12px]">{{ aiDecision.label }}</p>
                 </button>
-                <pre
-                    v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
-                    class="mt-2 max-h-48 overflow-auto rounded-md border px-2 py-1.5 text-[10px] leading-snug whitespace-pre-wrap break-words m-0"
-                    :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)', color: 'var(--wa-text-secondary)' }"
-                >{{ aiDecisionPlanJson }}</pre>
+                <template v-if="aiDecisionOpen">
+                    <p v-if="aiDecision.reason" class="mt-1 text-[var(--wa-text-secondary)] m-0">{{ aiDecision.reason }}</p>
+                    <div v-if="aiDecision.chips?.length" class="mt-1.5 flex flex-wrap gap-1">
+                        <span
+                            v-for="(chip, chipIdx) in aiDecision.chips"
+                            :key="chipIdx"
+                            class="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                            :style="{ background: 'var(--wa-accent-soft)', color: 'var(--wa-accent)' }"
+                        >
+                            {{ chip.label }}
+                        </span>
+                    </div>
+                    <button
+                        v-if="showAiDecisionPlanToggle"
+                        type="button"
+                        class="mt-2 text-[10px] font-medium hover:underline"
+                        :style="{ color: 'var(--wa-accent)' }"
+                        @click.stop="aiDecisionPlanOpen = !aiDecisionPlanOpen"
+                    >
+                        {{ aiDecisionPlanOpen ? t('chats.message.hideAiPlan') : t('chats.message.showAiPlan') }}
+                    </button>
+                    <pre
+                        v-if="showAiDecisionPlanToggle && aiDecisionPlanOpen"
+                        class="mt-2 max-h-48 overflow-auto rounded-md border px-2 py-1.5 text-[10px] leading-snug whitespace-pre-wrap break-words m-0"
+                        :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)', color: 'var(--wa-text-secondary)' }"
+                    >{{ aiDecisionPlanJson }}</pre>
+                </template>
             </div>
 
             <div

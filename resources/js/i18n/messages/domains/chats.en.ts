@@ -363,6 +363,7 @@ export const chats = {
         clientCantSee: 'Client cannot see',
         hideAiPlan: 'Hide AI plan',
         showAiPlan: 'Show AI plan',
+        collapseAiDecision: 'Collapse',
         addReaction: 'Add/change reaction',
         menu: 'Menu',
         forwarded: 'Forwarded',
