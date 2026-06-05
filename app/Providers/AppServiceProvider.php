@@ -58,6 +58,10 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('workspace-lookup', function (Request $request): Limit {
+            return Limit::perMinute(30)->by($request->ip());
+        });
+
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }

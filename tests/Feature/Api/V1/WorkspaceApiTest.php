@@ -29,8 +29,11 @@ final class WorkspaceApiTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'data' => ['id', 'slug', 'name', 'is_active', 'subscription_status'],
+                'data' => ['slug', 'name'],
             ]);
+
+        $this->assertArrayNotHasKey('subscription_status', $response->json('data') ?? []);
+        $this->assertArrayNotHasKey('is_active', $response->json('data') ?? []);
     }
 
     public function test_login_includes_tenant_block(): void
