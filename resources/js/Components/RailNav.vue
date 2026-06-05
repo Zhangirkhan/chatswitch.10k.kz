@@ -118,7 +118,7 @@ function initSortable(): void {
     sortable = Sortable.create(el, {
         animation: 160,
         easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-        delay: 350,
+        delay: 120,
         delayOnTouchOnly: false,
         touchStartThreshold: 4,
         draggable: '.wa-rail-btn-wrap',
