@@ -1139,13 +1139,7 @@ final class ChatController extends Controller
     {
         $this->authorize('manage', $chat);
 
-        $chat->messages()->delete();
-        $chat->update([
-            'last_message_text' => null,
-            'last_message_at' => null,
-            'last_message_direction' => null,
-            'unread_count' => 0,
-        ]);
+        $this->chatService->clearChatMessages($chat);
 
         return response()->json(['success' => true]);
     }

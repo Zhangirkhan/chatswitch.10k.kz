@@ -756,6 +756,22 @@ final class ChatService
     }
 
     /**
+     * Удаляет все сообщения чата и сбрасывает превью в списке.
+     */
+    public function clearChatMessages(Chat $chat): void
+    {
+        Message::query()->where('chat_id', $chat->id)->delete();
+        $chat->forceFill([
+            'last_message_text' => null,
+            'last_message_at' => null,
+            'last_message_direction' => null,
+            'last_message_is_ai' => false,
+            'unread_count' => 0,
+            'pinned_message_id' => null,
+        ])->save();
+    }
+
+    /**
      * Пересчитывает превью последнего сообщения в чате (после удаления сообщения и т.п.).
      */
     public function refreshChatLastMessageSnapshot(Chat $chat): void

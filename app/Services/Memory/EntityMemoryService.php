@@ -108,6 +108,11 @@ final class EntityMemoryService
         });
     }
 
+    public function clear(EntityMemorySubjectType $type, int $subjectId, User $actor): EntityMemory
+    {
+        return $this->update($type, $subjectId, $this->defaultTemplate($type), $actor);
+    }
+
     /**
      * @return Collection<int, EntityMemoryBackup>
      */

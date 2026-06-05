@@ -10,7 +10,6 @@ import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModa
 import { useContactFieldActions } from '@/composables/useContactFieldActions';
 import { useContactProfile } from '@/composables/useContactProfile';
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
-import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
@@ -150,7 +149,6 @@ function contactChatHref(chatId: number): string {
 }
 
 const working = ref(false);
-const clearChatDialogOpen = ref(false);
 const editOpen = ref(false);
 const editName = ref('');
 const savingContact = ref(false);
@@ -564,10 +562,6 @@ watch(
 
 function onEscape(e: KeyboardEvent) {
     if (e.key !== 'Escape') return;
-    if (clearChatDialogOpen.value) {
-        clearChatDialogOpen.value = false;
-        return;
-    }
     if (participantMenuOpen.value) {
         closeParticipantMenu();
         return;
@@ -587,22 +581,6 @@ async function togglePin() {
     try {
         await axios.post(route('chats.toggle-pin', props.chat.id));
         router.reload({ only: ['chat', 'chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'mineChatsTotal'] });
-    } finally {
-        working.value = false;
-    }
-}
-
-function openClearChatDialog(): void {
-    clearChatDialogOpen.value = true;
-}
-
-async function confirmClearChat(): Promise<void> {
-    if (working.value) return;
-    clearChatDialogOpen.value = false;
-    working.value = true;
-    try {
-        await axios.post(route('chats.clear', props.chat.id));
-        router.reload({ only: ['messages', 'chat', 'unreadChatsCount'] });
     } finally {
         working.value = false;
     }
@@ -1328,28 +1306,10 @@ async function saveContactName() {
                     </svg>
                     <span class="info-label">{{ t('chats.contactInfo.addToList') }}</span>
                 </button>
-
-                <button class="info-row w-full" type="button" :disabled="working" @click="openClearChatDialog">
-                    <svg class="info-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
-                    </svg>
-                    <span class="info-label">{{ t('chats.contactInfo.clearHistory') }}</span>
-                </button>
             </div>
 
         </div>
     </aside>
-
-    <DangerConfirmModal
-        :open="clearChatDialogOpen"
-        :title="t('chats.contactInfo.clearHistoryTitle')"
-        :description="t('chats.contactInfo.clearHistoryDescription')"
-        :confirm-label="t('chats.listItem.clearChatConfirm')"
-        :busy="working"
-        confirm-variant="danger"
-        @close="clearChatDialogOpen = false"
-        @confirm="confirmClearChat"
-    />
 
     <!-- Participant actions menu -->
     <teleport to="body">

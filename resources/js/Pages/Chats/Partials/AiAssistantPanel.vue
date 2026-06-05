@@ -21,6 +21,7 @@ import {
     type ChatAiPanelTab,
 } from '@/composables/useChatAiPanelPrefs';
 import type { Message } from '@/types';
+import { parseAssistantReplyVariants } from '@/utils/parseAssistantReplyVariants';
 
 type AiStatus = {
     id: number;
@@ -82,6 +83,7 @@ type PanelMode = ChatAiPanelMode;
 
 const emit = defineEmits<{
     (e: 'close'): void;
+    (e: 'use-reply', text: string): void;
 }>();
 
 type AiTurn = {
@@ -105,6 +107,13 @@ const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const clearAiDialogOpen = ref(false);
 const activeTab = ref<PanelTab>('assistant');
 const panelMode = ref<PanelMode>('overview');
+
+const turnViews = computed(() =>
+    turns.value.map((turn) => ({
+        ...turn,
+        parsedReply: turn.role === 'assistant' ? parseAssistantReplyVariants(turn.content) : null,
+    })),
+);
 
 function applyPanelPrefs(chatId: number): void {
     const prefs = getChatAiPanelPrefs(chatId);
@@ -459,6 +468,16 @@ function copyToClipboard(text: string): void {
     } catch {
         showToast({ message: t('chats.copyFailed') });
     }
+}
+
+function useReplyVariant(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed === '') {
+        return;
+    }
+
+    emit('use-reply', trimmed);
+    showToast({ message: t('chats.aiAssistant.replyInserted') });
 }
 
 function normalizeMessageBody(message: Message): string {
@@ -930,7 +949,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </div>
             </div>
 
-            <template v-for="(turn, idx) in turns" :key="idx">
+            <template v-for="(turn, idx) in turnViews" :key="idx">
                 <div
                     class="max-w-[92%] text-[13.5px] rounded-2xl px-3 py-2 wa-shadow whitespace-pre-wrap break-words leading-[19px]"
                     :class="[
@@ -943,10 +962,29 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             : 'var(--wa-bubble-text-in, var(--wa-bubble-text))',
                     }"
                 >
-                    <div>{{ turn.content }}</div>
+                    <template v-if="turn.parsedReply">
+                        <div v-if="turn.parsedReply.intro">
+                            {{ turn.parsedReply.intro }}
+                        </div>
+                        <div class="mt-2 flex flex-col gap-1.5">
+                            <button
+                                v-for="variant in turn.parsedReply.variants"
+                                :key="variant.index"
+                                type="button"
+                                class="ai-reply-variant-btn"
+                                @click="useReplyVariant(variant.text)"
+                            >
+                                <span class="text-[11px] font-medium opacity-70">
+                                    {{ t('chats.aiAssistant.variantOption', { n: variant.label }) }}
+                                </span>
+                                <span class="mt-0.5 block text-left">{{ variant.text }}</span>
+                            </button>
+                        </div>
+                    </template>
+                    <div v-else>{{ turn.content }}</div>
                     <div class="flex items-center justify-end gap-2 mt-1 text-[10px] opacity-60">
                         <button
-                            v-if="turn.role === 'assistant'"
+                            v-if="turn.role === 'assistant' && !turn.parsedReply"
                             type="button"
                             class="hover:underline"
                             :title="t('chats.aiAssistant.copyAnswerTitle')"
@@ -1243,6 +1281,26 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 .ai-quick-chip-sm {
     font-size: 11px;
     padding: 4px 9px;
+}
+
+.ai-reply-variant-btn {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border));
+    background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
+    color: inherit;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.ai-reply-variant-btn:hover {
+    background: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
+    border-color: color-mix(in srgb, var(--wa-accent) 55%, var(--wa-border));
+}
+
+.ai-reply-variant-btn:active {
+    transform: scale(0.99);
 }
 
 .ai-typing-dot {

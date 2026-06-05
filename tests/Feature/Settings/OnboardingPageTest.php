@@ -34,7 +34,7 @@ final class OnboardingPageTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Settings/Onboarding')
-                ->has('steps', 8)
+                ->has('steps', 9)
                 ->has('readiness'));
     }
 

@@ -3,7 +3,6 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onBeforeUnmount, computed, nextTick } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
-import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import MuteChatDialog from '@/Pages/Chats/Partials/MuteChatDialog.vue';
 import BellOffIcon from '@/Components/icons/BellOffIcon.vue';
 import LastMessagePreview from '@/Components/LastMessagePreview.vue';
@@ -106,7 +105,6 @@ const menuOpen = ref(false);
 const menuX = ref(0);
 const menuY = ref(0);
 const working = ref(false);
-const clearChatDialogOpen = ref(false);
 const muteDialogOpen = ref(false);
 
 const MENU_WIDTH = 240;
@@ -277,25 +275,6 @@ function toggleUnread() {
     });
 }
 
-function openClearChatDialog(): void {
-    closeMenu();
-    clearChatDialogOpen.value = true;
-}
-
-async function confirmClearChat(): Promise<void> {
-    if (working.value) return;
-    clearChatDialogOpen.value = false;
-    working.value = true;
-    try {
-        await axios.post(route('chats.clear', props.chat.id));
-        router.reload({ only: ['chats', 'messages', 'chat'] });
-        showToast({ message: t('chats.listItem.toastCleared') });
-    } finally {
-        working.value = false;
-        closeMenu();
-    }
-}
-
 function notImplemented(name: string) {
     closeMenu();
     showToast({
@@ -305,10 +284,6 @@ function notImplemented(name: string) {
 
 function onEscape(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-        if (clearChatDialogOpen.value) {
-            clearChatDialogOpen.value = false;
-            return;
-        }
         closeMenu();
     }
 }
@@ -570,29 +545,9 @@ const avatarTitle = computed(
                     </svg>
                     <span>{{ t('chats.listItem.addToList') }}</span>
                 </button>
-
-                <div class="menu-divider"></div>
-
-                <button class="menu-item" @click.prevent="openClearChatDialog" type="button">
-                    <svg class="menu-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
-                    </svg>
-                    <span>{{ t('chats.listItem.clearChat') }}</span>
-                </button>
             </div>
         </div>
     </teleport>
-
-    <DangerConfirmModal
-        :open="clearChatDialogOpen"
-        :title="t('chats.listItem.clearChatTitle')"
-        :description="t('chats.listItem.clearChatDescription')"
-        :confirm-label="t('chats.listItem.clearChatConfirm')"
-        :busy="working"
-        confirm-variant="danger"
-        @close="clearChatDialogOpen = false"
-        @confirm="confirmClearChat"
-    />
 
     <MuteChatDialog
         :show="muteDialogOpen"

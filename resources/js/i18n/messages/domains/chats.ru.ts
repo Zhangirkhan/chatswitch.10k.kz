@@ -592,6 +592,8 @@ export const chats = {
         followUpVariants: 'Варианты дожима',
         copyAnswer: 'Копировать',
         copyAnswerTitle: 'Скопировать ответ',
+        variantOption: 'Вариант {n}',
+        replyInserted: 'Ответ вставлен в поле ввода',
         aiThinking: 'AI думает…',
         askPlaceholder: 'Спросите AI про этот диалог…',
         sendTitle: 'Отправить (Enter)',

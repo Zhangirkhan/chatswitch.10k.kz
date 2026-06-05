@@ -2,7 +2,7 @@
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const { t } = useI18n();
 
@@ -31,11 +31,16 @@ type OnboardingStep = {
     ok: boolean;
 };
 
+type RoleKey = 'administrator' | 'manager' | 'employee';
+
 const props = defineProps<{
     readiness: Readiness;
     steps: OnboardingStep[];
     completed_steps: number;
     total_steps: number;
+    roleLabels: Record<RoleKey, string>;
+    roleLabelsConfigured: boolean;
+    defaultRoleLabels: Record<RoleKey, string>;
 }>();
 
 const progressPercent = computed(() => {
@@ -59,12 +64,41 @@ const allStepsDone = computed(() => props.completed_steps >= props.total_steps &
 
 const completeForm = useForm({});
 
+const roleForm = useForm({
+    administrator: props.roleLabels.administrator,
+    manager: props.roleLabels.manager,
+    employee: props.roleLabels.employee,
+});
+
+watch(
+    () => props.roleLabels,
+    (next) => {
+        roleForm.administrator = next.administrator;
+        roleForm.manager = next.manager;
+        roleForm.employee = next.employee;
+    },
+);
+
+const rolesExpanded = ref(!props.roleLabelsConfigured);
+
+function submitRoleLabels(): void {
+    roleForm.post(route('settings.onboarding.roles'), {
+        preserveScroll: true,
+    });
+}
+
 function submitComplete(): void {
     if (!allStepsDone.value || completeForm.processing) {
         return;
     }
     completeForm.post(route('settings.onboarding.complete'));
 }
+
+const roleFields: Array<{ key: RoleKey; hintKey: string }> = [
+    { key: 'administrator', hintKey: 'settings.onboarding.roles.administratorHint' },
+    { key: 'manager', hintKey: 'settings.onboarding.roles.managerHint' },
+    { key: 'employee', hintKey: 'settings.onboarding.roles.employeeHint' },
+];
 </script>
 
 <template>
@@ -120,6 +154,77 @@ function submitComplete(): void {
                 </div>
             </section>
 
+            <section
+                id="onboarding-roles"
+                class="ui-panel px-4 py-4"
+                :style="{ borderColor: roleLabelsConfigured ? 'rgba(22, 163, 74, .35)' : undefined }"
+            >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">
+                            {{ t('settings.onboarding.roles.title') }}
+                        </h2>
+                        <p class="mt-1 max-w-2xl text-sm leading-relaxed" :style="{ color: 'var(--ui-text-secondary)' }">
+                            {{ t('settings.onboarding.roles.description') }}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="ui-btn ui-btn--ghost ui-btn--sm"
+                        @click="rolesExpanded = !rolesExpanded"
+                    >
+                        {{ rolesExpanded ? t('settings.onboarding.roles.hide') : t('settings.onboarding.roles.edit') }}
+                    </button>
+                </div>
+
+                <form
+                    v-if="rolesExpanded"
+                    class="mt-4 grid gap-4 md:grid-cols-3"
+                    @submit.prevent="submitRoleLabels"
+                >
+                    <label
+                        v-for="field in roleFields"
+                        :key="field.key"
+                        class="block"
+                    >
+                        <span class="mb-1 block text-xs font-medium uppercase tracking-wide" :style="{ color: 'var(--ui-text-secondary)' }">
+                            {{ t(`settings.onboarding.roles.${field.key}Label`) }}
+                        </span>
+                        <input
+                            v-model="roleForm[field.key]"
+                            type="text"
+                            maxlength="64"
+                            class="ui-input w-full"
+                            :placeholder="defaultRoleLabels[field.key]"
+                            required
+                        >
+                        <span class="mt-1 block text-xs leading-relaxed" :style="{ color: 'var(--ui-text-muted)' }">
+                            {{ t(field.hintKey) }}
+                        </span>
+                        <p v-if="roleForm.errors[field.key]" class="mt-1 text-xs text-red-500">
+                            {{ roleForm.errors[field.key] }}
+                        </p>
+                    </label>
+
+                    <div class="md:col-span-3 flex flex-wrap items-center gap-2">
+                        <button
+                            type="submit"
+                            class="ui-btn ui-btn--primary"
+                            :disabled="roleForm.processing"
+                        >
+                            {{ roleForm.processing ? t('settings.onboarding.roles.saving') : t('settings.onboarding.roles.save') }}
+                        </button>
+                        <span
+                            v-if="roleLabelsConfigured"
+                            class="text-xs font-medium"
+                            :style="{ color: '#15803d' }"
+                        >
+                            {{ t('settings.onboarding.roles.saved') }}
+                        </span>
+                    </div>
+                </form>
+            </section>
+
             <section class="space-y-3">
                 <article
                     v-for="(step, index) in steps"
@@ -157,11 +262,20 @@ function submitComplete(): void {
                             </p>
                         </div>
                         <Link
+                            v-if="step.key !== 'roles'"
                             :href="route(step.route)"
                             class="ui-btn ui-btn--ghost ui-btn--sm shrink-0"
                         >
                             {{ step.ok ? t('settings.onboarding.open') : t('settings.onboarding.configure') }}
                         </Link>
+                        <a
+                            v-else
+                            href="#onboarding-roles"
+                            class="ui-btn ui-btn--ghost ui-btn--sm shrink-0"
+                            @click="rolesExpanded = true"
+                        >
+                            {{ step.ok ? t('settings.onboarding.open') : t('settings.onboarding.configure') }}
+                        </a>
                     </div>
                 </article>
             </section>

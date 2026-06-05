@@ -20,6 +20,7 @@ use App\Support\NavSectionAccess;
 use App\Support\OrganizationDepartmentTasks;
 use App\Support\QuickReactions;
 use App\Support\TenantCompany;
+use App\Support\TenantRoleLabels;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -83,6 +84,8 @@ final class HandleInertiaRequests extends Middleware
                     ],
                 ) : null,
             ],
+            'roleLabels' => fn () => $user ? TenantRoleLabels::all() : TenantRoleLabels::defaults(),
+            'roleLabelsConfigured' => fn () => $user ? TenantRoleLabels::isConfigured() : false,
             'archivedCount' => fn () => $user ? $this->archivedChatsCount($user) : 0,
             'unreadChatsCount' => fn () => $user ? $this->unreadChatsCount($user) : 0,
             /** Непрочитанные только среди чатов, где пользователь в ответственных (для режима «Мои»). */

@@ -19,6 +19,7 @@ final class EnsureSettingsReadiness
     private const ALLOWED_ROUTE_NAMES = [
         'settings.onboarding',
         'settings.onboarding.complete',
+        'settings.onboarding.roles',
         'settings.connections',
         'settings.connections.bootstrap',
         'settings.connections.store',

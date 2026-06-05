@@ -48,6 +48,7 @@ const props = defineProps<{
     companyOptions: CompanyOption[];
     canManageCompanies: boolean;
     canManageContactFields: boolean;
+    canClearClientData: boolean;
 }>();
 
 const { show: showToast } = useToastStore();
@@ -410,6 +411,7 @@ const companyDeleteDescription = computed(() => {
         <ClientDetailModal
             :client="openedClient"
             :can-manage-contact-fields="canManageContactFields"
+            :can-clear-client-data="canClearClientData"
             @close="closeClient"
             @saved="onClientSaved"
             @photo-updated="onPhotoUpdated"

@@ -465,6 +465,21 @@ export interface MessageCatalog {
             configure: string;
             recommendationsTitle: string;
             openAiQuality: string;
+            roles: {
+                title: string;
+                description: string;
+                administratorLabel: string;
+                managerLabel: string;
+                employeeLabel: string;
+                administratorHint: string;
+                managerHint: string;
+                employeeHint: string;
+                save: string;
+                saving: string;
+                saved: string;
+                edit: string;
+                hide: string;
+            };
         };
         promotions: {
             title: string;

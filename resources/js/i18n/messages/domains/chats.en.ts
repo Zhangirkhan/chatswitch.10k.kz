@@ -592,6 +592,8 @@ export const chats = {
         followUpVariants: 'Follow-up options',
         copyAnswer: 'Copy',
         copyAnswerTitle: 'Copy answer',
+        variantOption: 'Option {n}',
+        replyInserted: 'Reply inserted into the input field',
         aiThinking: 'AI thinking…',
         askPlaceholder: 'Ask AI about this dialog…',
         sendTitle: 'Send (Enter)',

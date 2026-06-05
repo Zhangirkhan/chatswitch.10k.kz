@@ -94,6 +94,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/clients/{contact}/summary', [ContactController::class, 'clientSummary'])
             ->middleware('throttle:30,1')
             ->name('clients.summary');
+        Route::post('/clients/{contact}/clear-memory', [ContactController::class, 'clearClientMemory'])
+            ->name('clients.clear-memory');
+        Route::post('/clients/{contact}/chats/{chat}/clear', [ContactController::class, 'clearClientChat'])
+            ->name('clients.clear-chat');
 
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/feed', [ChatController::class, 'feed'])->name('chats.feed');
@@ -291,6 +295,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])->name('settings.companies.destroy');
 
         Route::get('/onboarding', [OnboardingController::class, 'index'])->name('settings.onboarding');
+        Route::post('/onboarding/roles', [OnboardingController::class, 'saveRoleLabels'])->name('settings.onboarding.roles');
         Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('settings.onboarding.complete');
 
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');

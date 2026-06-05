@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
+import { useRoleLabels } from '@/composables/useRoleLabels';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
@@ -44,12 +45,7 @@ const props = defineProps<{
 
 const { show: showToast } = useToastStore();
 const { t } = useI18n();
-
-const roleLabels = computed<Record<string, string>>(() => ({
-    administrator: t('settings.roles.administrator'),
-    manager: t('settings.roles.manager'),
-    employee: t('settings.roles.employee'),
-}));
+const { label: roleLabel } = useRoleLabels();
 
 const local = ref<User[]>([...props.users.data]);
 const filters = ref<UserFilters>({
@@ -422,7 +418,7 @@ const userDeleteDescription = computed(() => {
                     <select v-model="filters.role" class="settings-input">
                         <option value="">{{ t('settings.users.filterRoleAll') }}</option>
                         <option v-for="role in availableRoles" :key="role" :value="role">
-                            {{ roleLabels[role] || role }}
+                            {{ roleLabel(role) }}
                         </option>
                     </select>
                 </UiFilterField>
@@ -504,7 +500,7 @@ const userDeleteDescription = computed(() => {
                                         'ui-badge--employee': user.roles?.[0] === 'employee',
                                     }"
                                 >
-                                    {{ roleLabels[user.roles?.[0]] || user.roles?.[0] || '—' }}
+                                    {{ roleLabel(user.roles?.[0]) }}
                                 </span>
                             </td>
                             <td class="px-5 py-3">
@@ -687,7 +683,7 @@ const userDeleteDescription = computed(() => {
                             <div>
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.role') }}</label>
                                 <select v-model="form.role" class="settings-input">
-                                    <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabels[r] || r }}</option>
+                                    <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabel(r) }}</option>
                                 </select>
                             </div>
                         </div>

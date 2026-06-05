@@ -25,6 +25,12 @@ final class ContactPolicy
         return $this->hasVisibleChat($user, $contact);
     }
 
+    public function clearData(User $user, Contact $contact): bool
+    {
+        return $user->hasAnyRole(['administrator', 'manager'])
+            && $this->hasVisibleChat($user, $contact);
+    }
+
     public function create(User $user): bool
     {
         return $user->hasAnyRole(['administrator', 'manager']);

@@ -592,6 +592,8 @@ export const chats = {
         followUpVariants: 'Qysym varianttary',
         copyAnswer: 'Kóshіru',
         copyAnswerTitle: 'Juauy kóshіru',
+        variantOption: 'Nusqa {n}',
+        replyInserted: 'Juau engızu ólіmіne qoiyıldy',
         aiThinking: 'AI oylauda…',
         askPlaceholder: 'Bul dialog turaly AI-dan surańyz…',
         sendTitle: 'Jіberu (Enter)',

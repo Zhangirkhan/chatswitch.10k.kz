@@ -1330,6 +1330,20 @@ watch(anyOverlayOpen, (open) => {
     if (open) lockBodyScroll();
     else unlockBodyScroll();
 });
+
+function insertDraft(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed === '') {
+        return;
+    }
+
+    nextTick(() => {
+        setEditorPlainText(trimmed);
+        editorRef.value?.focus();
+    });
+}
+
+defineExpose({ insertDraft });
 </script>
 
 <template>

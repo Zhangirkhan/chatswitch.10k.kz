@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Settings\SaveTenantRoleLabelsRequest;
 use App\Services\AI\AiReadinessService;
+use App\Support\TenantRoleLabels;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,6 +23,13 @@ final class OnboardingController extends Controller
         $checksByKey = collect($readiness['checks'])->keyBy('key');
 
         $steps = [
+            [
+                'key' => 'roles',
+                'title' => 'Назовите роли в команде',
+                'description' => 'Подпишите три уровня доступа так, как принято у вас: директор, менеджер, монтажник и т.д. Права останутся прежними.',
+                'route' => 'settings.onboarding',
+                'ok' => TenantRoleLabels::isConfigured(),
+            ],
             [
                 'key' => 'whatsapp',
                 'title' => 'Подключите WhatsApp',
@@ -86,7 +95,19 @@ final class OnboardingController extends Controller
             'steps' => $steps,
             'completed_steps' => $completed,
             'total_steps' => count($steps),
+            'roleLabels' => TenantRoleLabels::all(),
+            'roleLabelsConfigured' => TenantRoleLabels::isConfigured(),
+            'defaultRoleLabels' => TenantRoleLabels::defaults(),
         ]);
+    }
+
+    public function saveRoleLabels(SaveTenantRoleLabelsRequest $request): RedirectResponse
+    {
+        TenantRoleLabels::saveFromInput($request->validated());
+
+        return redirect()
+            ->route('settings.onboarding')
+            ->with('success', 'Названия ролей сохранены.');
     }
 
     public function complete(): RedirectResponse

@@ -16,9 +16,11 @@ import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
 import AiSimulatorModal from './AiSimulatorModal.vue';
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
+import { useRoleLabels } from '@/composables/useRoleLabels';
 
 const { show: showToast } = useToastStore();
 const { t } = useI18n();
+const { label: roleLabel } = useRoleLabels();
 
 type MenuPos = { top: number; right: number };
 type AiRiskyEnableModalState = {
@@ -484,10 +486,10 @@ const usersLabel = computed<string>(() => {
     return t('chats.header.assignEmployeesCount', { count });
 });
 
-function roleLabel(roles: string[]): string {
-    if (roles.includes('administrator')) return t('settings.roles.administrator');
-    if (roles.includes('manager')) return t('settings.roles.manager');
-    if (roles.includes('employee')) return t('settings.roles.employee');
+function assigneeRoleLabel(roles: string[]): string {
+    if (roles.includes('administrator')) return roleLabel('administrator');
+    if (roles.includes('manager')) return roleLabel('manager');
+    if (roles.includes('employee')) return roleLabel('employee');
     return '';
 }
 
@@ -691,7 +693,7 @@ function toggleAiSettingsMenu(): void {
 
 /** Подпись роли в списке назначения: у руководителя — отдел в скобках. */
 function assignableUserRoleLine(u: AssignableUser): string {
-    const base = roleLabel(u.roles);
+    const base = assigneeRoleLabel(u.roles);
     if (!base) return '';
     if (u.roles.includes('manager')) {
         const dept = (u.department_name || '').trim();

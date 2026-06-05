@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import ClientProfileSectionsBlock from '@/Components/Clients/ClientProfileSectionsBlock.vue';
@@ -10,6 +11,7 @@ import UserAvatar from '@/Components/UserAvatar.vue';
 import { useContactFieldActions } from '@/composables/useContactFieldActions';
 import { setContactProfileCache, useContactProfile } from '@/composables/useContactProfile';
 import { useI18n } from '@/composables/useI18n';
+import { useModalBackdropClose } from '@/composables/useModalBackdropClose';
 import { Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -19,6 +21,7 @@ import { useToastStore } from '@/stores/toast';
 const props = defineProps<{
     client: ClientListItem | null;
     canManageContactFields?: boolean;
+    canClearClientData?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +29,8 @@ const emit = defineEmits<{
     saved: [clientId: number, name: string | null];
     photoUpdated: [clientId: number, url: string | null];
 }>();
+
+const { onBackdropPointerDown, onPanelPointerDown, onBackdropClick } = useModalBackdropClose(() => emit('close'));
 
 const { show: showToast } = useToastStore();
 const { t } = useI18n();
@@ -46,6 +51,10 @@ const editingName = ref('');
 const saving = ref(false);
 const fieldPickerOpen = ref(false);
 const addFieldOpen = ref(false);
+const clearMemoryDialogOpen = ref(false);
+const clearChatDialogOpen = ref(false);
+const clearChatTarget = ref<ClientListItem['channels'][number] | null>(null);
+const clearing = ref(false);
 
 const displayName = computed(() => {
     if (!props.client) {
@@ -159,6 +168,52 @@ function uploadCustomField(field: ClientProfileField, file: File): void {
 function clearCustomField(field: ClientProfileField): void {
     void fieldActions.clearField(field);
 }
+
+async function confirmClearMemory(): Promise<void> {
+    if (!props.client || clearing.value) {
+        return;
+    }
+    clearing.value = true;
+    try {
+        await axios.post(route('clients.clear-memory', props.client.id));
+        invalidateContactProfileCache(props.client.id);
+        summary.value = null;
+        await loadProfile(props.client.id, props.client.primary_chat_id, { force: true });
+        await loadSummary(props.client.id, props.client.primary_chat_id);
+        showToast({ message: t('clients.detail.toastMemoryCleared') });
+        clearMemoryDialogOpen.value = false;
+    } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } } };
+        showToast({ message: err.response?.data?.message || t('clients.detail.toastMemoryClearError') });
+    } finally {
+        clearing.value = false;
+    }
+}
+
+function openClearChatDialog(channel: ClientListItem['channels'][number]): void {
+    clearChatTarget.value = channel;
+    clearChatDialogOpen.value = true;
+}
+
+async function confirmClearChat(): Promise<void> {
+    const client = props.client;
+    const channel = clearChatTarget.value;
+    if (!client || !channel || clearing.value) {
+        return;
+    }
+    clearing.value = true;
+    try {
+        await axios.post(route('clients.clear-chat', { contact: client.id, chat: channel.chat_id }));
+        clearChatDialogOpen.value = false;
+        clearChatTarget.value = null;
+        showToast({ message: t('clients.detail.toastChatCleared') });
+    } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } } };
+        showToast({ message: err.response?.data?.message || t('clients.detail.toastChatClearError') });
+    } finally {
+        clearing.value = false;
+    }
+}
 </script>
 
 <template>
@@ -167,7 +222,8 @@ function clearCustomField(field: ClientProfileField): void {
             v-if="client"
             class="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-6"
             :style="{ background: 'rgba(0,0,0,.45)' }"
-            @click.self="emit('close')"
+            @pointerdown="onBackdropPointerDown"
+            @click="onBackdropClick"
         >
             <div
                 class="client-detail-modal flex w-full max-w-[960px] flex-col rounded-2xl border overflow-hidden"
@@ -175,6 +231,7 @@ function clearCustomField(field: ClientProfileField): void {
                 role="dialog"
                 aria-modal="true"
                 :aria-label="t('clients.detail.profileAria', { name: displayName })"
+                @pointerdown="onPanelPointerDown"
                 @click.stop
             >
                     <header class="shrink-0 flex items-center justify-between gap-3 px-5 py-4 border-b" :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }">
@@ -254,6 +311,37 @@ function clearCustomField(field: ClientProfileField): void {
                         </aside>
                     </div>
 
+                    <section
+                        v-if="canClearClientData && client"
+                        class="shrink-0 border-t px-4 py-3"
+                        :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }"
+                    >
+                        <div class="text-xs font-semibold uppercase tracking-wide opacity-70">
+                            {{ t('clients.detail.dataActionsTitle') }}
+                        </div>
+                        <p class="mt-1 text-xs leading-relaxed opacity-70">
+                            {{ t('clients.detail.dataActionsHint') }}
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                                @click="clearMemoryDialogOpen = true"
+                            >
+                                {{ t('clients.detail.clearMemory') }}
+                            </button>
+                            <button
+                                v-for="channel in client.channels"
+                                :key="channel.chat_id"
+                                type="button"
+                                class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                                @click="openClearChatDialog(channel)"
+                            >
+                                {{ t('clients.detail.clearChatFor', { label: channel.session_label || channel.chat_name || `#${channel.chat_id}` }) }}
+                            </button>
+                        </div>
+                    </section>
+
                     <footer class="shrink-0 flex flex-wrap items-center gap-[var(--primitive-gap-sm)] border-t border-[var(--ui-border)] px-4 py-3">
                         <input
                             v-model="editingName"
@@ -292,6 +380,28 @@ function clearCustomField(field: ClientProfileField): void {
             :open="addFieldOpen"
             @close="addFieldOpen = false"
             @created="onFieldsUpdated"
+        />
+
+        <DangerConfirmModal
+            :open="clearMemoryDialogOpen"
+            :title="t('clients.detail.clearMemoryTitle')"
+            :description="t('clients.detail.clearMemoryDescription')"
+            :confirm-label="t('clients.detail.clearMemoryConfirm')"
+            :busy="clearing"
+            confirm-variant="danger"
+            @close="clearMemoryDialogOpen = false"
+            @confirm="confirmClearMemory"
+        />
+
+        <DangerConfirmModal
+            :open="clearChatDialogOpen"
+            :title="t('clients.detail.clearChatTitle')"
+            :description="t('clients.detail.clearChatDescription', { label: clearChatTarget?.session_label || clearChatTarget?.chat_name || '' })"
+            :confirm-label="t('clients.detail.clearChatConfirm')"
+            :busy="clearing"
+            confirm-variant="danger"
+            @close="clearChatDialogOpen = false"
+            @confirm="confirmClearChat"
         />
     </teleport>
 </template>

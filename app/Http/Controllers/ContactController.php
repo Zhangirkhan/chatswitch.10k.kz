@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\FunnelStage;
 use App\Models\User;
 use App\Services\AI\AiWorkspaceClientSummaryService;
+use App\Services\ChatService;
 use App\Services\Contact\ContactFieldValueService;
 use App\Services\Contact\ClientProfileAiService;
 use App\Services\Contact\ClientProfileAssembler;
@@ -17,6 +19,7 @@ use App\Services\Contact\ClientsListService;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
 use App\Services\Contact\ContactListFilterService;
+use App\Services\Memory\EntityMemoryService;
 use App\Support\ContactListFilters;
 use App\Support\NavSectionAccess;
 use App\Support\PhoneFormatter;
@@ -39,6 +42,8 @@ final class ContactController extends Controller
         private readonly ContactFieldValueService $contactFieldValues,
         private readonly ContactListFilterService $contactListFilters,
         private readonly ClientsListService $clientsListService,
+        private readonly ChatService $chatService,
+        private readonly EntityMemoryService $entityMemory,
     ) {}
 
     public function settingsIndex(Request $request): RedirectResponse
@@ -171,7 +176,36 @@ final class ContactController extends Controller
             'companyOptions' => $companyOptions,
             'canManageCompanies' => $user->hasRole('administrator'),
             'canManageContactFields' => $user->hasRole('administrator'),
+            'canClearClientData' => $user->hasAnyRole(['administrator', 'manager']),
         ]);
+    }
+
+    public function clearClientMemory(Request $request, Contact $contact): JsonResponse
+    {
+        $this->authorize('clearData', $contact);
+
+        $user = $request->user();
+        abort_unless($user, 403);
+
+        foreach ($this->contactBucketResolver->bucketIds($contact) as $contactId) {
+            $this->entityMemory->clear(EntityMemorySubjectType::Contact, $contactId, $user);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    public function clearClientChat(Request $request, Contact $contact, Chat $chat): JsonResponse
+    {
+        $this->authorize('clearData', $contact);
+        abort_if($chat->is_group, 422, 'Нельзя очистить групповой чат из карточки клиента.');
+
+        $bucketIds = $this->contactBucketResolver->bucketIds($contact);
+        abort_unless(in_array((int) $chat->contact_id, $bucketIds, true), 404);
+
+        $this->authorize('manage', $chat);
+        $this->chatService->clearChatMessages($chat);
+
+        return response()->json(['success' => true]);
     }
 
     public function clientProfile(Request $request, Contact $contact): JsonResponse

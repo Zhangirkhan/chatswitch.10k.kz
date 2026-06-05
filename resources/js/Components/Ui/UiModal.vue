@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
+import { useModalBackdropClose } from '@/composables/useModalBackdropClose';
 
 const props = withDefaults(
     defineProps<{
@@ -52,9 +53,7 @@ function close(): void {
     }
 }
 
-function onBackdrop(): void {
-    close();
-}
+const { onBackdropPointerDown, onPanelPointerDown, onBackdropClick } = useModalBackdropClose(close);
 
 function onKeydown(event: KeyboardEvent): void {
     if (!props.open || event.key !== 'Escape') {
@@ -150,7 +149,8 @@ onBeforeUnmount(() => {
             aria-modal="true"
             :aria-label="ariaLabel || undefined"
             :aria-labelledby="title ? headingId : undefined"
-            @click.self="onBackdrop"
+            @pointerdown="onBackdropPointerDown"
+            @click="onBackdropClick"
         >
             <div
                 ref="panelRef"
@@ -158,6 +158,7 @@ onBeforeUnmount(() => {
                 class="ui-modal-panel w-full max-h-[min(90vh,760px)] overflow-hidden rounded-2xl border shadow-2xl flex flex-col outline-none"
                 :class="[maxWidthClass[maxWidth], panelClass]"
                 :style="{ background: 'var(--wa-panel)', borderColor: 'var(--wa-border-strong)' }"
+                @pointerdown="onPanelPointerDown"
                 @click.stop
             >
                 <div
