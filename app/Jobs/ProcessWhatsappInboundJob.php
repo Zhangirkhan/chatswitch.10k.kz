@@ -91,7 +91,15 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
             $chat = $chatService->findOrCreateChat($this->data, $session);
             $chatId = (int) $chat->id;
 
-            if ($chatService->shouldSkipInboundAfterClear($chat, $this->data)) {
+            $beforeId = isset($this->data['messageId'])
+                ? Message::query()
+                    ->where('whatsapp_session_id', $session->id)
+                    ->where('whatsapp_message_id', (string) $this->data['messageId'])
+                    ->value('id')
+                : null;
+
+            $message = $chatService->storeInboundMessage($chat, $session, $this->data);
+            if ($message === null) {
                 Log::info('[whatsapp-inbound] skipped message before chat clear cutoff', [
                     'chat_id' => $chatId,
                     'message_id' => $this->data['messageId'] ?? null,
@@ -101,13 +109,6 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
                 return null;
             }
 
-            $beforeId = isset($this->data['messageId'])
-                ? Message::query()
-                    ->where('whatsapp_session_id', $session->id)
-                    ->where('whatsapp_message_id', (string) $this->data['messageId'])
-                    ->value('id')
-                : null;
-            $message = $chatService->storeInboundMessage($chat, $session, $this->data);
             $isDuplicate = $beforeId !== null && (int) $beforeId === (int) $message->id;
             $message->load([
                 'media',

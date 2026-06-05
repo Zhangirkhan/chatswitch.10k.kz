@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Events\NewMessageReceived;
+use App\Models\AiFollowUpProposal;
+use App\Models\AiOrchestratorRun;
+use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Contact;
@@ -14,6 +17,7 @@ use App\Models\MessageMedia;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\AI\ChatAttentionService;
+use App\Services\Funnel\ConsultationFollowUpProposalService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
 use App\Support\PhoneFormatter;
@@ -481,8 +485,12 @@ final class ChatService
         ]);
     }
 
-    public function storeInboundMessage(Chat $chat, WhatsappSession $session, array $data): Message
+    public function storeInboundMessage(Chat $chat, WhatsappSession $session, array $data): ?Message
     {
+        if ($this->shouldSkipInboundAfterClear($chat, $data)) {
+            return null;
+        }
+
         $type = (string) ($data['type'] ?? 'chat');
         if (WhatsappMessageType::shouldIgnoreInbound($type)) {
             throw new \InvalidArgumentException('Ignored WhatsApp service message type: '.$type);
@@ -762,6 +770,7 @@ final class ChatService
     public function clearChatMessages(Chat $chat): void
     {
         Message::query()->where('chat_id', $chat->id)->delete();
+        $this->resetChatAiArtifacts($chat);
         $chat->forceFill([
             'last_message_text' => null,
             'last_message_at' => null,
@@ -770,6 +779,25 @@ final class ChatService
             'unread_count' => 0,
             'pinned_message_id' => null,
             'messages_cleared_at' => now(),
+        ])->save();
+    }
+
+    private function resetChatAiArtifacts(Chat $chat): void
+    {
+        AiResponseLog::query()->where('chat_id', $chat->id)->delete();
+        AiOrchestratorRun::query()->where('chat_id', $chat->id)->delete();
+        AiFollowUpProposal::query()->where('chat_id', $chat->id)->delete();
+
+        app(ConsultationFollowUpProposalService::class)->dismissPendingForChat($chat);
+
+        $chat->forceFill([
+            'ai_orchestrator_status' => null,
+            'ai_orchestrator_last_run_id' => null,
+            'ai_orchestrator_last_action_at' => null,
+            'ai_orchestrator_last_summary' => null,
+            'funnel_ai_last_analyzed_at' => null,
+            'funnel_ai_last_message_id' => null,
+            'funnel_ai_last_reason' => null,
         ])->save();
     }
 
