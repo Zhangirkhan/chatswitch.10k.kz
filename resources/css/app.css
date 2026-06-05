@@ -11,7 +11,7 @@
  */
 @layer base {
     :focus-visible {
-        outline: 2px solid var(--wa-accent, #ff9900);
+        outline: 2px solid var(--wa-accent, #25d366);
         outline-offset: 2px;
         border-radius: 2px;
     }
@@ -23,7 +23,7 @@
     select:focus-visible,
     textarea:focus-visible,
     [tabindex]:focus-visible {
-        outline: 2px solid var(--wa-accent, #ff9900);
+        outline: 2px solid var(--wa-accent, #25d366);
         outline-offset: 2px;
     }
 }
@@ -97,16 +97,15 @@
     --wa-text-secondary: #8696a0;
     --wa-text-muted: #667781;
 
-    /* Brand / accent — PH-style orange */
-    --brand-accent: #ff9900;
-    --brand-accent-hover: #ffad33;
-    --brand-accent-deep: #cc7a00;
+    /* Brand / accent */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
     --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 16%, var(--wa-panel));
     --brand-accent-border: color-mix(in srgb, var(--brand-accent) 38%, var(--wa-border));
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
     --wa-accent-hover: var(--brand-accent-hover);
     --wa-accent-soft: var(--brand-accent-soft);     /* subtle accent bg (badges, pills) */
-    --wa-accent-on: #000000;       /* black on orange (PH-style) */
+    --wa-accent-on: #ffffff;       /* foreground on accent bg */
     --wa-green: var(--brand-accent);
 
     /*
@@ -376,21 +375,20 @@
     --wa-text-secondary: #667781;
     --wa-text-muted: #8696A0;
 
-    /* Brand / accent — PH-style orange; для текста ссылок на светлой — --wa-chroma-accent-fg */
-    --brand-accent: #ff9900;
-    --brand-accent-hover: #ffad33;
-    --brand-accent-deep: #c45100;
+    /* Brand / accent — тот же зелёный, что в тёмной теме; для текста ссылок — --wa-chroma-accent-fg */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
     --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 22%, var(--wa-panel));
     --brand-accent-border: color-mix(in srgb, var(--brand-accent) 42%, var(--wa-border));
     --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
     --wa-accent-hover: var(--brand-accent-hover);
     --wa-accent-soft: var(--brand-accent-soft);
-    --wa-accent-on: #000000;
+    --wa-accent-on: #ffffff;
     --wa-green: var(--brand-accent);
 
     /* Chroma tints — на светлой теме смешиваем с панелью, не с transparent */
     --wa-chroma-blend: var(--wa-panel);
-    --wa-chroma-accent-fg: var(--brand-accent-deep);
+    --wa-chroma-accent-fg: #006b47;
     --wa-chroma-accent-bg-8: color-mix(in srgb, var(--brand-accent) 14%, var(--wa-chroma-blend));
     --wa-chroma-accent-bg-10: color-mix(in srgb, var(--brand-accent) 18%, var(--wa-chroma-blend));
     --wa-chroma-accent-bg-12: color-mix(in srgb, var(--brand-accent) 22%, var(--wa-chroma-blend));
@@ -577,8 +575,8 @@
     --ui-accent-on: var(--wa-accent-on);
     --ui-accent-btn-rim-inset-bottom: color-mix(in srgb, #111b21 10%, var(--ui-accent));
     --ui-accent-btn-rim-outer: var(--wa-control-rim-outer);
-    --ui-accent-btn-border: color-mix(in srgb, var(--brand-accent-deep) 30%, var(--ui-accent) 70%);
-    --ui-accent-btn-border-hover: color-mix(in srgb, var(--brand-accent-deep) 26%, var(--ui-accent-hover) 74%);
+    --ui-accent-btn-border: color-mix(in srgb, #006b47 30%, var(--ui-accent) 70%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, #006b47 26%, var(--ui-accent-hover) 74%);
     --ui-accent-btn-shadow:
         inset 0 -1px 0 0 var(--ui-accent-btn-rim-inset-bottom),
         0 1px 1px 0 var(--ui-accent-btn-rim-outer);

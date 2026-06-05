@@ -10,6 +10,8 @@ export type MessageStyleColors = {
     /** Акцент всего интерфейса (кнопки, вкладки, бейджи). По умолчанию = accent. */
     systemAccent?: string;
     systemAccentHover?: string;
+    /** Текст на кнопках/бейджах с системным акцентом (напр. чёрный на оранжевом). */
+    systemAccentOn?: string;
     tailShadow: string;
     quoteBgIn?: string;
     quoteBgOut?: string;
@@ -221,6 +223,45 @@ export const messageStylePresets: MessageStylePreset[] = [
         },
     },
     {
+        id: 'orange',
+        label: 'Orange',
+        description: 'Bold orange accent',
+        light: {
+            in: '#FFFFFF',
+            out: '#FF9900',
+            textIn: '#111B21',
+            textOut: '#000000',
+            accent: '#CC7A00',
+            systemAccent: '#FF9900',
+            systemAccentHover: '#FFAD33',
+            systemAccentOn: '#000000',
+            tailShadow: 'rgba(120, 70, 0, 0.12)',
+            quoteBgIn: '#FAF5EE',
+            quoteBgOut: '#E88700',
+            quoteAuthorIn: '#CC7A00',
+            quoteAuthorOut: '#000000',
+            quoteTextIn: QUOTE_MUTED_LIGHT,
+            quoteTextOut: '#1A1A1A',
+        },
+        dark: {
+            in: '#212121',
+            out: '#FF9900',
+            textIn: '#ECECEC',
+            textOut: '#000000',
+            accent: '#FFB84D',
+            systemAccent: '#FF9900',
+            systemAccentHover: '#FFAD33',
+            systemAccentOn: '#000000',
+            tailShadow: 'rgba(0, 0, 0, 0.24)',
+            quoteBgIn: '#2C2C2C',
+            quoteBgOut: '#E88700',
+            quoteAuthorIn: '#FFB84D',
+            quoteAuthorOut: '#000000',
+            quoteTextIn: QUOTE_MUTED_ON_DARK,
+            quoteTextOut: '#1A1A1A',
+        },
+    },
+    {
         id: 'coral',
         label: 'Coral',
         description: 'Warm terracotta',
@@ -388,6 +429,7 @@ function applySystemAccent(colors: MessageStyleColors, theme: Theme, root: HTMLE
     root.style.setProperty('--brand-accent', base);
     root.style.setProperty('--brand-accent-hover', hover);
     root.style.setProperty('--wa-chroma-accent-fg', systemChromaFg(base, theme));
+    root.style.setProperty('--wa-accent-on', colors.systemAccentOn ?? '#ffffff');
 }
 
 function applyQuoteTextVars(colors: MessageStyleColors, root: HTMLElement): void {
@@ -420,10 +462,12 @@ export function applyMessageStyle(preset: MessageStylePreset, theme: Theme): voi
     const root = document.documentElement;
     const colors = { ...(theme === 'light' ? preset.light : preset.dark) };
 
-    if (preset.id === 'whatsapp') {
+    if (preset.id === 'whatsapp' || preset.id === 'orange') {
         const accentOut = colors.systemAccent ?? colors.out;
         colors.out = accentOut;
-        if (bubbleLuminance(accentOut) >= 0.42) {
+        if (preset.id === 'orange') {
+            colors.textOut = colors.systemAccentOn ?? '#000000';
+        } else if (bubbleLuminance(accentOut) >= 0.42) {
             colors.textOut = '#FFFFFF';
         }
     }

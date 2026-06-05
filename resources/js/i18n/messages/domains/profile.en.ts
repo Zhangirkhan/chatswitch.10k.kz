@@ -36,7 +36,7 @@ export const profileEn = {
         tapToPickWallpaper: 'Tap to choose a background',
         messageStyle: 'Message style',
         messageStyleHint: 'Incoming and outgoing bubble colors in the chat feed — separate from wallpaper and interface theme.',
-        messageStyleExamples: 'Green, blue, graphite and more',
+        messageStyleExamples: 'Green, orange, blue, graphite and more',
         translation: 'Message translation',
         translationHint:
             'A compact «Translate» button appears under incoming messages in another language. Translations use your interface language ({language}).',
@@ -52,6 +52,7 @@ export const profileEn = {
         graphite: { label: 'Graphite', description: 'Neutral gray, Telegram-like' },
         purple: { label: 'Purple', description: 'Calm lavender' },
         ocean: { label: 'Teal', description: 'Muted sea tones' },
+        orange: { label: 'Orange', description: 'Bold orange accent' },
         coral: { label: 'Coral', description: 'Warm terracotta' },
     },
     wallpapers: {

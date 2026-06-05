@@ -258,7 +258,7 @@ function sessionLabel(s: WhatsappSession): string {
 }
 
 function sessionStatusColor(status: string): string {
-    if (status === 'connected') return 'var(--wa-accent)';
+    if (status === 'connected') return '#01b964';
     if (status === 'qr_pending' || status === 'connecting') return '#f59e0b';
     return '#ef4444';
 }

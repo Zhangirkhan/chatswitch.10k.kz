@@ -36,7 +36,7 @@ export const profileRu = {
         tapToPickWallpaper: 'Нажмите, чтобы выбрать фон',
         messageStyle: 'Стиль сообщений',
         messageStyleHint: 'Цвет входящих и исходящих в ленте чата — отдельно от обоев и темы интерфейса.',
-        messageStyleExamples: 'Зелёный, синий, графит и др.',
+        messageStyleExamples: 'Зелёный, оранжевый, синий, графит и др.',
         translation: 'Перевод сообщений',
         translationHint:
             'Под входящими сообщениями на другом языке появится кнопка «Перевод». Перевод идёт на язык интерфейса ({language}).',
@@ -52,6 +52,7 @@ export const profileRu = {
         graphite: { label: 'Графит', description: 'Нейтральный серый, как в Telegram' },
         purple: { label: 'Фиолетовый', description: 'Спокойная лаванда' },
         ocean: { label: 'Бирюза', description: 'Приглушённая морская гамма' },
+        orange: { label: 'Оранжевый', description: 'Яркий оранжевый акцент' },
         coral: { label: 'Коралл', description: 'Тёплый терракотовый' },
     },
     wallpapers: {

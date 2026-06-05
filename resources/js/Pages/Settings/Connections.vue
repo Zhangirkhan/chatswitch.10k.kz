@@ -175,7 +175,7 @@ const statusLabels = computed<Record<SessionStatus, string>>(() => ({
 }));
 
 const statusClasses: Record<SessionStatus, string> = {
-    connected: 'bg-wa-accent',
+    connected: 'bg-[#01b964]',
     connecting: 'bg-amber-500',
     qr_pending: 'bg-amber-500',
     disconnected: 'bg-red-500',

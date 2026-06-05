@@ -36,7 +36,7 @@ export const profileKk = {
         tapToPickWallpaper: 'Фон таңдау үшін басыңыз',
         messageStyle: 'Хабарлама стилі',
         messageStyleHint: 'Кіріс және шығыс хабарламалар түсі — тұсқағаз бен интерфейс темасынан бөлек.',
-        messageStyleExamples: 'Жасыл, көк, графит және т.б.',
+        messageStyleExamples: 'Жасыл, апельсин, көк, графит және т.б.',
         translation: 'Хабарламаларды аудару',
         translationHint:
             'Басқа тілдегі кіріс хабарламалар астында «Аудару» батырмасы пайда болады. Аударма интерфейс тілімен ({language}) сәйкес.',
@@ -52,6 +52,7 @@ export const profileKk = {
         graphite: { label: 'Графит', description: 'Бейтарап сұр, Telegram сияқты' },
         purple: { label: 'Күлгін', description: 'Тыныш лаванда' },
         ocean: { label: 'Көгілдір', description: 'Бәсең теңіз реңі' },
+        orange: { label: 'Қызғылт сары', description: 'Айқын апельсин акценті' },
         coral: { label: 'Коралл', description: 'Жылы терракота' },
     },
     wallpapers: {
