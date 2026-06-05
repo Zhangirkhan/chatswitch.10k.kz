@@ -11,6 +11,7 @@ use App\Models\Chat;
 use App\Models\ChatAssignment;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Chat\ChatAssignmentAssigneeGuard;
 use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Support\ChatBroadcastAudience;
@@ -22,6 +23,7 @@ final class ChatAssignmentController extends Controller
     public function __construct(
         private readonly ChatService $chatService,
         private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
+        private readonly ChatAssignmentAssigneeGuard $assigneeGuard,
     ) {}
 
     public function store(Request $request, Chat $chat): JsonResponse
@@ -31,6 +33,8 @@ final class ChatAssignmentController extends Controller
         $validated = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
+
+        $this->assigneeGuard->assertAssignable($request->user(), $chat, [(int) $validated['user_id']]);
 
         $oldIds = $chat->assignments()->pluck('user_id')->all();
 
@@ -81,6 +85,7 @@ final class ChatAssignmentController extends Controller
         ]);
 
         $userIds = collect($validated['user_ids'] ?? [])->unique()->values()->all();
+        $this->assigneeGuard->assertAssignable($request->user(), $chat, array_map(intval(...), $userIds));
         $actorId = $request->user()->id;
 
         $oldIds = $chat->assignments()->pluck('user_id')->all();
