@@ -218,10 +218,7 @@ final class HandleInertiaRequests extends Middleware
     private function unreadChatsCount(User $user): int
     {
         return $this->applyAccessScope(
-            Chat::query()
-                ->where('is_archived', false)
-                ->where('unread_count', '>', 0)
-                ->withOperatorVisibleActivity(),
+            Chat::query()->where('is_archived', false)->where('unread_count', '>', 0),
             $user,
         )->count();
     }
@@ -232,7 +229,6 @@ final class HandleInertiaRequests extends Middleware
             Chat::query()
                 ->where('is_archived', false)
                 ->where('unread_count', '>', 0)
-                ->withOperatorVisibleActivity()
                 ->whereHas('assignments', fn (Builder $aq) => $aq->where('user_id', $user->id)),
             $user,
         )->count();

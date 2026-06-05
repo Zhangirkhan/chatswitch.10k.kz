@@ -156,7 +156,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <nav ref="listRef" class="flex flex-col items-center gap-1 flex-1">
+    <nav ref="listRef" class="flex w-full min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain">
         <div
             v-for="id in visibleOrder"
             :key="id"
@@ -279,6 +279,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wa-rail-btn-wrap {
+    flex-shrink: 0;
     cursor: grab;
     touch-action: none;
 }

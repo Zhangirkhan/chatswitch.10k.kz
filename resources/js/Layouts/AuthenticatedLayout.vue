@@ -55,16 +55,6 @@ watch(
     { immediate: true },
 );
 
-watch(
-    () => tenantCompanyId.value,
-    (nextId, prevId) => {
-        if (prevId > 0 && nextId > 0 && nextId !== prevId) {
-            liveUnread.set(Number(page.props.unreadChatsCount || 0));
-            whatsappSessions.value = [...((page.props.whatsappSessions as WhatsappSession[] | undefined) || [])];
-        }
-    },
-);
-
 useUnreadFavicon(() => unreadChatsCount.value);
 
 const whatsappSessions = ref<WhatsappSession[]>([]);
@@ -228,38 +218,37 @@ onUnmounted(() => {
         :class="{ 'has-impersonation-banner': Boolean(page.props.impersonation) }"
     >
         <aside
-            class="w-[60px] shrink-0 flex flex-col items-center py-3 border-r"
+            class="flex h-full w-[60px] shrink-0 flex-col items-center border-r py-3"
             :style="{ background: 'var(--wa-rail-bg)', borderColor: 'var(--wa-sidebar-divider)' }"
         >
-            <div class="flex flex-col items-center gap-1 flex-1 min-h-0 w-full">
-                <RailNav
-                    :nav="nav"
-                    :unread-chats-count="unreadChatsCount"
-                    :calendar-badge-count="calendarBadgeCount"
-                />
+            <RailNav
+                class="min-h-0 w-full flex-1"
+                :nav="nav"
+                :unread-chats-count="unreadChatsCount"
+                :calendar-badge-count="calendarBadgeCount"
+            />
 
-                <template v-if="whatsappSessions.length">
-                    <div
-                        class="w-7 h-px my-1 shrink-0"
-                        :style="{ background: 'var(--wa-border)' }"
-                    ></div>
-                    <Link
-                        v-for="s in whatsappSessions"
-                        :key="s.id"
-                        :href="route('settings.connections')"
-                        class="wa-session-chip"
-                        :title="sessionTooltip(s)"
-                    >
-                        <span class="wa-session-chip-label">{{ sessionInitial(s) }}</span>
-                        <span
-                            class="wa-session-chip-dot"
-                            :class="s.status === 'connected' ? 'is-online' : s.status === 'qr_pending' || s.status === 'connecting' ? 'is-pending' : 'is-offline'"
-                        ></span>
-                    </Link>
-                </template>
+            <div
+                v-if="whatsappSessions.length"
+                class="flex w-full shrink-0 flex-col items-center gap-1.5 border-t px-1 pt-2"
+                :style="{ borderColor: 'var(--wa-border)' }"
+            >
+                <Link
+                    v-for="s in whatsappSessions"
+                    :key="s.id"
+                    :href="route('settings.connections')"
+                    class="wa-session-chip shrink-0"
+                    :title="sessionTooltip(s)"
+                >
+                    <span class="wa-session-chip-label">{{ sessionInitial(s) }}</span>
+                    <span
+                        class="wa-session-chip-dot"
+                        :class="s.status === 'connected' ? 'is-online' : s.status === 'qr_pending' || s.status === 'connecting' ? 'is-pending' : 'is-offline'"
+                    ></span>
+                </Link>
             </div>
 
-            <div class="flex flex-col items-center gap-1 pb-1">
+            <div class="mt-2 flex shrink-0 flex-col items-center pb-1">
                 <Link
                     :href="route('profile.edit')"
                     :title="user?.name"
@@ -316,6 +305,7 @@ onUnmounted(() => {
 <style scoped>
 .wa-session-chip {
     position: relative;
+    flex-shrink: 0;
     width: 2.25rem;
     height: 2.25rem;
     display: flex;

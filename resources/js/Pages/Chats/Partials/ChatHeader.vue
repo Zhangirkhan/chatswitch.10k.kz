@@ -10,7 +10,6 @@ import ChatHeaderDialogs from './ChatHeaderDialogs.vue';
 import { CHAT_HEADER_DIALOGS_KEY } from './chatHeaderDialogsKey';
 import type { AssignableUser, Chat, Department, FunnelCatalogEntry } from '@/types';
 import { formatPhone } from '@/utils/phone';
-import { chatDisplayTitle } from '@/utils/chatDisplayName';
 import { initialsFromName } from '@/utils/initials';
 import { stageIdAtPreservedIndex } from '@/utils/funnelStageMapping';
 import ScheduledMessagesModal from './ScheduledMessagesModal.vue';
@@ -1016,7 +1015,14 @@ function notImplemented(name: string) {
     showToast({ message: t('chats.featureComingSoon', { name }), type: 'info' });
 }
 
-const displayName = computed(() => chatDisplayTitle(props.chat, t('chats.noName')));
+const displayName = computed(
+    () =>
+        props.chat.chat_name ||
+        props.chat.contact?.name ||
+        (props.chat.contact?.push_name ? `~ ${props.chat.contact.push_name}` : '') ||
+        formatPhone(props.chat.contact?.phone_number) ||
+        '',
+);
 
 function getTypingText(): string {
     const names = [...props.typingUsers.values()];

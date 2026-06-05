@@ -92,7 +92,6 @@ final class ChatController extends Controller
         $beforeId = (int) $request->input('before_id', 0);
 
         $messages = $chat->messages()
-            ->operatorVisible()
             ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->when(
                 is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
