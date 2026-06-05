@@ -87,9 +87,20 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 
         $isDuplicate = false;
 
-        $message = DB::transaction(function () use ($chatService, $session, &$chatId, &$isDuplicate): Message {
+        $message = DB::transaction(function () use ($chatService, $session, &$chatId, &$isDuplicate): ?Message {
             $chat = $chatService->findOrCreateChat($this->data, $session);
             $chatId = (int) $chat->id;
+
+            if ($chatService->shouldSkipInboundAfterClear($chat, $this->data)) {
+                Log::info('[whatsapp-inbound] skipped message before chat clear cutoff', [
+                    'chat_id' => $chatId,
+                    'message_id' => $this->data['messageId'] ?? null,
+                    'cleared_at' => $chat->messages_cleared_at?->toIso8601String(),
+                ]);
+
+                return null;
+            }
+
             $beforeId = isset($this->data['messageId'])
                 ? Message::query()
                     ->where('whatsapp_session_id', $session->id)
@@ -109,6 +120,10 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 
             return $message;
         });
+
+        if ($message === null) {
+            return;
+        }
 
         if ($isDuplicate) {
             Log::info('[whatsapp-inbound] duplicate webhook skipped side effects', [

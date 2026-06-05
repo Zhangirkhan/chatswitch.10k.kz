@@ -757,6 +757,7 @@ final class ChatService
 
     /**
      * Удаляет все сообщения чата и сбрасывает превью в списке.
+     * Старые сообщения из WhatsApp (sync/webhook) после этого не импортируются.
      */
     public function clearChatMessages(Chat $chat): void
     {
@@ -768,7 +769,26 @@ final class ChatService
             'last_message_is_ai' => false,
             'unread_count' => 0,
             'pinned_message_id' => null,
+            'messages_cleared_at' => now(),
         ])->save();
+    }
+
+    /**
+     * Не даём whatsapp-service (syncMissedInbound) вернуть историю после «Очистить клиента».
+     */
+    public function shouldSkipInboundAfterClear(Chat $chat, array $data): bool
+    {
+        $clearedAt = $chat->messages_cleared_at;
+        if ($clearedAt === null) {
+            return false;
+        }
+
+        $timestamp = isset($data['timestamp']) ? (int) $data['timestamp'] : null;
+        $messageAt = $timestamp !== null && $timestamp > 0
+            ? now()->setTimestamp($timestamp)
+            : now();
+
+        return $messageAt->lte($clearedAt);
     }
 
     /**
