@@ -33,6 +33,7 @@ final class WhatsappSession extends Model
         'status',
         'desired_state',
         'is_active',
+        'is_sandbox',
         'connected_at',
         'disconnected_at',
         'last_disconnect_reason',
@@ -44,6 +45,7 @@ final class WhatsappSession extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_sandbox' => 'boolean',
             'connected_at' => 'datetime',
             'disconnected_at' => 'datetime',
             'qr_required_at' => 'datetime',

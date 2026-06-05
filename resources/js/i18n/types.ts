@@ -324,6 +324,7 @@ export interface MessageCatalog {
                 clientFollowUp: string;
                 clientFollowUpAria: string;
                 clientFollowUpHint: string;
+                lastStageHint: string;
                 title: string;
                 waitHours: string;
                 silenceAfter: string;

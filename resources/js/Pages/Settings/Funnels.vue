@@ -649,15 +649,15 @@ function stageRuleDraft(stage: FunnelStage): FunnelStageAiRule {
         assignee_user_ids: stage.ai_rule?.assignee_user_ids ?? [],
         assignee_department_id: stage.ai_rule?.assignee_department_id ?? null,
         require_manager_confirmation: stage.ai_rule?.require_manager_confirmation ?? false,
-        follow_up_enabled: stage.ai_rule?.follow_up_enabled ?? false,
+        follow_up_enabled: stage.ai_rule?.follow_up_enabled ?? true,
         follow_up_delay_hours: stage.ai_rule?.follow_up_delay_hours ?? 24,
         follow_up_message: stage.ai_rule?.follow_up_message ?? '',
-        follow_up_mode: stage.ai_rule?.follow_up_mode ?? 'template',
+        follow_up_mode: stage.ai_rule?.follow_up_mode ?? 'ai',
         follow_up_message_b: stage.ai_rule?.follow_up_message_b ?? '',
         follow_up_ab_ratio: stage.ai_rule?.follow_up_ab_ratio ?? 50,
         follow_up_cooldown_hours: stage.ai_rule?.follow_up_cooldown_hours ?? 72,
         follow_up_max_count: stage.ai_rule?.follow_up_max_count ?? 2,
-        follow_up_strategy: stage.ai_rule?.follow_up_strategy ?? 'off',
+        follow_up_strategy: stage.ai_rule?.follow_up_strategy ?? 'auto_cron',
         follow_up_silence_after: stage.ai_rule?.follow_up_silence_after ?? 'outbound',
         follow_up_use_promotions: stage.ai_rule?.follow_up_use_promotions ?? true,
         follow_up_promotion_ids: stage.ai_rule?.follow_up_promotion_ids ?? [],
@@ -701,6 +701,15 @@ const followUpModeOptions = computed(() => [
     { id: 'ab' as const, label: t('settings.funnels.followUp.modeAb'), hint: t('settings.funnels.followUp.modeAbHint') },
     { id: 'ai' as const, label: t('settings.funnels.followUp.modeAi'), hint: t('settings.funnels.followUp.modeAiHint') },
 ]);
+
+function isLastFunnelStage(funnel: Funnel, stage: FunnelStage): boolean {
+    const stages = [...(funnel.stages ?? [])].sort((a, b) => a.position - b.position);
+    if (stages.length === 0) {
+        return false;
+    }
+
+    return stages[stages.length - 1]?.id === stage.id;
+}
 
 async function saveStageAiRule(funnel: Funnel, stage: FunnelStage, patch: Partial<FunnelStageAiRule>): Promise<void> {
     const payload = { ...stageRuleDraft(stage), ...patch };
@@ -1468,20 +1477,16 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <span class="inline-flex items-center gap-2 text-[var(--ui-text)] font-medium">
-                                                <UiCheckbox
-                                                    :model-value="stageRuleDraft(stage).follow_up_enabled"
-                                                    :aria-label="t('settings.funnels.followUp.clientFollowUpAria')"
-                                                    :disabled="stageRuleDraft(stage).follow_up_strategy !== 'auto_cron'"
-                                                    @update:model-value="(v) => saveStageAiRule(funnel, stage, { follow_up_enabled: v })"
-                                                />
-                                                {{ t('settings.funnels.followUp.clientFollowUp') }}
-                                            </span>
-                                            <p class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]">
-                                                {{ t('settings.funnels.followUp.clientFollowUpHint') }}
+                                            <p
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
+                                                class="text-[11px] leading-relaxed text-[var(--ui-text-secondary)]"
+                                            >
+                                                {{ isLastFunnelStage(funnel, stage)
+                                                    ? t('settings.funnels.followUp.lastStageHint')
+                                                    : t('settings.funnels.followUp.clientFollowUpHint') }}
                                             </p>
                                             <div
-                                                v-if="stageRuleDraft(stage).follow_up_enabled && stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'auto_cron' && !isLastFunnelStage(funnel, stage)"
                                                 class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                                             >
                                                 <label class="space-y-1">
@@ -1519,7 +1524,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                                                 </label>
                                             </div>
                                             <div
-                                                v-if="stageRuleDraft(stage).follow_up_enabled && stageRuleDraft(stage).follow_up_strategy === 'auto_cron'"
+                                                v-if="stageRuleDraft(stage).follow_up_strategy === 'auto_cron' && !isLastFunnelStage(funnel, stage)"
                                                 class="space-y-3"
                                             >
                                                 <label class="block space-y-1">

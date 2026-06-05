@@ -309,6 +309,12 @@ export const superAdminEn = {
             openTenant: '{slug}.{domain} — open',
             populating: 'Loading…',
             populateSandbox: 'Fill with test data',
+            clearSandboxData: 'Remove test data',
+            clearingSandbox: 'Removing…',
+            clearSandboxModalTitle: 'Remove test data?',
+            clearSandboxModalDescription:
+                'Only chats, contacts, and WhatsApp sessions created by «Fill with test data» will be removed. Real conversations and connected numbers are not affected.',
+            clearSandboxModalConfirm: 'Remove test data',
             impersonating: 'Opening…',
             impersonate: 'Log in as admin',
             tenantEnabled: 'Tenant enabled',

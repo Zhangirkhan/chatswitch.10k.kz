@@ -19,6 +19,7 @@ use App\Services\SuperAdmin\DemoTenantPopulationService;
 use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
 use App\Services\SuperAdmin\TenantImpersonationService;
+use App\Services\SuperAdmin\TenantSandboxCleanupService;
 use App\Services\Tenancy\CompanyProvisioningService;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionLimitService;
@@ -42,6 +43,7 @@ final class CompanyController extends Controller
         private readonly WhatsappSessionLimitService $sessionLimits,
         private readonly SuperAdminCompanyScope $superAdminScope,
         private readonly DemoTenantPopulationService $demoPopulation,
+        private readonly TenantSandboxCleanupService $sandboxCleanup,
     ) {}
 
     public function index(Request $request): Response
@@ -217,6 +219,8 @@ final class CompanyController extends Controller
                 && ! $this->demoMaintenance->isDemoCompany($company),
             'canPopulateSandbox' => $this->superAdminScope->isSandboxSuperAdmin($request->user())
                 && $this->superAdminScope->canManage($request->user(), $company),
+            'canClearSandboxData' => $this->superAdminScope->isSandboxSuperAdmin($request->user())
+                && $this->superAdminScope->canManage($request->user(), $company),
             'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
             'billing' => [
                 'trial_days' => (int) config('billing.trial_days', 14),
@@ -242,6 +246,29 @@ final class CompanyController extends Controller
             $stats['messages'],
             $stats['tenant_url'] ?? $company->tenantUrl('/login'),
             $stats['login'],
+        ));
+    }
+
+    public function clearSandboxData(Request $request, Company $company): RedirectResponse
+    {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
+        if (! $this->superAdminScope->isSandboxSuperAdmin($request->user())) {
+            abort(403, 'Удаление тестовых данных доступно только в песочнице супер-админа.');
+        }
+
+        $stats = $this->sandboxCleanup->clear($company, $request->user());
+        $removed = $stats['chats'] + $stats['contacts'] + $stats['sessions'];
+
+        if ($removed === 0) {
+            return back()->with('success', 'Тестовых данных не найдено — рабочие чаты и клиенты не затронуты.');
+        }
+
+        return back()->with('success', sprintf(
+            'Удалено тестовых данных: %d чатов, %d контактов, %d WhatsApp-сессий. Рабочие данные не затронуты.',
+            $stats['chats'],
+            $stats['contacts'],
+            $stats['sessions'],
         ));
     }
 

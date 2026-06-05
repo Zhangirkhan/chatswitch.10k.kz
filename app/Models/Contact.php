@@ -23,6 +23,7 @@ final class Contact extends Model
         'push_name',
         'profile_picture_url',
         'is_business',
+        'is_sandbox',
         'messages_cleared_at',
     ];
 
@@ -30,6 +31,7 @@ final class Contact extends Model
     {
         return [
             'is_business' => 'boolean',
+            'is_sandbox' => 'boolean',
             'messages_cleared_at' => 'datetime',
         ];
     }

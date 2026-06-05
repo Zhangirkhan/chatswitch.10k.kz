@@ -17,6 +17,7 @@ final class FunnelFollowUpAiTextService
     public function __construct(
         private readonly OpenAiChatService $openAi,
         private readonly CompanyPromotionCatalog $promotionCatalog,
+        private readonly FunnelStageSequenceService $stageSequence,
     ) {}
 
     public function generate(FunnelStageAiRule $rule, Chat $chat): string
@@ -28,6 +29,9 @@ final class FunnelFollowUpAiTextService
 
         $stageName = (string) ($rule->stage?->name ?? 'этап');
         $goal = trim((string) ($rule->goal ?? ''));
+        $nextStage = $this->stageSequence->nextStageForRule($rule);
+        $nextStageName = (string) ($nextStage?->name ?? 'следующий этап');
+        $nextGoal = trim((string) ($this->stageSequence->nextStageRule($rule)?->goal ?? ''));
         $toneHint = $this->toneHint((int) $rule->company_id);
         $promoBlock = $this->promotionCatalog->formatPromptBlock(
             $this->promotionCatalog->promptItemsForRule($rule),
@@ -48,8 +52,10 @@ final class FunnelFollowUpAiTextService
         $prompt = <<<PROMPT
 Напиши одно короткое follow-up сообщение клиенту в WhatsApp на русском языке.
 Клиент: {$name}
-Этап воронки: {$stageName}
-Цель этапа: {$goal}
+Текущий этап воронки: {$stageName}
+Цель текущего этапа: {$goal}
+Следующий этап воронки: {$nextStageName}
+Цель следующего этапа: {$nextGoal}
 {$toneHint}
 {$promoBlock}
 
@@ -58,7 +64,8 @@ final class FunnelFollowUpAiTextService
 
 Требования:
 - 1–3 предложения, без markdown
-- мягко напомни о себе, без давления
+- мягко подведи клиента к следующему этапу «{$nextStageName}»
+- напомни, что нужно для перехода, без давления
 - не выдумывай цены и сроки
 - если есть активные акции — уместно упомяни одну из них
 - только текст сообщения, без кавычек

@@ -43,6 +43,8 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::post('/companies', [CompanyController::class, 'store'])->name('super.companies.store');
     Route::post('/companies/{company}/populate-sandbox', [CompanyController::class, 'populateSandbox'])
         ->name('super.companies.populate-sandbox');
+    Route::delete('/companies/{company}/sandbox-data', [CompanyController::class, 'clearSandboxData'])
+        ->name('super.companies.clear-sandbox-data');
     Route::put('/companies/{company}/modules', [CompanyModuleController::class, 'update'])
         ->name('super.companies.modules.update');
     Route::get('/companies/{company}', [CompanyController::class, 'show'])->name('super.companies.show');

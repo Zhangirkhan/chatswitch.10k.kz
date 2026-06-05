@@ -174,6 +174,9 @@ final class CompanyOnboardingService
                     'assignee_user_ids' => [],
                     'assignee_department_id' => $definition['department_id'] ?? null,
                     'require_manager_confirmation' => (bool) ($definition['manager_confirmation'] ?? false),
+                    'follow_up_enabled' => true,
+                    'follow_up_strategy' => FunnelStageAiRule::FOLLOW_UP_STRATEGY_AUTO_CRON,
+                    'follow_up_mode' => FunnelStageAiRule::FOLLOW_UP_MODE_AI,
                 ],
             );
         }

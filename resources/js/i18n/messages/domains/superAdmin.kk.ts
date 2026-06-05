@@ -309,6 +309,12 @@ export const superAdminKk = {
             openTenant: '{slug}.{domain} — ашу',
             populating: 'Жүктелуде…',
             populateSandbox: 'Тест деректерімен толтыру',
+            clearSandboxData: 'Тест деректерін жою',
+            clearingSandbox: 'Жойылуда…',
+            clearSandboxModalTitle: 'Тест деректерін жою?',
+            clearSandboxModalDescription:
+                '«Тест деректерімен толтыру» арқылы жасалған чаттар, контакттер және WhatsApp-сессиялар ғана жойылады. Нақты хат-хабар және қосылған нөмірлерге тиіспейді.',
+            clearSandboxModalConfirm: 'Тест деректерін жою',
             impersonating: 'Ашылуда…',
             impersonate: 'Әкімші ретінде кіру',
             tenantEnabled: 'Тенант қосылған',

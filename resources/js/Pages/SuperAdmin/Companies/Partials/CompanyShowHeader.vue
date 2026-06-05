@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from '@/composables/useI18n';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -18,6 +19,7 @@ const props = defineProps<{
     canImpersonate: boolean;
     impersonateBlockedReason?: string | null;
     canPopulateSandbox?: boolean;
+    canClearSandboxData?: boolean;
     canDelete?: boolean;
     rootDomain?: string;
     billingSummary: {
@@ -49,6 +51,8 @@ function formatDate(iso: string | null): string {
 
 const impersonating = ref(false);
 const populating = ref(false);
+const clearingSandbox = ref(false);
+const showClearSandboxConfirm = ref(false);
 
 function populateSandbox(): void {
     if (populating.value || !props.canPopulateSandbox) {
@@ -66,6 +70,27 @@ function populateSandbox(): void {
             },
             onError: () => {
                 populating.value = false;
+            },
+        },
+    );
+}
+
+function confirmClearSandbox(): void {
+    if (clearingSandbox.value || !props.canClearSandboxData) {
+        return;
+    }
+
+    clearingSandbox.value = true;
+    router.delete(
+        `/companies/${props.company.id}/sandbox-data`,
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                clearingSandbox.value = false;
+                showClearSandboxConfirm.value = false;
+            },
+            onError: () => {
+                clearingSandbox.value = false;
             },
         },
     );
@@ -120,6 +145,15 @@ function impersonate(): void {
                     @click="populateSandbox"
                 >
                     {{ populating ? t('superAdmin.companies.header.populating') : t('superAdmin.companies.header.populateSandbox') }}
+                </button>
+                <button
+                    v-if="canClearSandboxData"
+                    type="button"
+                    class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                    :disabled="clearingSandbox"
+                    @click="showClearSandboxConfirm = true"
+                >
+                    {{ clearingSandbox ? t('superAdmin.companies.header.clearingSandbox') : t('superAdmin.companies.header.clearSandboxData') }}
                 </button>
                 <button
                     type="button"
@@ -203,4 +237,15 @@ function impersonate(): void {
             </div>
         </div>
     </div>
+
+    <DangerConfirmModal
+        :open="showClearSandboxConfirm"
+        :title="t('superAdmin.companies.header.clearSandboxModalTitle')"
+        :description="t('superAdmin.companies.header.clearSandboxModalDescription')"
+        :confirm-label="t('superAdmin.companies.header.clearSandboxModalConfirm')"
+        confirm-variant="danger"
+        :busy="clearingSandbox"
+        @close="showClearSandboxConfirm = false"
+        @confirm="confirmClearSandbox"
+    />
 </template>

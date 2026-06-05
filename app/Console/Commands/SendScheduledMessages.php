@@ -8,6 +8,7 @@ use App\Events\NewMessageReceived;
 use App\Jobs\SendOutboundMessageJob;
 use App\Models\ScheduledMessage;
 use App\Services\ChatService;
+use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\OperatorSignature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ final class SendScheduledMessages extends Command
 
     protected $description = 'Send due scheduled chat messages.';
 
-    public function handle(ChatService $chatService): int
+    public function handle(ChatService $chatService, FunnelStageFollowUpService $followUpService): int
     {
         $limit = max(1, min(200, (int) $this->option('limit')));
 
@@ -32,7 +33,7 @@ final class SendScheduledMessages extends Command
 
         $sent = 0;
         foreach ($ids as $id) {
-            if ($this->sendOne((int) $id, $chatService)) {
+            if ($this->sendOne((int) $id, $chatService, $followUpService)) {
                 $sent++;
             }
         }
@@ -42,7 +43,7 @@ final class SendScheduledMessages extends Command
         return self::SUCCESS;
     }
 
-    private function sendOne(int $id, ChatService $chatService): bool
+    private function sendOne(int $id, ChatService $chatService, FunnelStageFollowUpService $followUpService): bool
     {
         $scheduled = ScheduledMessage::query()->whereKey($id)->first();
         if ($scheduled === null || $scheduled->status !== ScheduledMessage::STATUS_PENDING) {
@@ -108,6 +109,15 @@ final class SendScheduledMessages extends Command
                     'mentions' => [],
                 ],
             );
+
+            if ($scheduled->purpose === ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP
+                && $scheduled->funnel_stage_id !== null) {
+                $followUpService->advanceChatToNextStage(
+                    $chat->fresh() ?? $chat,
+                    (int) $scheduled->funnel_stage_id,
+                    (int) $message->id,
+                );
+            }
 
             return true;
         } catch (\Throwable $e) {

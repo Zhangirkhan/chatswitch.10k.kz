@@ -17,10 +17,11 @@ use Illuminate\Support\Str;
 
 final class FunnelStageFollowUpService
 {
-    public const DEFAULT_MESSAGE = 'Добрый день! Вы ещё рассматриваете наше предложение? Если остались вопросы — напишите, будем рады помочь.';
+    public const DEFAULT_MESSAGE = 'Добрый день, {chat_name}! Подскажите, готовы перейти к этапу «{next_stage_name}»? Если остались вопросы — напишите, поможем.';
 
     public function __construct(
         private readonly FunnelFollowUpAiTextService $aiText,
+        private readonly FunnelStageSequenceService $stageSequence,
     ) {}
 
     public function isModuleEnabled(): bool
@@ -36,15 +37,7 @@ final class FunnelStageFollowUpService
 
         $created = 0;
         $rules = FunnelStageAiRule::query()
-            ->where('follow_up_enabled', true)
-            ->where(function ($query): void {
-                $query
-                    ->whereNull('follow_up_strategy')
-                    ->orWhere('follow_up_strategy', FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF)
-                    ->orWhere('follow_up_strategy', FunnelStageAiRule::FOLLOW_UP_STRATEGY_AUTO_CRON)
-                    ->orWhere('follow_up_strategy', '');
-            })
-            ->with(['stage:id,funnel_id,name', 'funnel.aiScenario'])
+            ->with(['stage:id,funnel_id,name,position', 'funnel.aiScenario', 'funnel.stages:id,funnel_id,name,position,is_active'])
             ->orderBy('id')
             ->get();
 
@@ -57,9 +50,11 @@ final class FunnelStageFollowUpService
                 continue;
             }
 
-            $strategy = (string) ($rule->follow_up_strategy ?? FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF);
-            if ($strategy !== FunnelStageAiRule::FOLLOW_UP_STRATEGY_AUTO_CRON
-                && $strategy !== '' && $strategy !== 'off') {
+            if (! $this->usesAutoCronFollowUp($rule)) {
+                continue;
+            }
+
+            if ($this->stageSequence->nextStageForRule($rule) === null) {
                 continue;
             }
 
@@ -72,6 +67,47 @@ final class FunnelStageFollowUpService
         }
 
         return $created;
+    }
+
+    public function usesAutoCronFollowUp(FunnelStageAiRule $rule): bool
+    {
+        $strategy = trim((string) ($rule->follow_up_strategy ?? ''));
+
+        if ($strategy === FunnelStageAiRule::FOLLOW_UP_STRATEGY_MANAGER_PROPOSALS) {
+            return false;
+        }
+
+        if ($strategy === FunnelStageAiRule::FOLLOW_UP_STRATEGY_OFF) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function advanceChatToNextStage(Chat $chat, int $fromStageId, int $triggerMessageId): bool
+    {
+        if ((int) $chat->funnel_stage_id !== $fromStageId) {
+            return false;
+        }
+
+        $chat->loadMissing(['funnelStage.funnel.stages']);
+        $nextStage = $this->stageSequence->nextStage($chat->funnelStage);
+        if ($nextStage === null || $chat->funnel_id === null) {
+            return false;
+        }
+
+        app(ChatFunnelStateService::class)->applyFromAi(
+            $chat,
+            new \App\Services\AI\ChatFunnelClassification(
+                (int) $chat->funnel_id,
+                (int) $nextStage->id,
+                0.7,
+                'Автодожим: клиент не ответил, чат переведён на этап «'.$nextStage->name.'».',
+            ),
+            $triggerMessageId,
+        );
+
+        return true;
     }
 
     public function cancelPendingForChat(Chat $chat, ?int $stageId = null): int
@@ -223,10 +259,16 @@ final class FunnelStageFollowUpService
             $name = 'клиент';
         }
 
+        $nextStage = $this->stageSequence->nextStageForRule($rule);
+        $nextStageName = trim((string) ($nextStage?->name ?? 'следующий этап'));
+        $nextGoal = trim((string) ($this->stageSequence->nextStageRule($rule)?->goal ?? ''));
+
         $replacements = [
             '{chat_name}' => $name,
             '{client_name}' => $name,
             '{stage_name}' => (string) ($rule->stage?->name ?? 'этап'),
+            '{next_stage_name}' => $nextStageName,
+            '{next_stage_goal}' => $nextGoal !== '' ? $nextGoal : $nextStageName,
         ];
 
         $body = strtr($template, $replacements);

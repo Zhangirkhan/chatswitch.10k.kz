@@ -130,6 +130,7 @@ const props = defineProps<{
     impersonateBlockedReason?: string | null;
     canDelete?: boolean;
     canPopulateSandbox?: boolean;
+    canClearSandboxData?: boolean;
     plans: PlanOption[];
     billing: { trial_days: number; standard_price_label: string };
     companyUsers: SuperAdminCompanyUser[];
@@ -331,6 +332,7 @@ function assignPlan(): void {
             :can-impersonate="canImpersonate"
             :impersonate-blocked-reason="impersonateBlockedReason"
             :can-populate-sandbox="canPopulateSandbox"
+            :can-clear-sandbox-data="canClearSandboxData"
             :can-delete="canDelete"
             :billing-summary="billingSummary"
             :trial-info="trialInfo"

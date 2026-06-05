@@ -51,6 +51,7 @@ final class Chat extends Model
         'community_id',
         'chat_name',
         'is_group',
+        'is_sandbox',
         'last_message_text',
         'last_message_at',
         'last_message_direction',
@@ -83,6 +84,7 @@ final class Chat extends Model
     {
         return [
             'is_group' => 'boolean',
+            'is_sandbox' => 'boolean',
             'is_archived' => 'boolean',
             'is_pinned' => 'boolean',
             'is_muted' => 'boolean',

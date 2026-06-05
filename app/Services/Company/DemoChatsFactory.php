@@ -7,14 +7,98 @@ namespace App\Services\Company;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
-use App\Models\Funnel;
-use App\Models\FunnelStage;
 use App\Models\Message;
 use App\Models\WhatsappSession;
-use Carbon\Carbon;
+use App\Support\PhoneFormatter;
 
 final class DemoChatsFactory
 {
+    /** @var list<string> */
+    private const DEMO_PHONES = [
+        '+77011234501',
+        '+77011234502',
+        '+77011234503',
+        '+77011234504',
+        '+77011234505',
+        '+77011234506',
+        '+77011234507',
+        '+77011234508',
+        '+77011234509',
+        '+77011234510',
+    ];
+
+    /** @var list<string> */
+    private const DEMO_SESSION_PHONES = [
+        '+77001000001',
+        '+77001000002',
+        '+77001000003',
+    ];
+
+    /**
+     * @return list<string>
+     */
+    public static function demoPhoneDigits(): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (string $phone): ?string => PhoneFormatter::normalize($phone),
+            self::DEMO_PHONES,
+        ))));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function demoSessionPhoneDigits(): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (string $phone): ?string => PhoneFormatter::normalize($phone),
+            self::DEMO_SESSION_PHONES,
+        ))));
+    }
+
+    public static function isDemoWhatsappMessageId(?string $messageId): bool
+    {
+        return is_string($messageId) && str_starts_with($messageId, 'demo_');
+    }
+
+    public static function isDemoContactWhatsappId(string $whatsappId, int $companyId): bool
+    {
+        return str_ends_with($whatsappId, ".{$companyId}@c.us");
+    }
+
+    /**
+     * @return list<array{name: string, phone: string}>
+     */
+    public static function demoContactDefinitions(): array
+    {
+        return array_map(
+            static fn (string $phone, int $index): array => [
+                'name' => self::contactNameByIndex($index),
+                'phone' => $phone,
+            ],
+            self::DEMO_PHONES,
+            array_keys(self::DEMO_PHONES),
+        );
+    }
+
+    private static function contactNameByIndex(int $index): string
+    {
+        $names = [
+            'Айгуль Нурланова',
+            'Данияр Сериков',
+            'Асель Кайратова',
+            'Тимур Абдулов',
+            'Мадина Жумабаева',
+            'Руслан Токтаров',
+            'Камила Ержанова',
+            'Нурсултан Омаров',
+            'Жанар Ахметова',
+            'Бауыржан Касымов',
+        ];
+
+        return $names[$index] ?? 'Тестовый клиент';
+    }
+
     /**
      * @return array{chats: int, messages: int}
      */
@@ -32,14 +116,14 @@ final class DemoChatsFactory
         }
 
         $contacts = $this->createContacts($company);
-        $funnel = Funnel::query()
+        $funnel = \App\Models\Funnel::query()
             ->withoutGlobalScope('tenant')
             ->where('company_id', $company->id)
             ->where('name', 'Универсальная продажа')
             ->first();
 
-        $stagesByName = $funnel instanceof Funnel
-            ? FunnelStage::query()
+        $stagesByName = $funnel instanceof \App\Models\Funnel
+            ? \App\Models\FunnelStage::query()
                 ->where('funnel_id', $funnel->id)
                 ->pluck('id', 'name')
             : collect();
@@ -64,6 +148,7 @@ final class DemoChatsFactory
                     'contact_id' => $contact->id,
                     'chat_name' => $contact->name,
                     'is_group' => false,
+                    'is_sandbox' => true,
                     'unread_count' => $scenario['unread'],
                     'is_pinned' => $scenario['is_pinned'],
                     'is_archived' => false,
@@ -78,7 +163,7 @@ final class DemoChatsFactory
             $chat->messages()->delete();
             $chatCount++;
 
-            $baseTime = Carbon::now()->subDays(2)->addMinutes($sIndex * 90);
+            $baseTime = \Carbon\Carbon::now()->subDays(2)->addMinutes($sIndex * 90);
             $cursor = $baseTime->copy();
             $lastText = '';
             $lastAt = $cursor->copy();
@@ -126,21 +211,8 @@ final class DemoChatsFactory
      */
     private function createContacts(Company $company): array
     {
-        $defs = [
-            ['name' => 'Айгуль Нурланова', 'phone' => '+77011234501'],
-            ['name' => 'Данияр Сериков', 'phone' => '+77011234502'],
-            ['name' => 'Асель Кайратова', 'phone' => '+77011234503'],
-            ['name' => 'Тимур Абдулов', 'phone' => '+77011234504'],
-            ['name' => 'Мадина Жумабаева', 'phone' => '+77011234505'],
-            ['name' => 'Руслан Токтаров', 'phone' => '+77011234506'],
-            ['name' => 'Камила Ержанова', 'phone' => '+77011234507'],
-            ['name' => 'Нурсултан Омаров', 'phone' => '+77011234508'],
-            ['name' => 'Жанар Ахметова', 'phone' => '+77011234509'],
-            ['name' => 'Бауыржан Касымов', 'phone' => '+77011234510'],
-        ];
-
         $contacts = [];
-        foreach ($defs as $def) {
+        foreach (self::demoContactDefinitions() as $def) {
             $digits = preg_replace('/\D/', '', $def['phone']);
             $whatsappId = "{$digits}.{$company->id}@c.us";
             $contacts[] = Contact::query()->withoutGlobalScope('tenant')->updateOrCreate(
@@ -153,6 +225,7 @@ final class DemoChatsFactory
                     'name' => $def['name'],
                     'push_name' => $def['name'],
                     'is_business' => false,
+                    'is_sandbox' => true,
                 ],
             );
         }

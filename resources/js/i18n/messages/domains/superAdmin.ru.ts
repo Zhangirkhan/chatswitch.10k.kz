@@ -309,6 +309,12 @@ export const superAdminRu = {
             openTenant: '{slug}.{domain} — открыть',
             populating: 'Загрузка…',
             populateSandbox: 'Заполнить тестовыми данными',
+            clearSandboxData: 'Удалить тестовые данные',
+            clearingSandbox: 'Удаляем…',
+            clearSandboxModalTitle: 'Удалить тестовые данные?',
+            clearSandboxModalDescription:
+                'Будут удалены только чаты, контакты и WhatsApp-сессии, созданные кнопкой «Заполнить тестовыми данными». Реальные переписки и подключённые номера не затрагиваются.',
+            clearSandboxModalConfirm: 'Удалить тестовые',
             impersonating: 'Открываем…',
             impersonate: 'Войти как админ',
             tenantEnabled: 'Тенант включён',

@@ -322,6 +322,7 @@ final class DemoTenantPopulationService
                 'wa_name' => $isDemo ? $def['display_name'] : null,
                 'desired_state' => 'active',
                 'is_active' => true,
+                'is_sandbox' => true,
             ]);
         }
 
