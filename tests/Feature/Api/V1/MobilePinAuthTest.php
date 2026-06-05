@@ -26,9 +26,9 @@ final class MobilePinAuthTest extends TestCase
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole('employee');
-        app(UserPinService::class)->setPin($user, '4829');
+        app(UserPinService::class)->setPin($user, '482901');
 
-        $this->postJson('/api/v1/auth/login/pin', ['pin' => '4829'])
+        $this->postJson('/api/v1/auth/login/pin', ['pin' => '482901'])
             ->assertOk()
             ->assertJsonStructure([
                 'token',
@@ -41,9 +41,9 @@ final class MobilePinAuthTest extends TestCase
     public function test_invalid_pin_returns_validation_error(): void
     {
         $user = User::factory()->create(['is_active' => true]);
-        app(UserPinService::class)->setPin($user, '1111');
+        app(UserPinService::class)->setPin($user, '111111');
 
-        $this->postJson('/api/v1/auth/login/pin', ['pin' => '9999'])
+        $this->postJson('/api/v1/auth/login/pin', ['pin' => '999999'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['pin']);
     }
@@ -51,9 +51,9 @@ final class MobilePinAuthTest extends TestCase
     public function test_pin_login_inactive_user_returns_403(): void
     {
         $user = User::factory()->create(['is_active' => false]);
-        app(UserPinService::class)->setPin($user, '5555');
+        app(UserPinService::class)->setPin($user, '555555');
 
-        $this->postJson('/api/v1/auth/login/pin', ['pin' => '5555'])
+        $this->postJson('/api/v1/auth/login/pin', ['pin' => '555555'])
             ->assertForbidden()
             ->assertJsonFragment(['message' => 'Ваш аккаунт деактивирован.']);
     }

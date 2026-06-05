@@ -29,13 +29,13 @@ final class PinAuthenticationTest extends TestCase
             'is_super_admin' => false,
         ]);
 
-        app(UserPinService::class)->setPin($user, '4829');
+        app(UserPinService::class)->setPin($user, '482901');
 
         $host = 'pin-co.'.config('tenancy.root_domain', 'accel.kz');
         URL::forceRootUrl('https://'.$host);
 
         $response = $this->post('https://'.$host.'/login/pin', [
-            'pin' => '4829',
+            'pin' => '482901',
         ]);
 
         $response->assertRedirect();
@@ -55,12 +55,12 @@ final class PinAuthenticationTest extends TestCase
             'is_active' => true,
         ]);
 
-        app(UserPinService::class)->setPin($user, '1111');
+        app(UserPinService::class)->setPin($user, '111111');
 
         $host = 'pin-bad-co.'.config('tenancy.root_domain', 'accel.kz');
         URL::forceRootUrl('https://'.$host);
 
-        $this->post('https://'.$host.'/login/pin', ['pin' => '9999']);
+        $this->post('https://'.$host.'/login/pin', ['pin' => '999999']);
 
         $this->assertGuest();
     }
@@ -76,10 +76,10 @@ final class PinAuthenticationTest extends TestCase
         $first = User::factory()->create(['company_id' => $company->id]);
         $second = User::factory()->create(['company_id' => $company->id]);
 
-        app(UserPinService::class)->setPin($first, '2468');
+        app(UserPinService::class)->setPin($first, '246810');
 
         $this->expectException(\Illuminate\Validation\ValidationException::class);
 
-        app(UserPinService::class)->setPin($second, '2468');
+        app(UserPinService::class)->setPin($second, '246810');
     }
 }

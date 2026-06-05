@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 
 final class UserPinService
 {
-    public const MIN_LENGTH = 4;
+    public const MIN_LENGTH = 6;
 
     public const MAX_LENGTH = 6;
 
@@ -57,7 +57,7 @@ final class UserPinService
 
         if (! $this->isValidFormat($pin)) {
             throw ValidationException::withMessages([
-                'pin' => 'PIN должен состоять из 4–6 цифр.',
+                'pin' => 'PIN должен состоять из 6 цифр.',
             ]);
         }
 

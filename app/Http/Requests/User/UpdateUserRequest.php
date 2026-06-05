@@ -52,7 +52,7 @@ final class UpdateUserRequest extends FormRequest
             'is_active' => ['boolean'],
             'whatsapp_session_ids' => ['nullable', 'array'],
             'whatsapp_session_ids.*' => ['integer', 'exists:whatsapp_sessions,id'],
-            'pin' => ['nullable', 'string', 'regex:/^\d{4,6}$/'],
+            'pin' => ['nullable', 'string', 'regex:/^\d{6}$/'],
         ];
     }
 }
