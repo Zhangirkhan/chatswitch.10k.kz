@@ -13,7 +13,7 @@ sequenceDiagram
   participant App as Flutter App
   participant API as slug.accel.kz
 
-  Admin->>DB: Назначает PIN сотруднику (4–6 цифр)
+  Admin->>DB: Назначает PIN сотруднику (6 цифр)
   App->>API: POST /api/v1/auth/login/pin {pin}
   API->>DB: Hash::check по всем active users компании
   API-->>App: token, tenant, user (Sanctum)
@@ -21,7 +21,7 @@ sequenceDiagram
 
 | Параметр | Значение |
 |----------|----------|
-| Формат PIN | **4–6 цифр** (`/^\d{4,6}$/`) |
+| Формат PIN | **6 цифр** (`/^\d{6}$/`) |
 | Хранение | `users.pin_hash` — bcrypt (Laravel `hashed` cast) |
 | Область | Один PIN уникален **внутри компании** (тенанта) |
 | Кто может войти | Активный сотрудник (`is_active: true`), не super-admin |
@@ -38,7 +38,7 @@ POST https://{slug}.accel.kz/api/v1/auth/login/pin
 Content-Type: application/json
 Accept: application/json
 
-{"pin": "4829"}
+{"pin": "482901"}
 ```
 
 **Успех (200):** тот же формат, что и email-login:
@@ -72,9 +72,9 @@ Accept: application/json
 | 422 | Неверный PIN, PIN не настроен, неверный формат | `{"errors": {"pin": ["…"]}}` |
 | 403 | Аккаунт деактивирован | `{"message": "Ваш аккаунт деактивирован."}` |
 | 403 | Тенант suspended/canceled | `{"message": "…", "reason": "suspended"}` |
-| 429 | Rate limit (8 попыток / IP + company) | throttle message на поле `pin` |
+| 429 | Rate limit (8 попыток / IP + company, 25 / company) | throttle message на поле `pin` |
 
-Throttle key: `pin|{company_id}|{ip}` — отдельно от email-login.
+Throttle keys: `pin|{company_id}|{ip}` и `pin-company|{company_id}`.
 
 ### Пример curl
 
@@ -82,14 +82,14 @@ Throttle key: `pin|{company_id}|{ip}` — отдельно от email-login.
 curl -s -X POST "https://demo.accel.kz/api/v1/auth/login/pin" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  -d '{"pin":"4829"}' | jq
+  -d '{"pin":"482901"}' | jq
 ```
 
 ## Назначение PIN (веб CRM)
 
 Администратор в `https://{slug}.accel.kz/settings/users`:
 
-- при **создании** или **редактировании** пользователя — поле `pin` (строка 4–6 цифр);
+- при **создании** или **редактировании** пользователя — поле `pin` (строка из 6 цифр);
 - пустая строка — **снять** PIN (`pin_hash = null`);
 - дубликат PIN в той же компании → ошибка валидации: «Этот PIN уже используется другим сотрудником.»
 
@@ -102,7 +102,7 @@ Backend: [`UserPinService`](../../app/Services/Auth/UserPinService.php), [`UserM
 1. После выбора workspace (`slug`) показать переключатель:
    - **Email + пароль** → `POST /api/v1/auth/login`
    - **PIN** → `POST /api/v1/auth/login/pin`
-2. PIN-pad: 4–6 цифр, кнопка «Войти» активна при `length >= 4`.
+2. PIN-pad: 6 цифр, кнопка «Войти» активна при `length === 6`.
 3. Не сохранять PIN в persistent storage — только в памяти на время ввода.
 4. После успеха — сохранить **token** в `flutter_secure_storage` (как при email-login).
 
