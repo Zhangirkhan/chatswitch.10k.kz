@@ -180,7 +180,7 @@ final class ContactController extends Controller
             'companyOptions' => $companyOptions,
             'canManageCompanies' => $user->hasRole('administrator'),
             'canManageContactFields' => $user->hasRole('administrator'),
-            'canClearClientData' => $user->hasAnyRole(['administrator', 'manager']),
+            'canClearClientData' => $user->hasRole('administrator'),
         ]);
     }
 

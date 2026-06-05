@@ -347,14 +347,6 @@ function clearReply() {
     replyTo.value = null;
 }
 
-function onClientCleared(): void {
-    localMessages.value = [];
-    hasMoreMessages.value = false;
-    replyTo.value = null;
-    clearSelection();
-    void router.reload({ only: ['messages', 'chat', 'chats', 'aiStatus', 'sidebarInsights'] });
-}
-
 function openForward(msg: Message) {
     shareMessage.value = msg;
     shareMessageIds.value = null;
@@ -942,7 +934,6 @@ function cleanupEcho() {
                     @close="toggleContactInfo"
                     @open-ai="openAiFromContactPanel"
                     @open-search="() => { contactInfoOpen = false; searchOpen = true; }"
-                    @client-cleared="onClientCleared"
                 />
             </template>
 

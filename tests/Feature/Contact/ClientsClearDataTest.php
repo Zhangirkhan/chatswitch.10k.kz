@@ -114,6 +114,24 @@ final class ClientsClearDataTest extends TestCase
         $this->assertSame(0, Message::query()->where('chat_id', $chat->id)->count());
     }
 
+    public function test_manager_cannot_clear_client_data(): void
+    {
+        $manager = User::factory()->create();
+        $manager->assignRole('manager');
+
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::factory()->create();
+        Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+        ]);
+
+        $this->actingAs($manager)
+            ->post(route('clients.clear', $contact))
+            ->assertForbidden();
+    }
+
     public function test_employee_cannot_clear_client_data(): void
     {
         $employee = User::factory()->create();
