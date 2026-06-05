@@ -8,8 +8,9 @@ import ClientProfileSectionsBlock from '@/Components/Clients/ClientProfileSectio
 import ContactAddFieldModal from '@/Components/Clients/ContactAddFieldModal.vue';
 import ContactFieldPickerModal from '@/Components/Clients/ContactFieldPickerModal.vue';
 import { useContactFieldActions } from '@/composables/useContactFieldActions';
-import { useContactProfile } from '@/composables/useContactProfile';
+import { useContactProfile, invalidateContactProfileCache } from '@/composables/useContactProfile';
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import type { Chat, Message } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { stripWaMarkup } from '@/utils/waMarkup';
@@ -81,11 +82,19 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'open-search'): void;
     (e: 'open-ai'): void;
+    (e: 'client-cleared'): void;
 }>();
 
 const page = usePage<any>();
 const orgTasksEnabled = computed(() => Boolean(page.props.modules?.org_tasks ?? false));
 const isAdmin = computed(() => (page.props.auth?.user?.roles || []).includes('administrator'));
+const canClearClientData = computed(() => {
+    const roles: string[] = page.props.auth?.user?.roles || [];
+    return Boolean(props.chat.contact_id) && (roles.includes('administrator') || roles.includes('manager'));
+});
+
+const clearClientDialogOpen = ref(false);
+const clearingClient = ref(false);
 
 const {
     profile: contactProfile,
@@ -281,6 +290,32 @@ async function createQuickTask(): Promise<void> {
         showToast({ message: e?.response?.data?.message || t('chats.contactInfo.createTaskFailed'), type: 'warning' });
     } finally {
         quickActionLoading.value = null;
+    }
+}
+
+async function confirmClearClient(): Promise<void> {
+    const contactId = props.chat.contact_id;
+    if (!contactId || clearingClient.value) {
+        return;
+    }
+
+    clearingClient.value = true;
+    try {
+        await axios.post(route('clients.clear', contactId));
+        invalidateContactProfileCache(contactId);
+        contactProfile.value = null;
+        await loadContactProfile(contactId, props.chat.id, { force: true });
+        showToast({ message: t('clients.detail.toastClientCleared') });
+        clearClientDialogOpen.value = false;
+        emit('client-cleared');
+    } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } } };
+        showToast({
+            message: err.response?.data?.message || t('clients.detail.toastClientClearError'),
+            type: 'warning',
+        });
+    } finally {
+        clearingClient.value = false;
     }
 }
 
@@ -1084,6 +1119,26 @@ async function saveContactName() {
                             compact
                             class="mt-3"
                         />
+
+                        <section
+                            v-if="canClearClientData"
+                            class="mt-3 rounded-xl border px-3 py-3"
+                            :style="{ borderColor: 'var(--wa-border)', background: 'var(--wa-panel)' }"
+                        >
+                            <div class="text-[11px] font-semibold uppercase tracking-wide" :style="{ color: 'var(--wa-text-secondary)' }">
+                                {{ t('clients.detail.dataActionsTitle') }}
+                            </div>
+                            <p class="mt-1 text-[11px] leading-relaxed" :style="{ color: 'var(--wa-text-secondary)' }">
+                                {{ t('clients.detail.dataActionsHint') }}
+                            </p>
+                            <button
+                                type="button"
+                                class="ui-btn ui-btn--danger-ghost ui-btn--sm mt-2"
+                                @click="clearClientDialogOpen = true"
+                            >
+                                {{ t('clients.detail.clearClient') }}
+                            </button>
+                        </section>
                     </div>
                     <div v-else class="contact-card__muted">{{ t('chats.contactInfo.noCardData') }}</div>
                 </div>
@@ -1394,6 +1449,17 @@ async function saveContactName() {
 
     <ContactFieldPickerModal :open="fieldPickerOpen" @close="fieldPickerOpen = false" @updated="onContactFieldsUpdated" />
     <ContactAddFieldModal :open="addFieldOpen" @close="addFieldOpen = false" @created="onContactFieldsUpdated" />
+
+    <DangerConfirmModal
+        :open="clearClientDialogOpen"
+        :title="t('clients.detail.clearClientTitle')"
+        :description="t('clients.detail.clearClientDescription')"
+        :confirm-label="t('clients.detail.clearClientConfirm')"
+        :busy="clearingClient"
+        confirm-variant="danger"
+        @close="clearClientDialogOpen = false"
+        @confirm="confirmClearClient"
+    />
 </template>
 
 <style scoped>
