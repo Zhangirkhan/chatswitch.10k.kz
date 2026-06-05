@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { shouldCloseModalOnBackdropClick } from './useModalBackdropClose';
 
 describe('shouldCloseModalOnBackdropClick', () => {
-    const backdrop = { id: 'backdrop' };
+    const backdrop = document.createElement('div');
 
     it('closes when pointerdown and click both happen on backdrop', () => {
         expect(
