@@ -11,6 +11,7 @@ import ShareMessageModal, { type ShareModalSource } from '@/Components/ShareMess
 import AiAssistantPanel from './Partials/AiAssistantPanel.vue';
 import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
+import { useLocalSetting } from '@/composables/useLocalSetting';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, onMounted, nextTick, watch, onUnmounted, computed } from 'vue';
 import axios from 'axios';
@@ -18,6 +19,7 @@ import type { AssignableUser, Chat, Department, FunnelCatalogEntry, Message, Mes
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
 import { detectClientLanguage } from '@/utils/messageLanguage';
+import { mergeSidebarChats } from '@/utils/sidebarChatList';
 
 const props = defineProps<{
     chat: Chat;
@@ -264,7 +266,33 @@ const searchQuery = ref('');
 const contactInfoOpen = ref(false);
 const messageInfoOpen = ref(false);
 const messageInfoMessage = ref<Message | null>(null);
-const aiPanelOpen = ref(false);
+const aiPanelPinned = useLocalSetting('chats.aiPanelOpen', false);
+const aiPanelOpen = ref(aiPanelPinned.value);
+
+watch(
+    () => props.chat.id,
+    () => {
+        if (!aiPanelPinned.value) {
+            return;
+        }
+        aiPanelOpen.value = true;
+        contactInfoOpen.value = false;
+        messageInfoOpen.value = false;
+        messageInfoMessage.value = null;
+    },
+);
+
+watch(contactInfoOpen, (open) => {
+    if (!open && aiPanelPinned.value && !messageInfoOpen.value) {
+        aiPanelOpen.value = true;
+    }
+});
+
+watch(messageInfoOpen, (open) => {
+    if (!open && aiPanelPinned.value && !contactInfoOpen.value) {
+        aiPanelOpen.value = true;
+    }
+});
 
 const contactPanelResize = useResizablePanelWidth({
     storageKey: 'chats.contactPanelWidth',
@@ -389,16 +417,19 @@ function toggleContactInfo() {
 function openAiFromContactPanel() {
     contactInfoOpen.value = false;
     aiPanelOpen.value = true;
+    aiPanelPinned.value = true;
 }
 
 function openAiPanel() {
     aiPanelOpen.value = true;
+    aiPanelPinned.value = true;
     contactInfoOpen.value = false;
     messageInfoOpen.value = false;
 }
 
 function closeAiPanel() {
     aiPanelOpen.value = false;
+    aiPanelPinned.value = false;
 }
 
 function openMessageInfo(msg: Message) {
@@ -492,10 +523,7 @@ watch(() => props.messages, (newVal) => {
 });
 
 watch(() => props.chats, (newVal) => {
-    localChats.value = {
-        ...newVal,
-        data: [...newVal.data],
-    };
+    localChats.value = mergeSidebarChats(localChats.value, newVal);
 });
 
 onMounted(() => {
@@ -531,7 +559,7 @@ function markAsRead() {
         axios
             .post(route('chats.mark-read', props.chat.id))
             .then(() => {
-                router.reload({ only: ['unreadChatsCount', 'unreadChatsCountMine', 'chat', 'chats', 'listOwnership', 'mineChatsTotal'] });
+                router.reload({ only: ['unreadChatsCount', 'unreadChatsCountMine', 'chat', 'listOwnership', 'mineChatsTotal'] });
             })
             .catch(() => {});
     }

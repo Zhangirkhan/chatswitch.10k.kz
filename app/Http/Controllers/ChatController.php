@@ -57,6 +57,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -287,6 +288,21 @@ final class ChatController extends Controller
      */
     private function sidebarInsights(Chat $chat): array
     {
+        return Cache::remember(
+            'chat.show.sidebar-insights.'.$chat->id,
+            now()->addSeconds(20),
+            fn (): array => $this->buildSidebarInsights($chat),
+        );
+    }
+
+    /**
+     * @return array{
+     *     events: list<array{id: int, title: string, starts_at: string|null, ends_at: string|null, assignee: string|null, source: string|null}>,
+     *     tasks: list<array{id: int, title: string, body: string|null, status: string, created_at: string|null}>
+     * }
+     */
+    private function buildSidebarInsights(Chat $chat): array
+    {
         $events = CalendarEvent::query()
             ->with('assignee:id,name')
             ->where('chat_id', $chat->id)
@@ -375,6 +391,18 @@ final class ChatController extends Controller
      * @return array<string, mixed>|null
      */
     private function latestAiStatus(Chat $chat, ?User $viewer): ?array
+    {
+        return Cache::remember(
+            'chat.show.ai-status.'.$chat->id.'.'.($viewer?->id ?? 0),
+            now()->addSeconds(20),
+            fn (): ?array => $this->buildLatestAiStatus($chat, $viewer),
+        );
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function buildLatestAiStatus(Chat $chat, ?User $viewer): ?array
     {
         $orchestratorHistory = $this->aiOrchestratorHistory($chat);
         $logs = AiResponseLog::query()

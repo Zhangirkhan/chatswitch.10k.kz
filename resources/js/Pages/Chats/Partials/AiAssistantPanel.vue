@@ -5,8 +5,16 @@ import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
+import {
+    fetchClientSummary,
+    getCachedAutoDraft,
+    getCachedClientSummary,
+    refreshClientSummary,
+    setCachedAutoDraft,
+} from '@/composables/useAiPanelDataCache';
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
+import { useLocalSetting } from '@/composables/useLocalSetting';
 import type { Message } from '@/types';
 
 type AiStatus = {
@@ -90,8 +98,22 @@ const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
 const clearAiDialogOpen = ref(false);
-const activeTab = ref<PanelTab>('assistant');
-const panelMode = ref<PanelMode>('overview');
+const activeTab = useLocalSetting<PanelTab>('chats.aiPanelTab', 'assistant');
+const panelMode = useLocalSetting<PanelMode>('chats.aiPanelMode', 'overview');
+function normalizePanelTab(value: unknown): PanelTab {
+    if (value === 'ai-status' || value === 'draft') {
+        return value;
+    }
+
+    return 'assistant';
+}
+
+function normalizePanelMode(value: unknown): PanelMode {
+    return value === 'chat' ? 'chat' : 'overview';
+}
+
+activeTab.value = normalizePanelTab(activeTab.value);
+panelMode.value = normalizePanelMode(panelMode.value);
 const clientSummary = ref<ClientSummary | null>(null);
 const summaryLoading = ref(false);
 let autoDraftTimer: number | null = null;
@@ -282,14 +304,19 @@ async function loadClientSummary(): Promise<void> {
         return;
     }
 
-    summaryLoading.value = true;
+    const cached = getCachedClientSummary(props.contactId, props.chatId);
+    clientSummary.value = cached;
+    summaryLoading.value = cached === null;
+
     try {
-        const res = await axios.get(route('ai-chat.client-summary', { contact: props.contactId }), {
-            params: { chat_id: props.chatId },
-        });
-        clientSummary.value = (res.data?.client_summary as ClientSummary | null) ?? null;
+        const summary = cached === null
+            ? await fetchClientSummary(props.contactId, props.chatId)
+            : await refreshClientSummary(props.contactId, props.chatId);
+        clientSummary.value = summary;
     } catch {
-        clientSummary.value = null;
+        if (cached === null) {
+            clientSummary.value = null;
+        }
     } finally {
         summaryLoading.value = false;
     }
@@ -346,6 +373,14 @@ function scheduleAutoDraft(): void {
         return;
     }
 
+    const cachedDraft = getCachedAutoDraft(props.chatId, message.id);
+    if (cachedDraft) {
+        autoDraft.value = cachedDraft;
+        autoDraftMessageId.value = message.id;
+        autoDraftError.value = null;
+        return;
+    }
+
     if (autoDraftTimer !== null) {
         window.clearTimeout(autoDraftTimer);
     }
@@ -380,6 +415,7 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
             throw new Error(t('chats.aiAssistant.emptyResponse'));
         }
         autoDraft.value = reply;
+        setCachedAutoDraft(props.chatId, message.id, reply);
     } catch (e: any) {
         autoDraft.value = '';
         autoDraftError.value =
@@ -481,6 +517,9 @@ onMounted(() => {
     window.addEventListener('keydown', onEscape);
     scheduleAutoDraft();
     void loadClientSummary();
+    if (panelMode.value === 'chat') {
+        void scrollToBottom();
+    }
 });
 
 onBeforeUnmount(() => {
@@ -496,9 +535,11 @@ watch(() => props.chatId, () => {
     autoDraft.value = '';
     autoDraftError.value = null;
     autoDraftMessageId.value = null;
-    activeTab.value = 'assistant';
-    panelMode.value = 'overview';
+    loadFromStorage();
     scheduleAutoDraft();
+    if (panelMode.value === 'chat') {
+        void scrollToBottom();
+    }
 });
 watch(() => [props.contactId, props.chatId] as const, () => {
     void loadClientSummary();
@@ -619,7 +660,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 class="ai-panel-tab"
                 :class="{ 'ai-panel-tab--active': activeTab === tab.id }"
                 :aria-selected="activeTab === tab.id"
-                @click="activeTab = tab.id"
+                @click="activeTab = tab.id as PanelTab"
             >
                 {{ tab.label }}
             </button>

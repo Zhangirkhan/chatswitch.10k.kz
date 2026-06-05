@@ -10,8 +10,14 @@ import type { Chat, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
+import { mergeSidebarChatRows } from '@/utils/sidebarChatList';
 import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
+import {
+    CHAT_SHOW_PARTIAL_PROPS,
+    isAiPanelPinned,
+    prefetchClientSummary,
+} from '@/composables/useAiPanelDataCache';
 import axios from 'axios';
 
 const { show: showToast } = useToastStore();
@@ -88,6 +94,11 @@ function scheduleChatListReload(): void {
     const delayMs = listFilter.value === 'attention' ? 5000 : 1200;
     chatListReloadTimer = setTimeout(() => {
         chatListReloadTimer = null;
+        if (props.sidebarLazyLoad) {
+            void fetchFeedPage(1, { replace: true });
+
+            return;
+        }
         router.reload({ only: [...CHAT_LIST_RELOAD_PROPS] });
     }, delayMs);
 }
@@ -136,9 +147,29 @@ const hasMoreChats = computed(() => loadedUntilPage.value < lastPage.value);
 
 watch(
     () => props.chats,
-    (p) => {
-        localChats.value = [...p.data];
+    async (p) => {
         loadedUntilPage.value = p.current_page;
+
+        if (props.sidebarLazyLoad && p.total > p.data.length) {
+            if (localChats.value.length > p.data.length) {
+                localChats.value = mergeSidebarChatRows(localChats.value, p.data, p);
+
+                return;
+            }
+
+            initialSidebarLoading.value = true;
+            try {
+                await fetchFeedPage(1, { replace: true });
+            } catch {
+                /* offline / 419 */
+            } finally {
+                initialSidebarLoading.value = false;
+            }
+
+            return;
+        }
+
+        localChats.value = [...p.data];
     },
 );
 
@@ -551,7 +582,13 @@ function navigateChat(direction: 1 | -1) {
     } else {
         nextIdx = (currentIdx + direction + list.length) % list.length;
     }
-    router.visit(appendChatListOwnership(route('chats.show', list[nextIdx].id), listOwnership.value));
+    router.visit(
+        appendChatListOwnership(route('chats.show', list[nextIdx].id), listOwnership.value),
+        isAiPanelPinned()
+            ? { preserveState: true, only: [...CHAT_SHOW_PARTIAL_PROPS] }
+            : { preserveState: true },
+    );
+    prefetchClientSummary(list[nextIdx].contact_id, list[nextIdx].id);
 }
 
 const offNextChat = onShortcut('next-chat', () => navigateChat(1));
@@ -949,4 +986,99 @@ onBeforeUnmount(() => {
                 :title="t('common.close')"
                 type="button"
             >
-                <svg class="w-4 h-4" fill="none" strok
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Chat list -->
+        <div class="flex-1 overflow-y-auto wa-scrollbar" @scroll.passive="onChatListScroll">
+            <SkeletonBlock
+                v-if="(listNavigating || initialSidebarLoading) && filteredChats.length === 0"
+                :lines="8"
+                wrapper-class="px-4 py-4"
+            />
+            <div
+                v-else-if="filteredChats.length === 0 && !(scope === 'active' && activeSegment === 'staff' && ownershipFilteredChats.length > 0)"
+                class="flex items-center justify-center h-full text-sm text-[var(--wa-text-secondary)] px-6 text-center"
+            >
+                <template v-if="scope === 'archived'">{{ t('chats.archived.emptyList') }}</template>
+                <template v-else>{{ t('chats.sidebar.emptySection') }}</template>
+            </div>
+            <ChatListItem
+                v-for="chat in filteredChats"
+                :key="chat.id"
+                :chat="chat"
+                :is-selected="chat.id === selectedChatId"
+            />
+            <SkeletonBlock v-if="loadingMore || initialSidebarLoading" :lines="4" class="px-3 py-3" />
+        </div>
+
+    </div>
+    </div>
+</template>
+
+<style scoped>
+.wa-icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--wa-icon);
+    transition: background-color 0.15s ease;
+}
+.wa-icon-btn:hover {
+    background-color: var(--wa-panel-hover);
+}
+@keyframes filter-menu-pop {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.archived-link {
+    transition: background-color 0.15s ease;
+}
+.archived-link:hover {
+    background-color: var(--wa-panel-hover);
+}
+.header-menu {
+    animation: filter-menu-pop 0.12s ease-out;
+}
+.banner {
+    background-color: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel-header));
+}
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    width: 100%;
+    font-size: 0.875rem;
+    color: var(--wa-text);
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+}
+.menu-item:hover {
+    background-color: var(--wa-panel-hover);
+}
+.menu-item-icon {
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--wa-icon);
+    flex-shrink: 0;
+}
+.slide-left-enter-active,
+.slide-left-leave-active {
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.slide-left-enter-from {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+.slide-left-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+</style>

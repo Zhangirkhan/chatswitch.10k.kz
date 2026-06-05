@@ -13,6 +13,11 @@ import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import { whatsappSessionRingColor } from '@/utils/whatsappSessionColor';
+import {
+    CHAT_SHOW_PARTIAL_PROPS,
+    isAiPanelPinned,
+    prefetchClientSummary,
+} from '@/composables/useAiPanelDataCache';
 import type { WhatsappSession } from '@/types';
 
 const { show: showToast } = useToastStore();
@@ -40,6 +45,15 @@ const sessionRingColor = computed(() => {
 const chatShowHref = computed(() =>
     appendChatListOwnership(route('chats.show', props.chat.id), page.props.listOwnership as string | undefined),
 );
+
+const partialChatSwitch = computed(
+    () => Boolean(route().current('chats.show')) && isAiPanelPinned(),
+);
+
+function prefetchChat(): void {
+    router.prefetch(chatShowHref.value);
+    prefetchClientSummary(props.chat.contact_id, props.chat.id);
+}
 
 /** Плашки «кто закреплён» — только у администратора и руководителя. */
 const showAssigneeBadges = computed(() => {
@@ -368,7 +382,11 @@ const avatarTitle = computed(
         :href="chatShowHref"
         class="flex items-center px-3 py-[10px] gap-3 cursor-pointer transition group chat-list-item"
         :class="isSelected ? 'is-selected' : ''"
+        prefetch
         preserve-state
+        :only="partialChatSwitch ? [...CHAT_SHOW_PARTIAL_PROPS] : undefined"
+        @mouseenter="prefetchChat"
+        @focus="prefetchChat"
         @contextmenu="openMenu"
     >
         <div class="chat-list-avatar-stack shrink-0">
