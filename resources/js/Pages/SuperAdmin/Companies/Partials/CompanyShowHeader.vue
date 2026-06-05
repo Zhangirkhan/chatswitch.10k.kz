@@ -18,6 +18,7 @@ const props = defineProps<{
     canImpersonate: boolean;
     impersonateBlockedReason?: string | null;
     canPopulateSandbox?: boolean;
+    canDelete?: boolean;
     rootDomain?: string;
     billingSummary: {
         mrr_kzt: number;
@@ -32,6 +33,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     toggle: [];
+    delete: [];
 }>();
 
 const { t } = useI18n();
@@ -127,6 +129,14 @@ function impersonate(): void {
                     @click="impersonate"
                 >
                     {{ impersonating ? t('superAdmin.companies.header.impersonating') : t('superAdmin.companies.header.impersonate') }}
+                </button>
+                <button
+                    v-if="canDelete"
+                    type="button"
+                    class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                    @click="emit('delete')"
+                >
+                    {{ t('superAdmin.companies.header.deleteCompany') }}
                 </button>
             </div>
             <p v-if="!canImpersonate && impersonateBlockedReason" class="mt-1 text-xs text-ui-text-muted">

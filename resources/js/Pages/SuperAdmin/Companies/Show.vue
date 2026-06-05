@@ -128,6 +128,7 @@ const props = defineProps<{
     tenantUrl: string;
     canImpersonate: boolean;
     impersonateBlockedReason?: string | null;
+    canDelete?: boolean;
     canPopulateSandbox?: boolean;
     plans: PlanOption[];
     billing: { trial_days: number; standard_price_label: string };
@@ -236,6 +237,20 @@ function confirmCancelSubscription(): void {
     });
 }
 
+function requestDelete(): void {
+    showDeleteConfirm.value = true;
+}
+
+function confirmDelete(): void {
+    deleting.value = true;
+    router.delete(`/companies/${props.company.id}`, {
+        onFinish: () => {
+            deleting.value = false;
+            showDeleteConfirm.value = false;
+        },
+    });
+}
+
 function formatPrice(cents: number): string {
     return new Intl.NumberFormat('ru-RU').format(Math.round(cents / 100)) + ' ₸';
 }
@@ -285,6 +300,8 @@ const activateMonths = ref(1);
 const showToggleConfirm = ref(false);
 const showActivateConfirm = ref(false);
 const showCancelConfirm = ref(false);
+const showDeleteConfirm = ref(false);
+const deleting = ref(false);
 
 const planForm = useForm({
     plan_id: props.company.plan_id ?? props.plans[0]?.id ?? null,
@@ -314,11 +331,13 @@ function assignPlan(): void {
             :can-impersonate="canImpersonate"
             :impersonate-blocked-reason="impersonateBlockedReason"
             :can-populate-sandbox="canPopulateSandbox"
+            :can-delete="canDelete"
             :billing-summary="billingSummary"
             :trial-info="trialInfo"
             :status-labels="statusLabels"
             :root-domain="rootDomain"
             @toggle="quickToggle"
+            @delete="requestDelete"
         />
 
         <UiPillNav class="mb-6 max-w-5xl flex-wrap">
@@ -649,6 +668,20 @@ function assignPlan(): void {
             :confirm-label="t('superAdmin.companies.show.cancelModalConfirm')"
             @close="showCancelConfirm = false"
             @confirm="confirmCancelSubscription"
+        />
+        <DangerConfirmModal
+            :open="showDeleteConfirm"
+            :title="t('superAdmin.companies.show.deleteModalTitle')"
+            :description="t('superAdmin.companies.show.deleteModalDescription', {
+                name: company.name,
+                slug: company.slug,
+                domain: rootDomain,
+            })"
+            :confirm-label="t('superAdmin.companies.show.deleteModalConfirm')"
+            confirm-variant="danger"
+            :busy="deleting"
+            @close="showDeleteConfirm = false"
+            @confirm="confirmDelete"
         />
     </SuperAdminLayout>
 </template>

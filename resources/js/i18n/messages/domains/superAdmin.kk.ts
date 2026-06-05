@@ -211,6 +211,10 @@ export const superAdminKk = {
             deleteAllModalDescription:
                 'Барлық клиенттік тенанттар жойылады (тізімде {count}). Демо-тенант «{slug}» қалады.',
             deleteAllConfirm: 'Барлығын жою',
+            deleteModalTitle: 'Компанияны жою?',
+            deleteModalDescription:
+                '«{name}» ({slug}) тенанты және оның барлық пайдаланушылары (суперадминдерден басқа) жойылады. Бұл қайтымсыз.',
+            deleteConfirm: 'Жою',
         },
         row: {
             statusTrial: 'сынақ',
@@ -223,6 +227,8 @@ export const superAdminKk = {
             impersonateTitle: 'Тенантқа әкімші ретінде кіру',
             disableTitle: 'Тенантты өшіру',
             enableTitle: 'Тенантты қосу',
+            delete: 'Жою',
+            deleteTitle: 'Компанияны жою',
         },
         show: {
             back: '← Компаниялар',
@@ -294,6 +300,10 @@ export const superAdminKk = {
             cancelModalDescription: 'Тарих сақталады, компания мәртебесі «бас тартылған» болады.',
             cancelModalConfirm: 'Жазылымды бас тарту',
             trialRemaining: '{days} күн қалды ({date} дейін)',
+            deleteModalTitle: 'Компанияны жою?',
+            deleteModalDescription:
+                '«{name}» ({slug}.{domain}) тенанты және оның барлық пайдаланушылары (суперадминдерден басқа) жойылады. Бұл қайтымсыз.',
+            deleteModalConfirm: 'Компанияны жою',
         },
         header: {
             openTenant: '{slug}.{domain} — ашу',
@@ -308,6 +318,7 @@ export const superAdminKk = {
             unpaidInvoices: 'Төленбеген шоттар',
             paymentsSparkline: '6 айлық төлемдер',
             sparklineTooltip: '{label}: {amount} ₸',
+            deleteCompany: 'Компанияны жою',
         },
         modules: {
             title: 'Тенант модульдері',

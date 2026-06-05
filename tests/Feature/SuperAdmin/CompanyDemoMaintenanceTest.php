@@ -94,4 +94,48 @@ final class CompanyDemoMaintenanceTest extends TestCase
         $this->assertDatabaseMissing('companies', ['slug' => 'temp-co']);
         $this->assertDatabaseHas('companies', ['slug' => $demoSlug]);
     }
+
+    public function test_delete_single_company_removes_tenant_and_users(): void
+    {
+        $company = Company::query()->create([
+            'name' => 'Single Co',
+            'slug' => 'single-co',
+            'is_active' => true,
+            'subscription_status' => 'trial',
+        ]);
+
+        User::factory()->create([
+            'company_id' => $company->id,
+            'is_super_admin' => false,
+        ]);
+
+        $admin = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);
+        $host = $this->adminHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $this->actingAs($admin)->delete("https://{$host}/companies/{$company->id}")
+            ->assertRedirect(route('super.companies.index', absolute: false))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('companies', ['slug' => 'single-co']);
+        $this->assertDatabaseMissing('users', ['company_id' => $company->id]);
+    }
+
+    public function test_delete_demo_company_is_forbidden(): void
+    {
+        $demoSlug = config('tenancy.fallback_slug', 'demo');
+
+        $demo = Company::query()->where('slug', $demoSlug)->first();
+        $this->assertNotNull($demo);
+
+        $admin = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);
+        $host = $this->adminHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $this->actingAs($admin)->delete("https://{$host}/companies/{$demo->id}")
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('companies', ['slug' => $demoSlug]);
+    }
 }

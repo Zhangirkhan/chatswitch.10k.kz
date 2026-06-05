@@ -50,7 +50,9 @@ function applyFilters(): void {
 }
 
 const toggleTarget = ref<CompanyIndexRow | null>(null);
+const deleteTarget = ref<CompanyIndexRow | null>(null);
 const showToggleConfirm = ref(false);
+const showDeleteConfirm = ref(false);
 const showSeedConfirm = ref(false);
 const showPopulateDemoConfirm = ref(false);
 const showDeleteAllConfirm = ref(false);
@@ -114,6 +116,26 @@ function deleteAllExceptDemo(): void {
         onFinish: () => {
             bulkBusy.value = false;
             showDeleteAllConfirm.value = false;
+        },
+    });
+}
+
+function requestDelete(c: CompanyIndexRow): void {
+    deleteTarget.value = c;
+    showDeleteConfirm.value = true;
+}
+
+function confirmDelete(): void {
+    const c = deleteTarget.value;
+    if (!c) return;
+
+    bulkBusy.value = true;
+    router.delete(`/companies/${c.id}`, {
+        preserveScroll: true,
+        onFinish: () => {
+            bulkBusy.value = false;
+            showDeleteConfirm.value = false;
+            deleteTarget.value = null;
         },
     });
 }
@@ -271,6 +293,7 @@ function deleteAllExceptDemo(): void {
                         :company="c"
                         :root-domain="rootDomain"
                         @toggle="requestToggle"
+                        @delete="requestDelete"
                     />
                     <tr v-if="companies.data.length === 0">
                         <td colspan="7" class="!py-8 text-center text-ui-text-muted">
@@ -317,6 +340,20 @@ function deleteAllExceptDemo(): void {
             :busy="bulkBusy"
             @close="showSeedConfirm = false"
             @confirm="seedTestData"
+        />
+
+        <DangerConfirmModal
+            :open="showDeleteConfirm"
+            :title="t('superAdmin.companies.index.deleteModalTitle')"
+            :description="t('superAdmin.companies.index.deleteModalDescription', {
+                name: deleteTarget?.name ?? '',
+                slug: deleteTarget?.slug ?? '',
+            })"
+            :confirm-label="t('superAdmin.companies.index.deleteConfirm')"
+            confirm-variant="danger"
+            :busy="bulkBusy"
+            @close="showDeleteConfirm = false"
+            @confirm="confirmDelete"
         />
 
         <DangerConfirmModal

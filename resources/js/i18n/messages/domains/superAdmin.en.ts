@@ -211,6 +211,10 @@ export const superAdminEn = {
             deleteAllModalDescription:
                 'All client tenants will be deleted ({count} in list). Demo tenant «{slug}» will remain.',
             deleteAllConfirm: 'Delete all',
+            deleteModalTitle: 'Delete company?',
+            deleteModalDescription:
+                'Tenant «{name}» ({slug}) and all its users (except super admins) will be deleted. This cannot be undone.',
+            deleteConfirm: 'Delete',
         },
         row: {
             statusTrial: 'trial',
@@ -223,6 +227,8 @@ export const superAdminEn = {
             impersonateTitle: 'Enter tenant as administrator',
             disableTitle: 'Disable tenant',
             enableTitle: 'Enable tenant',
+            delete: 'Delete',
+            deleteTitle: 'Delete company',
         },
         show: {
             back: '← Companies',
@@ -294,6 +300,10 @@ export const superAdminEn = {
             cancelModalDescription: 'History is kept; company status becomes canceled.',
             cancelModalConfirm: 'Cancel subscription',
             trialRemaining: '{days} days left (until {date})',
+            deleteModalTitle: 'Delete company?',
+            deleteModalDescription:
+                'Tenant «{name}» ({slug}.{domain}) and all its users (except super admins) will be deleted. This cannot be undone.',
+            deleteModalConfirm: 'Delete company',
         },
         header: {
             openTenant: '{slug}.{domain} — open',
@@ -308,6 +318,7 @@ export const superAdminEn = {
             unpaidInvoices: 'Unpaid invoices',
             paymentsSparkline: 'Payments (6 mo.)',
             sparklineTooltip: '{label}: {amount} ₸',
+            deleteCompany: 'Delete company',
         },
         modules: {
             title: 'Tenant modules',

@@ -13,6 +13,7 @@ export interface CompanyIndexRow {
     plan?: { name: string } | null;
     can_impersonate?: boolean;
     impersonate_blocked_reason?: string | null;
+    can_delete?: boolean;
 }
 
 defineProps<{
@@ -23,6 +24,7 @@ defineProps<{
 
 const emit = defineEmits<{
     (e: 'toggle', company: CompanyIndexRow): void;
+    (e: 'delete', company: CompanyIndexRow): void;
 }>();
 
 const { t } = useI18n();
@@ -91,16 +93,27 @@ function impersonate(c: CompanyIndexRow, event: Event): void {
             <template v-else>{{ t('superAdmin.common.emDash') }}</template>
         </td>
         <td class="text-right">
-            <button
-                v-if="company.is_active"
-                type="button"
-                class="ui-btn ui-btn--ghost ui-btn--sm"
-                :disabled="!company.can_impersonate"
-                :title="company.impersonate_blocked_reason ?? t('superAdmin.companies.row.impersonateTitle')"
-                @click="impersonate(company, $event)"
-            >
-                {{ t('superAdmin.companies.row.enter') }}
-            </button>
+            <div class="inline-flex items-center gap-1">
+                <button
+                    v-if="company.is_active"
+                    type="button"
+                    class="ui-btn ui-btn--ghost ui-btn--sm"
+                    :disabled="!company.can_impersonate"
+                    :title="company.impersonate_blocked_reason ?? t('superAdmin.companies.row.impersonateTitle')"
+                    @click="impersonate(company, $event)"
+                >
+                    {{ t('superAdmin.companies.row.enter') }}
+                </button>
+                <button
+                    v-if="company.can_delete"
+                    type="button"
+                    class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+                    :title="t('superAdmin.companies.row.deleteTitle')"
+                    @click="emit('delete', company)"
+                >
+                    {{ t('superAdmin.companies.row.delete') }}
+                </button>
+            </div>
         </td>
         <td class="text-right">
             <button

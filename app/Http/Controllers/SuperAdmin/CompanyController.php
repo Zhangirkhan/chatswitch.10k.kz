@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Plan;
 use App\Models\SuperAdminAuditLog;
+use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\Billing\SubscriptionLifecycleService;
 use App\Services\SuperAdmin\CompanyBillingSummaryService;
@@ -94,13 +95,14 @@ final class CompanyController extends Controller
 
         $companies = $query->paginate(20)->withQueryString();
 
-        $companies->getCollection()->transform(fn (Company $company): Company => $this->decorateCompanyForIndex($company));
+        $user = $request->user();
+        $companies->getCollection()->transform(fn (Company $company): Company => $this->decorateCompanyForIndex($company, $user));
 
         $demoCompany = $this->superAdminScope->isGlobalSuperAdmin($request->user())
             ? $this->demoMaintenance->findDemoCompany()
             : null;
         if ($demoCompany !== null) {
-            $demoCompany = $this->decorateCompanyForIndex($demoCompany);
+            $demoCompany = $this->decorateCompanyForIndex($demoCompany, $user);
         }
 
         return Inertia::render('SuperAdmin/Companies/Index', [
@@ -211,6 +213,8 @@ final class CompanyController extends Controller
             'tenantUrl' => $company->tenantUrl('/login'),
             'canImpersonate' => $this->impersonation->canImpersonate($company),
             'impersonateBlockedReason' => $this->impersonation->impersonationBlockedReason($company),
+            'canDelete' => $this->superAdminScope->canManage($request->user(), $company)
+                && ! $this->demoMaintenance->isDemoCompany($company),
             'canPopulateSandbox' => $this->superAdminScope->isSandboxSuperAdmin($request->user())
                 && $this->superAdminScope->canManage($request->user(), $company),
             'plans' => Plan::query()->where('is_active', true)->orderBy('name')->get(),
@@ -353,12 +357,38 @@ final class CompanyController extends Controller
         return back()->with('success', $msg);
     }
 
-    private function decorateCompanyForIndex(Company $company): Company
+    public function destroy(Request $request, Company $company): RedirectResponse
+    {
+        $this->superAdminScope->ensureCanManage($request->user(), $company);
+
+        if ($this->demoMaintenance->isDemoCompany($company)) {
+            return back()->with('error', 'Демо-тенант удалять нельзя.');
+        }
+
+        $name = $company->name;
+
+        try {
+            $this->demoMaintenance->deleteCompany($company, $request->user());
+        } catch (\InvalidArgumentException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('super.companies.index')
+            ->with('success', "Компания «{$name}» удалена.");
+    }
+
+    private function decorateCompanyForIndex(Company $company, User $user): Company
     {
         $company->setAttribute('can_impersonate', $this->impersonation->canImpersonate($company));
         $company->setAttribute(
             'impersonate_blocked_reason',
             $this->impersonation->impersonationBlockedReason($company),
+        );
+        $company->setAttribute(
+            'can_delete',
+            $this->superAdminScope->canManage($user, $company)
+                && ! $this->demoMaintenance->isDemoCompany($company),
         );
 
         return $company;

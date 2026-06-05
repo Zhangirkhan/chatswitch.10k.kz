@@ -47,6 +47,9 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
         ->name('super.companies.modules.update');
     Route::get('/companies/{company}', [CompanyController::class, 'show'])->name('super.companies.show');
     Route::put('/companies/{company}', [CompanyController::class, 'update'])->name('super.companies.update');
+    Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])
+        ->whereNumber('company')
+        ->name('super.companies.destroy');
     Route::patch('/companies/{company}/toggle-active', [CompanyController::class, 'toggleActive'])->name('super.companies.toggle-active');
     Route::post('/companies/{company}/impersonate', [CompanyImpersonationController::class, 'store'])
         ->name('super.companies.impersonate');

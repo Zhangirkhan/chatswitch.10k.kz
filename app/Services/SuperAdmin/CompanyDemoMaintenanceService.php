@@ -122,25 +122,8 @@ final class CompanyDemoMaintenanceService
             $count = 0;
 
             foreach ($companies as $company) {
-                User::query()
-                    ->withoutGlobalScope('tenant')
-                    ->where('company_id', $company->id)
-                    ->where('is_super_admin', false)
-                    ->delete();
-
-                $name = $company->name;
-                $slug = $company->slug;
-                $companyId = $company->id;
-
-                $company->delete();
+                $this->deleteCompanyWithinTransaction($company, $actor, 'bulk_delete');
                 $count++;
-
-                $this->audit->log(null, $actor, 'company.deleted', null, [
-                    'company_id' => $companyId,
-                    'company_name' => $name,
-                    'slug' => $slug,
-                    'source' => 'bulk_delete',
-                ]);
             }
 
             return $count;
@@ -149,6 +132,41 @@ final class CompanyDemoMaintenanceService
         $this->syncNginxKnownTenantsMap();
 
         return $deleted;
+    }
+
+    public function deleteCompany(Company $company, ?User $actor = null): void
+    {
+        if ($this->isDemoCompany($company)) {
+            throw new \InvalidArgumentException('Демо-тенант удалять нельзя.');
+        }
+
+        DB::transaction(function () use ($company, $actor): void {
+            $this->deleteCompanyWithinTransaction($company, $actor, 'single_delete');
+        });
+
+        $this->syncNginxKnownTenantsMap();
+    }
+
+    private function deleteCompanyWithinTransaction(Company $company, ?User $actor, string $source): void
+    {
+        User::query()
+            ->withoutGlobalScope('tenant')
+            ->where('company_id', $company->id)
+            ->where('is_super_admin', false)
+            ->delete();
+
+        $name = $company->name;
+        $slug = $company->slug;
+        $companyId = $company->id;
+
+        $company->delete();
+
+        $this->audit->log(null, $actor, 'company.deleted', null, [
+            'company_id' => $companyId,
+            'company_name' => $name,
+            'slug' => $slug,
+            'source' => $source,
+        ]);
     }
 
     private function syncNginxKnownTenantsMap(): void

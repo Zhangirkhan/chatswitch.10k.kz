@@ -211,6 +211,10 @@ export const superAdminRu = {
             deleteAllModalDescription:
                 'Будут удалены все клиентские тенанты ({count} в списке). Демо-тенант «{slug}» останется.',
             deleteAllConfirm: 'Удалить все',
+            deleteModalTitle: 'Удалить компанию?',
+            deleteModalDescription:
+                'Будут удалены тенант «{name}» ({slug}) и все его пользователи (кроме суперадминов). Действие необратимо.',
+            deleteConfirm: 'Удалить',
         },
         row: {
             statusTrial: 'триал',
@@ -223,6 +227,8 @@ export const superAdminRu = {
             impersonateTitle: 'Войти в тенант как администратор',
             disableTitle: 'Отключить тенанта',
             enableTitle: 'Включить тенанта',
+            delete: 'Удалить',
+            deleteTitle: 'Удалить компанию',
         },
         show: {
             back: '← Компании',
@@ -294,6 +300,10 @@ export const superAdminRu = {
             cancelModalDescription: 'История сохранится, статус компании станет «отменена».',
             cancelModalConfirm: 'Отменить подписку',
             trialRemaining: 'Осталось {days} дн. (до {date})',
+            deleteModalTitle: 'Удалить компанию?',
+            deleteModalDescription:
+                'Будут удалены тенант «{name}» ({slug}.{domain}) и все его пользователи (кроме суперадминов). Действие необратимо.',
+            deleteModalConfirm: 'Удалить компанию',
         },
         header: {
             openTenant: '{slug}.{domain} — открыть',
@@ -308,6 +318,7 @@ export const superAdminRu = {
             unpaidInvoices: 'Неоплаченные счета',
             paymentsSparkline: 'Оплаты за 6 мес.',
             sparklineTooltip: '{label}: {amount} ₸',
+            deleteCompany: 'Удалить компанию',
         },
         modules: {
             title: 'Модули тенанта',
