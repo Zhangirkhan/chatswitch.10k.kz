@@ -32,11 +32,12 @@ use App\Http\Controllers\WhatsappSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
-    Route::get('workspace', [WorkspaceController::class, 'show']);
+    Route::get('workspace', [WorkspaceController::class, 'show'])
+        ->middleware('throttle:workspace-lookup');
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/login/pin', [AuthController::class, 'loginPin']);
 
-    Route::middleware(['auth:sanctum', 'api.active', 'role:administrator,manager,employee'])->group(function (): void {
+    Route::middleware(['auth:sanctum', 'api.active', 'tenant.user', 'role:administrator,manager,employee'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me', [AuthController::class, 'me']);
 

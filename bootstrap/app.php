@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureApiUserActive;
 use App\Http\Middleware\EnsureDocsApiPassword;
 use App\Http\Middleware\EnsureSettingsReadiness;
+use App\Http\Middleware\EnsureUserBelongsToTenant;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureSuperAdminHost;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -63,7 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->domain('{tenant}.'.$rootDomain)
                 ->group(base_path('routes/api-tenant.php'));
 
-            Route::middleware(['api', 'tenant.resolve', 'auth:sanctum', 'api.active'])
+            Route::middleware(['api', 'tenant.resolve', 'auth:sanctum', 'api.active', 'tenant.user'])
                 ->prefix('broadcasting')
                 ->domain('{tenant}.'.$rootDomain)
                 ->group(function (): void {
@@ -94,6 +95,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'whatsapp.webhook' => VerifyWhatsappWebhook::class,
             'whatsapp.service' => RestrictWhatsappServiceAccess::class,
             'api.active' => EnsureApiUserActive::class,
+            'tenant.user' => EnsureUserBelongsToTenant::class,
             'settings.readiness' => EnsureSettingsReadiness::class,
             'tenant.resolve' => ResolveTenant::class,
             'tenant.active' => EnsureActiveCompany::class,
