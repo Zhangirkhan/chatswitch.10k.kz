@@ -50,7 +50,7 @@ return [
     |
     */
 
-    'expiration' => (($raw = env('SANCTUM_EXPIRATION_MINUTES')) === null || $raw === '')
+    'expiration' => (($raw = env('SANCTUM_EXPIRATION_MINUTES', '43200')) === null || $raw === '')
         ? null
         : ((($minutes = (int) $raw) > 0) ? $minutes : null),
 
