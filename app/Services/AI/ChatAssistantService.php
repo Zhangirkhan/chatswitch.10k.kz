@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Support\AssistantReplyVariantParser;
 use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
 use Illuminate\Support\Collection;
@@ -36,6 +37,7 @@ final class ChatAssistantService
         private readonly PromptBuilder $promptBuilder,
         private readonly ProductMessageAttachmentService $productAttachments,
         private readonly LocalePromptAugmenter $localeAugmenter,
+        private readonly AssistantReplyVariantParser $replyVariantParser,
     ) {}
 
     /**
@@ -44,7 +46,7 @@ final class ChatAssistantService
      * @param  string  $userPrompt  Свежее сообщение оператора к AI.
      */
     /**
-     * @return array{reply: string, product: array<string, mixed>|null}
+     * @return array{reply: string, product: array<string, mixed>|null, reply_intro: string|null, reply_variants: list<array{label: string, text: string}>|null}
      */
     public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): array
     {
@@ -90,9 +92,14 @@ final class ChatAssistantService
             }
         }
 
+        $replyText = $parsed['reply'];
+        $variantPayload = $this->replyVariantParser->parse($replyText);
+
         return [
-            'reply' => $parsed['reply'],
+            'reply' => $replyText,
             'product' => $product,
+            'reply_intro' => $variantPayload['intro'] ?? null,
+            'reply_variants' => $variantPayload['variants'] ?? null,
         ];
     }
 

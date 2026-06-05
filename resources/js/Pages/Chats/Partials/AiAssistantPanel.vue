@@ -21,7 +21,7 @@ import {
     type ChatAiPanelTab,
 } from '@/composables/useChatAiPanelPrefs';
 import type { Message } from '@/types';
-import { parseAssistantReplyVariants } from '@/utils/parseAssistantReplyVariants';
+import { parseAssistantReplyVariants, parsedReplyFromApi, type ParsedAssistantReply } from '@/utils/parseAssistantReplyVariants';
 
 type AiStatus = {
     id: number;
@@ -90,6 +90,7 @@ type AiTurn = {
     role: 'user' | 'assistant';
     content: string;
     ts: number;
+    parsedReply?: ParsedAssistantReply | null;
 };
 
 const { t } = useI18n();
@@ -111,9 +112,23 @@ const panelMode = ref<PanelMode>('overview');
 const turnViews = computed(() =>
     turns.value.map((turn) => ({
         ...turn,
-        parsedReply: turn.role === 'assistant' ? parseAssistantReplyVariants(turn.content) : null,
+        parsedReply:
+            turn.role === 'assistant'
+                ? turn.parsedReply ?? parseAssistantReplyVariants(turn.content)
+                : null,
     })),
 );
+
+function buildAssistantTurn(content: string, apiPayload?: { reply_intro?: string | null; reply_variants?: Array<{ label?: string; text?: string }> | null }): AiTurn {
+    const parsedReply = parsedReplyFromApi(apiPayload) ?? parseAssistantReplyVariants(content);
+
+    return {
+        role: 'assistant',
+        content,
+        ts: Date.now(),
+        parsedReply,
+    };
+}
 
 function applyPanelPrefs(chatId: number): void {
     const prefs = getChatAiPanelPrefs(chatId);
@@ -214,11 +229,20 @@ function loadFromStorage(): void {
         }
         turns.value = parsed
             .filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string')
-            .map((t) => ({
-                role: t.role,
-                content: String(t.content),
-                ts: typeof t.ts === 'number' ? t.ts : Date.now(),
-            }));
+            .map((t) => {
+                const turn: AiTurn = {
+                    role: t.role,
+                    content: String(t.content),
+                    ts: typeof t.ts === 'number' ? t.ts : Date.now(),
+                    parsedReply: t.parsedReply ?? null,
+                };
+
+                if (turn.role === 'assistant' && !turn.parsedReply) {
+                    turn.parsedReply = parseAssistantReplyVariants(turn.content);
+                }
+
+                return turn;
+            });
     } catch {
         turns.value = [];
     }
@@ -361,7 +385,7 @@ async function send(prompt?: string): Promise<void> {
         if (reply === '') {
             throw new Error(t('chats.aiAssistant.emptyResponse'));
         }
-        turns.value.push({ role: 'assistant', content: reply, ts: Date.now() });
+        turns.value.push(buildAssistantTurn(reply, res.data));
     } catch (e: any) {
         const msg: string =
             e?.response?.data?.message ||
@@ -951,7 +975,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
 
             <template v-for="(turn, idx) in turnViews" :key="idx">
                 <div
-                    class="max-w-[92%] text-[13.5px] rounded-2xl px-3 py-2 wa-shadow whitespace-pre-wrap break-words leading-[19px]"
+                    class="max-w-[92%] text-[13.5px] rounded-2xl px-3 py-2 wa-shadow break-words leading-[19px]"
                     :class="[
                         turn.role === 'user' ? 'ml-auto rounded-tr-md wa-bubble-surface-out' : 'mr-auto rounded-tl-md wa-bubble-surface-in',
                     ]"
@@ -962,8 +986,8 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             : 'var(--wa-bubble-text-in, var(--wa-bubble-text))',
                     }"
                 >
-                    <template v-if="turn.parsedReply">
-                        <div v-if="turn.parsedReply.intro">
+                    <template v-if="turn.parsedReply && turn.parsedReply.variants.length > 0">
+                        <div v-if="turn.parsedReply.intro" class="mb-2 whitespace-pre-wrap">
                             {{ turn.parsedReply.intro }}
                         </div>
                         <div class="mt-2 flex flex-col gap-1.5">
@@ -981,10 +1005,10 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                             </button>
                         </div>
                     </template>
-                    <div v-else>{{ turn.content }}</div>
+                    <div v-else class="whitespace-pre-wrap">{{ turn.content }}</div>
                     <div class="flex items-center justify-end gap-2 mt-1 text-[10px] opacity-60">
                         <button
-                            v-if="turn.role === 'assistant' && !turn.parsedReply"
+                            v-if="turn.role === 'assistant' && !(turn.parsedReply && turn.parsedReply.variants.length > 0)"
                             type="button"
                             class="hover:underline"
                             :title="t('chats.aiAssistant.copyAnswerTitle')"

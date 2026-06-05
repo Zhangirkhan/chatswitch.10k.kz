@@ -308,6 +308,10 @@ const aiPanelResizing = computed(() => aiPanelResize.isResizing.value);
 
 const replyTo = ref<Message | null>(null);
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
+
+function onUseAiReply(text: string): void {
+    chatInputRef.value?.insertDraft(text);
+}
 const shareOpen = ref(false);
 const shareMessage = ref<Message | null>(null);
 const shareMessageIds = ref<number[] | null>(null);
@@ -958,7 +962,7 @@ function cleanupEcho() {
                     :ai-status="aiStatus"
                     :panel-width="aiPanelWidthPx"
                     @close="closeAiPanel"
-                    @use-reply="chatInputRef?.insertDraft($event)"
+                    @use-reply="onUseAiReply"
                 />
             </template>
 

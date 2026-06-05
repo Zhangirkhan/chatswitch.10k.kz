@@ -71,7 +71,8 @@ final class ChatAiAssistantController extends Controller
         return response()->json([
             'reply' => $result['reply'],
             'product' => $result['product'],
+            'reply_intro' => $result['reply_intro'],
+            'reply_variants' => $result['reply_variants'],
         ]);
     }
-
 }

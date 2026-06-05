@@ -9,8 +9,8 @@ export type ParsedAssistantReply = {
     variants: AssistantReplyVariant[];
 };
 
-const VARIANT_LINE_RE =
-    /^\s*(?:\*{1,2})?\s*(?:вариант|variant|option|нұсқа)\s*(\d+|[a-zа-я])\s*:?\s*(?:\*{1,2})?\s*(.*)$/iu;
+const VARIANT_HEADER_RE =
+    /(?:^|[\n\r]+)\s*(?:[-•*]\s*)?(?:\*{1,2})?\s*(?:вариант|variant|option|нұсқа)\s*(\d+|[a-zа-я])\s*[:—.]?\s*(?:\*{1,2})?\s*/giu;
 
 function stripOuterQuotes(text: string): string {
     let result = text.trim();
@@ -50,31 +50,34 @@ function extractVariantText(raw: string): string {
 }
 
 export function parseAssistantReplyVariants(content: string): ParsedAssistantReply | null {
-    if (!content.trim()) {
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    if (normalized === '') {
         return null;
     }
 
-    const lines = content.split('\n');
+    const matches = [...normalized.matchAll(VARIANT_HEADER_RE)];
+    if (matches.length === 0) {
+        return null;
+    }
+
+    const firstIndex = matches[0].index ?? 0;
+    const intro = normalized.slice(0, firstIndex).trim();
     const variants: AssistantReplyVariant[] = [];
-    const introLines: string[] = [];
-    let seenVariant = false;
 
-    for (const line of lines) {
-        const match = line.match(VARIANT_LINE_RE);
+    for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const start = (match.index ?? 0) + match[0].length;
+        const end = i + 1 < matches.length ? (matches[i + 1].index ?? normalized.length) : normalized.length;
+        const raw = normalized.slice(start, end).trim();
+        const line = raw.split('\n')[0]?.trim() ?? '';
+        const text = extractVariantText(line);
 
-        if (match) {
-            seenVariant = true;
-            const text = extractVariantText(match[2]);
-
-            if (text !== '') {
-                variants.push({
-                    index: variants.length + 1,
-                    label: String(match[1]),
-                    text,
-                });
-            }
-        } else if (!seenVariant) {
-            introLines.push(line);
+        if (text !== '') {
+            variants.push({
+                index: variants.length + 1,
+                label: String(match[1]),
+                text,
+            });
         }
     }
 
@@ -82,8 +85,34 @@ export function parseAssistantReplyVariants(content: string): ParsedAssistantRep
         return null;
     }
 
+    return { intro, variants };
+}
+
+export function parsedReplyFromApi(payload: {
+    reply_intro?: string | null;
+    reply_variants?: Array<{ label?: string; text?: string }> | null;
+} | null | undefined): ParsedAssistantReply | null {
+    const variants = (payload?.reply_variants ?? [])
+        .map((variant, index) => {
+            const text = String(variant.text ?? '').trim();
+            if (text === '') {
+                return null;
+            }
+
+            return {
+                index: index + 1,
+                label: String(variant.label ?? index + 1),
+                text,
+            };
+        })
+        .filter((variant): variant is AssistantReplyVariant => variant !== null);
+
+    if (variants.length === 0) {
+        return null;
+    }
+
     return {
-        intro: introLines.join('\n').trim(),
+        intro: String(payload?.reply_intro ?? '').trim(),
         variants,
     };
 }

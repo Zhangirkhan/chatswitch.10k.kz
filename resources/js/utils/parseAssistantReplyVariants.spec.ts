@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAssistantReplyVariants } from './parseAssistantReplyVariants';
+import { parseAssistantReplyVariants, parsedReplyFromApi } from './parseAssistantReplyVariants';
 
 describe('parseAssistantReplyVariants', () => {
     it('parses Russian variants with guillemets', () => {
@@ -29,5 +29,27 @@ describe('parseAssistantReplyVariants', () => {
 
     it('returns null when no variants are found', () => {
         expect(parseAssistantReplyVariants('Просто текст без вариантов.')).toBeNull();
+    });
+
+    it('parses list-prefixed variants', () => {
+        const content = '- **Вариант 1:** «Hello»\n- **Вариант 2:** «Hi»';
+        const parsed = parseAssistantReplyVariants(content);
+
+        expect(parsed?.variants).toHaveLength(2);
+        expect(parsed?.variants[0].text).toBe('Hello');
+    });
+
+    it('uses API payload when provided', () => {
+        const parsed = parsedReplyFromApi({
+            reply_intro: 'Intro',
+            reply_variants: [
+                { label: '1', text: 'First' },
+                { label: '2', text: 'Second' },
+            ],
+        });
+
+        expect(parsed?.intro).toBe('Intro');
+        expect(parsed?.variants).toHaveLength(2);
+        expect(parsed?.variants[0].text).toBe('First');
     });
 });
