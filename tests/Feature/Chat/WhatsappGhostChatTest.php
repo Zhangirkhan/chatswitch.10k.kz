@@ -76,6 +76,26 @@ final class WhatsappGhostChatTest extends TestCase
         $this->assertFalse(\App\Support\PhoneFormatter::isPlausibleE164($contact->phone_number));
     }
 
+    public function test_lid_inbound_with_empty_sender_author_jid_uses_whatsapp_id_not_lid_digits_as_phone(): void
+    {
+        $existing = \App\Models\Contact::factory()->create([
+            'whatsapp_id' => '33724234223783@lid',
+            'phone_number' => '',
+            'name' => 'Алымжан',
+        ]);
+
+        $contact = app(ChatService::class)->findOrCreateContact([
+            'senderAuthorJid' => '',
+            'from' => '33724234223783@lid',
+            'chatId' => '33724234223783@lid',
+            'senderPhone' => '33724234223783',
+            'senderName' => 'Алымжан',
+        ]);
+
+        $this->assertSame($existing->id, $contact->id);
+        $this->assertSame('33724234223783@lid', $contact->whatsapp_id);
+    }
+
     public function test_archived_feed_excludes_ghost_chats_with_only_service_messages(): void
     {
         $admin = User::factory()->create();

@@ -468,21 +468,26 @@ final class ChatService
     {
         $senderAuthorJid = isset($data['senderAuthorJid']) ? trim((string) $data['senderAuthorJid']) : '';
         $from = isset($data['from']) ? trim((string) $data['from']) : '';
+        $chatId = isset($data['chatId']) ? trim((string) $data['chatId']) : '';
         $senderPhone = isset($data['senderPhone']) ? trim((string) $data['senderPhone']) : '';
         $senderName = isset($data['senderName']) ? trim((string) $data['senderName']) : null;
         $senderName = ($senderName !== '') ? $senderName : null;
 
-        if ($senderPhone !== '' && ! str_ends_with(strtolower($senderAuthorJid), '@lid')) {
+        $isLidSender = str_ends_with(strtolower($senderAuthorJid), '@lid')
+            || str_ends_with(strtolower($from), '@lid')
+            || str_ends_with(strtolower($chatId), '@lid');
+
+        if ($senderPhone !== '' && ! $isLidSender) {
             $digits = preg_replace('/\D/', '', $senderPhone);
 
-            if ($digits !== '') {
+            if ($digits !== '' && PhoneFormatter::isPlausibleE164($digits)) {
                 return $this->findOrCreateContactByPhone($digits, $senderName);
             }
         }
 
         $whatsappId = $senderAuthorJid !== ''
             ? $senderAuthorJid
-            : ($from !== '' ? $from : $senderPhone);
+            : ($from !== '' ? $from : ($chatId !== '' ? $chatId : $senderPhone));
 
         if ($whatsappId === '') {
             throw new \InvalidArgumentException('Inbound contact payload is missing sender identifiers.');
