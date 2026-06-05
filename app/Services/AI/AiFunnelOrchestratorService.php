@@ -11,12 +11,13 @@ use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
-use App\Support\AiSafeErrorMessage;
 use App\Models\User;
-use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\AI\Orchestrator\OrchestratorDynamicReplyBuilder;
+use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Funnel\FunnelStageTransitionGuard;
+use App\Services\Memory\ContactAiContextResetService;
+use App\Support\AiSafeErrorMessage;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -34,6 +35,7 @@ final class AiFunnelOrchestratorService
         private readonly OrchestratorDynamicReplyBuilder $dynamicReplies,
         private readonly ChatIdleAiReplyService $idleAiReply,
         private readonly ConversationAppointmentResolver $conversationAppointments,
+        private readonly ContactAiContextResetService $contactAiContextReset,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -660,6 +662,10 @@ final class AiFunnelOrchestratorService
             return false;
         }
         if ($trigger->direction !== 'inbound' || (int) $trigger->chat_id !== (int) $chat->id) {
+            return false;
+        }
+
+        if ($chat->contact_id !== null && $this->contactAiContextReset->isMessageBeforeReset((int) $chat->contact_id, $trigger)) {
             return false;
         }
 

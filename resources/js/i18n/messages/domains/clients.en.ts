@@ -52,7 +52,7 @@ export const clientsEn = {
         dataActionsHint: 'Clearing AI memory resets memory.md. Clearing a chat removes messages for that WhatsApp number only.',
         clearMemory: 'Clear memory',
         clearMemoryTitle: 'Clear AI memory?',
-        clearMemoryDescription: 'Long-term client memory will reset to the template. AI will forget accumulated facts.',
+        clearMemoryDescription: 'Long-term client memory will reset to the template. AI will forget accumulated facts. Chat messages stay, but AI will not auto-reply to messages sent before the reset. To delete the conversation, use «Clear chat».',
         clearMemoryConfirm: 'Clear memory',
         clearChatFor: 'Clear chat · {label}',
         clearChatTitle: 'Clear chat history?',

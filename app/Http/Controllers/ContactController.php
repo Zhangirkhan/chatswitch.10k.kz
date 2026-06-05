@@ -8,18 +8,21 @@ use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
+use App\Models\ContactFieldDefinition;
 use App\Models\FunnelStage;
 use App\Models\User;
 use App\Services\AI\AiWorkspaceClientSummaryService;
 use App\Services\ChatService;
-use App\Services\Contact\ContactFieldValueService;
 use App\Services\Contact\ClientProfileAiService;
 use App\Services\Contact\ClientProfileAssembler;
 use App\Services\Contact\ClientsListService;
 use App\Services\Contact\ContactBucketResolver;
 use App\Services\Contact\ContactCardAssembler;
+use App\Services\Contact\ContactFieldValueService;
 use App\Services\Contact\ContactListFilterService;
+use App\Services\Memory\ContactAiContextResetService;
 use App\Services\Memory\EntityMemoryService;
+use App\Support\ContactFieldType;
 use App\Support\ContactListFilters;
 use App\Support\NavSectionAccess;
 use App\Support\PhoneFormatter;
@@ -44,6 +47,7 @@ final class ContactController extends Controller
         private readonly ClientsListService $clientsListService,
         private readonly ChatService $chatService,
         private readonly EntityMemoryService $entityMemory,
+        private readonly ContactAiContextResetService $contactAiContextReset,
     ) {}
 
     public function settingsIndex(Request $request): RedirectResponse
@@ -190,6 +194,10 @@ final class ContactController extends Controller
         foreach ($this->contactBucketResolver->bucketIds($contact) as $contactId) {
             $this->entityMemory->clear(EntityMemorySubjectType::Contact, $contactId, $user);
         }
+
+        $this->contactAiContextReset->markContactsReset(
+            $this->contactBucketResolver->bucketIds($contact),
+        );
 
         return response()->json(['success' => true]);
     }
@@ -379,12 +387,12 @@ final class ContactController extends Controller
         $this->authorize('update', $contact);
         abort_unless($request->user()?->hasRole('administrator'), 403);
 
-        $definition = \App\Models\ContactFieldDefinition::query()
+        $definition = ContactFieldDefinition::query()
             ->where('company_id', TenantCompany::id())
             ->whereKey($fieldDefinition)
             ->firstOrFail();
 
-        $rules = $definition->type === \App\Support\ContactFieldType::PHOTO
+        $rules = $definition->type === ContactFieldType::PHOTO
             ? ['file' => ['required', 'file', 'image', 'max:5120']]
             : ['file' => ['required', 'file', 'max:10240']];
 

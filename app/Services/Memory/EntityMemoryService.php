@@ -218,10 +218,14 @@ final class EntityMemoryService
             return;
         }
 
-        $type = $memory->subjectTypeEnum();
-        $backupPath = $this->backupFilePath($type, (int) $memory->subject_id, now()->format('Y-m-d_His'));
-        $disk = (string) config('entity-memory.disk', 'local');
-        Storage::disk($disk)->put($backupPath, $content);
+        try {
+            $type = $memory->subjectTypeEnum();
+            $backupPath = $this->backupFilePath($type, (int) $memory->subject_id, now()->format('Y-m-d_His'));
+            $disk = (string) config('entity-memory.disk', 'local');
+            Storage::disk($disk)->put($backupPath, $content);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function pruneBackups(EntityMemory $memory): void
@@ -245,10 +249,14 @@ final class EntityMemoryService
             return;
         }
 
-        $type = $memory->subjectTypeEnum();
-        $path = $this->memoryFilePath($type, (int) $memory->subject_id);
-        $disk = (string) config('entity-memory.disk', 'local');
-        Storage::disk($disk)->put($path, (string) $memory->content);
+        try {
+            $type = $memory->subjectTypeEnum();
+            $path = $this->memoryFilePath($type, (int) $memory->subject_id);
+            $disk = (string) config('entity-memory.disk', 'local');
+            Storage::disk($disk)->put($path, (string) $memory->content);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     private function readFileIfExists(EntityMemorySubjectType $type, int $subjectId): ?string

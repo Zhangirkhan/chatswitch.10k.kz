@@ -11,6 +11,8 @@ use App\Models\EntityMemory;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use App\Services\AI\ChatIdleAiReplyService;
+use App\Services\Memory\ContactAiContextResetService;
 use App\Services\Memory\EntityMemoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -82,6 +84,43 @@ final class ClientsClearDataTest extends TestCase
         $this->assertSame(0, Message::query()->where('chat_id', $chat->id)->count());
         $chat->refresh();
         $this->assertNull($chat->last_message_at);
+    }
+
+    public function test_clear_memory_blocks_ai_auto_reply_to_old_inbound(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create();
+        $contact = Contact::factory()->create();
+        $chat = Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+            'ai_enabled' => true,
+            'ai_mode' => 'auto',
+        ]);
+
+        $trigger = Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Есть?',
+            'ack' => 'delivered',
+            'message_timestamp' => now()->subHours(2),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('clients.clear-memory', $contact))
+            ->assertOk();
+
+        $idleAiReply = app(ChatIdleAiReplyService::class);
+        $this->assertFalse($idleAiReply->canExecuteReply($chat->fresh(), $trigger->fresh()));
+
+        $this->assertTrue(
+            app(ContactAiContextResetService::class)->isMessageBeforeReset($contact->id, $trigger->fresh()),
+        );
     }
 
     public function test_employee_cannot_clear_client_data(): void

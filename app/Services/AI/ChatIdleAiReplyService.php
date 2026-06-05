@@ -9,6 +9,7 @@ use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
+use App\Services\Memory\ContactAiContextResetService;
 use App\Support\MessageInboundText;
 use Illuminate\Support\Carbon;
 
@@ -21,6 +22,7 @@ final class ChatIdleAiReplyService
 {
     public function __construct(
         private readonly ClientMessageIntentDetector $clientIntents,
+        private readonly ContactAiContextResetService $contactAiContextReset,
     ) {}
 
     public function shouldSkipScheduling(Message $trigger): bool
@@ -63,6 +65,10 @@ final class ChatIdleAiReplyService
         }
 
         if ((int) $trigger->chat_id !== (int) $chat->id) {
+            return false;
+        }
+
+        if ($chat->contact_id !== null && $this->contactAiContextReset->isMessageBeforeReset((int) $chat->contact_id, $trigger)) {
             return false;
         }
 

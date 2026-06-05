@@ -1360,7 +1360,7 @@ defineExpose({ insertDraft });
         <a :href="route('settings.connections')" class="underline font-medium" style="color:var(--wa-accent)">{{ t('chats.input.settingsLink') }}</a>.
     </div>
 
-    <div v-else class="relative shrink-0">
+    <div v-else class="relative shrink-0 min-w-0 w-full max-w-full overflow-hidden">
         <div
             v-if="selectedProduct"
             class="px-4 pt-2 pb-1 flex items-stretch gap-2 border-t"
@@ -1429,6 +1429,7 @@ defineExpose({ insertDraft });
             </div>
         </div>
 
+        <div class="wa-input-footer">
         <div v-if="!recording" class="wa-ai-input-actions">
             <button
                 v-if="showDraftTranslate"
@@ -1665,6 +1666,7 @@ defineExpose({ insertDraft });
                     </svg>
                 </button>
             </template>
+        </div>
         </div>
 
         <!-- Text formatting toolbar (selection) -->
@@ -2157,12 +2159,21 @@ defineExpose({ insertDraft });
 
 
 <style scoped>
+.wa-input-footer {
+    min-width: 0;
+    max-width: 100%;
+    padding: 4px 10px 8px;
+    box-sizing: border-box;
+}
+
 .wa-ai-input-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    margin: 0 14px -4px;
+    margin: 0 0 6px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .wa-ai-input-chip {
@@ -2216,23 +2227,24 @@ defineExpose({ insertDraft });
 
 .wa-input-bar {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    min-height: 56px;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    min-height: 44px;
+    margin: 0;
 
     /* Float on top of chat wallpaper (same pattern as messages). */
     border: 1px solid color-mix(in srgb, var(--wa-control-rim) 72%, transparent);
     box-shadow: var(--wa-control-rim-shadow);
-    border-radius: 24px;
+    border-radius: 20px;
     background: color-mix(in srgb, var(--wa-panel-header) 78%, transparent);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
     backdrop-filter: blur(14px) saturate(1.1);
     -webkit-backdrop-filter: blur(14px) saturate(1.1);
-
-    margin: 10px 12px;
-
-    align-items: flex-end;
 }
 
 .wa-input-attach {
@@ -2243,8 +2255,8 @@ defineExpose({ insertDraft });
 }
 
 .wa-input-btn {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     padding: 0;
     margin: 0;
     flex-shrink: 0;
@@ -2263,15 +2275,16 @@ defineExpose({ insertDraft });
 .wa-input-btn:active { transform: scale(0.96); }
 .wa-input-btn:disabled { opacity: 0.5; }
 .wa-input-btn-active { color: var(--wa-accent); }
-.wa-input-btn svg { display: block; }
+.wa-input-btn svg { display: block; width: 20px; height: 20px; }
 
 .wa-input-pill {
     position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
-    min-height: 36px;
-    padding: 0 8px;
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 6px;
     border-radius: 9999px;
     background: transparent;
     box-shadow: none;
@@ -2282,12 +2295,12 @@ defineExpose({ insertDraft });
     min-width: 0;
     display: block;
     margin: 0;
-    padding: 10px 4px;
+    padding: 6px 2px;
     border: 0;
     background: transparent;
     color: var(--wa-text);
-    font-size: 15px;
-    line-height: 22px;
+    font-size: 14px;
+    line-height: 20px;
     max-height: 120px;
     overflow-y: auto;
     caret-color: var(--wa-accent);
