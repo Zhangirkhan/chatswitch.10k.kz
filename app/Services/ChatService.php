@@ -304,7 +304,30 @@ final class ChatService
             $chat->update(['contact_id' => $contactId]);
         }
 
+        $this->inheritContactClearCutoff($chat, $contactId);
+
         return $chat;
+    }
+
+    private function inheritContactClearCutoff(Chat $chat, ?int $contactId): void
+    {
+        if ($contactId === null || $chat->messages_cleared_at !== null) {
+            return;
+        }
+
+        $contactClearedAt = Contact::query()->whereKey($contactId)->value('messages_cleared_at');
+        if ($contactClearedAt === null) {
+            return;
+        }
+
+        $chat->forceFill([
+            'messages_cleared_at' => $contactClearedAt,
+            'last_message_text' => null,
+            'last_message_at' => null,
+            'last_message_direction' => null,
+            'last_message_is_ai' => false,
+            'unread_count' => 0,
+        ])->save();
     }
 
     public function findOrCreateChatForContact(Contact $contact, WhatsappSession $session): Chat
@@ -353,6 +376,8 @@ final class ChatService
                 $existing->update(['contact_id' => $contact->id]);
             }
 
+            $this->inheritContactClearCutoff($existing, $contact->id);
+
             return $existing;
         }
 
@@ -381,6 +406,8 @@ final class ChatService
         if ($chat->wasRecentlyCreated === false && $chat->last_message_at === null) {
             $chat->update(['last_message_at' => now()]);
         }
+
+        $this->inheritContactClearCutoff($chat, $contact->id);
 
         return $chat;
     }
@@ -806,7 +833,7 @@ final class ChatService
      */
     public function shouldSkipInboundAfterClear(Chat $chat, array $data): bool
     {
-        $clearedAt = $chat->messages_cleared_at;
+        $clearedAt = $this->resolveInboundClearCutoff($chat);
         if ($clearedAt === null) {
             return false;
         }
@@ -817,6 +844,24 @@ final class ChatService
             : now();
 
         return $messageAt->lte($clearedAt);
+    }
+
+    public function resolveInboundClearCutoff(Chat $chat): ?\Illuminate\Support\Carbon
+    {
+        $cutoffs = array_filter([
+            $chat->messages_cleared_at,
+            $chat->relationLoaded('contact')
+                ? $chat->contact?->messages_cleared_at
+                : ($chat->contact_id !== null
+                    ? Contact::query()->whereKey($chat->contact_id)->value('messages_cleared_at')
+                    : null),
+        ]);
+
+        if ($cutoffs === []) {
+            return null;
+        }
+
+        return collect($cutoffs)->max();
     }
 
     /**
@@ -1097,6 +1142,15 @@ final class ChatService
             ->chunkById(100, function ($chats) use (&$deletedChats): void {
                 foreach ($chats as $chat) {
                     $this->refreshChatLastMessageSnapshot($chat);
+
+                    if ($chat->messages_cleared_at !== null) {
+                        continue;
+                    }
+
+                    if ($chat->contact_id !== null
+                        && Contact::query()->whereKey($chat->contact_id)->whereNotNull('messages_cleared_at')->exists()) {
+                        continue;
+                    }
 
                     if ($this->chatHasRealConversation($chat)) {
                         continue;

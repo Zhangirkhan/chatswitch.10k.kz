@@ -100,6 +100,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 
             $message = $chatService->storeInboundMessage($chat, $session, $this->data);
             if ($message === null) {
+                $chatService->refreshChatLastMessageSnapshot($chat);
                 Log::info('[whatsapp-inbound] skipped message before chat clear cutoff', [
                     'chat_id' => $chatId,
                     'message_id' => $this->data['messageId'] ?? null,

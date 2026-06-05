@@ -78,6 +78,8 @@ final class ChatClearBlocksWhatsappResyncTest extends TestCase
 
         $chat->refresh();
         $this->assertNotNull($chat->messages_cleared_at);
+        $contact->refresh();
+        $this->assertNotNull($contact->messages_cleared_at);
         $this->assertNull(Message::query()->where('whatsapp_message_id', 'wa-msg-old-1')->first());
 
         $resyncJob = new ProcessWhatsappInboundJob($payload);
@@ -137,5 +139,87 @@ final class ChatClearBlocksWhatsappResyncTest extends TestCase
         $this->assertFalse($service->shouldSkipInboundAfterClear($chat, [
             'timestamp' => now()->addMinute()->getTimestamp(),
         ]));
+    }
+
+    public function test_prune_does_not_delete_cleared_client_chat(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create(['session_name' => 'default']);
+        $contact = Contact::factory()->create();
+        $chat = Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '77001112233@c.us',
+            'is_group' => false,
+        ]);
+
+        $this->actingAs($admin)->post(route('clients.clear', $contact))->assertOk();
+
+        $chat->refresh();
+        $this->assertNotNull($chat->messages_cleared_at);
+
+        $this->artisan('chats:prune-ghost-whatsapp')->assertSuccessful();
+
+        $this->assertDatabaseHas('chats', ['id' => $chat->id]);
+    }
+
+    public function test_resync_after_prune_still_blocked_when_contact_was_cleared(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create(['session_name' => 'default']);
+        $contact = Contact::factory()->create([
+            'whatsapp_id' => '33724234223783@lid',
+        ]);
+        $chat = Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '33724234223783@lid',
+            'is_group' => false,
+            'ai_enabled' => false,
+            'funnel_tracking_enabled' => false,
+        ]);
+
+        $oldTimestamp = now()->subHours(2)->getTimestamp();
+        $payload = [
+            'session' => 'default',
+            'chatId' => '33724234223783@lid',
+            'chatName' => 'Алымжан',
+            'from' => '33724234223783@lid',
+            'senderAuthorJid' => '33724234223783@lid',
+            'body' => 'Есть?',
+            'isGroup' => false,
+            'timestamp' => $oldTimestamp,
+            'messageId' => 'wa-msg-resync-1',
+            'type' => 'chat',
+        ];
+
+        $this->app->call([new ProcessWhatsappInboundJob($payload), 'handle']);
+        $this->assertNotNull(Message::query()->where('whatsapp_message_id', 'wa-msg-resync-1')->first());
+
+        $this->actingAs($admin)->post(route('clients.clear', $contact))->assertOk();
+
+        $this->artisan('chats:prune-ghost-whatsapp')->assertSuccessful();
+        $this->assertDatabaseHas('chats', ['id' => $chat->id]);
+
+        // Симулируем старый баг: чат удалили, но cutoff остался на контакте.
+        $chat->delete();
+
+        $resyncJob = new ProcessWhatsappInboundJob($payload);
+        $this->app->call([$resyncJob, 'handle']);
+
+        $this->assertNull(Message::query()->where('whatsapp_message_id', 'wa-msg-resync-1')->first());
+
+        $recreated = Chat::query()
+            ->where('whatsapp_chat_id', '33724234223783@lid')
+            ->where('whatsapp_session_id', $session->id)
+            ->first();
+
+        $this->assertNotNull($recreated);
+        $this->assertNotNull($recreated->messages_cleared_at);
+        $this->assertNull($recreated->last_message_at);
     }
 }

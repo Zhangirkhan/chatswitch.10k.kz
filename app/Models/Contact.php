@@ -23,12 +23,14 @@ final class Contact extends Model
         'push_name',
         'profile_picture_url',
         'is_business',
+        'messages_cleared_at',
     ];
 
     protected function casts(): array
     {
         return [
             'is_business' => 'boolean',
+            'messages_cleared_at' => 'datetime',
         ];
     }
 

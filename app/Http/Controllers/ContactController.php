@@ -227,6 +227,10 @@ final class ContactController extends Controller
             $clearedChatIds[] = (int) $chat->id;
         }
 
+        Contact::query()
+            ->whereIn('id', $bucketIds)
+            ->update(['messages_cleared_at' => now()]);
+
         return $clearedChatIds;
     }
 
