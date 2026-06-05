@@ -51,9 +51,7 @@ const editingName = ref('');
 const saving = ref(false);
 const fieldPickerOpen = ref(false);
 const addFieldOpen = ref(false);
-const clearMemoryDialogOpen = ref(false);
-const clearChatDialogOpen = ref(false);
-const clearChatTarget = ref<ClientListItem['channels'][number] | null>(null);
+const clearClientDialogOpen = ref(false);
 const clearing = ref(false);
 
 const displayName = computed(() => {
@@ -169,47 +167,22 @@ function clearCustomField(field: ClientProfileField): void {
     void fieldActions.clearField(field);
 }
 
-async function confirmClearMemory(): Promise<void> {
+async function confirmClearClient(): Promise<void> {
     if (!props.client || clearing.value) {
         return;
     }
     clearing.value = true;
     try {
-        await axios.post(route('clients.clear-memory', props.client.id));
+        await axios.post(route('clients.clear', props.client.id));
         invalidateContactProfileCache(props.client.id);
         summary.value = null;
         await loadProfile(props.client.id, props.client.primary_chat_id, { force: true });
         await loadSummary(props.client.id, props.client.primary_chat_id);
-        showToast({ message: t('clients.detail.toastMemoryCleared') });
-        clearMemoryDialogOpen.value = false;
+        showToast({ message: t('clients.detail.toastClientCleared') });
+        clearClientDialogOpen.value = false;
     } catch (e: unknown) {
         const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err.response?.data?.message || t('clients.detail.toastMemoryClearError') });
-    } finally {
-        clearing.value = false;
-    }
-}
-
-function openClearChatDialog(channel: ClientListItem['channels'][number]): void {
-    clearChatTarget.value = channel;
-    clearChatDialogOpen.value = true;
-}
-
-async function confirmClearChat(): Promise<void> {
-    const client = props.client;
-    const channel = clearChatTarget.value;
-    if (!client || !channel || clearing.value) {
-        return;
-    }
-    clearing.value = true;
-    try {
-        await axios.post(route('clients.clear-chat', { contact: client.id, chat: channel.chat_id }));
-        clearChatDialogOpen.value = false;
-        clearChatTarget.value = null;
-        showToast({ message: t('clients.detail.toastChatCleared') });
-    } catch (e: unknown) {
-        const err = e as { response?: { data?: { message?: string } } };
-        showToast({ message: err.response?.data?.message || t('clients.detail.toastChatClearError') });
+        showToast({ message: err.response?.data?.message || t('clients.detail.toastClientClearError') });
     } finally {
         clearing.value = false;
     }
@@ -322,22 +295,13 @@ async function confirmClearChat(): Promise<void> {
                         <p class="mt-1 text-xs leading-relaxed opacity-70">
                             {{ t('clients.detail.dataActionsHint') }}
                         </p>
-                        <div class="mt-3 flex flex-wrap gap-2">
+                        <div class="mt-3">
                             <button
                                 type="button"
                                 class="ui-btn ui-btn--danger-ghost ui-btn--sm"
-                                @click="clearMemoryDialogOpen = true"
+                                @click="clearClientDialogOpen = true"
                             >
-                                {{ t('clients.detail.clearMemory') }}
-                            </button>
-                            <button
-                                v-for="channel in client.channels"
-                                :key="channel.chat_id"
-                                type="button"
-                                class="ui-btn ui-btn--danger-ghost ui-btn--sm"
-                                @click="openClearChatDialog(channel)"
-                            >
-                                {{ t('clients.detail.clearChatFor', { label: channel.session_label || channel.chat_name || `#${channel.chat_id}` }) }}
+                                {{ t('clients.detail.clearClient') }}
                             </button>
                         </div>
                     </section>
@@ -383,25 +347,14 @@ async function confirmClearChat(): Promise<void> {
         />
 
         <DangerConfirmModal
-            :open="clearMemoryDialogOpen"
-            :title="t('clients.detail.clearMemoryTitle')"
-            :description="t('clients.detail.clearMemoryDescription')"
-            :confirm-label="t('clients.detail.clearMemoryConfirm')"
+            :open="clearClientDialogOpen"
+            :title="t('clients.detail.clearClientTitle')"
+            :description="t('clients.detail.clearClientDescription')"
+            :confirm-label="t('clients.detail.clearClientConfirm')"
             :busy="clearing"
             confirm-variant="danger"
-            @close="clearMemoryDialogOpen = false"
-            @confirm="confirmClearMemory"
-        />
-
-        <DangerConfirmModal
-            :open="clearChatDialogOpen"
-            :title="t('clients.detail.clearChatTitle')"
-            :description="t('clients.detail.clearChatDescription', { label: clearChatTarget?.session_label || clearChatTarget?.chat_name || '' })"
-            :confirm-label="t('clients.detail.clearChatConfirm')"
-            :busy="clearing"
-            confirm-variant="danger"
-            @close="clearChatDialogOpen = false"
-            @confirm="confirmClearChat"
+            @close="clearClientDialogOpen = false"
+            @confirm="confirmClearClient"
         />
     </teleport>
 </template>

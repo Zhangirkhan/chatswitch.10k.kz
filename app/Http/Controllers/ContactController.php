@@ -184,36 +184,50 @@ final class ContactController extends Controller
         ]);
     }
 
-    public function clearClientMemory(Request $request, Contact $contact): JsonResponse
+    public function clearClient(Request $request, Contact $contact): JsonResponse
     {
         $this->authorize('clearData', $contact);
 
         $user = $request->user();
         abort_unless($user, 403);
 
-        foreach ($this->contactBucketResolver->bucketIds($contact) as $contactId) {
-            $this->entityMemory->clear(EntityMemorySubjectType::Contact, $contactId, $user);
-        }
-
-        $this->contactAiContextReset->markContactsReset(
-            $this->contactBucketResolver->bucketIds($contact),
-        );
+        $this->resetClientMemory($contact, $user);
+        $this->clearClientChats($contact);
 
         return response()->json(['success' => true]);
     }
 
-    public function clearClientChat(Request $request, Contact $contact, Chat $chat): JsonResponse
+    private function resetClientMemory(Contact $contact, User $user): void
     {
-        $this->authorize('clearData', $contact);
-        abort_if($chat->is_group, 422, 'Нельзя очистить групповой чат из карточки клиента.');
-
         $bucketIds = $this->contactBucketResolver->bucketIds($contact);
-        abort_unless(in_array((int) $chat->contact_id, $bucketIds, true), 404);
 
-        $this->authorize('manage', $chat);
-        $this->chatService->clearChatMessages($chat);
+        foreach ($bucketIds as $contactId) {
+            $this->entityMemory->clear(EntityMemorySubjectType::Contact, $contactId, $user);
+        }
 
-        return response()->json(['success' => true]);
+        $this->contactAiContextReset->markContactsReset($bucketIds);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function clearClientChats(Contact $contact): array
+    {
+        $bucketIds = $this->contactBucketResolver->bucketIds($contact);
+        $clearedChatIds = [];
+
+        $chats = Chat::query()
+            ->whereIn('contact_id', $bucketIds)
+            ->where('is_group', false)
+            ->get();
+
+        foreach ($chats as $chat) {
+            $this->authorize('manage', $chat);
+            $this->chatService->clearChatMessages($chat);
+            $clearedChatIds[] = (int) $chat->id;
+        }
+
+        return $clearedChatIds;
     }
 
     public function clientProfile(Request $request, Contact $contact): JsonResponse

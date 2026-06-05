@@ -94,10 +94,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/clients/{contact}/summary', [ContactController::class, 'clientSummary'])
             ->middleware('throttle:30,1')
             ->name('clients.summary');
-        Route::post('/clients/{contact}/clear-memory', [ContactController::class, 'clearClientMemory'])
-            ->name('clients.clear-memory');
-        Route::post('/clients/{contact}/chats/{chat}/clear', [ContactController::class, 'clearClientChat'])
-            ->name('clients.clear-chat');
+        Route::post('/clients/{contact}/clear', [ContactController::class, 'clearClient'])
+            ->name('clients.clear');
 
         Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
         Route::get('/chats/feed', [ChatController::class, 'feed'])->name('chats.feed');

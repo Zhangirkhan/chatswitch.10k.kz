@@ -11,7 +11,6 @@ use App\Models\EntityMemory;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
-use App\Services\AI\ChatIdleAiReplyService;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Services\Memory\EntityMemoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,7 +30,7 @@ final class ClientsClearDataTest extends TestCase
         }
     }
 
-    public function test_administrator_can_clear_client_memory_and_chat_from_clients_hub(): void
+    public function test_administrator_can_clear_client_memory_and_chats_from_clients_hub(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
@@ -63,7 +62,7 @@ final class ClientsClearDataTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->post(route('clients.clear-memory', $contact))
+            ->post(route('clients.clear', $contact))
             ->assertOk()
             ->assertJson(['success' => true]);
 
@@ -76,17 +75,12 @@ final class ClientsClearDataTest extends TestCase
         $this->assertStringContainsString('Клиент', (string) $memory->content);
         $this->assertStringNotContainsString('рассрочкой', (string) $memory->content);
 
-        $this->actingAs($admin)
-            ->post(route('clients.clear-chat', ['contact' => $contact, 'chat' => $chat]))
-            ->assertOk()
-            ->assertJson(['success' => true]);
-
         $this->assertSame(0, Message::query()->where('chat_id', $chat->id)->count());
         $chat->refresh();
         $this->assertNull($chat->last_message_at);
     }
 
-    public function test_clear_memory_blocks_ai_auto_reply_to_old_inbound(): void
+    public function test_clear_client_marks_ai_context_reset(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
@@ -101,7 +95,7 @@ final class ClientsClearDataTest extends TestCase
             'ai_mode' => 'auto',
         ]);
 
-        $trigger = Message::create([
+        Message::create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
             'direction' => 'inbound',
@@ -112,15 +106,12 @@ final class ClientsClearDataTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->post(route('clients.clear-memory', $contact))
+            ->post(route('clients.clear', $contact))
             ->assertOk();
 
-        $idleAiReply = app(ChatIdleAiReplyService::class);
-        $this->assertFalse($idleAiReply->canExecuteReply($chat->fresh(), $trigger->fresh()));
-
-        $this->assertTrue(
-            app(ContactAiContextResetService::class)->isMessageBeforeReset($contact->id, $trigger->fresh()),
-        );
+        $resetService = app(ContactAiContextResetService::class);
+        $this->assertNotNull($resetService->resetAt($contact->id));
+        $this->assertSame(0, Message::query()->where('chat_id', $chat->id)->count());
     }
 
     public function test_employee_cannot_clear_client_data(): void
@@ -130,18 +121,14 @@ final class ClientsClearDataTest extends TestCase
 
         $session = WhatsappSession::factory()->create();
         $contact = Contact::factory()->create();
-        $chat = Chat::factory()->create([
+        Chat::factory()->create([
             'contact_id' => $contact->id,
             'whatsapp_session_id' => $session->id,
             'is_group' => false,
         ]);
 
         $this->actingAs($employee)
-            ->post(route('clients.clear-memory', $contact))
-            ->assertForbidden();
-
-        $this->actingAs($employee)
-            ->post(route('clients.clear-chat', ['contact' => $contact, 'chat' => $chat]))
+            ->post(route('clients.clear', $contact))
             ->assertForbidden();
     }
 }
