@@ -64,6 +64,10 @@ export interface MessageCatalog {
             connecting: string;
             disconnected: string;
         };
+        qrRequiredBanner: string;
+        qrRequiredToast: string;
+        openConnections: string;
+        qrPendingTooltip: string;
     };
     settings: {
         chats: {

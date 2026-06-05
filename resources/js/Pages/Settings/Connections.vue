@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import Avatar from '@/Components/Avatar.vue';
@@ -12,6 +12,7 @@ import {
     normalizeHexColor,
     whatsappSessionRingColor,
 } from '@/utils/whatsappSessionColor';
+import { whatsappStatusChannel as buildWhatsappStatusChannel } from '@/utils/tenantChannels';
 
 type SessionStatus = WhatsappSession['status'];
 
@@ -53,6 +54,8 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const page = usePage<any>();
+const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
 
 const localSessions = ref<WhatsappSession[]>([...props.sessions]);
 const whatsappServiceReachable = ref<boolean | null>(props.whatsappServiceReachable);
@@ -66,6 +69,52 @@ const qrBySessionId = ref<Record<number, string>>({});
 const qrUpdatedAtBySessionId = ref<Record<number, string>>({});
 const message = ref<string | null>(null);
 let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let whatsappStatusChannel: any = null;
+
+function onWhatsappStatusChanged(raw: unknown): void {
+    if (!raw || typeof raw !== 'object') return;
+
+    const payload = raw as Record<string, unknown>;
+    const sessionName = typeof payload.session === 'string' ? payload.session : null;
+    const status = typeof payload.status === 'string' ? payload.status : null;
+    if (!sessionName || !status) return;
+
+    const allowed: SessionStatus[] = ['disconnected', 'connecting', 'qr_pending', 'connected'];
+    if (!allowed.includes(status as SessionStatus)) return;
+
+    const index = localSessions.value.findIndex((s) => s.session_name === sessionName);
+    if (index === -1) return;
+
+    localSessions.value[index] = {
+        ...localSessions.value[index],
+        status: status as SessionStatus,
+    };
+
+    if (status === 'qr_pending' || status === 'connecting') {
+        void loadQr(localSessions.value[index], { silent: true });
+    }
+}
+
+function setupWhatsappStatusEcho(): void {
+    const Echo = (window as any).Echo;
+    if (!Echo) return;
+
+    try {
+        whatsappStatusChannel = Echo.private(buildWhatsappStatusChannel(tenantCompanyId.value));
+        whatsappStatusChannel.listen('.status.changed', onWhatsappStatusChanged);
+    } catch {
+        whatsappStatusChannel = null;
+    }
+}
+
+function teardownWhatsappStatusEcho(): void {
+    try {
+        whatsappStatusChannel?.stopListening('.status.changed', onWhatsappStatusChanged);
+    } catch {
+        /* ignore */
+    }
+    whatsappStatusChannel = null;
+}
 
 const hasSessions = computed(() => localSessions.value.length > 0);
 const hasMultipleSessions = computed(() => localSessions.value.length > 1);
@@ -108,12 +157,14 @@ onMounted(async () => {
 
     refreshVisibleQrCodes();
     qrRefreshTimer = setInterval(refreshVisibleQrCodes, 15000);
+    setupWhatsappStatusEcho();
 });
 
 onBeforeUnmount(() => {
     if (qrRefreshTimer !== null) {
         clearInterval(qrRefreshTimer);
     }
+    teardownWhatsappStatusEcho();
 });
 
 const statusLabels = computed<Record<SessionStatus, string>>(() => ({
@@ -706,6 +757,19 @@ async function reloadPage(): Promise<void> {
                         >
                             {{ t('settings.connectionsExtras.editNameAndColor') }}
                         </button>
+                    </div>
+
+                    <div
+                        v-if="session.status === 'qr_pending'"
+                        class="ui-alert ui-alert--warn text-sm leading-relaxed"
+                    >
+                        {{ t('settings.connectionsExtras.qrRequiredAlert') }}
+                        <p v-if="session.last_disconnect_reason" class="mt-1 text-xs opacity-90">
+                            {{ t('settings.connectionsExtras.disconnectReason') }}: {{ session.last_disconnect_reason }}
+                        </p>
+                        <p v-if="session.qr_required_at" class="mt-1 text-xs opacity-90">
+                            {{ t('settings.connectionsExtras.qrRequiredSince') }}: {{ formatDateTime(session.qr_required_at) }}
+                        </p>
                     </div>
 
                     <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">

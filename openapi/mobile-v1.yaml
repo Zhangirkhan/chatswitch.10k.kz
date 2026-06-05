@@ -211,6 +211,28 @@ paths:
         "403":
           description: Нет роли / деактивирован
 
+  /api/v1/whatsapp/sessions:
+    get:
+      tags: [Settings]
+      summary: WhatsApp-подключения (bootstrap)
+      operationId: whatsappSessionsBootstrap
+      description: |
+        Список сессий тенанта с актуальными статусами и подсказками для UI.
+        При доступном whatsapp-service выполняется reconcile с Node.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhatsappSessionsBootstrapResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет роли / деактивирован
+
   /api/v1/chats:
     get:
       tags: [Chats]
@@ -1088,6 +1110,39 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Department"
+
+    WhatsappSession:
+      type: object
+      required: [id, session_name, status]
+      properties:
+        id: { type: integer }
+        session_name: { type: string }
+        display_name: { type: string, nullable: true }
+        phone_number: { type: string, nullable: true }
+        wa_name: { type: string, nullable: true }
+        wa_platform: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [disconnected, connecting, qr_pending, connected]
+        is_active: { type: boolean }
+        connected_at: { type: string, format: date-time, nullable: true }
+        disconnected_at: { type: string, format: date-time, nullable: true }
+        last_disconnect_reason: { type: string, nullable: true }
+        last_auth_failure_message: { type: string, nullable: true }
+        qr_required_at: { type: string, format: date-time, nullable: true }
+        status_hint: { type: string, nullable: true }
+
+    WhatsappSessionsBootstrapResponse:
+      type: object
+      required: [whatsappServiceReachable, sessions]
+      properties:
+        whatsappServiceReachable:
+          type: boolean
+          nullable: true
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WhatsappSession"
 
     ChatDraftTranslationRequest:
       type: object

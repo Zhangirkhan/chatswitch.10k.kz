@@ -11,6 +11,7 @@ use App\Services\ChatService;
 use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionLimitService;
+use App\Support\WhatsappSessionStatusHints;
 use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -53,7 +54,9 @@ final class WhatsappSessionController extends Controller
 
             return response()->json([
                 'whatsappServiceReachable' => true,
-                'sessions' => WhatsappSession::orderBy('created_at')->get(),
+                'sessions' => $this->formatSessionsForApi(
+                    WhatsappSession::orderBy('created_at')->get(),
+                ),
             ]);
         }
 
@@ -67,8 +70,20 @@ final class WhatsappSessionController extends Controller
 
         return response()->json([
             'whatsappServiceReachable' => $reachable,
-            'sessions' => $sessions,
+            'sessions' => $this->formatSessionsForApi($sessions),
         ]);
+    }
+
+    /**
+     * @param  Collection<int, WhatsappSession>  $sessions
+     * @return list<array<string, mixed>>
+     */
+    private function formatSessionsForApi(Collection $sessions): array
+    {
+        return $sessions
+            ->map(fn (WhatsappSession $session): array => $session->toConnectionArray())
+            ->values()
+            ->all();
     }
 
     /**
@@ -107,6 +122,7 @@ final class WhatsappSessionController extends Controller
                 $session->forceFill([
                     'status' => 'connected',
                     'connected_at' => $session->connected_at ?? now(),
+                    'qr_required_at' => null,
                 ])->save();
 
                 continue;
@@ -115,9 +131,11 @@ final class WhatsappSessionController extends Controller
             if ($hasQr) {
                 // В БД могло быть «connected» от прошлого READY, а сейчас страница
                 // WA Web откатилась к QR (multi-device bounce). Не врать пользователю.
+                $wasConnected = $session->status === 'connected';
                 $session->forceFill([
                     'status' => 'qr_pending',
-                    'disconnected_at' => $session->status === 'connected' ? now() : $session->disconnected_at,
+                    'disconnected_at' => $wasConnected ? now() : $session->disconnected_at,
+                    'qr_required_at' => $session->qr_required_at ?? now(),
                 ])->save();
 
                 continue;
@@ -285,9 +303,13 @@ final class WhatsappSessionController extends Controller
                 'wa_name' => $session->wa_name,
                 'wa_platform' => $session->wa_platform,
                 'status' => $session->status,
+                'status_hint' => WhatsappSessionStatusHints::forSession($session),
                 'is_active' => (bool) $session->is_active,
                 'connected_at' => $session->connected_at?->toIso8601String(),
                 'disconnected_at' => $session->disconnected_at?->toIso8601String(),
+                'last_disconnect_reason' => $session->last_disconnect_reason,
+                'last_auth_failure_message' => $session->last_auth_failure_message,
+                'qr_required_at' => $session->qr_required_at?->toIso8601String(),
                 'created_at' => $session->created_at?->toIso8601String(),
                 'updated_at' => $session->updated_at?->toIso8601String(),
                 'chats_count' => $session->chats_count,
@@ -320,11 +342,14 @@ final class WhatsappSessionController extends Controller
                 $session->forceFill([
                     'status' => 'connected',
                     'connected_at' => $session->connected_at ?? now(),
+                    'qr_required_at' => null,
                 ])->save();
             } elseif ($hasQr) {
+                $wasConnected = $session->status === 'connected';
                 $session->forceFill([
                     'status' => 'qr_pending',
-                    'disconnected_at' => $session->status === 'connected' ? now() : $session->disconnected_at,
+                    'disconnected_at' => $wasConnected ? now() : $session->disconnected_at,
+                    'qr_required_at' => $session->qr_required_at ?? now(),
                 ])->save();
             } elseif (! $isReady && ! $hasQr && ! $isInitializing && $session->status === 'connected') {
                 $session->forceFill([
@@ -334,7 +359,7 @@ final class WhatsappSessionController extends Controller
             }
         }
 
-        return response()->json(array_merge($result, ['session' => $session->fresh()]));
+        return response()->json(array_merge($result, ['session' => $session->fresh()?->toConnectionArray()]));
     }
 
     /**
@@ -377,9 +402,13 @@ final class WhatsappSessionController extends Controller
             $session->forceFill([
                 'status' => 'connected',
                 'connected_at' => $session->connected_at ?? now(),
+                'qr_required_at' => null,
             ])->save();
         } elseif ($hasQr) {
-            $session->forceFill(['status' => 'qr_pending'])->save();
+            $session->forceFill([
+                'status' => 'qr_pending',
+                'qr_required_at' => $session->qr_required_at ?? now(),
+            ])->save();
         } elseif (! $isReady && ! $isInitializing && $session->status === 'connected') {
             $session->forceFill([
                 'status' => 'disconnected',

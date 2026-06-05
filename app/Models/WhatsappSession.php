@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\PhoneFormatter;
+use App\Support\WhatsappSessionStatusHints;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -34,6 +35,9 @@ final class WhatsappSession extends Model
         'is_active',
         'connected_at',
         'disconnected_at',
+        'last_disconnect_reason',
+        'last_auth_failure_message',
+        'qr_required_at',
     ];
 
     protected function casts(): array
@@ -42,6 +46,16 @@ final class WhatsappSession extends Model
             'is_active' => 'boolean',
             'connected_at' => 'datetime',
             'disconnected_at' => 'datetime',
+            'qr_required_at' => 'datetime',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function toConnectionArray(): array
+    {
+        return [
+            ...$this->toArray(),
+            'status_hint' => WhatsappSessionStatusHints::forSession($this),
         ];
     }
 

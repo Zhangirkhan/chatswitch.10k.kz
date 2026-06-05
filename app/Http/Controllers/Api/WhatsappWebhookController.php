@@ -12,6 +12,7 @@ use App\Events\WhatsappStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessWhatsappCallRejectedJob;
 use App\Jobs\ProcessWhatsappInboundJob;
+use App\Jobs\ReinitializeWhatsappSessionJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\MessageMedia;
@@ -23,6 +24,7 @@ use App\Support\WhatsappSessionResolver;
 use App\Support\TranscribeAudioJobDispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 final class WhatsappWebhookController extends Controller
 {
@@ -198,6 +200,7 @@ final class WhatsappWebhookController extends Controller
             $update = [
                 'status' => 'connected',
                 'connected_at' => now(),
+                'qr_required_at' => null,
             ];
             if ($phone !== null) {
                 $update['phone_number'] = $phone;
@@ -219,6 +222,7 @@ final class WhatsappWebhookController extends Controller
     private function onDisconnected(array $data): JsonResponse
     {
         $sessionName = $data['session'] ?? 'default';
+        $reason = isset($data['reason']) ? (string) $data['reason'] : null;
 
         // Это «авто-disconnect» от whatsapp-web.js: меняем только фактический
         // статус, но НЕ трогаем desired_state — пользователь не просил
@@ -229,7 +233,19 @@ final class WhatsappWebhookController extends Controller
             $session->update([
                 'status' => 'disconnected',
                 'disconnected_at' => now(),
+                'last_disconnect_reason' => $reason,
             ]);
+
+            Log::warning('WhatsApp session disconnected', [
+                'company_id' => $session->company_id,
+                'session' => $sessionName,
+                'reason' => $reason,
+            ]);
+
+            if ($session->desired_state === WhatsappSession::DESIRED_ACTIVE) {
+                ReinitializeWhatsappSessionJob::dispatch($session->id)
+                    ->delay(now()->addSeconds(8));
+            }
         } else {
             WhatsappSession::query()
                 ->withoutGlobalScope('tenant')
@@ -237,7 +253,13 @@ final class WhatsappWebhookController extends Controller
                 ->update([
                     'status' => 'disconnected',
                     'disconnected_at' => now(),
+                    'last_disconnect_reason' => $reason,
                 ]);
+
+            Log::warning('WhatsApp session disconnected (session resolved without tenant scope)', [
+                'session' => $sessionName,
+                'reason' => $reason,
+            ]);
         }
 
         SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'disconnected'), 'whatsapp-status');
@@ -252,7 +274,23 @@ final class WhatsappWebhookController extends Controller
         $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
         $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
         if ($session !== null) {
-            $session->update(['status' => 'qr_pending']);
+            $wasConnected = $session->status === 'connected';
+            $update = ['status' => 'qr_pending'];
+            if ($wasConnected || $session->qr_required_at === null) {
+                $update['qr_required_at'] = $session->qr_required_at ?? now();
+                if ($wasConnected) {
+                    $update['disconnected_at'] = now();
+                }
+            }
+            $session->update($update);
+
+            if ($wasConnected) {
+                Log::warning('WhatsApp session requires QR after being connected', [
+                    'company_id' => $session->company_id,
+                    'session' => $sessionName,
+                    'last_disconnect_reason' => $session->last_disconnect_reason,
+                ]);
+            }
         } else {
             WhatsappSession::query()
                 ->withoutGlobalScope('tenant')
@@ -268,19 +306,39 @@ final class WhatsappWebhookController extends Controller
     private function onAuthFailure(array $data): JsonResponse
     {
         $sessionName = $data['session'] ?? 'default';
+        $message = isset($data['message']) ? (string) $data['message'] : null;
 
         $companyId = isset($data['companyId']) ? (int) $data['companyId'] : null;
         $session = WhatsappSessionResolver::resolveByName($sessionName, $companyId);
         if ($session !== null) {
-            $session->update(['status' => 'disconnected']);
+            $session->update([
+                'status' => 'disconnected',
+                'disconnected_at' => now(),
+                'last_auth_failure_message' => $message,
+            ]);
+
+            Log::warning('WhatsApp session auth failure', [
+                'company_id' => $session->company_id,
+                'session' => $sessionName,
+                'message' => $message,
+            ]);
+
+            if ($session->desired_state === WhatsappSession::DESIRED_ACTIVE) {
+                ReinitializeWhatsappSessionJob::dispatch($session->id)
+                    ->delay(now()->addSeconds(8));
+            }
         } else {
             WhatsappSession::query()
                 ->withoutGlobalScope('tenant')
                 ->where('session_name', $sessionName)
-                ->update(['status' => 'disconnected']);
+                ->update([
+                    'status' => 'disconnected',
+                    'disconnected_at' => now(),
+                    'last_auth_failure_message' => $message,
+                ]);
         }
 
-        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'auth_failure'), 'whatsapp-status');
+        SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'disconnected'), 'whatsapp-status');
 
         return response()->json(['status' => 'ok']);
     }

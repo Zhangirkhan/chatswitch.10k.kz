@@ -6,8 +6,8 @@ namespace App\Console\Commands;
 
 use App\Models\WhatsappSession;
 use App\Services\WhatsappService;
+use App\Services\WhatsappSessionHealService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Watchdog, который держит сессии «всегда живыми» до тех пор, пока пользователь
@@ -30,7 +30,7 @@ final class HealWhatsappSessions extends Command
 
     protected $description = 'Поднимает отвалившиеся WhatsApp-сессии, которые пользователь не выключал вручную.';
 
-    public function handle(WhatsappService $whatsappService): int
+    public function handle(WhatsappService $whatsappService, WhatsappSessionHealService $healService): int
     {
         if (! $whatsappService->healthReachable()) {
             $this->warn('whatsapp-service недоступен — heal пропущен.');
@@ -53,50 +53,29 @@ final class HealWhatsappSessions extends Command
         $skipped = 0;
 
         foreach ($sessions as $session) {
-            $verify = $whatsappService->verifySession($session->session_name);
-
-            $alive = (bool) ($verify['alive'] ?? false);
-            $isInitializing = (bool) ($verify['isInitializing'] ?? false);
-            $hasQr = (bool) ($verify['hasQR'] ?? false);
-
-            if ($alive || $isInitializing) {
-                $skipped++;
-                continue;
-            }
-
-            // hasQr=true означает, что Node уже поднял клиента и показывает QR —
-            // ждём, пока пользователь отсканирует; ещё один initialize только
-            // обнулит текущий QR и запустит новый раунд puppeteer-а.
-            if ($hasQr) {
-                $skipped++;
-                continue;
-            }
-
-            $reason = is_array($verify['reasoning'] ?? null)
-                ? implode(', ', $verify['reasoning'])
-                : 'unknown';
-
-            $this->line(sprintf(
-                '[%s] мертва (%s) — переинициализирую',
-                $session->session_name,
-                $reason,
-            ));
-
             if ($this->option('dry-run')) {
+                $verify = $whatsappService->verifySession($session->session_name);
+                $reason = is_array($verify['reasoning'] ?? null)
+                    ? implode(', ', $verify['reasoning'])
+                    : 'unknown';
+                $this->line(sprintf('[%s] dry-run check (%s)', $session->session_name, $reason));
                 continue;
             }
 
             try {
-                $whatsappService->initializeSession($session->session_name, (int) $session->company_id);
-                $session->forceFill(['status' => 'connecting'])->save();
-                $healed++;
+                $result = $healService->healSession($session);
             } catch (\Throwable $e) {
-                Log::error('whatsapp:heal initialize failed', [
-                    'session' => $session->session_name,
-                    'error' => $e->getMessage(),
-                ]);
                 $this->error(sprintf('[%s] ошибка initialize: %s', $session->session_name, $e->getMessage()));
+                continue;
             }
+
+            if ($result === 'healed') {
+                $this->line(sprintf('[%s] переинициализировано', $session->session_name));
+                $healed++;
+                continue;
+            }
+
+            $skipped++;
         }
 
         $this->info(sprintf('Готово: поднято %d, пропущено %d из %d.', $healed, $skipped, $sessions->count()));

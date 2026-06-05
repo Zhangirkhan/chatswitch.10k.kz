@@ -33,6 +33,10 @@ export const kk: MessageCatalog = {
             connecting: 'Қосылуда…',
             disconnected: 'Ажыратылған',
         },
+        qrRequiredBanner: 'WhatsApp «{name}» QR-кодты қайта сканерлеуді талап етеді.',
+        qrRequiredToast: 'WhatsApp «{name}»: байланыс баптауларында QR сканерлеңіз.',
+        openConnections: 'Байланыстарды ашу',
+        qrPendingTooltip: 'QR қажет — Байланыстарды ашыңыз',
     },
     settings: {
         chats: {

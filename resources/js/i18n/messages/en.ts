@@ -33,6 +33,10 @@ export const en: MessageCatalog = {
             connecting: 'Connecting…',
             disconnected: 'Disconnected',
         },
+        qrRequiredBanner: 'WhatsApp “{name}” needs QR code scanning again.',
+        qrRequiredToast: 'WhatsApp “{name}”: scan the QR code in connection settings.',
+        openConnections: 'Open connections',
+        qrPendingTooltip: 'QR required — open Connections',
     },
     settings: {
         chats: {

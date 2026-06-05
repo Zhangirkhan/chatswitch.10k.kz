@@ -33,6 +33,10 @@ export const ru: MessageCatalog = {
             connecting: 'Подключение…',
             disconnected: 'Отключён',
         },
+        qrRequiredBanner: 'WhatsApp «{name}» требует повторного сканирования QR-кода.',
+        qrRequiredToast: 'WhatsApp «{name}»: отсканируйте QR в настройках подключений.',
+        openConnections: 'Открыть подключения',
+        qrPendingTooltip: 'Нужен QR — откройте Подключения',
     },
     settings: {
         chats: {

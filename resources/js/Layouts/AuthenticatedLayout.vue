@@ -13,9 +13,11 @@ import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesk
 import { useUnreadFavicon } from '@/composables/useUnreadFavicon';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import { useI18n } from '@/composables/useI18n';
+import { useToastStore } from '@/stores/toast';
 import { whatsappStatusChannel as buildWhatsappStatusChannel } from '@/utils/tenantChannels';
 
 const { t } = useI18n();
+const { show: showToast } = useToastStore();
 
 const page = usePage<any>();
 const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
@@ -77,18 +79,56 @@ function sessionInitial(s: WhatsappSession): string {
     return src.trim().charAt(0).toUpperCase();
 }
 
+function sessionDisplayName(s: WhatsappSession): string {
+    return s.display_name?.trim() || s.wa_name?.trim() || s.session_name;
+}
+
 function sessionTooltip(s: WhatsappSession): string {
-    const parts = [s.display_name || s.wa_name || s.session_name];
+    const parts = [sessionDisplayName(s)];
     if (s.phone_number) parts.push(formatPhone(s.phone_number) || s.phone_number);
-    const statusKey = s.status === 'connected'
-        ? 'whatsapp.status.connected'
-        : s.status === 'qr_pending'
-            ? 'whatsapp.status.qrPending'
+    if (s.status === 'qr_pending') {
+        parts.push(t('whatsapp.qrPendingTooltip'));
+    } else {
+        const statusKey = s.status === 'connected'
+            ? 'whatsapp.status.connected'
             : s.status === 'connecting'
                 ? 'whatsapp.status.connecting'
                 : 'whatsapp.status.disconnected';
-    parts.push(t(statusKey));
+        parts.push(t(statusKey));
+    }
     return parts.filter(Boolean).join(' · ');
+}
+
+const sessionsNeedingQr = computed(() =>
+    whatsappSessions.value.filter((s) => s.status === 'qr_pending'),
+);
+
+function notifyQrRequired(session: WhatsappSession): void {
+    const name = sessionDisplayName(session);
+    showToast({
+        type: 'warning',
+        message: t('whatsapp.qrRequiredToast', { name }),
+        duration: 12000,
+        action: {
+            label: t('whatsapp.openConnections'),
+            handler: () => {
+                router.visit(route('settings.connections'));
+            },
+        },
+    });
+
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+        return;
+    }
+
+    try {
+        new Notification(t('whatsapp.qrRequiredBanner', { name }), {
+            body: t('whatsapp.qrPendingTooltip'),
+            tag: `whatsapp-qr-${session.id}`,
+        });
+    } catch {
+        /* ignore */
+    }
 }
 
 function onWhatsappStatusChanged(raw: unknown): void {
@@ -105,6 +145,8 @@ function onWhatsappStatusChanged(raw: unknown): void {
     const session = whatsappSessions.value.find((s) => s.session_name === sessionName);
     if (!session) return;
 
+    const previousStatus = session.status;
+
     // В демо-тенанте подключения имитируются; игнорируем события от whatsapp-service.
     if (isDemoTenant.value && status !== 'connected') {
         session.status = 'connected';
@@ -117,6 +159,10 @@ function onWhatsappStatusChanged(raw: unknown): void {
     }
     if (typeof payload.wa_name === 'string') {
         session.wa_name = payload.wa_name;
+    }
+
+    if (status === 'qr_pending' && previousStatus === 'connected' && canSubscribeToWhatsappStatus.value) {
+        notifyQrRequired(session);
     }
 }
 
@@ -331,6 +377,25 @@ onUnmounted(() => {
         </aside>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div
+                v-if="canSubscribeToWhatsappStatus && sessionsNeedingQr.length"
+                class="shrink-0 border-b px-4 py-2.5 text-sm"
+                :style="{ background: 'color-mix(in srgb, #facc15 18%, var(--wa-page-bg))', borderColor: 'var(--wa-border)', color: 'var(--wa-text)' }"
+            >
+                <div
+                    v-for="session in sessionsNeedingQr"
+                    :key="session.id"
+                    class="flex flex-wrap items-center justify-between gap-2"
+                >
+                    <span>{{ t('whatsapp.qrRequiredBanner', { name: sessionDisplayName(session) }) }}</span>
+                    <Link
+                        :href="route('settings.connections')"
+                        class="font-medium underline underline-offset-2 whitespace-nowrap"
+                    >
+                        {{ t('whatsapp.openConnections') }}
+                    </Link>
+                </div>
+            </div>
             <UiViewTransition
                 scope="app-shell"
                 panel-class="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden"

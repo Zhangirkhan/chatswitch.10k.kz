@@ -306,5 +306,8 @@ export const settingsExtrasRu = {
         dateYesterday: 'вчера в {time}',
         limitReached: 'Достигнут лимит сервера: {tenantMax} подключений для компании ({globalCount} / {globalMax} на платформе).',
         qrNotReady: 'QR-код ещё не готов. Повторите через несколько секунд.',
+        qrRequiredAlert: 'Отсканируйте QR-код, иначе сообщения не отправляются и не принимаются.',
+        disconnectReason: 'Причина отключения',
+        qrRequiredSince: 'QR требуется с',
     },
 } as const;

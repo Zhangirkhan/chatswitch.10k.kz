@@ -306,5 +306,8 @@ export const settingsExtrasEn = {
         dateYesterday: 'yesterday at {time}',
         limitReached: 'Server limit reached: {tenantMax} connections for the company ({globalCount} / {globalMax} platform-wide).',
         qrNotReady: 'QR code is not ready yet. Try again in a few seconds.',
+        qrRequiredAlert: 'Scan the QR code or messages will not be sent or received.',
+        disconnectReason: 'Disconnect reason',
+        qrRequiredSince: 'QR required since',
     },
 } as const;

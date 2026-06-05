@@ -49,6 +49,10 @@ export interface WhatsappSession {
     is_active: boolean;
     connected_at: string | null;
     disconnected_at: string | null;
+    last_disconnect_reason?: string | null;
+    last_auth_failure_message?: string | null;
+    qr_required_at?: string | null;
+    status_hint?: string | null;
 }
 
 export interface Contact {

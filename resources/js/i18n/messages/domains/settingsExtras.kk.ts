@@ -306,5 +306,8 @@ export const settingsExtrasKk = {
         dateYesterday: 'кеше {time}',
         limitReached: 'Сервер лимиті: компания үшін {tenantMax} қосылу ({globalCount} / {globalMax} платформа бойынша).',
         qrNotReady: 'QR-код әлі дайын емес. Бірнеше секундтан кейін қайta көріңіз.',
+        qrRequiredAlert: 'QR-кодты сканерлеңіз, әйтпесе хабарламалар жіберілмейді және қабылданбайды.',
+        disconnectReason: 'Ажырату себебі',
+        qrRequiredSince: 'QR қажет уақыты',
     },
 } as const;
