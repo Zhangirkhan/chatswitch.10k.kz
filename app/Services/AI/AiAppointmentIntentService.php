@@ -31,40 +31,11 @@ final class AiAppointmentIntentService
 
     public function shouldAnalyze(Chat $chat, ?Message $triggerMessage): bool
     {
-        $body = mb_strtolower(trim($triggerMessage !== null
-            ? MessageInboundText::forMessage($triggerMessage)
-            : ''));
-        if ($body === '') {
-            return false;
-        }
-
-        if ($this->conversationAppointments->textHasBookingSignals($body)
-            && $this->conversationAppointments->textHasTimeSignals($body)) {
-            return true;
-        }
-
         if ($triggerMessage === null) {
             return false;
         }
 
-        $history = $chat->messages()
-            ->where('direction', 'inbound')
-            ->whereKeyNot($triggerMessage->id)
-            ->whereNotNull('body')
-            ->where('body', '!=', '')
-            ->orderByDesc('message_timestamp')
-            ->orderByDesc('id')
-            ->limit(self::HISTORY_LIMIT)
-            ->pluck('body')
-            ->map(fn (mixed $text): string => mb_strtolower(trim((string) $text)));
-
-        if ($this->conversationAppointments->textHasBookingSignals($body)
-            && $history->contains(fn (string $text): bool => $this->conversationAppointments->textHasTimeSignals($text))) {
-            return true;
-        }
-
-        return $history->contains(fn (string $text): bool => $this->conversationAppointments->textHasBookingSignals($text))
-            && $this->conversationAppointments->textHasTimeSignals($body);
+        return $this->conversationAppointments->shouldTriggerAppointmentAnalysis($chat, $triggerMessage);
     }
 
     public function detect(Chat $chat, User $responder, Message $triggerMessage): ?AppointmentIntent
@@ -140,8 +111,10 @@ TXT;
 8. Не выдумывай запись, если в переписке только интерес или вопрос о цене.
 9. Если клиент просит напомнить/предупредить за N часов или минут до визита — заполни reminder_lead_minutes (только число минут: 30 = полчаса, 120 = 2 часа). Если не просил — null.
 10. В client_reply при подтверждении записи кратко упомяни, что напомните за указанный клиентом интервал (если он просил).
-11. Дата и время могут быть в разных сообщениях истории: если клиент сначала спросил про запись/покупку на сегодня, а потом уточнил время (например «в 18» или «18:00-ге») — собери полную запись из всей истории и подтверди её.
+11. Дата и время могут быть в разных сообщениях истории: если клиент сначала спросил про визит/покупку/получение на сегодня, а потом уточнил время (например «в 18» или «18:00-ге») — собери полную запись из всей истории и подтверди её.
 12. Казахский язык: бүгін=сегодня, ертең=завтра, жазылу/жазу=запись, сағат/уақыт=время, «18-де»=в 18:00.
+13. Не требуй слово «запись»: «подъехать», «забрать», «купить сегодня», «можно прийти», «когда удобно» + время — это тоже запись на визит.
+14. Если компания спросила «когда удобно» / «во сколько», а клиент ответил временем или «да» — считай запись подтверждённой, если дата понятна из контекста.
 
 Каталог услуг:
 {$services}

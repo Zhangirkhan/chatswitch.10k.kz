@@ -980,4 +980,29 @@ final class AiAssistantTest extends TestCase
 
         $this->assertTrue($svc->shouldAnalyze($chat, $msg));
     }
+
+    public function test_appointment_intent_analysis_triggers_for_semantic_visit_phrasing(): void
+    {
+        $svc = app(AiAppointmentIntentService::class);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => 'Когда вам удобно подъехать?',
+            'message_timestamp' => now()->subMinute(),
+        ]);
+        $msg = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'в 18',
+            'message_timestamp' => now(),
+        ]);
+
+        $this->assertTrue($svc->shouldAnalyze($chat, $msg));
+    }
 }

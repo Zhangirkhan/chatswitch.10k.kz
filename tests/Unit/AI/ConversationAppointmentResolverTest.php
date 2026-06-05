@@ -83,6 +83,53 @@ final class ConversationAppointmentResolverTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_detects_semantic_visit_intent_without_booking_word(): void
+    {
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createInbound($chat, $session->id, 'Можно сегодня подъехать и посмотреть?', now()->subMinutes(2));
+        $trigger = $this->createInbound($chat, $session->id, 'в 18', now());
+
+        $this->assertTrue($this->resolver->conversationHasBookingIntent($chat, $trigger));
+        $this->assertTrue($this->resolver->shouldTriggerAppointmentAnalysis($chat, $trigger));
+    }
+
+    public function test_detects_scheduling_flow_after_outbound_time_question(): void
+    {
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createOutbound($chat, $session->id, 'Когда вам удобно подъехать сегодня?', now()->subMinute());
+        $trigger = $this->createInbound($chat, $session->id, 'в 18', now());
+
+        $this->assertTrue($this->resolver->conversationHasBookingIntent($chat, $trigger));
+        $this->assertTrue($this->resolver->shouldTriggerAppointmentAnalysis($chat, $trigger));
+    }
+
+    public function test_detects_pickup_intent_phrasing(): void
+    {
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createInbound($chat, $session->id, 'Хочу сегодня забрать заказ', now()->subMinute());
+        $trigger = $this->createInbound($chat, $session->id, 'к 18:00', now());
+
+        $this->assertTrue($this->resolver->shouldTriggerAppointmentAnalysis($chat, $trigger));
+    }
+
+    private function createOutbound(Chat $chat, int $sessionId, string $body, Carbon $at): Message
+    {
+        return Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $sessionId,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => $body,
+            'message_timestamp' => $at,
+        ]);
+    }
+
     private function createInbound(Chat $chat, int $sessionId, string $body, Carbon $at): Message
     {
         return Message::query()->create([
