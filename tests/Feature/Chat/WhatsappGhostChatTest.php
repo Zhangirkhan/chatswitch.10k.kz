@@ -152,4 +152,43 @@ final class WhatsappGhostChatTest extends TestCase
 
         $this->assertDatabaseMissing('chats', ['id' => $ghost->id]);
     }
+
+    public function test_chat_timeline_excludes_service_messages(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '77001112233@c.us',
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'e2e_notification',
+            'body' => '',
+            'ack' => 'delivered',
+            'message_timestamp' => now()->subMinute(),
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Реальное сообщение',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('api.chats.timeline', $chat));
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('messages'));
+        $this->assertSame('Реальное сообщение', $response->json('messages.0.body'));
+    }
 }

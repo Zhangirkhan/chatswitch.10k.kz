@@ -218,6 +218,7 @@ final class ChatController extends Controller
         }
 
         $messages = $chat->messages()
+            ->operatorVisible()
             ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->orderByDesc('message_timestamp')
             ->paginate(50);
@@ -1533,6 +1534,7 @@ final class ChatController extends Controller
         $beforeId = (int) $request->input('before_id', 0);
 
         $messages = $chat->messages()
+            ->operatorVisible()
             ->with(OutboundChatMessageDispatcher::messageWithRelations())
             ->when(
                 is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
@@ -1563,6 +1565,7 @@ final class ChatController extends Controller
         $this->authorize('view', $chat);
 
         $messages = $chat->messages()
+            ->operatorVisible()
             ->with('media')
             ->where(function ($query): void {
                 $query->whereHas('media')

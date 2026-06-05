@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Support\PhoneFormatter;
+use App\Support\WhatsappMessageType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -89,5 +91,18 @@ final class Message extends Model
     public function quotedMessage(): BelongsTo
     {
         return $this->belongsTo(self::class, 'quoted_message_id', 'whatsapp_message_id');
+    }
+
+    /**
+     * Сообщения, видимые оператору (без служебных WA-типов и system).
+     *
+     * @param  Builder<Message>  $query
+     * @return Builder<Message>
+     */
+    public function scopeOperatorVisible(Builder $query): Builder
+    {
+        WhatsappMessageType::applyOperatorVisibleScope($query);
+
+        return $query;
     }
 }

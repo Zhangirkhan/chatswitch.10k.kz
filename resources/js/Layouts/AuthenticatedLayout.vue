@@ -55,6 +55,16 @@ watch(
     { immediate: true },
 );
 
+watch(
+    () => tenantCompanyId.value,
+    (nextId, prevId) => {
+        if (prevId > 0 && nextId > 0 && nextId !== prevId) {
+            liveUnread.set(Number(page.props.unreadChatsCount || 0));
+            whatsappSessions.value = [...((page.props.whatsappSessions as WhatsappSession[] | undefined) || [])];
+        }
+    },
+);
+
 useUnreadFavicon(() => unreadChatsCount.value);
 
 const whatsappSessions = ref<WhatsappSession[]>([]);

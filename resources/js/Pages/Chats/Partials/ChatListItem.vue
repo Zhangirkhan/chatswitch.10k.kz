@@ -11,6 +11,7 @@ import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
 import type { Chat, PageProps } from '@/types';
 import { formatPhone } from '@/utils/phone';
+import { chatDisplayTitle } from '@/utils/chatDisplayName';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
 import { whatsappSessionRingColor } from '@/utils/whatsappSessionColor';
 import {
@@ -329,14 +330,7 @@ function formatTime(dateStr: string | null): string {
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-const displayName = computed(
-    () =>
-        props.chat.chat_name ||
-        props.chat.contact?.name ||
-        (props.chat.contact?.push_name ? `~ ${props.chat.contact.push_name}` : '') ||
-        formatPhone(props.chat.contact?.phone_number) ||
-        '',
-);
+const displayName = computed(() => chatDisplayTitle(props.chat));
 
 const muteSubtitle = computed<string>(() => {
     if (!props.chat.is_muted) return '';
@@ -411,13 +405,7 @@ const avatarTitle = computed(
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5 min-w-0">
                     <span class="text-[var(--wa-text)] text-base truncate">
-                        {{
-                            chat.chat_name
-                            || chat.contact?.name
-                            || (chat.contact?.push_name ? `~ ${chat.contact.push_name}` : null)
-                            || formatPhone(chat.contact?.phone_number)
-                            || t('chats.noName')
-                        }}
+                        {{ displayName || t('chats.noName') }}
                     </span>
                 </div>
                 <span
