@@ -31,7 +31,7 @@ return [
      * Минуты простоя в чате перед автоответом AI на входящее (0 = сразу, как раньше).
      * Не отвечает на «спасибо» / короткие подтверждения; после ответа менеджера ждёт простоя или ручного включения AI.
      */
-    'ai_idle_reply_minutes' => max(0, (int) env('ACCEL_AI_IDLE_REPLY_MINUTES', 10)),
+    'ai_idle_reply_minutes' => max(0, (int) env('ACCEL_AI_IDLE_REPLY_MINUTES', 0)),
 
     'whisper_model' => env('OPENAI_WHISPER_MODEL', 'whisper-1'),
 

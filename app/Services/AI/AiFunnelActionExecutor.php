@@ -40,7 +40,6 @@ final class AiFunnelActionExecutor
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
         private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
         private readonly AiResponderResolver $responderResolver,
-        private readonly ChatIdleAiReplyService $idleAiReply,
     ) {}
 
     /**
@@ -201,15 +200,6 @@ final class AiFunnelActionExecutor
     /** @return array<string, mixed> */
     private function sendCustomerReply(AiOrchestratorAction $action, User $actor, Chat $chat, Message $trigger, string $body): array
     {
-        if (! $this->idleAiReply->canExecuteReply($chat, $trigger)) {
-            $this->idleAiReply->dispatchGenerateReply($chat, $trigger->id);
-
-            return [
-                'skipped' => true,
-                'reason' => 'idle_wait_or_manager_replied',
-            ];
-        }
-
         $message = $this->dispatcher->sendTextMessage($actor, $chat, [
             'message' => $body,
             'display_message' => $body,
