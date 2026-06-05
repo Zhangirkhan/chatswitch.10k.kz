@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\WhatsappMessageType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -221,5 +223,18 @@ final class Chat extends Model
     public function lastOrchestratorRun(): BelongsTo
     {
         return $this->belongsTo(AiOrchestratorRun::class, 'ai_orchestrator_last_run_id');
+    }
+
+    /**
+     * Чаты, в которых есть хотя бы одно сообщение, видимое оператору.
+     *
+     * @param  Builder<Chat>  $query
+     * @return Builder<Chat>
+     */
+    public function scopeWithOperatorVisibleActivity(Builder $query): Builder
+    {
+        return $query->whereHas('messages', function (Builder $messageQuery): void {
+            WhatsappMessageType::applyOperatorVisibleScope($messageQuery);
+        });
     }
 }

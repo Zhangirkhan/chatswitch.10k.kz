@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Chat;
 
 use App\Models\Chat;
+use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -33,6 +34,18 @@ final class ChatShowSidebarLazyLoadTest extends TestCase
             'whatsapp_session_id' => $session->id,
             'last_message_at' => now(),
         ]);
+
+        foreach ($chats as $chat) {
+            Message::create([
+                'chat_id' => $chat->id,
+                'whatsapp_session_id' => $session->id,
+                'direction' => 'inbound',
+                'type' => 'chat',
+                'body' => 'Test',
+                'ack' => 'delivered',
+                'message_timestamp' => now(),
+            ]);
+        }
 
         $target = $chats->first();
         $this->assertNotNull($target);

@@ -13,9 +13,10 @@ use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
 use App\Support\VoiceInboundHelper;
+use App\Support\WhatsappMessageType;
+use App\Support\WhatsappSessionResolver;
 use App\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
-use App\Support\WhatsappSessionResolver;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -62,6 +63,17 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 
         if (! $session) {
             Log::warning('[whatsapp-inbound] session not found', ['session' => $sessionName]);
+
+            return;
+        }
+
+        $type = (string) ($this->data['type'] ?? 'chat');
+        if (WhatsappMessageType::shouldIgnoreInbound($type)) {
+            Log::debug('[whatsapp-inbound] ignored service message', [
+                'session' => $sessionName,
+                'type' => $type,
+                'messageId' => $this->data['messageId'] ?? null,
+            ]);
 
             return;
         }

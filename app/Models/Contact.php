@@ -34,7 +34,13 @@ final class Contact extends Model
 
     public function setPhoneNumberAttribute(?string $value): void
     {
-        $this->attributes['phone_number'] = PhoneFormatter::normalize($value);
+        if ($value === null || trim($value) === '') {
+            $this->attributes['phone_number'] = '';
+
+            return;
+        }
+
+        $this->attributes['phone_number'] = PhoneFormatter::normalize($value) ?? '';
     }
 
     public function setWhatsappIdAttribute(?string $value): void

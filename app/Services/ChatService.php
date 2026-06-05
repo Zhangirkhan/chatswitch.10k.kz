@@ -16,6 +16,8 @@ use App\Models\WhatsappSession;
 use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
+use App\Support\PhoneFormatter;
+use App\Support\WhatsappMessageType;
 use App\Support\TranscribeAudioJobDispatcher;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -145,6 +147,8 @@ final class ChatService
         ]);
 
         $query = $this->applyChatVisibilityForUser($query, $user, $search, $listOwnership);
+
+        $query->withOperatorVisibleActivity();
 
         if ($filter === ChatAttentionService::FILTER_ATTENTION) {
             app(ChatAttentionService::class)->applyAttentionScope($query);
@@ -283,7 +287,7 @@ final class ChatService
                 'whatsapp_session_id' => $session->id,
             ],
             [
-                'chat_name' => $data['chatName'] ?? $data['from'] ?? 'Unknown',
+                'chat_name' => $this->resolveInboundChatDisplayName($data),
                 'is_group' => $isGroup,
                 'contact_id' => $contactId,
                 'last_message_at' => now(),
@@ -398,6 +402,9 @@ final class ChatService
     public function findOrCreateContactByPhone(string $phone, ?string $name = null): Contact
     {
         $digits = preg_replace('/\D/', '', $phone);
+        if ($digits === '' || ! PhoneFormatter::isPlausibleE164($digits)) {
+            throw new \InvalidArgumentException('Invalid phone number for contact creation.');
+        }
 
         // 1. Prefer existing contact by phone_number (covers @lid contacts whose phone was extracted)
         $existing = Contact::where('phone_number', $digits)
@@ -466,14 +473,9 @@ final class ChatService
             return $existing;
         }
 
-        $phoneDigits = preg_replace('/\D/', '', $whatsappId);
-        $phoneNumber = ($phoneDigits !== '' && strlen($phoneDigits) >= 8 && strlen($phoneDigits) <= 15)
-            ? $phoneDigits
-            : null;
-
         return Contact::create([
             'whatsapp_id' => $whatsappId,
-            'phone_number' => $phoneNumber,
+            'phone_number' => '',
             'name' => $senderName,
             'push_name' => $senderName,
         ]);
@@ -482,6 +484,10 @@ final class ChatService
     public function storeInboundMessage(Chat $chat, WhatsappSession $session, array $data): Message
     {
         $type = (string) ($data['type'] ?? 'chat');
+        if (WhatsappMessageType::shouldIgnoreInbound($type)) {
+            throw new \InvalidArgumentException('Ignored WhatsApp service message type: '.$type);
+        }
+
         $metadata = null;
         $isGroup = (bool) ($chat->is_group ?? ($data['isGroup'] ?? false));
 
@@ -757,6 +763,7 @@ final class ChatService
         $last = Message::query()
             ->where('chat_id', $chat->id)
             ->whereIn('direction', ['inbound', 'outbound'])
+            ->tap(fn (Builder $query) => WhatsappMessageType::applyOperatorVisibleScope($query))
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->first();
@@ -925,5 +932,127 @@ final class ChatService
         ];
 
         return $map[$mimetype] ?? 'bin';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveInboundChatDisplayName(array $data): string
+    {
+        $chatId = strtolower(trim((string) ($data['chatId'] ?? '')));
+        $isLidPeer = ! (($data['isGroup'] ?? false)) && str_ends_with($chatId, '@lid');
+
+        $senderName = trim((string) ($data['senderName'] ?? ''));
+        $chatName = trim((string) ($data['chatName'] ?? ''));
+        $from = trim((string) ($data['from'] ?? ''));
+
+        if ($isLidPeer) {
+            foreach ([$senderName, $chatName] as $candidate) {
+                if ($candidate === '' || str_contains($candidate, '@')) {
+                    continue;
+                }
+
+                $normalized = PhoneFormatter::normalize($candidate);
+                if ($normalized !== null && PhoneFormatter::isPlausibleE164($normalized)) {
+                    continue;
+                }
+
+                return $candidate;
+            }
+
+            return 'Контакт WhatsApp';
+        }
+
+        if ($chatName !== '') {
+            return $chatName;
+        }
+
+        return $from !== '' ? $from : 'Unknown';
+    }
+
+    /**
+     * Удаляет служебные WA-сообщения и чаты без реальной переписки.
+     *
+     * @return array{ignored_messages: int, deleted_chats: int, fixed_contacts: int}
+     */
+    public function pruneGhostWhatsappChats(): array
+    {
+        $ignoredMessages = Message::query()
+            ->whereIn('type', [
+                'e2e_notification',
+                'protocol',
+                'gp2',
+                'notification',
+                'notification_template',
+                'broadcast_notification',
+                'call_log',
+                'ciphertext',
+                'debug',
+                'hsm',
+            ])
+            ->delete();
+
+        $fixedContacts = 0;
+        Contact::query()
+            ->where(function (Builder $query): void {
+                $query->where('whatsapp_id', 'like', '%@lid')
+                    ->orWhereNotNull('phone_number');
+            })
+            ->orderBy('id')
+            ->chunkById(200, function ($contacts) use (&$fixedContacts): void {
+                foreach ($contacts as $contact) {
+                    $shouldClearPhone = str_ends_with(strtolower((string) $contact->whatsapp_id), '@lid');
+                    if (! $shouldClearPhone && $contact->phone_number !== null) {
+                        $phone = PhoneFormatter::normalize($contact->phone_number);
+                        $shouldClearPhone = $phone !== null && ! PhoneFormatter::isPlausibleE164($phone);
+                    }
+
+                    if ($shouldClearPhone && $contact->phone_number !== '') {
+                        $contact->update(['phone_number' => '']);
+                        $fixedContacts++;
+                    }
+                }
+            });
+
+        Chat::query()
+            ->where('whatsapp_chat_id', 'like', '%@lid')
+            ->orderBy('id')
+            ->chunkById(100, function ($chats): void {
+                foreach ($chats as $chat) {
+                    $name = trim((string) $chat->chat_name);
+                    $normalized = PhoneFormatter::normalize($name);
+                    if ($name === '' || ($normalized !== null && PhoneFormatter::isPlausibleE164($normalized))) {
+                        $chat->update(['chat_name' => 'Контакт WhatsApp']);
+                    }
+                }
+            });
+
+        $deletedChats = 0;
+        Chat::query()
+            ->orderBy('id')
+            ->chunkById(100, function ($chats) use (&$deletedChats): void {
+                foreach ($chats as $chat) {
+                    $this->refreshChatLastMessageSnapshot($chat);
+
+                    $hasVisibleMessages = Message::query()
+                        ->where('chat_id', $chat->id)
+                        ->tap(fn (Builder $query) => WhatsappMessageType::applyOperatorVisibleScope($query))
+                        ->exists();
+
+                    if ($hasVisibleMessages) {
+                        continue;
+                    }
+
+                    Message::query()->where('chat_id', $chat->id)->delete();
+                    $chat->delete();
+                    $deletedChats++;
+                }
+            });
+
+        return [
+            'ignored_messages' => $ignoredMessages,
+            'deleted_chats' => $deletedChats,
+            'fixed_contacts' => $fixedContacts,
+        ];
     }
 }

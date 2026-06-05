@@ -208,7 +208,9 @@ final class HandleInertiaRequests extends Middleware
     private function archivedChatsCount(User $user): int
     {
         return $this->applyAccessScope(
-            Chat::query()->where('is_archived', true),
+            Chat::query()
+                ->where('is_archived', true)
+                ->withOperatorVisibleActivity(),
             $user,
         )->count();
     }
