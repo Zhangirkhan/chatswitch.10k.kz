@@ -157,12 +157,42 @@ final class ChatService
         if ($filter === ChatAttentionService::FILTER_ATTENTION) {
             app(ChatAttentionService::class)->applyAttentionScope($query);
 
-            return $query;
+            return $query
+                ->orderByDesc('is_pinned')
+                ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
         }
+
+        $this->applyInboxFilter($query, $filter);
 
         return $query
             ->orderByDesc('is_pinned')
             ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
+    }
+
+    /**
+     * @param  Builder<Chat>  $query
+     */
+    private function applyInboxFilter(Builder $query, ?string $filter): void
+    {
+        if ($filter === 'closed') {
+            $query->where('is_lead_closed', true);
+
+            return;
+        }
+
+        $query->where('is_lead_closed', false);
+
+        if ($filter === 'favorites') {
+            $query->where('is_favorite', true);
+
+            return;
+        }
+
+        if ($filter === 'auto_reply') {
+            $query->where('is_group', false)
+                ->where('ai_enabled', true)
+                ->where('ai_mode', 'auto');
+        }
     }
 
     /**
@@ -617,6 +647,7 @@ final class ChatService
         $this->applyLastMessageSnapshot($chat, $message, $preview);
 
         $this->reopenChatAfterInbound($chat);
+        app(\App\Services\Chat\ChatLeadClosureService::class)->reopenAfterInboundIfNeeded($chat);
 
         // Atomic increment — избегаем race condition при параллельных webhook'ах.
         $chat->increment('unread_count');

@@ -7,9 +7,15 @@ namespace App\Http\Controllers\Api\V1;
 use App\Events\UserTyping;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\SendChatMessageRequest;
+use App\Http\Requests\Api\V1\StoreChatRequest;
 use App\Http\Resources\Api\V1\ChatResource;
 use App\Http\Resources\Api\V1\MessageResource;
 use App\Models\Chat;
+use App\Models\ChatAssignment;
+use App\Models\Contact;
+use App\Models\User;
+use App\Models\WhatsappSession;
+use App\Services\Chat\ChatLeadClosureService;
 use App\Services\ChatService;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
@@ -22,6 +28,7 @@ final class ChatController extends Controller
         private readonly ChatService $chatService,
         private readonly WhatsappService $whatsappService,
         private readonly OutboundChatMessageDispatcher $outboundDispatcher,
+        private readonly ChatLeadClosureService $leadClosureService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -29,12 +36,90 @@ final class ChatController extends Controller
         $perPage = (int) $request->query('per_page', 50);
         $perPage = min(100, max(1, $perPage));
 
-        $chats = $this->chatService->getChatsForUser($request->user(), $request->query('search'))
+        [$listOwnership, $filter] = $this->resolveInboxQuery($request);
+
+        $chats = $this->chatService->getChatsForUser(
+            $request->user(),
+            $request->query('search'),
+            $listOwnership,
+            $filter,
+        )
             ->where('is_archived', false)
             ->with(['funnelStage:id,funnel_id,name,color,position,stage_type'])
             ->paginate($perPage);
 
         return ChatResource::collection($chats)->response();
+    }
+
+    public function store(StoreChatRequest $request): JsonResponse
+    {
+        $user = $request->user();
+        $contact = Contact::query()->findOrFail((int) $request->input('contact_id'));
+        $session = $this->resolveWhatsappSessionForContact(
+            $user,
+            $contact,
+            $request->filled('whatsapp_session_id') ? (int) $request->input('whatsapp_session_id') : null,
+        );
+
+        abort_unless($user->can('use', $session), 403, 'Этот номер WhatsApp вам не назначен.');
+
+        $chat = $this->chatService->findOrCreateChatForContact($contact, $session);
+
+        if ($chat->is_archived) {
+            $chat->update(['is_archived' => false]);
+        }
+
+        if ($chat->is_lead_closed) {
+            $chat = $this->leadClosureService->reopen($chat);
+        }
+
+        if (! $user->hasRole('administrator')) {
+            ChatAssignment::firstOrCreate(
+                ['chat_id' => $chat->id, 'user_id' => $user->id],
+                ['assigned_by' => $user->id],
+            );
+        }
+
+        $chat->load([
+            'contact',
+            'funnelStage:id,funnel_id,name,color,position,stage_type',
+            'whatsappSession:id,session_name,display_name,display_color,phone_number,status',
+            'assignments.user',
+        ]);
+
+        return ChatResource::make($chat)
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function close(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('manage', $chat);
+
+        $chat = $this->leadClosureService->close($chat);
+        $chat->load([
+            'contact',
+            'funnelStage:id,funnel_id,name,color,position,stage_type',
+            'whatsappSession:id,session_name,display_name,display_color,phone_number,status',
+            'assignments.user',
+        ]);
+
+        return ChatResource::make($chat)->response();
+    }
+
+    public function reopen(Request $request, Chat $chat): JsonResponse
+    {
+        $this->authorize('manage', $chat);
+
+        $chat = $this->leadClosureService->reopen($chat);
+        $chat->load([
+            'contact',
+            'funnelStage:id,funnel_id,name,color,position,stage_type',
+            'whatsappSession:id,session_name,display_name,display_color,phone_number,status',
+            'assignments.user',
+        ]);
+
+        return ChatResource::make($chat)->response();
     }
 
     public function archivedIndex(Request $request): JsonResponse
@@ -166,5 +251,68 @@ final class ChatController extends Controller
         );
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * @return array{0: string, 1: string|null}
+     */
+    private function resolveInboxQuery(Request $request): array
+    {
+        $raw = is_string($request->query('filter')) ? trim($request->query('filter')) : 'all';
+
+        if ($raw === '' || $raw === 'all') {
+            return ['all', null];
+        }
+
+        if ($raw === 'mine') {
+            return ['mine', null];
+        }
+
+        if (in_array($raw, ['favorites', 'auto_reply', 'closed'], true)) {
+            return ['all', $raw];
+        }
+
+        return ['all', null];
+    }
+
+    private function resolveWhatsappSessionForContact(
+        User $user,
+        Contact $contact,
+        ?int $sessionId,
+    ): WhatsappSession {
+        if ($sessionId !== null) {
+            return WhatsappSession::query()->findOrFail($sessionId);
+        }
+
+        $existingSessionId = Chat::query()
+            ->where('contact_id', $contact->id)
+            ->where('is_group', false)
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->value('whatsapp_session_id');
+
+        if ($existingSessionId !== null) {
+            return WhatsappSession::query()->findOrFail((int) $existingSessionId);
+        }
+
+        $sessionQuery = WhatsappSession::query()
+            ->where('desired_state', WhatsappSession::DESIRED_ACTIVE)
+            ->orderBy('id');
+
+        if ($user->hasRole('administrator')) {
+            $session = $sessionQuery->first();
+            abort_if($session === null, 422, 'Нет доступных WhatsApp-сессий.');
+
+            return $session;
+        }
+
+        $session = $user->whatsappSessions()
+            ->where('desired_state', WhatsappSession::DESIRED_ACTIVE)
+            ->orderBy('whatsapp_sessions.id')
+            ->first();
+
+        abort_if($session === null, 422, 'Нет доступных WhatsApp-сессий.');
+
+        return $session;
     }
 }

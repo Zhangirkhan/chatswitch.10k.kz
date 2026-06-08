@@ -31,6 +31,7 @@ final class ChatFactory extends Factory
             'is_pinned' => false,
             'is_muted' => false,
             'is_favorite' => false,
+            'is_lead_closed' => false,
             'ai_enabled' => true,
             'ai_mode' => 'auto',
             'funnel_tracking_enabled' => true,

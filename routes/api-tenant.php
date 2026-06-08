@@ -54,9 +54,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::patch('contacts/{contact}/fields', [ContactController::class, 'updateFields']);
         Route::post('contacts/upsert', [ContactController::class, 'upsert']);
 
+        Route::post('chats', [ChatController::class, 'store']);
         Route::get('chats', [ChatController::class, 'index']);
         Route::get('chats/archived', [ChatController::class, 'archivedIndex']);
         Route::get('chats/{chat}', [ChatController::class, 'show']);
+        Route::post('chats/{chat}/close', [ChatController::class, 'close']);
+        Route::post('chats/{chat}/reopen', [ChatController::class, 'reopen']);
         Route::get('chats/{chat}/messages', [ChatController::class, 'messages']);
         Route::post('chats/{chat}/messages', [ChatController::class, 'storeMessage']);
         Route::post('chats/{chat}/read', [ChatController::class, 'markRead']);

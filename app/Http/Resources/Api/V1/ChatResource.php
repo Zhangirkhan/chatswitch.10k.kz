@@ -35,6 +35,8 @@ final class ChatResource extends JsonResource
             'is_muted' => (bool) $this->is_muted,
             'muted_until' => $this->muted_until?->toIso8601String(),
             'is_favorite' => (bool) $this->is_favorite,
+            'is_lead_closed' => (bool) $this->is_lead_closed,
+            'lead_closed_at' => $this->lead_closed_at?->toIso8601String(),
             'pinned_message_id' => $this->pinned_message_id,
             'ai_enabled' => (bool) $this->ai_enabled,
             'ai_mode' => (string) ($this->ai_mode ?? 'auto'),

@@ -8,6 +8,7 @@ use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Funnel;
 use App\Models\FunnelStage;
+use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsappSession;
@@ -102,10 +103,19 @@ final class ChatResourceFunnelApiTest extends TestCase
         ]);
 
         $session = WhatsappSession::factory()->create();
-        Chat::factory()->create([
+        $chat = Chat::factory()->create([
             'whatsapp_session_id' => $session->id,
             'funnel_id' => $funnel->id,
             'funnel_stage_id' => $stage->id,
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'hello',
+            'message_timestamp' => now(),
         ]);
 
         $this->getJson('/api/v1/chats')
