@@ -153,6 +153,13 @@ export const settingsExtrasKk = {
         ratingContext: 'Білім базасында жоқ',
         defaultTestMessage: 'Сәлеметсіз бе, ас үй тапсырыс бергім келеді — ертең өлшеуге бола ма?',
         errorSimulation: 'Симуляцияны іске қосу сәтсіз.',
+        conflictPresetsLabel: 'Қиын клиент пресеттері',
+        conflictPresetAngry: 'Ашулы клиент',
+        conflictPresetAngryMessage: 'СІЗДЕР АҚЫМАҚСЫЗДАР!!! Тапсырысым қайда?! Жұмаға уәде ettiniz!!!',
+        conflictPresetRefund: 'Қайтару',
+        conflictPresetRefundMessage: 'Ақшаны қайтарыңыз, Kaspi арқылы дауласамын. Не брак жібердіңіз?',
+        conflictPresetRepeat: 'Сұрақты қайталау',
+        conflictPresetRepeatMessage: '???',
     },
     toneProfile: {
         title: 'Тон профилі',

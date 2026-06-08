@@ -153,6 +153,13 @@ export const settingsExtrasRu = {
         ratingContext: 'Нет в базе знаний',
         defaultTestMessage: 'Здравствуйте, хочу заказать кухню, можно завтра на замер?',
         errorSimulation: 'Не удалось запустить симуляцию.',
+        conflictPresetsLabel: 'Пресеты сложных клиентов',
+        conflictPresetAngry: 'Злой клиент',
+        conflictPresetAngryMessage: 'ВЫ ИДИОТЫ!!! Где мой заказ?! Обещали в пятницу!!!',
+        conflictPresetRefund: 'Возврат',
+        conflictPresetRefundMessage: 'Верните деньги, Kaspi оспорю. Вы что прислали брак?',
+        conflictPresetRepeat: 'Повтор вопроса',
+        conflictPresetRepeatMessage: '???',
     },
     toneProfile: {
         title: 'Профиль тона',

@@ -153,6 +153,13 @@ export const settingsExtrasEn = {
         ratingContext: 'Not in knowledge base',
         defaultTestMessage: 'Hello, I want to order a kitchen — can you come for measurements tomorrow?',
         errorSimulation: 'Could not run simulation.',
+        conflictPresetsLabel: 'Difficult client presets',
+        conflictPresetAngry: 'Angry client',
+        conflictPresetAngryMessage: 'YOU IDIOTS!!! Where is my order?! You promised Friday!!!',
+        conflictPresetRefund: 'Refund',
+        conflictPresetRefundMessage: 'Refund my money, I will dispute on Kaspi. You sent defective goods!',
+        conflictPresetRepeat: 'Repeated question',
+        conflictPresetRepeatMessage: '???',
     },
     toneProfile: {
         title: 'Tone profile',

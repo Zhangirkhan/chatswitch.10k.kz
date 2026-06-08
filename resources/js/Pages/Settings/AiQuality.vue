@@ -121,6 +121,18 @@ const simulationError = ref<string | null>(null);
 const simulationResult = ref<SimulationResult | null>(null);
 const simulationConfidence = computed(() => Math.round((simulationResult.value?.confidence ?? 0) * 100));
 
+const conflictSimulationPresets = computed(() => [
+    { id: 'angry', label: t('settings.aiQuality.conflictPresetAngry'), message: t('settings.aiQuality.conflictPresetAngryMessage') },
+    { id: 'refund', label: t('settings.aiQuality.conflictPresetRefund'), message: t('settings.aiQuality.conflictPresetRefundMessage') },
+    { id: 'repeat', label: t('settings.aiQuality.conflictPresetRepeat'), message: t('settings.aiQuality.conflictPresetRepeatMessage') },
+]);
+
+function applyConflictSimulationPreset(message: string): void {
+    simulationMessage.value = message;
+    simulationResult.value = null;
+    simulationError.value = null;
+}
+
 const dateLocale = computed(() => (locale.value === 'kk' ? 'kk-KZ' : locale.value === 'en' ? 'en-GB' : 'ru-RU'));
 
 function formatWhen(iso: string | null): string {
@@ -433,6 +445,21 @@ async function runSimulation(): Promise<void> {
 
                 <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.9fr)]">
                     <div class="space-y-3">
+                        <div>
+                            <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">{{ t('settings.aiQuality.conflictPresetsLabel') }}</span>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="preset in conflictSimulationPresets"
+                                    :key="preset.id"
+                                    type="button"
+                                    class="ui-btn ui-btn--ghost ui-btn--sm"
+                                    @click="applyConflictSimulationPreset(preset.message)"
+                                >
+                                    {{ preset.label }}
+                                </button>
+                            </div>
+                        </div>
+
                         <label class="block">
                             <span class="mb-1 block text-xs font-medium" :style="{ color: 'var(--ui-text-secondary)' }">{{ t('settings.aiQuality.testMessage') }}</span>
                             <textarea

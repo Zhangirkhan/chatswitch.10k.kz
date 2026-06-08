@@ -1398,7 +1398,7 @@ async function confirmDelete(): Promise<void> {
 
                                     <label v-if="section === 'rules'" class="field">
                                         <span>{{ t('settings.knowledgeBase.form.type') }}</span>
-                                        <input v-model="form.type" type="text" placeholder="sales, delivery, tone" />
+                                        <input v-model="form.type" type="text" placeholder="complaint, refund, warranty, ai_guardrail" />
                                     </label>
 
                                     <label v-if="section === 'rules'" class="field">
