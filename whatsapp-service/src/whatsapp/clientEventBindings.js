@@ -151,6 +151,7 @@ function attachEventBindings(service) {
     console.log(`${tag} READY`);
     service.isReady = true;
     service.isInitializing = false;
+    service._initializingSince = null;
     service.qrCode = null;
     service.lastError = null;
 
@@ -171,6 +172,7 @@ function attachEventBindings(service) {
       console.log(`${tag} STATE_CHANGED -> CONNECTED (fallback ready)`);
       service.isReady = true;
       service.isInitializing = false;
+      service._initializingSince = null;
       service.qrCode = null;
       attachRuntimeEvents(service);
     }
@@ -184,6 +186,7 @@ function attachEventBindings(service) {
     console.error(`${tag} auth failure:`, message);
     service.isReady = false;
     service.isInitializing = false;
+    service._initializingSince = null;
     service.lastError = String(message || 'Authentication failure');
     notifyLaravel('auth_failure', webhookData(service, { session: service.sessionName, message }));
   });
@@ -192,6 +195,7 @@ function attachEventBindings(service) {
     console.log(`${tag} disconnected:`, reason);
     service.isReady = false;
     service.isInitializing = false;
+    service._initializingSince = null;
     service.qrCode = null;
     notifyLaravel('disconnected', webhookData(service, { session: service.sessionName, reason }));
   });

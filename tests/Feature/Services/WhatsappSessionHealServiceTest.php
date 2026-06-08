@@ -107,4 +107,63 @@ final class WhatsappSessionHealServiceTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/destroy'));
         Http::assertSent(fn ($request) => str_contains($request->url(), '/initialize'));
     }
+
+    public function test_heal_hard_resets_session_stuck_in_initializing(): void
+    {
+        Http::fake([
+            '127.0.0.1:3050/health' => Http::response(['status' => 'ok'], 200),
+            '127.0.0.1:3050/api/sessions/wa-stuck/verify' => Http::response([
+                'alive' => false,
+                'isReady' => false,
+                'browserConnected' => false,
+                'isInitializing' => true,
+                'initializingForMs' => 11 * 60 * 1000,
+                'hasQR' => false,
+                'reasoning' => ['initializing', 'not_ready'],
+            ], 200),
+            '127.0.0.1:3050/api/sessions/wa-stuck/destroy' => Http::response(['success' => true], 200),
+            '127.0.0.1:3050/api/sessions/wa-stuck/initialize' => Http::response(['success' => true], 200),
+        ]);
+
+        config(['accel.whatsapp_heal.stuck_initializing_minutes' => 10]);
+
+        $session = WhatsappSession::factory()->create([
+            'session_name' => 'wa-stuck',
+            'desired_state' => WhatsappSession::DESIRED_ACTIVE,
+            'status' => 'connecting',
+        ]);
+
+        $result = app(WhatsappSessionHealService::class)->healSession($session);
+
+        $this->assertSame('healed', $result);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/destroy'));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/initialize'));
+    }
+
+    public function test_heal_skips_recent_initializing_session(): void
+    {
+        Http::fake([
+            '127.0.0.1:3050/health' => Http::response(['status' => 'ok'], 200),
+            '127.0.0.1:3050/api/sessions/wa-init/verify' => Http::response([
+                'alive' => false,
+                'isInitializing' => true,
+                'initializingForMs' => 2 * 60 * 1000,
+                'hasQR' => false,
+            ], 200),
+        ]);
+
+        config(['accel.whatsapp_heal.stuck_initializing_minutes' => 10]);
+
+        $session = WhatsappSession::factory()->create([
+            'session_name' => 'wa-init',
+            'desired_state' => WhatsappSession::DESIRED_ACTIVE,
+            'status' => 'connecting',
+        ]);
+
+        $result = app(WhatsappSessionHealService::class)->healSession($session);
+
+        $this->assertSame('skipped_initializing', $result);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/destroy'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/initialize'));
+    }
 }

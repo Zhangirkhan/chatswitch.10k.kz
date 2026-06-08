@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\Webhook;
 
 use App\Jobs\ReinitializeWhatsappSessionJob;
+use App\Mail\WhatsappSessionLogoutAlertMail;
 use App\Models\WhatsappSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -56,6 +58,67 @@ final class WhatsappWebhookDisconnectTest extends TestCase
         Bus::assertDispatched(ReinitializeWhatsappSessionJob::class, function (ReinitializeWhatsappSessionJob $job) use ($session): bool {
             return $job->whatsappSessionId === $session->id;
         });
+    }
+
+    public function test_logout_webhook_sends_immediate_alert(): void
+    {
+        Bus::fake();
+        Mail::fake();
+
+        config([
+            'accel.whatsapp_alerts.enabled' => true,
+            'accel.whatsapp_alerts.logout_enabled' => true,
+            'accel.whatsapp_alerts.ops_emails' => ['ops@accel.kz'],
+        ]);
+
+        $session = WhatsappSession::factory()->create([
+            'session_name' => 'wa-logout',
+            'status' => 'connected',
+            'desired_state' => WhatsappSession::DESIRED_ACTIVE,
+        ]);
+
+        $payload = [
+            'event' => 'disconnected',
+            'data' => [
+                'session' => 'wa-logout',
+                'companyId' => $session->company_id,
+                'reason' => 'LOGOUT',
+            ],
+        ];
+
+        $this->signedWebhook($payload)->assertOk();
+
+        Mail::assertSent(WhatsappSessionLogoutAlertMail::class);
+    }
+
+    public function test_non_logout_disconnect_does_not_send_logout_alert(): void
+    {
+        Bus::fake();
+        Mail::fake();
+
+        config([
+            'accel.whatsapp_alerts.enabled' => true,
+            'accel.whatsapp_alerts.logout_enabled' => true,
+        ]);
+
+        $session = WhatsappSession::factory()->create([
+            'session_name' => 'wa-nologout',
+            'status' => 'connected',
+            'desired_state' => WhatsappSession::DESIRED_ACTIVE,
+        ]);
+
+        $payload = [
+            'event' => 'disconnected',
+            'data' => [
+                'session' => 'wa-nologout',
+                'companyId' => $session->company_id,
+                'reason' => 'NAVIGATION',
+            ],
+        ];
+
+        $this->signedWebhook($payload)->assertOk();
+
+        Mail::assertNotSent(WhatsappSessionLogoutAlertMail::class);
     }
 
     public function test_qr_generated_after_connected_sets_qr_required_at(): void

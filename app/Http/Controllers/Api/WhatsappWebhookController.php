@@ -22,6 +22,7 @@ use App\Support\ChatBroadcastAudience;
 use App\Support\SafeBroadcast;
 use App\Support\WhatsappSessionResolver;
 use App\Support\TranscribeAudioJobDispatcher;
+use App\Services\Whatsapp\WhatsappSessionLogoutAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -241,6 +242,8 @@ final class WhatsappWebhookController extends Controller
                 'session' => $sessionName,
                 'reason' => $reason,
             ]);
+
+            app(WhatsappSessionLogoutAlertService::class)->notify($session, $reason);
 
             if ($session->desired_state === WhatsappSession::DESIRED_ACTIVE) {
                 ReinitializeWhatsappSessionJob::dispatch($session->id)

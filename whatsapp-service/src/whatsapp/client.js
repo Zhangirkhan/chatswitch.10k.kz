@@ -16,6 +16,7 @@ class WhatsAppClient {
     this.qrCode = null;
     this.isReady = false;
     this.isInitializing = false;
+    this._initializingSince = null;
     this.lastError = null;
     this.runtimeEventsBound = false;
     this.runtimeEventsClient = null;
@@ -46,6 +47,7 @@ class WhatsAppClient {
             );
             this.isReady = true;
             this.isInitializing = false;
+            this._initializingSince = null;
             this.qrCode = null;
           }
           this.ensureRuntimeEvents('existing_client');
@@ -72,6 +74,7 @@ class WhatsAppClient {
       }
 
       this.isInitializing = true;
+      this._initializingSince = Date.now();
       this.lastError = null;
       console.log(`[${this.sessionName}] initializing...`);
 
@@ -104,6 +107,7 @@ class WhatsAppClient {
           console.log(`[${this.sessionName}] CONNECTED without READY (initialize fallback)`);
           this.isReady = true;
           this.isInitializing = false;
+          this._initializingSince = null;
           this.qrCode = null;
           this.ensureRuntimeEvents('initialize_fallback');
         }
@@ -111,6 +115,7 @@ class WhatsAppClient {
         this.lastError = err.message;
         this.isReady = false;
         this.isInitializing = false;
+        this._initializingSince = null;
         console.error(`[${this.sessionName}] init error:`, err.message);
         throw err;
       }
@@ -177,6 +182,9 @@ class WhatsAppClient {
       browserConnected,
       isReady: this.isReady,
       isInitializing: this.isInitializing,
+      initializingForMs: this._initializingSince
+        ? Math.max(0, Date.now() - this._initializingSince)
+        : 0,
       hasQR: Boolean(this.qrCode),
       platform: this.client?.info?.platform || null,
       latencyMs: Number((process.hrtime.bigint() - started) / 1000000n),
@@ -201,6 +209,7 @@ class WhatsAppClient {
       this.isReady = false;
       this.qrCode = null;
       this.isInitializing = false;
+      this._initializingSince = null;
     });
   }
 
@@ -211,6 +220,7 @@ class WhatsAppClient {
       this.isReady = false;
       this.qrCode = null;
       this.isInitializing = false;
+      this._initializingSince = null;
     });
   }
 

@@ -90,6 +90,14 @@ return [
         ))),
         'telegram_bot_token' => env('WHATSAPP_ALERTS_TELEGRAM_BOT_TOKEN'),
         'telegram_chat_id' => env('WHATSAPP_ALERTS_TELEGRAM_CHAT_ID'),
+        /** Немедленный алерт при LOGOUT (WhatsApp разлогинил устройство). */
+        'logout_enabled' => filter_var(env('WHATSAPP_ALERTS_LOGOUT_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /** Параметры whatsapp:heal и Node watchdog. */
+    'whatsapp_heal' => [
+        /** Hard-reset, если /verify показывает initializing дольше N минут. */
+        'stuck_initializing_minutes' => max(1, (int) env('WHATSAPP_HEAL_STUCK_INITIALIZING_MINUTES', 10)),
     ],
 
     'conflict_handling' => [

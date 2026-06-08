@@ -40,7 +40,7 @@ final class WhatsappSessionHealService
             return 'skipped_alive';
         }
 
-        if ($isInitializing) {
+        if ($isInitializing && ! $this->isInitializingStuck($verify)) {
             return 'skipped_initializing';
         }
 
@@ -48,7 +48,7 @@ final class WhatsappSessionHealService
             return 'skipped_qr';
         }
 
-        $needsHardReset = $this->needsHardReset($verify);
+        $needsHardReset = $this->needsHardReset($verify) || $isInitializing;
 
         try {
             if ($needsHardReset) {
@@ -100,6 +100,21 @@ final class WhatsappSessionHealService
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $verify
+     */
+    private function isInitializingStuck(array $verify): bool
+    {
+        if (! (bool) ($verify['isInitializing'] ?? false)) {
+            return false;
+        }
+
+        $stuckMinutes = max(1, (int) config('accel.whatsapp_heal.stuck_initializing_minutes', 10));
+        $initializingForMs = (int) ($verify['initializingForMs'] ?? 0);
+
+        return $initializingForMs >= $stuckMinutes * 60 * 1000;
     }
 
     /**
