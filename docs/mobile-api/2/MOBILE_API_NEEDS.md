@@ -21,10 +21,10 @@
 | Вход PIN | `POST /api/v1/auth/login/pin` | ✅ OK | — |
 | Модули tenant | `GET /api/v1/settings` → `modules` | ✅ OK | — |
 | **Акцент tenant (brand)** | `GET /api/v1/settings` → `brand_color` | ⚠️ optional | Hex `#RRGGBB` или `#AARRGGBB`; Flutter fallback `AppColors.primary` |
-| Список чатов | `GET /api/v1/chats` | ✅ OK | Расширить `ChatResource` + `filter` query (см. ниже) |
-| **Закрытие лида** | ❌ нет | ⚠️ stub | `POST /chats/{id}/close` + `is_lead_closed` в ChatResource |
-| **Фильтры inbox** | ❌ нет | ⚠️ client-side | `GET /chats?filter=mine\|favorites\|auto_reply\|closed` |
-| **Создание чата** | ❌ нет | ⚠️ stub | `POST /chats` body `{contact_id}` |
+| Список чатов | `GET /api/v1/chats` | ✅ OK | `filter` query — server-side (§2b) |
+| **Закрытие лида** | `POST /api/v1/chats/{id}/close` | ✅ OK | `is_lead_closed`, `lead_closed_at` в ChatResource |
+| **Фильтры inbox** | `GET /api/v1/chats?filter=...` | ✅ OK | `mine`, `favorites`, `auto_reply`, `closed` |
+| **Создание чата** | `POST /api/v1/chats` | ✅ OK | `{contact_id, whatsapp_session_id?}` |
 | Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | — |
 | AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
 | Перевод входящего сообщения | `POST /api/v1/messages/{id}/translate` body `{ "lang": "ru" }` | ✅ OK | Ответ: `translation` |
@@ -134,35 +134,38 @@ Hex: `#RGB`, `#RRGGBB`, `#AARRGGBB`.
 
 ---
 
-### 2b. Закрытие лида + фильтры inbox + создание чата
+### 2b. Inbox: закрытие лида, фильтры, создание чата — ✅ backend готов
 
-**Flutter (готово):**
-
-- `ChatService.closeLead` / `reopenLead` — `POST /api/v1/chats/{id}/close|reopen`
-- `ChatService.getChatsPage(filter: ...)` — query `filter=mine|favorites|auto_reply|closed`
-- `ChatService.startChatWithContact` — `POST /api/v1/chats` body `{contact_id}`
-- Inbox UI: фильтры **Все / Мои / Избранные / Автоответ / Закрытые**; long-press меню; FAB «Написать клиенту»
-
-**Backend:**
+**Backend (2026-06-05):**
 
 ```http
 POST /api/v1/chats/{chat}/close
-Response 200: { "data": ChatResource с is_lead_closed: true }
+Response 200: { "data": ChatResource с is_lead_closed: true, lead_closed_at: "..." }
 
-GET /api/v1/chats?filter=all|mine|favorites|auto_reply|closed
+POST /api/v1/chats/{chat}/reopen
+Response 200: { "data": ChatResource с is_lead_closed: false }
+
+GET /api/v1/chats?filter=all|mine|favorites|auto_reply|closed&page=1&per_page=50
 
 POST /api/v1/chats
 Body: { "contact_id": 123, "whatsapp_session_id": 1? }
 Response 201: { "data": ChatResource }
 ```
 
-**Reopen:** при inbound message от клиента — `is_lead_closed=false` + WS `chats.list`.
+**Reopen автоматически:** inbound от клиента → `is_lead_closed=false` + WS `chats.notify`:
 
-При 404 mobile показывает SnackBar; client-side фильтрация работает, если `is_lead_closed` уже есть в `GET /chats`.
+- `kind`: `lead_reopened` (или `lead_closed` при ручном close)
+- `extra.is_lead_closed`, `extra.lead_closed_at`
 
----
+**Flutter — что сделать:**
 
-**После добавления на Flutter:** уберём fallback на `board/card`, полоска будет из одного запроса.
+1. **Убрать заглушки:** SnackBar «после обновления сервера» для close / create chat.
+2. **Фильтры:** `ChatService.getChatsPage(filter: ...)` — полагаться на server-side `filter`; client-side фильтрацию удалить или оставить только offline-fallback.
+3. **Close lead:** после `POST .../close` — обновить локальный `Chat` из `data` ответа; чат исчезает из «Все» и появляется в «Закрытые».
+4. **WS inbox:** на `chats.notify` с `kind == lead_reopened` — убрать чат из «Закрытые», добавить в «Все» (или invalidate list cache).
+5. **FAB «Написать клиенту»:** всегда `POST /chats`; `primary_chat_id` — опциональный shortcut, не замена API.
+
+**Flutter (UI уже готово):** `ChatService.closeLead` / `reopenLead`, `getChatsPage(filter:)`, `startChatWithContact`, фильтры **Все / Мои / Избранные / Автоответ / Закрытые**.
 
 ---
 
@@ -406,10 +409,21 @@ Flutter уже подписан на каналы. Нужно подтверди
 - [x] **`PATCH /api/v1/chats/{id}/ai`** — `ChatAiSettingsController::updateForApi`, Sanctum auth
 - [x] **`ChatResource`** — funnel + ai поля в `GET /api/v1/chats/{id}`; в list — `funnel_stage` для badge
 - [x] **`GET /api/v1/broadcasts`** — `BroadcastController::apiIndex`
+- [x] **`POST /api/v1/chats/{id}/close|reopen`** — `ChatLeadClosureService`, `is_lead_closed` / `lead_closed_at`
+- [x] **`GET /api/v1/chats?filter=...`** — server-side: `mine`, `favorites`, `auto_reply`, `closed`
+- [x] **`POST /api/v1/chats`** — создание/поиск диалога по `contact_id`
+- [x] **`contact_id` в ChatResource** — list + detail
+- [x] **WS lead reopen** — `ChatsListNotify` `kind: lead_reopened` на inbound
 - [ ] **Realtime** — funnel/AI events на `chat.{chatId}` и board events на `funnel-board.{funnelId}` (желательно payload: `chat_id`, `funnel_stage_id` для incremental merge без полного reload)
 - [x] **`GET /api/v1/funnels/active`** — `FunnelBoardController::active` (picker + first launch)
 - [ ] **Sample JSON** — board/data, calendar/events, ai-chat/query, contacts/profile (demo tenant)
-- [ ] **`contact_id` в ChatResource** — list + detail
+
+## Чеклист для Flutter (после deploy backend 2026-06-05)
+
+- [ ] Убрать SnackBar-workaround для `closeLead` / `startChatWithContact`
+- [ ] Inbox: server-side `filter` вместо client-side (кроме offline fallback)
+- [ ] Обработать WS `chats.notify` → `lead_closed` / `lead_reopened`
+- [ ] Парсить `is_lead_closed`, `lead_closed_at` в `Chat.fromJson` (если ещё нет)
 
 ---
 
@@ -450,4 +464,4 @@ PATCH /api/v1/chats/{chat}/funnel
 
 ---
 
-*Обновлено: 2026-06-02 — Mobile UX 2026 (stage rail DnD, touch helpers, action sheets)*
+*Обновлено: 2026-06-05 — inbox close/filter/create на backend; чеклист для Flutter*
