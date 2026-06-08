@@ -110,6 +110,9 @@ export interface Chat {
     is_favorite: boolean;
     ai_enabled?: boolean;
     ai_mode?: 'auto' | 'draft';
+    ai_paused_at?: string | null;
+    conflict_state?: string | null;
+    conflict_situation?: string | null;
     ai_responder_user_id?: number | null;
     ai_responder?: { id: number; name: string } | null;
     can_manage_ai?: boolean;
