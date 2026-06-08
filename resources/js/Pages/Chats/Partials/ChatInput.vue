@@ -133,13 +133,14 @@ watch(
     },
 );
 
-type AiInputAction = 'reply' | 'improve' | 'shorter' | 'polite';
+type AiInputAction = 'reply' | 'improve' | 'shorter' | 'polite' | 'conflict';
 
 const aiInputActions = computed<ReadonlyArray<{ key: AiInputAction; label: string; requiresText: boolean }>>(() => [
     { key: 'reply', label: t('chats.input.aiReply'), requiresText: false },
     { key: 'improve', label: t('chats.input.aiImprove'), requiresText: true },
     { key: 'shorter', label: t('chats.input.aiShorter'), requiresText: true },
     { key: 'polite', label: t('chats.input.aiPolite'), requiresText: true },
+    { key: 'conflict', label: t('chats.input.aiConflict'), requiresText: true },
 ]);
 
 type GroupParticipant = {
@@ -501,6 +502,10 @@ function aiPromptFor(action: AiInputAction): string {
 
     if (action === 'polite') {
         return t('chats.input.aiPromptPolite', { text: currentText });
+    }
+
+    if (action === 'conflict') {
+        return t('chats.input.aiPromptConflict', { text: currentText });
     }
 
     return t('chats.input.aiPromptImprove', { text: currentText });

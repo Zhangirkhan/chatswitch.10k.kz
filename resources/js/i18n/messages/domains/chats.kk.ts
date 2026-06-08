@@ -240,6 +240,10 @@ export const chats = {
         aiOff: 'Өш',
         aiError: 'Қате',
         aiWaiting: 'Сізді күтуде',
+        conflictAiPaused: 'AI паузada — конфликт',
+        conflictAiPausedHint: 'Эскалациядан кейін автожауаптар тоқтатылды. Қолмен жауап беріңіз немесе AI қайта қосыңыз.',
+        conflictResumeAi: 'AI қайта қосу',
+        conflictResumeAiFailed: 'AI паузасын алу сәтсіз',
         aiThinking: 'Ойлануда',
         aiAuto: 'Авто',
         aiAutoReplyLabel: 'Автожауап',
@@ -414,6 +418,7 @@ export const chats = {
         aiImprove: 'Мәтінді жақсарту',
         aiShorter: 'Қысқарту',
         aiPolite: 'Сыпайылау',
+        aiConflict: 'Тыныш жауап',
         aiThinking: 'AI ойлануда',
         requiresText: 'Алдымен енгізу өрісіне мәтін жазыңыз',
         recording: 'Жazу… {time}',
@@ -478,6 +483,8 @@ export const chats = {
         aiPromptShorter: 'Bul mátіndі qısqart, maǵynasyn saqta, dos bolyp soyle. Tek dayyn mátіndі qaitar:\n\n{text}',
         aiPromptPolite:
             'Bul mátіndі qabyldauly qylyp, tinsh et, artyq resmі bolmasyn. Tek dayyn mátіndі qaitar:\n\n{text}',
+        aiPromptConflict:
+            'Klient naryazy nemese konfliktte. Tinsh jauap daiyńda: sezіmdі moyyndau, daulyasma, kompaniya erejesіsіz qaitarymdy uade etpe. Tek dayyn mátіndі qaitar:\n\n{text}',
         aiPromptImprove:
             'Operator jauabyn jaksart: sozderdі túzet, maǵynasyn saqta, anıq jane tabiǵi et. Tek dayyn mátіndі qaitar:\n\n{text}',
         mediaPlaceholder: '[Media]',

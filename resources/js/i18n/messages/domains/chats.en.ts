@@ -240,6 +240,10 @@ export const chats = {
         aiOff: 'Off',
         aiError: 'Error',
         aiWaiting: 'Waiting for you',
+        conflictAiPaused: 'AI paused — conflict',
+        conflictAiPausedHint: 'Auto-replies paused after escalation. Reply manually or resume AI.',
+        conflictResumeAi: 'Resume AI',
+        conflictResumeAiFailed: 'Could not resume AI',
         aiThinking: 'Thinking',
         aiAuto: 'Auto',
         aiAutoReplyLabel: 'Auto-reply',
@@ -414,6 +418,7 @@ export const chats = {
         aiImprove: 'Improve text',
         aiShorter: 'Make shorter',
         aiPolite: 'Make more polite',
+        aiConflict: 'Calm reply',
         aiThinking: 'AI thinking',
         requiresText: 'Write text in the input field first',
         recording: 'Recording… {time}',
@@ -478,6 +483,8 @@ export const chats = {
         aiPromptShorter: 'Make this text shorter, keep the meaning and friendly tone. Return only the final text:\n\n{text}',
         aiPromptPolite:
             'Make this text more polite and calm, without excessive formality. Return only the final text:\n\n{text}',
+        aiPromptConflict:
+            'The client is upset or in conflict. Draft a calm reply: acknowledge emotion, do not argue, do not promise refunds without company policy. Return only the final text:\n\n{text}',
         aiPromptImprove:
             'Improve this operator reply: fix wording, keep the meaning, make it clear and natural. Return only the final text:\n\n{text}',
         mediaPlaceholder: '[Media]',

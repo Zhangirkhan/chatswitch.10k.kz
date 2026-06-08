@@ -314,7 +314,35 @@ const aiSettingsSummary = computed(() => {
 });
 
 /** Единый компактный статус AI в шапке (5 состояний). */
+const aiConflictPaused = computed(() =>
+    props.chat.conflict_state === 'escalated' || Boolean(props.chat.ai_paused_at),
+);
+
+async function resumeAiAfterConflict(): Promise<void> {
+    if (!canManageAi.value || aiSaving.value || !aiConflictPaused.value) {
+        return;
+    }
+    aiSaving.value = true;
+    try {
+        await patchAiSettings({ resume_ai_after_conflict: true, ai_enabled: true });
+    } catch (e: any) {
+        showToast({
+            message: e?.response?.data?.message || t('chats.header.conflictResumeAiFailed'),
+            type: 'warning',
+        });
+    } finally {
+        aiSaving.value = false;
+    }
+}
+
 const aiHeaderBadge = computed(() => {
+    if (aiConflictPaused.value) {
+        return {
+            label: t('chats.header.conflictAiPaused'),
+            tone: 'warning' as const,
+            title: t('chats.header.conflictAiPausedHint'),
+        };
+    }
     if (!aiEnabled.value) {
         return { label: t('chats.header.aiOff'), tone: 'off' as const, title: t('chats.header.aiDisabledForChat') };
     }
@@ -1676,6 +1704,21 @@ provide(
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     <span class="ai-menu-trigger-label hidden lg:inline truncate max-w-[7.5rem]">{{ aiSettingsSummary }}</span>
+                </button>
+            </div>
+
+            <div
+                v-if="aiConflictPaused && canManageAi"
+                class="mx-3 mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+            >
+                <span class="flex-1 min-w-[12rem]">{{ t('chats.header.conflictAiPausedHint') }}</span>
+                <button
+                    type="button"
+                    class="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                    :disabled="aiSaving"
+                    @click="resumeAiAfterConflict"
+                >
+                    {{ t('chats.header.conflictResumeAi') }}
                 </button>
             </div>
 
