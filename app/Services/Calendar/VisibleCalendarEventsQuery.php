@@ -6,6 +6,7 @@ namespace App\Services\Calendar;
 
 use App\Models\CalendarEvent;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -17,7 +18,7 @@ final class VisibleCalendarEventsQuery
 {
     public static function forUser(User $user): Builder
     {
-        $q = CalendarEvent::query();
+        $q = self::scopeToTenant(CalendarEvent::query());
 
         if ($user->hasRole('administrator')) {
             return $q;
@@ -45,6 +46,27 @@ final class VisibleCalendarEventsQuery
         return $q->where(function (Builder $w) use ($user): void {
             $w->where('user_id', $user->id)
                 ->orWhere('assignee_user_id', $user->id);
+        });
+    }
+
+    /**
+     * @param  Builder<CalendarEvent>  $query
+     * @return Builder<CalendarEvent>
+     */
+    public static function scopeToTenant(Builder $query): Builder
+    {
+        $context = app(TenantContext::class);
+        if (! $context->shouldApplyTenantScope()) {
+            return $query;
+        }
+
+        $companyId = $context->companyId();
+
+        return $query->where(function (Builder $w) use ($companyId): void {
+            $w->whereHas('user', static fn (Builder $u) => $u->withoutGlobalScope('tenant')->where('company_id', $companyId))
+                ->orWhereHas('assignee', static fn (Builder $u) => $u->withoutGlobalScope('tenant')->where('company_id', $companyId))
+                ->orWhereHas('chat', static fn (Builder $c) => $c->withoutGlobalScope('tenant')->where('company_id', $companyId))
+                ->orWhereHas('contact', static fn (Builder $c) => $c->withoutGlobalScope('tenant')->where('company_id', $companyId));
         });
     }
 }
