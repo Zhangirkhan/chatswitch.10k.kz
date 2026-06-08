@@ -73,6 +73,7 @@ export const chats = {
         clients: 'Clients',
         staff: 'Staff',
         closed: 'Closed',
+        autoReply: 'Auto-reply',
         attention: 'Attention',
         attentionTitle: 'AI: manager needed, error, low confidence; unread',
         noAttentionChats: 'No chats requiring attention right now.',

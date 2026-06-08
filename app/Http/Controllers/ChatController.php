@@ -357,9 +357,14 @@ final class ChatController extends Controller
     /** «Все» / «Мои» в списке чатов — только администратор и руководитель; синхронизируется через query `ownership`. */
     private function chatListFilter(Request $request): ?string
     {
-        $filter = $request->input('filter');
-        if ($filter === ChatAttentionService::FILTER_ATTENTION) {
-            return ChatAttentionService::FILTER_ATTENTION;
+        $filter = is_string($request->input('filter')) ? trim($request->input('filter')) : null;
+
+        if (in_array($filter, [
+            ChatAttentionService::FILTER_ATTENTION,
+            'auto_reply',
+            'closed',
+        ], true)) {
+            return $filter;
         }
 
         return null;

@@ -84,6 +84,8 @@ export interface Chat {
     is_archived: boolean;
     is_muted: boolean;
     is_favorite: boolean;
+    is_lead_closed?: boolean;
+    lead_closed_at?: string | null;
     muted_until: string | null;
     unread_count: number;
     last_message_text: string | null;

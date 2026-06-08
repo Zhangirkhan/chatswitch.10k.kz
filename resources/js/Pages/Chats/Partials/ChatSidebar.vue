@@ -26,7 +26,7 @@ const { t } = useI18n();
 type ScopeKey = 'active' | 'archived';
 type OwnershipKey = 'all' | 'mine';
 type SegmentKey = 'all' | 'favorites' | 'clients' | 'staff';
-type ListFilterKey = 'attention' | null;
+type ListFilterKey = 'attention' | 'auto_reply' | 'closed' | null;
 
 const props = withDefaults(
     defineProps<{
@@ -52,9 +52,15 @@ const isManager = computed(() => roles.value.includes('manager'));
 const canFilterByOwnership = computed(() => isAdmin.value || isManager.value);
 
 const listOwnership = computed(() => (page.props.listOwnership === 'mine' ? 'mine' : 'all'));
-const listFilter = computed<ListFilterKey>(() =>
-    page.props.listFilter === 'attention' ? 'attention' : null,
-);
+const listFilter = computed<ListFilterKey>(() => {
+    const f = page.props.listFilter;
+    if (f === 'attention' || f === 'auto_reply' || f === 'closed') {
+        return f;
+    }
+
+    return null;
+});
+const hasServerListFilter = computed(() => listFilter.value !== null);
 const attentionChatsTotal = computed(() => Number(page.props.attentionChatsTotal ?? 0));
 
 function chatsListRoute(): string {
@@ -192,7 +198,7 @@ function applyIncomingMessage(chatId: number, msg: {
     if (idx < 0) {
         // В режиме «Внимание» в списке только часть чатов — не перезагружаем страницу
         // на каждое сообщение в остальные диалоги (иначе UI зависает в reload-loop).
-        if (listFilter.value === 'attention') {
+        if (listFilter.value === 'attention' || listFilter.value === 'closed') {
             if (msg.direction === 'inbound') {
                 liveUnread.increment();
                 scheduleChatListReload();
@@ -242,7 +248,7 @@ async function fetchFeedPage(page: number, options: { replace?: boolean } = {}):
             search: props.search || undefined,
             archived: props.scope === 'archived' ? 1 : 0,
             ownership: listOwnership.value === 'mine' ? 'mine' : undefined,
-            filter: listFilter.value === 'attention' ? 'attention' : undefined,
+            filter: listFilter.value ?? undefined,
             ensure_chat_id: props.selectedChatId || undefined,
         },
     });
@@ -488,7 +494,7 @@ function isStaffLastMessage(chat: Chat): boolean {
 
 const filteredChats = computed(() => {
     let list = ownershipFilteredChats.value;
-    if (listFilter.value === 'attention') {
+    if (hasServerListFilter.value) {
         return [...list].sort((a, b) => {
             const ad = new Date((a.last_message_at || (a as any).created_at || '') as any).getTime() || 0;
             const bd = new Date((b.last_message_at || (b as any).created_at || '') as any).getTime() || 0;
@@ -527,7 +533,7 @@ const mineChatsTotal = computed(() => Number(page.props.mineChatsTotal ?? 0));
 
 function setSegment(key: SegmentKey) {
     activeSegment.value = key;
-    if (listFilter.value === 'attention') {
+    if (hasServerListFilter.value) {
         router.get(chatsListRoute(), chatsListQuery({ filter: undefined }), {
             preserveState: true,
             preserveScroll: true,
@@ -536,8 +542,8 @@ function setSegment(key: SegmentKey) {
     }
 }
 
-function setAttentionFilter(): void {
-    router.get(chatsListRoute(), chatsListQuery({ filter: 'attention' }), {
+function setListFilter(filter: Exclude<ListFilterKey, null>): void {
+    router.get(chatsListRoute(), chatsListQuery({ filter }), {
         preserveState: true,
         preserveScroll: true,
         only: ['chats', 'unreadChatsCount', 'unreadChatsCountMine', 'listOwnership', 'listFilter', 'attentionChatsTotal', 'mineChatsTotal'],
@@ -836,7 +842,7 @@ onBeforeUnmount(() => {
                         <button
                             type="button"
                             class="ui-chip shrink-0"
-                            :class="{ 'is-active': listOwnership === 'all' && activeSegment === 'all' && listFilter !== 'attention' }"
+                            :class="{ 'is-active': listOwnership === 'all' && activeSegment === 'all' && !hasServerListFilter }"
                             @click="setOwnership('all')"
                         >
                             {{ t('chats.sidebar.all') }}
@@ -856,7 +862,7 @@ onBeforeUnmount(() => {
                         v-if="!canFilterByOwnership"
                         type="button"
                         class="ui-chip shrink-0"
-                        :class="{ 'is-active': activeSegment === 'all' && listFilter !== 'attention' }"
+                        :class="{ 'is-active': activeSegment === 'all' && !hasServerListFilter }"
                         @click="setSegment('all')"
                     >
                         {{ t('chats.sidebar.all') }}
@@ -864,7 +870,7 @@ onBeforeUnmount(() => {
                     <button
                         type="button"
                         class="ui-chip shrink-0"
-                        :class="{ 'is-active': activeSegment === 'favorites' && listFilter !== 'attention' }"
+                        :class="{ 'is-active': activeSegment === 'favorites' && !hasServerListFilter }"
                         @click="setSegment('favorites')"
                     >
                         {{ t('chats.sidebar.favorites') }}
@@ -873,7 +879,7 @@ onBeforeUnmount(() => {
                     <button
                         type="button"
                         class="ui-chip shrink-0"
-                        :class="{ 'is-active': activeSegment === 'clients' && listFilter !== 'attention' }"
+                        :class="{ 'is-active': activeSegment === 'clients' && !hasServerListFilter }"
                         @click="setSegment('clients')"
                     >
                         {{ t('chats.sidebar.clients') }}
@@ -882,7 +888,7 @@ onBeforeUnmount(() => {
                     <button
                         type="button"
                         class="ui-chip shrink-0"
-                        :class="{ 'is-active': activeSegment === 'staff' && listFilter !== 'attention' }"
+                        :class="{ 'is-active': activeSegment === 'staff' && !hasServerListFilter }"
                         @click="setSegment('staff')"
                     >
                         {{ t('chats.sidebar.staff') }}
@@ -890,10 +896,26 @@ onBeforeUnmount(() => {
                     </button>
                     <button
                         type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': listFilter === 'auto_reply' }"
+                        @click="setListFilter('auto_reply')"
+                    >
+                        {{ t('chats.sidebar.autoReply') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="ui-chip shrink-0"
+                        :class="{ 'is-active': listFilter === 'closed' }"
+                        @click="setListFilter('closed')"
+                    >
+                        {{ t('chats.sidebar.closed') }}
+                    </button>
+                    <button
+                        type="button"
                         class="ui-chip ui-chip--danger shrink-0"
                         :class="{ 'is-active': listFilter === 'attention' }"
                         :title="t('chats.sidebar.attentionTitle')"
-                        @click="setAttentionFilter"
+                        @click="setListFilter('attention')"
                     >
                         {{ t('chats.sidebar.attention') }}
                         <span v-if="attentionChatsTotal" class="ui-chip__meta">{{ attentionChatsTotal > 99 ? '99+' : attentionChatsTotal }}</span>
@@ -912,7 +934,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div
-            v-if="scope === 'active' && activeSegment === 'staff' && listFilter !== 'attention' && filteredChats.length === 0 && ownershipFilteredChats.length > 0"
+            v-if="scope === 'active' && activeSegment === 'staff' && !hasServerListFilter && filteredChats.length === 0 && ownershipFilteredChats.length > 0"
             class="mx-3 mb-2 px-3 py-2 rounded-lg text-xs shrink-0 leading-snug"
             :style="{ background: 'var(--wa-panel-header)', color: 'var(--wa-text-secondary)' }"
         >

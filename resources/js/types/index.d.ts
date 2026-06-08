@@ -108,6 +108,8 @@ export interface Chat {
     is_muted: boolean;
     muted_until: string | null;
     is_favorite: boolean;
+    is_lead_closed?: boolean;
+    lead_closed_at?: string | null;
     ai_enabled?: boolean;
     ai_mode?: 'auto' | 'draft';
     ai_paused_at?: string | null;

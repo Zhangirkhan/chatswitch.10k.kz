@@ -262,6 +262,17 @@ paths:
           name: search
           schema: { type: string }
           description: Поиск по имени чата / контакту (как на вебе)
+        - in: query
+          name: filter
+          schema:
+            type: string
+            enum: [all, mine, favorites, auto_reply, closed]
+          description: |
+            Server-side фильтр inbox.
+            `mine` — назначенные текущему пользователю (admin/manager).
+            `favorites` — избранные.
+            `auto_reply` — AI auto (`ai_enabled` + `ai_mode=auto`, не группы).
+            `closed` — закрытые лиды (`is_lead_closed=true`).
       responses:
         "200":
           description: Пагинированный список
