@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\OutboundSenderDisplayName;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,7 +24,8 @@ final class MessageResource extends JsonResource
             'body' => $this->body,
             'metadata' => $this->metadata,
             'sender_phone' => $this->sender_phone,
-            'sender_name' => $this->sender_name,
+            'sender_name' => OutboundSenderDisplayName::forMessage($this->resource),
+            'sender' => OutboundSenderDisplayName::senderPayload($this->resource),
             'sent_by_user_id' => $this->sent_by_user_id,
             'is_forwarded' => (bool) $this->is_forwarded,
             'quoted_message_id' => $this->quoted_message_id,
@@ -56,7 +58,7 @@ final class MessageResource extends JsonResource
                     'direction' => $q->direction,
                     'type' => $q->type,
                     'body' => $q->body,
-                    'sender_name' => $q->sender_name,
+                    'sender_name' => OutboundSenderDisplayName::forMessage($q) ?? $q->sender_name,
                     'sender_phone' => $q->sender_phone,
                     'sent_by_user_id' => $q->sent_by_user_id,
                 ] : null;

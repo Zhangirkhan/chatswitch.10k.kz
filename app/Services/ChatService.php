@@ -20,6 +20,7 @@ use App\Services\AI\ChatAttentionService;
 use App\Services\Funnel\ConsultationFollowUpProposalService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\MediaType;
+use App\Support\OutboundSenderDisplayName;
 use App\Support\PhoneFormatter;
 use App\Support\WhatsappMessageType;
 use App\Support\TranscribeAudioJobDispatcher;
@@ -758,6 +759,8 @@ final class ChatService
      */
     public function storeOutboundMessage(Chat $chat, WhatsappSession $session, User $user, string $body, ?string $waMessageId = null, ?string $quotedMessageId = null, ?array $metadata = null): Message
     {
+        $chat->loadMissing('company');
+
         $message = Message::create([
             'chat_id' => $chat->id,
             'whatsapp_session_id' => $session->id,
@@ -767,7 +770,7 @@ final class ChatService
             'body' => $body,
             'metadata' => $metadata,
             'sent_by_user_id' => $user->id,
-            'sender_name' => $user->name,
+            'sender_name' => OutboundSenderDisplayName::resolve($user, $chat, $metadata),
             'quoted_message_id' => $quotedMessageId,
             'ack' => $waMessageId ? 'sent' : 'pending',
             'message_timestamp' => now(),

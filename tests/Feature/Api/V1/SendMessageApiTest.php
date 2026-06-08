@@ -54,6 +54,7 @@ final class SendMessageApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('tone_profile_learning_scheduled', false);
+        $response->assertJsonPath('message.sender_name', $user->name.' (Сотрудник)');
         $this->assertTrue(
             Message::query()
                 ->where('chat_id', $chat->id)

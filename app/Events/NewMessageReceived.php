@@ -7,6 +7,7 @@ namespace App\Events;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Support\ChatBroadcastAudience;
+use App\Support\OutboundSenderDisplayName;
 use App\Tenancy\TenantChannels;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -65,7 +66,8 @@ final class NewMessageReceived implements ShouldBroadcastNow
                 'body' => $this->message->body,
                 'metadata' => $this->message->metadata,
                 'sender_phone' => $this->message->sender_phone,
-                'sender_name' => $this->message->sender_name,
+                'sender_name' => OutboundSenderDisplayName::forMessage($this->message),
+                'sender' => OutboundSenderDisplayName::senderPayload($this->message),
                 'sent_by_user_id' => $this->message->sent_by_user_id,
                 'is_forwarded' => $this->message->is_forwarded,
                 'ack' => $this->message->ack,
@@ -90,7 +92,8 @@ final class NewMessageReceived implements ShouldBroadcastNow
                     'direction' => $this->message->quotedMessage->direction,
                     'type' => $this->message->quotedMessage->type,
                     'body' => $this->message->quotedMessage->body,
-                    'sender_name' => $this->message->quotedMessage->sender_name,
+                    'sender_name' => OutboundSenderDisplayName::forMessage($this->message->quotedMessage)
+                        ?? $this->message->quotedMessage->sender_name,
                     'sender_phone' => $this->message->quotedMessage->sender_phone,
                     'sent_by_user' => $this->message->quotedMessage->sentByUser ? [
                         'id' => $this->message->quotedMessage->sentByUser->id,

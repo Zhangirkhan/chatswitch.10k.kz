@@ -18,7 +18,7 @@
 
 3. **Перевод черновика:** `POST .../translate-draft` — уже в mobile API; Flutter probe + chip.
 
-4. **Ещё ждёт backend (не блокирует релиз):** `sender_name` на всех outbound (§2c), optional `brand_color`, realtime funnel/AI на `chat.{id}`.
+4. **Ещё ждёт backend (не блокирует релиз):** optional `brand_color`, realtime funnel/AI на `chat.{id}`.
 
 **Доки:** этот файл + [`CHAT_TRANSLATION_AND_AI_HINTS.md`](./CHAT_TRANSLATION_AND_AI_HINTS.md) + [`BACKEND_REQUESTS.md`](./BACKEND_REQUESTS.md).  
 **OpenAPI:** [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml) — `AiChatResponse.reply_draft`, `filter` на `GET /chats`.
@@ -53,7 +53,7 @@ textController.text = draft;
 | AI-панель (bottom sheet) | ✅ показ `reply`, вставка `reply_draft` | ✅ |
 | Перевод inbound | ✅ + кеш prefs | ✅ |
 | Перевод черновика (чип «Перевести») | ✅ probe + chip | ✅ `POST .../translate-draft` |
-| Подпись отправителя в пузырях (outbound) | ✅ `Message.displaySenderLabel` | ⚠️ заполнить `sender_name` на всех outbound — §2c |
+| Подпись отправителя в пузырях (outbound) | ✅ `Message.displaySenderLabel` | ✅ `sender_name` + `sender` в API/WS — §2c |
 | Полоска воронки в чате | ✅ из `GET /chats/{id}` | ✅ |
 | Вкладка «Клиенты» (CRM list + detail с табами) | ✅ | ✅ contacts API |
 | Рассылки: wizard + история | ✅ `GET /broadcasts` (+ local fallback) | ✅ |
@@ -72,14 +72,14 @@ textController.text = draft;
 
 | # | Функция | Flutter (готово) | Backend (осталось) | Блокирует релиз? |
 |---|---------|------------------|--------------------|------------------|
-| 1 | **Подпись отправителя в исходящих пузырях** | `Message.displaySenderLabel`, `_buildSenderLabel` — text/image/file/voice | Заполнять `sender_name` (или `sender: {name, role}`) на **всех** `direction: outbound` в `GET messages` и WS — §2c | UX: подпись не видна, если поле пустое |
+| 1 | **Подпись отправителя в исходящих пузырях** | `Message.displaySenderLabel`, `_buildSenderLabel` — text/image/file/voice | ✅ `OutboundSenderDisplayName` в API/WS + при создании outbound — §2c | — |
 | 2 | **Realtime funnel / AI в открытом чате** | Подписка на `chat.{chatId}`; полоска воронки из `GET /chats/{id}` | Broadcast смены `funnel_stage_id`, `ai_enabled` на канал чата — §7 | Нет — refresh работает |
 | 3 | **Realtime доска воронок** | Подписка на `funnel-board.{funnelId}` | Подтвердить события на demo — §7 | Нет |
 | 4 | **`brand_color` tenant** | `AppConfigProvider.brandColor` → `ThemeData.primary`; fallback green | Опционально: hex в `GET /settings` — §1b | Нет |
 | 5 | **Sample JSON для QA** | Парсинг envelope исправлен на клиенте | Примеры ответов demo tenant: board/data, calendar, ai-chat/query, contacts/profile — §A–D | QA / отладка |
 | 6 | **OpenAPI** | Клиент не зависит от спеки | Дописать schemas: funnel fields в Chat, outbound `sender_name` — §OpenAPI | Нет |
 
-**Уже закрыто с обеих сторон (не в таблице выше):** inbox close/filter/create, AI toggle, AI chips + `reply_draft`, translate inbound/draft, broadcasts list, funnel strip, CRM clients, calendar, AI workspace.
+**Уже закрыто с обеих сторон (не в таблице выше):** inbox close/filter/create, AI toggle, AI chips + `reply_draft`, translate inbound/draft, broadcasts list, funnel strip, CRM clients, calendar, AI workspace, outbound `sender_name`.
 
 **Не «ждём backend» — v2 / отдельные эпики (Flutter тоже не готов):**
 
@@ -104,8 +104,8 @@ textController.text = draft;
 | **Закрытие лида** | `POST /api/v1/chats/{id}/close` | ✅ OK | `is_lead_closed`, `lead_closed_at` в ChatResource |
 | **Фильтры inbox** | `GET /api/v1/chats?filter=...` | ✅ OK | `mine`, `favorites`, `auto_reply`, `closed` |
 | **Создание чата** | `POST /api/v1/chats` | ✅ OK | `{contact_id, whatsapp_session_id?}` |
-| Сообщения, read, assign | `chats/*`, `messages/*` | ⚠️ partial | outbound `sender_name` на всех исходящих — §2c |
-| **Подпись отправителя (UI)** | — | ✅ Flutter | Backend: `sender_name` / `sender` — §2c |
+| Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | outbound `sender_name` / `sender` — §2c |
+| **Подпись отправителя (UI)** | — | ✅ Flutter | ✅ Backend: `sender_name` / `sender` — §2c |
 | AI-панель / чипы в чате | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | `reply_draft` для composer — § CHAT doc |
 | Перевод входящего | `POST /api/v1/messages/{id}/translate` | ✅ OK | Flutter: `MessageService.translate` |
 | **Перевод черновика** | `POST /api/v1/chats/{id}/translate-draft` | ✅ OK | Flutter: `DraftTranslationService` + probe |
@@ -274,9 +274,11 @@ Response 201: { "data": ChatResource }
 
 ---
 
-### 2c. `MessageResource.sender_name` на исходящих (outbound)
+### 2c. `MessageResource.sender_name` на исходящих (outbound) — ✅ backend
 
-**Зачем:** в WhatsApp и веб-CRM клиент видит подпись отправителя внутри исходящего пузыря: **«Администратор ESL (Администратор)»**, **«Сани (AI)»**. Mobile Flutter читает `sender_name` и показывает её на outbound; если поле пустое — подпись не появится (это пробел backend, не UI).
+**Зачем:** в WhatsApp и mobile клиент видит подпись внутри исходящего пузыря: **«Администратор ESL (Администратор)»**, **«Сани (AI)»**.
+
+**Backend (2026-06-05):** [`OutboundSenderDisplayName`](../../app/Support/OutboundSenderDisplayName.php) — при создании outbound, в `MessageResource`, WS `message.received`.
 
 **Контракт для `GET /api/v1/chats/{id}/messages` и WS `messages.*`:**
 
@@ -416,7 +418,7 @@ Flutter уже подписан на каналы. Нужно подтверди
 - [x] `AiChatResponse.reply_draft`
 - [ ] поля funnel/ai в `Chat` schema (частично)
 - [ ] (опционально) `GET /users`
-- [ ] `MessageResource.sender_name` — контракт outbound (§2c)
+- [x] `MessageResource.sender_name` + `sender` — outbound (§2c)
 
 ---
 
@@ -582,7 +584,7 @@ Flutter уже подписан на каналы. Нужно подтверди
 - [x] Чип «Перевести»: `DraftTranslationService` + probe endpoint
 - [x] `translate_enabled`, `clientLanguage` (`message_language.dart`)
 - [x] Подпись отправителя в пузырях: `Message.displaySenderLabel`, `_buildSenderLabel` (text/image/file/voice)
-- [ ] Backend: `sender_name` на всех outbound — иначе подпись пустая на demo
+- [x] Backend: `sender_name` / `sender` на outbound в API и WS
 
 ---
 

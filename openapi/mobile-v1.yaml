@@ -1377,7 +1377,21 @@ components:
         body: { type: string, nullable: true }
         metadata: { type: object, additionalProperties: true, nullable: true }
         sender_phone: { type: string, nullable: true }
-        sender_name: { type: string, nullable: true }
+        sender_name:
+          type: string
+          nullable: true
+          description: >
+            Для outbound — подпись отправителя в UI: «Имя (Роль)» или «Имя (AI)».
+            Для inbound в 1:1 — имя клиента (optional).
+        sender:
+          type: object
+          nullable: true
+          description: Разобранная подпись для outbound (fallback если sender_name пуст)
+          properties:
+            id: { type: integer, nullable: true }
+            name: { type: string }
+            role: { type: string, nullable: true, example: "Администратор" }
+            label: { type: string, example: "Администратор ESL (Администратор)" }
         sent_by_user_id: { type: integer, nullable: true }
         is_forwarded: { type: boolean }
         quoted_message_id: { type: string, nullable: true }

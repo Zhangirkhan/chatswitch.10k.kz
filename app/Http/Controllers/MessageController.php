@@ -18,6 +18,7 @@ use App\Services\CrossChannelMessageShareService;
 use App\Services\WhatsappService;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
+use App\Support\OutboundSenderDisplayName;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -460,7 +461,7 @@ final class MessageController extends Controller
                     ? ['forward_source_whatsapp_message_id' => $sourceWhatsappMessageId]
                     : null,
                 'sent_by_user_id' => $user->id,
-                'sender_name' => $user->name,
+                'sender_name' => OutboundSenderDisplayName::resolve($user),
                 'is_forwarded' => true,
                 'quoted_message_id' => null,
                 'ack' => 'pending',
@@ -599,7 +600,7 @@ final class MessageController extends Controller
                         ? ['forward_source_whatsapp_message_id' => $sourceWhatsappMessageId]
                         : null,
                     'sent_by_user_id' => $user->id,
-                    'sender_name' => $user->name,
+                    'sender_name' => OutboundSenderDisplayName::resolve($user),
                     'is_forwarded' => true,
                     'quoted_message_id' => null,
                     'ack' => 'pending',

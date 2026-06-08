@@ -101,6 +101,23 @@ final class OperatorSignature
             : '*'.$name.' ('.implode(' · ', $parts).')*';
     }
 
+    /**
+     * Подпись для UI/mobile без WhatsApp-разметки: `Имя (Должность)`.
+     */
+    public static function plainLabel(?User $user): string
+    {
+        if ($user === null) {
+            return '';
+        }
+
+        return trim(self::build($user), '*');
+    }
+
+    public static function roleLabel(?User $user): ?string
+    {
+        return $user !== null ? self::roleTitle($user) : null;
+    }
+
     private static function roleTitle(User $user): ?string
     {
         try {

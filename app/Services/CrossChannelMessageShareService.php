@@ -11,7 +11,7 @@ use App\Models\TeamConversation;
 use App\Models\TeamMessage;
 use App\Models\User;
 use App\Models\WhatsappSession;
-use App\Support\OperatorSignature;
+use App\Support\OutboundSenderDisplayName;
 use App\Support\SharedMessageQuote;
 use Illuminate\Validation\ValidationException;
 
@@ -90,7 +90,7 @@ final class CrossChannelMessageShareService
                     'shared_from_team_message_id' => $source->id,
                 ],
                 'sent_by_user_id' => $user->id,
-                'sender_name' => $user->name,
+                'sender_name' => OutboundSenderDisplayName::resolve($user),
                 'is_forwarded' => false,
                 'quoted_message_id' => null,
                 'ack' => 'pending',
