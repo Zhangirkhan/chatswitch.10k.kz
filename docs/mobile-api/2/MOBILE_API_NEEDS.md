@@ -25,7 +25,7 @@
 | **Закрытие лида** | `POST /api/v1/chats/{id}/close` | ✅ OK | `is_lead_closed`, `lead_closed_at` в ChatResource |
 | **Фильтры inbox** | `GET /api/v1/chats?filter=...` | ✅ OK | `mine`, `favorites`, `auto_reply`, `closed` |
 | **Создание чата** | `POST /api/v1/chats` | ✅ OK | `{contact_id, whatsapp_session_id?}` |
-| Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | — |
+| Сообщения, read, assign | `chats/*`, `messages/*` | ⚠️ partial | outbound `sender_name` — §2c |
 | AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
 | Перевод входящего сообщения | `POST /api/v1/messages/{id}/translate` body `{ "lang": "ru" }` | ✅ OK | Ответ: `translation` |
 | **Перевод черновика (чип «Перевести»)** | `POST /api/v1/chats/{id}/translate-draft` | ❌ нет в Mobile API | Проброс из `routes/tenant.php`; Flutter: probe при входе в чат + чип (`DraftTranslationService`) |
@@ -166,6 +166,47 @@ Response 201: { "data": ChatResource }
 5. **FAB «Написать клиенту»:** всегда `POST /chats`; `primary_chat_id` — опциональный shortcut, не замена API.
 
 **Flutter (UI уже готово):** `ChatService.closeLead` / `reopenLead`, `getChatsPage(filter:)`, `startChatWithContact`, фильтры **Все / Мои / Избранные / Автоответ / Закрытые**.
+
+---
+
+### 2c. `MessageResource.sender_name` на исходящих (outbound)
+
+**Зачем:** в WhatsApp и веб-CRM клиент видит подпись отправителя внутри исходящего пузыря: **«Администратор ESL (Администратор)»**, **«Сани (AI)»**. Mobile Flutter читает `sender_name` и показывает её на outbound; если поле пустое — подпись не появится (это пробел backend, не UI).
+
+**Контракт для `GET /api/v1/chats/{id}/messages` и WS `messages.*`:**
+
+| Поле | Направление | Значение |
+|------|-------------|----------|
+| `sender_name` | **все outbound** | `"Имя (Роль)"` для оператора/админа или `"Имя (AI)"` для автоответа — **паритет с WhatsApp push / веб-CRM** |
+| `sent_by_user_id` | outbound от пользователя | ID staff; `null` для AI |
+| `sender` | optional | `{ "id": 12, "name": "Сани", "role": "AI" }` — mobile соберёт `"Сани (AI)"` если `sender_name` пуст |
+| `metadata.sender_display_name` / `metadata.sender_label` | optional fallback | строка, если основное поле не заполнено |
+
+**Пример outbound в ленте:**
+
+```json
+{
+  "id": 9001,
+  "direction": "outbound",
+  "body": "Здравствуйте!",
+  "sender_name": "Администратор ESL (Администратор)",
+  "sent_by_user_id": 3
+}
+```
+
+```json
+{
+  "id": 9002,
+  "direction": "outbound",
+  "body": "Могу помочь с заказом.",
+  "sender_name": "Сани (AI)",
+  "sent_by_user_id": null
+}
+```
+
+**Inbound:** для 1:1 `sender_name` клиента не обязателен (mobile не показывает подпись); для **групповых** чатов — желательно для входящих от участников.
+
+**Flutter (готово):** `Message.displaySenderLabel` + `_buildSenderLabel` в `chat_screen.dart`.
 
 ---
 
@@ -420,10 +461,10 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 ## Чеклист для Flutter (после deploy backend 2026-06-05)
 
-- [ ] Убрать SnackBar-workaround для `closeLead` / `startChatWithContact`
-- [ ] Inbox: server-side `filter` вместо client-side (кроме offline fallback)
-- [ ] Обработать WS `chats.notify` → `lead_closed` / `lead_reopened`
-- [ ] Парсить `is_lead_closed`, `lead_closed_at` в `Chat.fromJson` (если ещё нет)
+- [x] Убрать SnackBar-workaround для `closeLead` / `startChatWithContact`
+- [x] Inbox: server-side `filter` вместо client-side (кроме offline fallback)
+- [x] Обработать WS `chats.notify` → `lead_closed` / `lead_reopened`
+- [x] Парсить `is_lead_closed`, `lead_closed_at` в `Chat.fromJson` (если ещё нет)
 
 ---
 
