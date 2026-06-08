@@ -564,7 +564,7 @@ async function runAiInputAction(action: AiInputAction): Promise<void> {
             message: aiPromptFor(action),
             history: [],
         });
-        const reply = String(data?.reply ?? '').trim();
+        const reply = String(data?.reply_draft ?? data?.reply ?? '').trim();
         if (reply === '') {
             aiActionError.value = t('chats.input.aiEmptyResponse');
             return;

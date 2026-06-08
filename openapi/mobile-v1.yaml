@@ -1483,11 +1483,35 @@ components:
 
     AiChatResponse:
       type: object
-      required: [reply]
+      required: [reply, reply_draft]
       properties:
         reply:
           type: string
-          description: Ответ AI оператору
+          description: Полный ответ AI оператору (с пояснениями и intro)
+        reply_draft:
+          type: string
+          description: >
+            Готовый текст для вставки клиенту — без кавычек, intro («Лучше так:») и пояснений.
+            Используйте это поле для быстрых подсказок и отправки сообщения.
+        reply_intro:
+          type: string
+          nullable: true
+          description: Вводная часть ответа, если AI вернул варианты
+        reply_variants:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              text:
+                type: string
+          description: Варианты ответа для выбора оператором
+        product:
+          type: object
+          nullable: true
+          description: Карточка товара, если AI предложил прикрепить продукт
 
     # ── Воронки продаж ────────────────────────
 

@@ -449,7 +449,7 @@ async function generateAutoDraft(message = latestClientMessage.value): Promise<v
             message: prompt,
             history: [],
         });
-        const reply: string = String(res.data?.reply ?? '').trim();
+        const reply: string = String(res.data?.reply_draft ?? res.data?.reply ?? '').trim();
         if (reply === '') {
             throw new Error(t('chats.aiAssistant.emptyResponse'));
         }

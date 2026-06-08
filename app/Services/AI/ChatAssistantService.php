@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Support\AssistantClientDraftExtractor;
 use App\Support\AssistantReplyVariantParser;
 use App\Support\MessageInboundText;
 use App\Support\OperatorSignature;
@@ -38,6 +39,7 @@ final class ChatAssistantService
         private readonly ProductMessageAttachmentService $productAttachments,
         private readonly LocalePromptAugmenter $localeAugmenter,
         private readonly AssistantReplyVariantParser $replyVariantParser,
+        private readonly AssistantClientDraftExtractor $clientDraftExtractor,
     ) {}
 
     /**
@@ -46,7 +48,7 @@ final class ChatAssistantService
      * @param  string  $userPrompt  Свежее сообщение оператора к AI.
      */
     /**
-     * @return array{reply: string, product: array<string, mixed>|null, reply_intro: string|null, reply_variants: list<array{label: string, text: string}>|null}
+     * @return array{reply: string, reply_draft: string, product: array<string, mixed>|null, reply_intro: string|null, reply_variants: list<array{label: string, text: string}>|null}
      */
     public function reply(Chat $chat, User $operator, array $assistantHistory, string $userPrompt): array
     {
@@ -97,6 +99,7 @@ final class ChatAssistantService
 
         return [
             'reply' => $replyText,
+            'reply_draft' => $this->clientDraftExtractor->extract($replyText, $variantPayload),
             'product' => $product,
             'reply_intro' => $variantPayload['intro'] ?? null,
             'reply_variants' => $variantPayload['variants'] ?? null,

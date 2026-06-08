@@ -123,7 +123,8 @@ Content-Type: application/json
 
 ```json
 {
-  "reply": "Готовый текст для вставки в поле ввода",
+  "reply": "Лучше так:\n«Здравствуйте! ...»\nТак звучит спокойнее...",
+  "reply_draft": "Здравствуйте! ...",
   "product": {
     "id": 12,
     "name": "Товар",
@@ -132,7 +133,8 @@ Content-Type: application/json
 }
 ```
 
-- `reply` — подставляется в поле ввода (заменяет черновик).
+- `reply_draft` — **готовый текст для клиента** (без кавычек, intro и пояснений). Подставляйте в поле ввода и отправляйте.
+- `reply` — полный ответ AI оператору (для панели ассистента / отладки).
 - `product` — опционально; если AI вернул маркер товара из каталога, веб прикрепляет товар к отправке (`product_id` при `POST .../messages`). На mobile можно игнорировать до поддержки каталога.
 
 **Ошибки:**
@@ -155,7 +157,7 @@ Content-Type: application/json
 
 1. Над `TextField` — `Wrap` с кнопками (как на скриншоте).
 2. По тапу — `POST /api/v1/chats/{chatId}/ai/chat` с `message` = промпт из таблицы выше (локализуйте строки как на вебе).
-3. `reply` → `TextEditingController.text = reply`.
+3. `reply_draft` (fallback: `reply`) → `TextEditingController.text = reply_draft`.
 4. Блокируйте чипы при `isLoading`; показывайте ошибку из `message`.
 5. **Не путать** с `PATCH /chats/{id}/ai` (toggle автоответа) и с `POST /ai-chat/query` (вкладка AI workspace).
 
@@ -393,9 +395,11 @@ Future<void> runAiReply(int chatId) async {
       'history': <Map<String, String>>[],
     },
   );
-  final reply = (res.data['reply'] as String?)?.trim() ?? '';
-  if (reply.isEmpty) throw ApiException('Пустой ответ AI');
-  textController.text = reply;
+  final replyDraft = (res.data['reply_draft'] as String?)?.trim()
+      ?? (res.data['reply'] as String?)?.trim()
+      ?? '';
+  if (replyDraft.isEmpty) throw ApiException('Пустой ответ AI');
+  textController.text = replyDraft;
 }
 ```
 
@@ -415,7 +419,7 @@ Future<String> translateMessage(int messageId, String lang) async {
 
 | Сценарий | Ожидание |
 |----------|----------|
-| Чип «Ответить» в чате с inbound | Непустой `reply`, язык клиента в тексте |
+| Чип «Ответить» / «Улучшить» в чате с inbound | Непустой `reply_draft` (только текст клиенту, без «Лучше так:» и пояснений) |
 | «Улучшить» без текста | Ошибка на клиенте, запрос не уходит |
 | Inbound казахский, UI `ru`, перевод on | `translation` на русском |
 | Inbound уже на `ru`, UI `ru` | Кнопка перевода скрыта |
@@ -430,7 +434,7 @@ Future<String> translateMessage(int messageId, String lang) async {
 |--|----------------|------------------------|------------------------|
 | **Назначение** | Помочь **написать** ответ в этом чате | Вкл/выкл **автоответ** AI | **Аналитика** по CRM (вкладка AI) |
 | **Контекст** | 80 сообщений **этого чата** | Настройки чата | Весь tenant (воронки, календарь, …) |
-| **Результат** | Текст в поле ввода | `ai_enabled` | `reply` + опционально `contacts`, графики |
+| **Результат** | `reply_draft` в поле ввода | `ai_enabled` | `reply` + опционально `contacts`, графики |
 
 ---
 
