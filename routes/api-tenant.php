@@ -11,7 +11,7 @@ use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
 use App\Http\Controllers\Api\V1\DepartmentController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
-use App\Http\Controllers\Api\V1\WorkspaceController;
+use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
@@ -42,6 +42,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
 
         Route::get('settings', [ApiSettingsController::class, 'show']);
+        Route::get('users', [UserController::class, 'index']);
+        Route::get('staff', [UserController::class, 'index']);
         Route::get('departments', [DepartmentController::class, 'index']);
         Route::get('whatsapp/sessions', [WhatsappSessionController::class, 'bootstrap']);
 

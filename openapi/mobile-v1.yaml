@@ -60,6 +60,8 @@ tags:
     description: Медиа вложения сообщений
   - name: Departments
     description: Отделы
+  - name: Users
+    description: Сотрудники tenant (team chat, pickers)
   - name: Chats
     description: Чаты и сообщения
   - name: AI-ассистент
@@ -202,6 +204,54 @@ paths:
           description: Не авторизован
         "403":
           description: Нет роли / деактивирован
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: Список активных сотрудников tenant
+      operationId: usersIndex
+      description: |
+        Для экрана «Написать коллеге» (team chat). Все роли видят всех active коллег tenant.
+        Текущий пользователь исключён. Alias — `GET /api/v1/staff`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          description: Поиск по name / email
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColleagueListResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет роли / деактивирован
+
+  /api/v1/staff:
+    get:
+      tags: [Users]
+      summary: Alias списка сотрудников
+      operationId: staffIndex
+      description: То же, что `GET /api/v1/users`.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColleagueListResponse"
+        "401":
+          description: Не авторизован
 
   /api/v1/departments:
     get:
@@ -1144,6 +1194,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Department"
+
+    Colleague:
+      type: object
+      required: [id, name, email]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+
+    ColleagueListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Colleague"
 
     WhatsappSession:
       type: object
