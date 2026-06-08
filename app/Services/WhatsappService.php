@@ -117,6 +117,12 @@ final class WhatsappService
     }
 
     /** @return array<string, mixed> */
+    public function syncInboundMessages(string $sessionName): array
+    {
+        return $this->post("/api/sessions/{$sessionName}/sync-inbound");
+    }
+
+    /** @return array<string, mixed> */
     public function sendMessage(
         string $sessionName,
         string $to,

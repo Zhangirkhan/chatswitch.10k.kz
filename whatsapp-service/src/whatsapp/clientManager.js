@@ -31,6 +31,10 @@ function getAllClients() {
   );
 }
 
+function getAllClientInstances() {
+  return [...clients.values()];
+}
+
 function removeClient(sessionName) {
   clients.delete(sessionName);
 }
@@ -54,6 +58,7 @@ module.exports = {
   getOrCreateClient,
   getClient,
   getAllClients,
+  getAllClientInstances,
   removeClient,
   destroyAll,
   resolveSessionName,

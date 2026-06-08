@@ -1,4 +1,5 @@
 const { handleIncomingMessage } = require('./messageInbound');
+const { maybeRecoverFromSyncFailure } = require('./sessionWatchdog');
 
 const SYNC_COOLDOWN_MS = 30_000;
 const LOOKBACK_SECONDS = 72 * 3600;
@@ -71,6 +72,9 @@ async function syncMissedInboundMessages(service, { reason = 'manual', force = f
     }
   } catch (err) {
     console.error(`[${service.sessionName}] syncMissedInbound error:`, err.message);
+    maybeRecoverFromSyncFailure(service, err.message, 'sync_error').catch((recoverErr) => {
+      console.error(`[${service.sessionName}] sync recovery failed:`, recoverErr.message);
+    });
   }
 
   return { synced };

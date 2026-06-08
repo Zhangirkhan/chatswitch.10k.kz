@@ -13,6 +13,7 @@ const { getOrCreateClient, destroyAll } = require('./whatsapp/clientManager');
 const { registerMany } = require('./whatsapp/sessionCompanyRegistry');
 const { AUTH_DIR } = require('./whatsapp/clientConfig');
 const { sweepStaleLocksOnStartup } = require('./whatsapp/sessionProfileCleanup');
+const { startSessionWatchdog } = require('./whatsapp/sessionWatchdog');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3050', 10);
@@ -166,6 +167,7 @@ app.listen(PORT, '127.0.0.1', () => {
     autoRestoreAllSessions().catch((err) => {
       console.error('[STARTUP] autoRestoreAllSessions failed:', err.message);
     });
+    startSessionWatchdog();
   }, 500);
 });
 
