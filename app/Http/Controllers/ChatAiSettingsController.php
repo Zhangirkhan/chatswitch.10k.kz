@@ -13,6 +13,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\AiReadinessService;
 use App\Services\AI\AiResponderResolver;
+use App\Services\AI\ChatConflictService;
 use App\Services\AI\ChatIdleAiReplyService;
 use App\Support\TenantCompany;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -26,6 +27,7 @@ final class ChatAiSettingsController extends Controller
         private readonly AiReadinessService $readinessService,
         private readonly AiResponderResolver $responderResolver,
         private readonly ChatIdleAiReplyService $idleAiReply,
+        private readonly ChatConflictService $conflictService,
     ) {}
 
     public function update(Request $request, Chat $chat): JsonResponse
@@ -65,6 +67,7 @@ final class ChatAiSettingsController extends Controller
             'ai_responder_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'confirm_risky_enable' => ['sometimes', 'boolean'],
+            'resume_ai_after_conflict' => ['sometimes', 'boolean'],
         ]);
 
         $user = $request->user();
@@ -95,6 +98,10 @@ final class ChatAiSettingsController extends Controller
         }
 
         $chat->loadMissing('assignments.user');
+
+        if ((bool) ($validated['resume_ai_after_conflict'] ?? false)) {
+            $this->conflictService->clearConflict($chat);
+        }
 
         $chat->forceFill([
             'ai_enabled' => $aiEnabled,
@@ -131,6 +138,9 @@ final class ChatAiSettingsController extends Controller
             'contact_id' => $chat->contact_id,
             'funnel_id' => $chat->funnel_id,
             'funnel_stage_id' => $chat->funnel_stage_id,
+            'conflict_state' => $chat->conflict_state,
+            'conflict_situation' => $chat->conflict_situation,
+            'ai_paused_at' => $chat->ai_paused_at?->toIso8601String(),
         ];
     }
 

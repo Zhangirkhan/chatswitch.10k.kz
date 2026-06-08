@@ -125,11 +125,30 @@ final class ChatAssistantService
 6. Помни: оператор сейчас — {$operatorName}. Клиент — {$contactName}.
 7. Не выдавай служебную «шапку» оператора (вида "*Имя (Роль)*\n...") — операторы
    не пишут её сами, её добавляет система автоматически.
+8. Если в чате конфликт (жалоба, возврат, агрессия) — предлагай спокойные формулировки без спора и без обещания возврата без правил компании.
+{$this->conflictContextLine($chat)}
 {$this->calendarBehaviorInstructions()}
 
 Ты не отправляешь ничего клиенту самостоятельно. Твои сообщения видит только оператор.
 {$this->productAttachments->promptInstruction()}
 PROMPT;
+    }
+
+    private function conflictContextLine(Chat $chat): string
+    {
+        if ($chat->conflict_state === 'escalated' || $chat->ai_paused_at !== null) {
+            $situation = trim((string) ($chat->conflict_situation ?? ''));
+
+            return $situation !== ''
+                ? "\nКонтекст: AI приостановлен из-за конфликта ({$situation}). Оператор должен ответить сам или снять паузу."
+                : "\nКонтекст: AI приостановлен из-за конфликта. Оператор должен ответить сам или снять паузу.";
+        }
+
+        if ($chat->conflict_state === 'deescalating') {
+            return "\nКонтекст: идёт de-escalation (клиент недоволен). Помогай формулировать короткие спокойные ответы.";
+        }
+
+        return '';
     }
 
     private function calendarBehaviorInstructions(): string
