@@ -78,6 +78,10 @@ final class Chat extends Model
         'ai_orchestrator_last_run_id',
         'ai_orchestrator_last_action_at',
         'ai_orchestrator_last_summary',
+        'conflict_state',
+        'conflict_situation',
+        'conflict_deescalation_count',
+        'ai_paused_at',
     ];
 
     protected function casts(): array
@@ -98,7 +102,13 @@ final class Chat extends Model
             'muted_until' => 'datetime',
             'funnel_ai_last_analyzed_at' => 'datetime',
             'ai_orchestrator_last_action_at' => 'datetime',
+            'ai_paused_at' => 'datetime',
         ];
+    }
+
+    public function isAiConflictPaused(): bool
+    {
+        return $this->conflict_state === 'escalated' || $this->ai_paused_at !== null;
     }
 
     public function whatsappSession(): BelongsTo

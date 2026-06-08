@@ -92,4 +92,14 @@ return [
         'telegram_chat_id' => env('WHATSAPP_ALERTS_TELEGRAM_CHAT_ID'),
     ],
 
+    'conflict_handling' => [
+        'enabled' => filter_var(env('AI_CONFLICT_HANDLING_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'deescalation_max_attempts' => max(1, (int) env('AI_CONFLICT_TIER1_MAX_ATTEMPTS', 2)),
+        'tier2_max_attempts' => max(0, (int) env('AI_CONFLICT_TIER2_MAX_ATTEMPTS', 1)),
+        'tier3_max_attempts' => max(0, (int) env('AI_CONFLICT_TIER3_MAX_ATTEMPTS', 0)),
+        'profanity_keywords' => [
+            'бля', 'хуй', 'пизд', 'ебан', 'ебат', 'сука', 'мудак', 'гандон',
+        ],
+    ],
+
 ];
