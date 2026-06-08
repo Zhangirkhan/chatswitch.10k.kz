@@ -1,0 +1,1 @@
+import{d as s,j as t,v as a,b as o,e as r,t as n,p as c}from"./vendor-charts-CLgKjr_5.js";const i={class:"text-sm text-red-600"},_=s({__name:"InputError",props:{message:{}},setup(e){return(m,p)=>t((c(),o("div",null,[r("p",i,n(e.message),1)],512)),[[a,e.message]])}});export{_};

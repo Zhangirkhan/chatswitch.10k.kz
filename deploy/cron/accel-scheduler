@@ -1,5 +1,0 @@
-# Accel — Laravel scheduler (whatsapp:heal, scheduled-messages, SLA и др.)
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-
-* * * * * www-data cd /var/www/accel.kz && /usr/bin/php artisan schedule:run >> /var/www/accel/shared/storage/logs/scheduler.log 2>&1

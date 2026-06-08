@@ -1,0 +1,1 @@
+function u(e){const a="ui-badge";return{trial:`${a} ui-badge--manager`,active:`${a} ui-badge--success`,past_due:`${a} ui-badge--warn`,suspended:`${a} ui-badge--admin`,canceled:`${a} ui-badge--neutral`}[e]??`${a} ui-badge--neutral`}export{u as s};

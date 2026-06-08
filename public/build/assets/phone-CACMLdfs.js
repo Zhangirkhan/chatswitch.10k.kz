@@ -1,0 +1,1 @@
+function e(r){if(!r)return"";const n=String(r).split("@")[0].replace(/\D+/g,"");return n?n.length===11&&n.startsWith("8")?"7"+n.slice(1):n.length===10?"7"+n:n:""}function i(r){return e(r)}function s(r){const t=String(r||"").replace(/\D/g,"");return t.length<10||t.length>15?!1:t.startsWith("1")?t.length===11:t.startsWith("7")?t.length>=10&&t.length<=12:!0}export{i as f,s as i};

@@ -1,0 +1,1 @@
+import{A as e}from"./Avatar-DSZHubZ6.js";import{d as t,R as r,p as n}from"./vendor-charts-CLgKjr_5.js";const f=t({__name:"UserAvatar",props:{name:{default:""},avatarUrl:{default:null},size:{default:32}},setup(a){return(l,s)=>(n(),r(e,{name:a.name,"avatar-url":a.avatarUrl,size:a.size,variant:"staff","fallback-initials":""},null,8,["name","avatar-url","size"]))}});export{f as _};

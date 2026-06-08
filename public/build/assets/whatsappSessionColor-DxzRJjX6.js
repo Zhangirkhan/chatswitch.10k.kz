@@ -1,0 +1,1 @@
+const o=["#01b964","#ff9900","#f5c518","#3b82f6","#a855f7","#ec4899","#14b8a6","#ef4444"];function e(n){const r=(n??"").trim();if(!r)return null;const t=/^#?([0-9a-f]{6})$/i.exec(r);return t?`#${t[1].toLowerCase()}`:null}function a(n){if(!n)return null;const r=e(n.display_color);if(r)return r;const t=Math.abs(n.id)%o.length;return o[t]}export{o as W,e as n,a as w};
