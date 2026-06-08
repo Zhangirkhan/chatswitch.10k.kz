@@ -46,6 +46,7 @@ use App\Services\OutboundChatMessageDispatcher;
 use App\Services\WhatsappService;
 use App\Support\AiSafeErrorMessage;
 use App\Support\ChatUrl;
+use App\Support\ChatUploadMimeRules;
 use App\Support\MediaType;
 use App\Support\OperatorSignature;
 use App\Support\OrganizationDepartmentTasks;
@@ -1658,15 +1659,16 @@ final class ChatController extends Controller
         $chat->load('whatsappSession');
         $session = $chat->whatsappSession;
 
-        $mime = $file->getMimeType() ?? 'application/octet-stream';
-        $originalName = (string) $file->getClientOriginalName();
-        if (str_ends_with(strtolower($originalName), '.webm') && ! str_contains(strtolower($mime), 'webm')) {
-            $mime = 'audio/webm';
-        }
         $uploadHint = (string) $request->input('type', '');
-        if (in_array($uploadHint, ['voice', 'ptt'], true) && str_starts_with(strtolower($mime), 'video/')) {
-            $mime = 'audio/webm';
-        }
+        $uploadType = $uploadHint !== '' ? $uploadHint : null;
+        $mime = ChatUploadMimeRules::resolveAcceptedMime($file, $uploadType)
+            ?? ($file->getMimeType() ?? 'application/octet-stream');
+        $mime = ChatUploadMimeRules::canonicalMimeForStorage(
+            strtolower(explode(';', $mime)[0]),
+            (string) $file->getClientOriginalName(),
+            $uploadType,
+        );
+        $originalName = (string) $file->getClientOriginalName();
         $caption = (string) $request->input('caption', '');
         $type = MediaType::detect($mime, $request->input('type'));
 

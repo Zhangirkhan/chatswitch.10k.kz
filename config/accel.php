@@ -58,7 +58,7 @@ return [
     'inbound_media_mimetypes' => [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         'video/mp4', 'video/webm', 'video/quicktime', 'video/3gpp',
-        'audio/mpeg', 'audio/ogg', 'audio/opus', 'audio/mp4', 'audio/aac', 'audio/wav', 'audio/webm',
+        'audio/mpeg', 'audio/ogg', 'audio/opus', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/webm', 'audio/x-caf', 'audio/amr',
         'application/pdf', 'application/octet-stream',
     ],
 
