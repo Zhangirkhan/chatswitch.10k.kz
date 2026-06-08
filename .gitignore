@@ -29,3 +29,6 @@ whatsapp-service/logs/
 
 # Local DB dumps (do not commit)
 /backup-chatswitch-*.sql
+
+# Mobile API docs — local / handoff only, not in repo
+/docs/mobile-api/
