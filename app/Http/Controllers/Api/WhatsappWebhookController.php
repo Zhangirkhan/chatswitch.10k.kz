@@ -26,6 +26,7 @@ use App\Services\Whatsapp\WhatsappSessionLogoutAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 final class WhatsappWebhookController extends Controller
 {
@@ -55,19 +56,43 @@ final class WhatsappWebhookController extends Controller
             abort(401);
         }
 
-        $allowedMimes = config('accel.inbound_media_mimetypes', []);
+        /** @var list<string> */
+        $allowedMimes = array_values(array_filter(
+            is_array(config('accel.inbound_media_mimetypes')) ? config('accel.inbound_media_mimetypes') : [],
+            static fn (string $mime): bool => $mime !== '',
+        ));
 
         $validated = $request->validate([
             'session' => ['required', 'string', 'max:128'],
             'messageId' => ['required', 'string', 'max:191'],
             'mimetype' => ['nullable', 'string', 'max:255'],
-            'file' => [
-                'required',
-                'file',
-                'max:102400',
-                'mimetypes:'.implode(',', is_array($allowedMimes) ? $allowedMimes : []),
-            ],
+            'file' => ['required', 'file', 'max:102400'],
         ]);
+
+        $upload = $request->file('file');
+        $declaredMime = strtolower(trim(explode(';', (string) ($validated['mimetype'] ?? ''))[0]));
+        $detectedMime = strtolower(trim(explode(';', (string) ($upload?->getMimeType() ?? ''))[0]));
+
+        $acceptedMime = null;
+        foreach ([$detectedMime, $declaredMime] as $candidate) {
+            if ($candidate !== '' && in_array($candidate, $allowedMimes, true)) {
+                $acceptedMime = $candidate;
+                break;
+            }
+        }
+
+        if ($acceptedMime === null) {
+            Log::warning('[inbound-media] rejected mime', [
+                'session' => $validated['session'],
+                'message_id' => $validated['messageId'],
+                'detected_mime' => $detectedMime !== '' ? $detectedMime : null,
+                'declared_mime' => $declaredMime !== '' ? $declaredMime : null,
+            ]);
+
+            throw ValidationException::withMessages([
+                'file' => ['The file field must be a file of type: '.implode(', ', $allowedMimes).'.'],
+            ]);
+        }
 
         $companyId = isset($validated['companyId']) ? (int) $validated['companyId'] : null;
         $session = WhatsappSessionResolver::resolveByName($validated['session'], $companyId);
@@ -94,6 +119,9 @@ final class WhatsappWebhookController extends Controller
         $upload = $request->file('file');
         $mime = (string) ($validated['mimetype'] ?: ($upload->getMimeType() ?? 'application/octet-stream'));
         $mime = strtolower(explode(';', $mime)[0]);
+        if (! in_array($mime, $allowedMimes, true)) {
+            $mime = $acceptedMime;
+        }
         $originalName = (string) ($upload->getClientOriginalName() ?: 'media');
         $storedPath = $upload->store('whatsapp-media/'.date('Y/m'), 'local');
 

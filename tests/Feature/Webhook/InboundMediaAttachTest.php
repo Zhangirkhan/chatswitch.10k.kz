@@ -126,4 +126,43 @@ final class InboundMediaAttachTest extends TestCase
         $response->assertOk();
         Bus::assertDispatched(TranscribeAudioJob::class);
     }
+
+    public function test_accepts_audio_opus_voice_upload(): void
+    {
+        Bus::fake([TranscribeAudioJob::class]);
+
+        config()->set('services.whatsapp.service_token', 'secret-token');
+        $session = WhatsappSession::factory()->create(['session_name' => 'wa-test']);
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        $waId = 'true_77001234567@c.us_VOICE02';
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_message_id' => $waId,
+            'direction' => 'inbound',
+            'type' => 'ptt',
+            'body' => '',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $message = Message::query()->where('whatsapp_message_id', $waId)->firstOrFail();
+
+        $response = $this->call(
+            'POST',
+            '/api/whatsapp/inbound-media',
+            [
+                'session' => 'wa-test',
+                'messageId' => $waId,
+                'mimetype' => 'audio/ogg',
+            ],
+            [],
+            ['file' => UploadedFile::fake()->create('v.ogg', 80, 'audio/opus')],
+            ['HTTP_AUTHORIZATION' => 'Bearer secret-token'],
+        );
+
+        $response->assertOk();
+        $this->assertSame(1, MessageMedia::query()->where('message_id', $message->id)->count());
+    }
 }
