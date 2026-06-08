@@ -22,7 +22,6 @@ final class CompanyUsersService
         $users = User::query()
             ->withoutGlobalScope('tenant')
             ->where('company_id', $company->id)
-            ->where('is_super_admin', false)
             ->with([
                 'roles',
                 'department:id,name',

@@ -172,6 +172,11 @@ function deactivate(user: SuperAdminCompanyUser): void {
         department_ids: user.departments.map((d) => d.id),
     }, { preserveScroll: true });
 }
+
+function formErrorMessage(form: typeof userForm | typeof editForm): string {
+    const values = Object.values(form.errors);
+    return values.find((v) => typeof v === 'string' && v.length > 0) ?? '';
+}
 </script>
 
 <template>
@@ -358,6 +363,7 @@ function deactivate(user: SuperAdminCompanyUser): void {
 
         <section class="ui-settings-section max-w-xl">
             <h2 class="mb-3 text-base font-semibold">{{ t('superAdmin.companies.users.addTitle') }}</h2>
+            <p v-if="formErrorMessage(userForm)" class="mb-3 text-sm text-ui-danger">{{ formErrorMessage(userForm) }}</p>
             <form
                 class="space-y-3"
                 @submit.prevent="userForm.post(`/companies/${companyId}/users`, { preserveScroll: true, onSuccess: () => userForm.reset() })"
@@ -366,8 +372,9 @@ function deactivate(user: SuperAdminCompanyUser): void {
                 <input
                     v-model="userForm.email"
                     type="email"
-                    :placeholder="t('superAdmin.companies.users.emailOptional')"
+                    :placeholder="userForm.role === 'administrator' ? 'Email (обязателен для администратора)' : t('superAdmin.companies.users.emailOptional')"
                     class="ui-input"
+                    :required="userForm.role === 'administrator'"
                 />
                 <input v-model="userForm.password" type="password" :placeholder="t('superAdmin.companies.users.addPasswordPlaceholder')" class="ui-input" required />
                 <select v-model="userForm.role" class="ui-select w-full">

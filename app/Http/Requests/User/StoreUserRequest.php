@@ -43,6 +43,7 @@ final class StoreUserRequest extends FormRequest
                 'email',
                 'max:255',
                 Rule::unique('users', 'email')->where('company_id', TenantCompany::id()),
+                Rule::requiredIf(fn (): bool => $this->input('role') === 'administrator'),
             ],
             'phone' => ['nullable', 'string', 'max:40'],
             'phones' => ['nullable', 'array'],

@@ -28,20 +28,26 @@ final class CompanyUserController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['nullable', 'email', 'max:160', Rule::unique('users', 'email')->where('company_id', $company->id)],
+            'email' => [
+                'nullable',
+                'email',
+                'max:160',
+                Rule::unique('users', 'email')->where('company_id', $company->id),
+                Rule::requiredIf(fn (): bool => $request->input('role') === 'administrator'),
+            ],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(['administrator', 'manager', 'employee'])],
             'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['integer', Rule::exists('departments', 'id')->where('company_id', $company->id)],
         ]);
 
-        $user = User::query()->withoutGlobalScope('tenant')->create([
+        $user = User::query()->withoutGlobalScope('tenant')->make([
             'name' => $data['name'],
             'email' => filled($data['email'] ?? null) ? $data['email'] : null,
             'password' => Hash::make($data['password']),
-            'company_id' => $company->id,
             'is_active' => true,
         ]);
+        $user->forceFill(['company_id' => $company->id])->save();
 
         Role::findOrCreate($data['role'], 'web');
         $user->assignRole($data['role']);
@@ -65,7 +71,13 @@ final class CompanyUserController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'email' => ['nullable', 'email', 'max:160', Rule::unique('users', 'email')->where('company_id', $company->id)->ignore($user->id)],
+            'email' => [
+                'nullable',
+                'email',
+                'max:160',
+                Rule::unique('users', 'email')->where('company_id', $company->id)->ignore($user->id),
+                Rule::requiredIf(fn (): bool => $request->input('role') === 'administrator'),
+            ],
             'is_active' => ['boolean'],
             'role' => ['required', 'string', Rule::in(['administrator', 'manager', 'employee'])],
             'password' => ['nullable', 'string', 'min:8'],

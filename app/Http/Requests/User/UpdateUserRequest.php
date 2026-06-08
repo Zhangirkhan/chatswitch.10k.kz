@@ -39,6 +39,7 @@ final class UpdateUserRequest extends FormRequest
                 Rule::unique('users', 'email')
                     ->where('company_id', TenantCompany::id())
                     ->ignore($user->id),
+                Rule::requiredIf(fn (): bool => $this->input('role') === 'administrator'),
             ],
             'phone' => ['nullable', 'string', 'max:40'],
             'phones' => ['nullable', 'array'],
