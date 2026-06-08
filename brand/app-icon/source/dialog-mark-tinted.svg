@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <defs>
+    <linearGradient id="tintFade" x1="54" y1="28" x2="54" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.65"/>
+      <stop offset="35%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="65%" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.65"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#tintFade)" d="M 32 28 L 51 54 L 32 80 L 38 80 L 55 54 L 38 28 Z"/>
+  <path fill="url(#tintFade)" d="M 76 28 L 57 54 L 76 80 L 70 80 L 53 54 L 70 28 Z"/>
+</svg>
