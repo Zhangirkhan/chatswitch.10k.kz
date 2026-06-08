@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Models\WhatsappSession;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionHealService;
+use App\Services\Whatsapp\WhatsappSessionHealthMonitorService;
 use Illuminate\Console\Command;
 
 /**
@@ -30,8 +31,11 @@ final class HealWhatsappSessions extends Command
 
     protected $description = 'Поднимает отвалившиеся WhatsApp-сессии, которые пользователь не выключал вручную.';
 
-    public function handle(WhatsappService $whatsappService, WhatsappSessionHealService $healService): int
-    {
+    public function handle(
+        WhatsappService $whatsappService,
+        WhatsappSessionHealService $healService,
+        WhatsappSessionHealthMonitorService $monitorService,
+    ): int {
         if (! $whatsappService->healthReachable()) {
             $this->warn('whatsapp-service недоступен — heal пропущен.');
 
@@ -51,6 +55,7 @@ final class HealWhatsappSessions extends Command
 
         $healed = 0;
         $skipped = 0;
+        $alerted = 0;
 
         foreach ($sessions as $session) {
             if ($this->option('dry-run')) {
@@ -66,7 +71,13 @@ final class HealWhatsappSessions extends Command
                 $result = $healService->healSession($session);
             } catch (\Throwable $e) {
                 $this->error(sprintf('[%s] ошибка initialize: %s', $session->session_name, $e->getMessage()));
-                continue;
+                $result = 'error';
+            }
+
+            $verify = $whatsappService->verifySession($session->session_name);
+            $monitorResult = $monitorService->observe($session, $verify);
+            if ($monitorResult === 'alert_sent') {
+                $alerted++;
             }
 
             if ($result === 'healed') {
@@ -75,10 +86,18 @@ final class HealWhatsappSessions extends Command
                 continue;
             }
 
-            $skipped++;
+            if ($result !== 'error') {
+                $skipped++;
+            }
         }
 
-        $this->info(sprintf('Готово: поднято %d, пропущено %d из %d.', $healed, $skipped, $sessions->count()));
+        $this->info(sprintf(
+            'Готово: поднято %d, пропущено %d, алертов %d из %d.',
+            $healed,
+            $skipped,
+            $alerted,
+            $sessions->count(),
+        ));
 
         return self::SUCCESS;
     }

@@ -74,4 +74,22 @@ return [
         ],
     ],
 
+    /**
+     * Алерты, если WhatsApp-сессия с desired_state=active не восстановилась
+     * (whatsapp:heal + Node watchdog не смогли поднять alive).
+     */
+    'whatsapp_alerts' => [
+        'enabled' => filter_var(env('WHATSAPP_ALERTS_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'down_minutes' => max(1, (int) env('WHATSAPP_ALERTS_DOWN_MINUTES', 5)),
+        /** Повторное письмо/Telegram, если сессия всё ещё мертва. */
+        'repeat_hours' => max(1, (int) env('WHATSAPP_ALERTS_REPEAT_HOURS', 24)),
+        /** Доп. ops-получатели (через запятую). По умолчанию — SUPER_ADMIN_EMAIL. */
+        'ops_emails' => array_values(array_filter(array_map(
+            static fn (string $email): string => trim($email),
+            explode(',', (string) env('WHATSAPP_ALERTS_OPS_EMAILS', env('SUPER_ADMIN_EMAIL', 'super@accel.kz')))
+        ))),
+        'telegram_bot_token' => env('WHATSAPP_ALERTS_TELEGRAM_BOT_TOKEN'),
+        'telegram_chat_id' => env('WHATSAPP_ALERTS_TELEGRAM_CHAT_ID'),
+    ],
+
 ];
