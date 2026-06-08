@@ -36,6 +36,7 @@ final class AiFunnelOrchestratorService
         private readonly ChatIdleAiReplyService $idleAiReply,
         private readonly ConversationAppointmentResolver $conversationAppointments,
         private readonly ContactAiContextResetService $contactAiContextReset,
+        private readonly ChatConflictService $conflictService,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -658,6 +659,10 @@ final class AiFunnelOrchestratorService
 
     private function canRun(Chat $chat, Message $trigger): bool
     {
+        if ($this->conflictService->isAiPausedForConflict($chat)) {
+            return false;
+        }
+
         if ($chat->is_group || ! $chat->funnel_tracking_enabled || $chat->funnel_stage_locked) {
             return false;
         }
@@ -729,8 +734,43 @@ final class AiFunnelOrchestratorService
         );
     }
 
+    private function normalizeConflictSituation(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if (! $this->conflictService->enabled()) {
+            return $plan;
+        }
+
+        $actor = $this->responderResolver->forChat($chat, $chat->funnel?->aiScenario);
+        if (! $actor instanceof User) {
+            return $plan;
+        }
+
+        $override = $this->conflictService->orchestratorOverride($chat, $trigger, $actor);
+        if ($override === null) {
+            return $plan;
+        }
+
+        $task = $override['task'] ?? null;
+        if ($task === []) {
+            $task = null;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $override['customerReply'],
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: null,
+            assigneeUserId: $plan->assigneeUserId,
+            managerNote: $override['requiresManagerAttention'] ? ($override['managerNote'] ?: 'Конфликт с клиентом') : null,
+            task: is_array($task) ? $task : null,
+            requiresManagerAttention: $override['requiresManagerAttention'],
+            confidence: max($plan->confidence, 0.9),
+            reason: 'Conflict handling: de-escalation / escalation playbook.',
+        );
+    }
+
     private function normalizePlan(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
+        $plan = $this->normalizeConflictSituation($chat, $trigger, $plan);
         $plan = $this->normalizeCompletionSignal($chat, $trigger, $plan);
         $plan = $this->normalizeDeliveryScheduling($chat, $trigger, $plan);
         $plan = $this->normalizeEchoReply($chat, $trigger, $plan);

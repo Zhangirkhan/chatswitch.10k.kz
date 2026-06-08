@@ -11,6 +11,7 @@ use App\Services\AI\AiReplyGenerator;
 use App\Services\AI\AiResponderResolver;
 use App\Services\AI\AutomatedPeerReplyGuard;
 use App\Services\AI\ChatDepartmentRoutingService;
+use App\Services\AI\ChatConflictService;
 use App\Services\AI\ChatIdleAiReplyService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
@@ -44,6 +45,7 @@ final class GenerateAiReplyJob implements ShouldQueue
         ChatOffHoursReplyService $offHoursReply,
         AutomatedPeerReplyGuard $automatedPeerGuard,
         ChatIdleAiReplyService $idleAiReply,
+        ChatConflictService $conflictService,
     ): void {
         $chat = Chat::query()
             ->with(['aiResponder', 'assignments.user', 'departments', 'funnel.aiScenario'])
@@ -52,6 +54,10 @@ final class GenerateAiReplyJob implements ShouldQueue
         $trigger = Message::query()->whereKey($this->triggerMessageId)->first();
 
         if ($chat === null || $trigger === null || ! $chat->ai_enabled) {
+            return;
+        }
+
+        if ($this->conflictService->isAiPausedForConflict($chat)) {
             return;
         }
 

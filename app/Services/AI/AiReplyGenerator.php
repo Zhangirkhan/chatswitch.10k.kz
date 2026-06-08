@@ -35,6 +35,7 @@ final class AiReplyGenerator
         private readonly ProductMessageAttachmentService $productAttachments,
         private readonly KazakhstanLocaleDetector $localeDetector,
         private readonly LocaleReplyGuard $localeReplyGuard,
+        private readonly ChatConflictService $conflictService,
     ) {}
 
     /**
@@ -50,6 +51,32 @@ final class AiReplyGenerator
             $appointment = $this->appointmentIntent->detect($chat, $responder, $triggerMessage);
             if ($appointment !== null) {
                 return $this->handleAppointmentIntent($chat, $responder, $triggerMessage, $appointment, $log);
+            }
+
+            $conflict = $this->conflictService->resolveForInbound($chat, $triggerMessage, $responder);
+            if ($conflict !== null) {
+                $reply = trim($conflict['reply']);
+                $this->assertSafeReply($reply);
+
+                $log?->forceFill([
+                    'metadata' => [
+                        ...($log->metadata ?? []),
+                        'conflict_situation' => $conflict['situation']->situation,
+                        'conflict_escalated' => $conflict['escalate'],
+                    ],
+                ])->save();
+
+                return [
+                    'reply' => $reply,
+                    'prompt_hash' => hash('sha256', 'conflict:'.$conflict['situation']->situation),
+                    'metadata' => [
+                        'conflict' => [
+                            'situation' => $conflict['situation']->situation,
+                            'tier' => $conflict['situation']->tier,
+                            'escalated' => $conflict['escalate'],
+                        ],
+                    ],
+                ];
             }
         }
 

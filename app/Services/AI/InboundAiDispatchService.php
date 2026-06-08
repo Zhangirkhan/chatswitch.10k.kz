@@ -15,6 +15,7 @@ final class InboundAiDispatchService
 {
     public function __construct(
         private readonly ChatIdleAiReplyService $idleAiReply,
+        private readonly ChatConflictService $conflictService,
     ) {}
 
     public function dispatchForInboundMessage(Message $message): void
@@ -23,6 +24,10 @@ final class InboundAiDispatchService
         $chat = $message->chat;
 
         if ($chat === null || $message->direction !== 'inbound') {
+            return;
+        }
+
+        if ($this->conflictService->isAiPausedForConflict($chat)) {
             return;
         }
 
