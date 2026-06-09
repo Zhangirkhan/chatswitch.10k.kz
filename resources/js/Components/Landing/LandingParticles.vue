@@ -28,8 +28,8 @@ const props = withDefaults(defineProps<ParticlesProps>(), {
     moveParticlesOnHover: true,
     particleHoverFactor: 1,
     alphaParticles: true,
-    particleBaseSize: 200,
-    sizeRandomness: 1,
+    particleBaseSize: 120,
+    sizeRandomness: 0.35,
     cameraDistance: 20,
     disableRotation: true,
 });
@@ -97,7 +97,8 @@ const vertex = /* glsl */ `
     mPos.z += sin(t * random.w + 6.28 * random.y) * mix(0.1, 1.5, random.z);
 
     vec4 mvPos = viewMatrix * mPos;
-    gl_PointSize = (uBaseSize * (1.0 + uSizeRandomness * (random.x - 0.5))) / length(mvPos.xyz);
+    float pointSize = (uBaseSize * (1.0 + uSizeRandomness * (random.x - 0.5))) / length(mvPos.xyz);
+    gl_PointSize = min(pointSize, 5.0);
     gl_Position = projectionMatrix * mvPos;
   }
 `;
