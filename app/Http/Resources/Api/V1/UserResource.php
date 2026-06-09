@@ -28,6 +28,8 @@ final class UserResource extends JsonResource
             ),
             'is_active' => (bool) $this->is_active,
             'roles' => $this->getRoleNames()->values()->all(),
+            'role' => $this->getRoleNames()->first(),
+            'permissions' => $this->getAllPermissions()->pluck('name')->values()->all(),
             'department' => $this->when(
                 $this->relationLoaded('department'),
                 fn () => $this->department !== null

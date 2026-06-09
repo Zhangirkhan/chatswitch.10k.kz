@@ -10,6 +10,7 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Services\Billing\SubscriptionLifecycleService;
 use App\Services\Company\CompanyOnboardingService;
+use App\Support\TenantRoles;
 use App\Support\PhoneFormatter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -55,7 +56,7 @@ final class CompanyProvisioningService
             ]);
 
             Role::findOrCreate('administrator', 'web');
-            $owner->assignRole('administrator');
+            TenantRoles::syncForCompany($owner, $company->id, 'administrator');
 
             $company->update(['owner_user_id' => $owner->id]);
 

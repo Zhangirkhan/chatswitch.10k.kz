@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\User;
 use App\Services\SuperAdmin\SuperAdminAuditLogger;
+use App\Support\TenantRoles;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -50,7 +51,7 @@ final class CompanyUserController extends Controller
         $user->forceFill(['company_id' => $company->id])->save();
 
         Role::findOrCreate($data['role'], 'web');
-        $user->assignRole($data['role']);
+        TenantRoles::syncForCompany($user, $company->id, $data['role']);
         $user->syncDepartments($this->departmentIdsForCompany($data, $company));
 
         $this->audit->log($company, $request->user(), 'user.created', $user, [
@@ -61,11 +62,13 @@ final class CompanyUserController extends Controller
         return back()->with('success', 'Пользователь создан.');
     }
 
-    public function update(Request $request, Company $company, User $user): RedirectResponse
+    public function update(Request $request, Company $company, int $user): RedirectResponse
     {
-        abort_unless((int) $user->company_id === (int) $company->id, 404);
-
-        $user = User::query()->withoutGlobalScope('tenant')->whereKey($user->id)->firstOrFail();
+        $user = User::query()
+            ->withoutGlobalScope('tenant')
+            ->where('company_id', $company->id)
+            ->whereKey($user)
+            ->firstOrFail();
 
         $this->normalizeNullableEmail($request);
 
@@ -97,7 +100,7 @@ final class CompanyUserController extends Controller
 
         $user->save();
 
-        $user->syncRoles([$data['role']]);
+        TenantRoles::syncForCompany($user, $company->id, $data['role']);
         $user->syncDepartments($this->departmentIdsForCompany($data, $company));
 
         $this->audit->log($company, $request->user(), 'user.updated', $user, [

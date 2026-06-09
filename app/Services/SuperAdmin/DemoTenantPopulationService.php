@@ -23,6 +23,7 @@ use App\Services\Billing\SubscriptionLifecycleService;
 use App\Services\Company\CompanyOnboardingService;
 use App\Services\Company\DemoChatsFactory;
 use App\Services\Tenancy\TenantNginxMapService;
+use App\Support\TenantRoles;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use RuntimeException;
@@ -80,7 +81,7 @@ final class DemoTenantPopulationService
                 $owner = $this->seedUsers($company);
                 $company->update(['owner_user_id' => $owner->id]);
             } else {
-                $owner->syncRoles(['administrator']);
+                TenantRoles::syncForCompany($owner, $company->id, 'administrator');
             }
 
             $this->onboarding->bootstrap($company->fresh(), $owner);
@@ -264,7 +265,7 @@ final class DemoTenantPopulationService
                 ],
             );
 
-            $user->syncRoles([$def['role']]);
+            TenantRoles::syncForCompany($user, $company->id, $def['role']);
 
             if ($def['role'] === 'administrator') {
                 $owner = $user;

@@ -70,7 +70,8 @@ final class TenantRoleService
     public function create(int $companyId, string $name, array $permissionNames): array
     {
         $this->assertValidPermissions($permissionNames);
-        $this->withTeam($companyId, function () use ($companyId, $name, $permissionNames): array {
+
+        return $this->withTeam($companyId, function () use ($companyId, $name, $permissionNames): array {
             $role = Role::create([
                 'name' => $name,
                 'guard_name' => 'web',
@@ -157,10 +158,18 @@ final class TenantRoleService
             ->get()
             ->keyBy('name');
 
-        $users = $company->users()->with('roles')->get();
+        $users = $company->users()->get();
+        $modelHasRoles = config('permission.table_names.model_has_roles');
+        $teamKey = config('permission.column_names.team_foreign_key');
 
         foreach ($users as $user) {
-            $roleName = $user->roles->first()?->name;
+            $roleName = DB::table($modelHasRoles)
+                ->join('roles', "{$modelHasRoles}.role_id", '=', 'roles.id')
+                ->where("{$modelHasRoles}.model_type", $user->getMorphClass())
+                ->where("{$modelHasRoles}.model_id", $user->id)
+                ->orderBy("{$modelHasRoles}.{$teamKey}")
+                ->value('roles.name');
+
             if (! is_string($roleName) || ! $roles->has($roleName)) {
                 continue;
             }

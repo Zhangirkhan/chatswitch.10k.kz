@@ -12,6 +12,7 @@ use App\Models\TeamMessage;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Support\OutboundSenderDisplayName;
+use App\Support\OperatorSignature;
 use App\Support\SharedMessageQuote;
 use Illuminate\Validation\ValidationException;
 

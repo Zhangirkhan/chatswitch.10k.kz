@@ -50,6 +50,7 @@ export const kk: MessageCatalog = {
             connections: { label: 'WhatsApp қосылулары', description: 'Нөмірлер мен QR-кодтар' },
             departments: { label: 'Бөлімдер', description: 'Компания құрылымы' },
             users: { label: 'Пайдаланушылар', description: 'Операторлар мен құқықтар' },
+            roles: { label: 'Рөлдер мен құқықтар', description: 'Рөлдер және қолжетімділік матрицасы' },
             promotions: { label: 'Акциялар', description: 'Қайта байланыс және AI промо' },
             funnels: { label: 'Сату шұңқырлары', description: 'Кезеңдер мен мәміле статустары' },
             clients: { label: 'Клиенттер', description: 'Контакттар мен деректер' },

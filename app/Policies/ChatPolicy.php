@@ -20,33 +20,29 @@ final class ChatPolicy
         $userInChatDepartment = $userDeptIds !== []
             && $chat->departments()->whereIn('departments.id', $userDeptIds)->exists();
 
-        if (TenantAuthorizer::hasLegacyOrPermission($user, 'manager', 'chats.view_department')) {
-            if ($userInChatDepartment) {
-                return true;
-            }
-
-            if ($userDeptIds === []) {
-                return false;
-            }
-
-            $departmentUserIds = User::query()
-                ->whereHas('departments', static fn ($q) => $q->whereIn('departments.id', $userDeptIds))
-                ->pluck('id');
-
-            return $chat->assignments()
-                ->whereIn('user_id', $departmentUserIds)
-                ->exists();
-        }
-
-        if (TenantAuthorizer::can($user, 'chats.view_assigned')
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'employee', 'chats.view_assigned')
             && $chat->assignments()->where('user_id', $user->id)->exists()) {
             return true;
         }
 
-        if (TenantAuthorizer::can($user, 'chats.view_department')
+        if (TenantAuthorizer::hasLegacyOrAnyPermission($user, ['employee', 'manager'], ['chats.view_department'])
             && $userInChatDepartment
             && ! $chat->assignments()->exists()) {
             return true;
+        }
+
+        if (($user->hasRole('manager') || TenantAuthorizer::can($user, 'chats.view_department'))
+            && ! TenantAuthorizer::hasLegacyOrPermission($user, 'employee', 'chats.view_assigned')
+            && $userDeptIds !== []) {
+            $departmentUserIds = User::query()
+                ->whereHas('departments', static fn ($q) => $q->whereIn('departments.id', $userDeptIds))
+                ->pluck('id');
+
+            if ($chat->assignments()
+                ->whereIn('user_id', $departmentUserIds)
+                ->exists()) {
+                return true;
+            }
         }
 
         return false;

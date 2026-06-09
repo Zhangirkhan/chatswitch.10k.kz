@@ -50,6 +50,7 @@ export const en: MessageCatalog = {
             connections: { label: 'WhatsApp connections', description: 'Numbers and QR codes' },
             departments: { label: 'Departments', description: 'Company structure' },
             users: { label: 'Users', description: 'Operators and permissions' },
+            roles: { label: 'Roles & permissions', description: 'Custom roles and access matrix' },
             promotions: { label: 'Promotions', description: 'Promos for follow-up and AI' },
             funnels: { label: 'Sales funnels', description: 'Stages and deal statuses' },
             clients: { label: 'Clients', description: 'Contacts and details' },

@@ -70,6 +70,35 @@ final class TenantRoles
             return;
         }
 
+        self::syncForCompany($user, (int) $companyId, $roleName);
+    }
+
+    public static function syncForCompany(User $user, int $companyId, string $roleName): void
+    {
+        $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+        setPermissionsTeamId($companyId);
+
+        try {
+            self::ensurePermissionsSeeded();
+            Role::findOrCreate($roleName, 'web');
+            $user->syncRoles([$roleName]);
+        } finally {
+            setPermissionsTeamId($previousTeamId);
+        }
+    }
+
+    /**
+     * @deprecated Prefer {@see syncForCompany()} — kept for tenant routes that already seed per-company roles.
+     */
+    public static function assignWithTenantRoleRecord(User $user, string $roleName): void
+    {
+        $companyId = $user->company_id;
+        if ($companyId === null) {
+            $user->assignRole($roleName);
+
+            return;
+        }
+
         $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
         setPermissionsTeamId($companyId);
 
