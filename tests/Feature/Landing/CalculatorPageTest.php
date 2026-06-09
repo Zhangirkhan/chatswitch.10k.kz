@@ -6,7 +6,6 @@ namespace Tests\Feature\Landing;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
-use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 final class CalculatorPageTest extends TestCase
@@ -18,7 +17,7 @@ final class CalculatorPageTest extends TestCase
         return config('tenancy.root_domain', 'accel.kz');
     }
 
-    public function test_calculator_page_renders_on_root_domain(): void
+    public function test_calculator_route_is_not_public(): void
     {
         $host = $this->landingHost();
         URL::forceRootUrl('https://'.$host);
@@ -26,15 +25,6 @@ final class CalculatorPageTest extends TestCase
         $this->withoutVite()
             ->withServerVariables(['HTTP_HOST' => $host])
             ->get("https://{$host}/calculator")
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Landing/Calculator')
-                ->has('calculator.model')
-                ->has('calculator.defaults')
-                ->has('calculator.presets')
-                ->has('calculator.scenarios')
-                ->has('calculator.initial.totals')
-                ->has('calculator.exchange_rate')
-                ->has('calculator.benchmarks'));
+            ->assertNotFound();
     }
 }

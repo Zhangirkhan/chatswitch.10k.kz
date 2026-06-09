@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
+import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput } from '@/utils/inputMasks';
@@ -28,9 +29,24 @@ const flashSuccess = computed(() => {
 });
 
 const features = computed(() => [
-    { icon: 'chat', title: t('landing.featureMultiTitle'), text: t('landing.featureMultiText') },
-    { icon: 'ai', title: t('landing.featureAiTitle'), text: t('landing.featureAiText') },
-    { icon: 'team', title: t('landing.featureTeamTitle'), text: t('landing.featureTeamText') },
+    { icon: 'chat', title: t('landing.feature1Title'), text: t('landing.feature1Text') },
+    { icon: 'autopilot', title: t('landing.feature2Title'), text: t('landing.feature2Text') },
+    { icon: 'funnel', title: t('landing.feature3Title'), text: t('landing.feature3Text') },
+    { icon: 'nudge', title: t('landing.feature4Title'), text: t('landing.feature4Text') },
+    { icon: 'ai', title: t('landing.feature5Title'), text: t('landing.feature5Text') },
+    { icon: 'team', title: t('landing.feature6Title'), text: t('landing.feature6Text') },
+    { icon: 'tasks', title: t('landing.feature7Title'), text: t('landing.feature7Text') },
+    { icon: 'chart', title: t('landing.feature8Title'), text: t('landing.feature8Text') },
+    { icon: 'database', title: t('landing.feature9Title'), text: t('landing.feature9Text') },
+    { icon: 'calendar', title: t('landing.feature10Title'), text: t('landing.feature10Text') },
+]);
+
+const pricingBullets = computed(() => [
+    t('landing.pricingBullet1'),
+    t('landing.pricingBullet2'),
+    t('landing.pricingBullet3'),
+    t('landing.pricingBullet4'),
+    t('landing.pricingBullet5'),
 ]);
 
 const form = useForm({
@@ -224,35 +240,89 @@ onMounted(() => {
                 Accel
             </a>
             <nav class="landing__nav">
-                <a href="/calculator" class="landing__nav-link">{{ t('landing.calculatorLink') }}</a>
+                <a href="#features" class="landing__nav-link">{{ t('landing.navFeatures') }}</a>
+                <a href="#pricing" class="landing__nav-link">{{ t('landing.navPricing') }}</a>
             </nav>
         </header>
 
         <main class="landing__main">
             <section class="landing__hero">
-                <h1 class="landing__title">{{ t('landing.heroTitle') }}</h1>
-                <p class="landing__tagline">
-                    {{ t('landing.heroTaglineLong') }}
-                </p>
+                <div class="landing__hero-copy">
+                    <h1 class="landing__title">{{ t('landing.heroTitle') }}</h1>
+                    <p class="landing__tagline">
+                        {{ t('landing.heroTaglineLong') }}
+                    </p>
+                    <div class="landing__hero-actions">
+                        <button type="button" class="landing__cta-btn" @click="openRequestModal">
+                            {{ t('landing.ctaButton') }}
+                        </button>
+                        <p class="landing__hero-trial">{{ t('landing.heroTrialHint') }}</p>
+                    </div>
+                </div>
+                <div class="landing__hero-visual">
+                    <LandingHeroMockup />
+                </div>
             </section>
 
-            <ul class="landing__features">
+            <section id="features" class="landing__features-section">
+                <h2 class="landing__section-title">{{ t('landing.featuresSectionTitle') }}</h2>
+                <ul class="landing__features">
                 <li v-for="item in features" :key="item.title" class="landing__card">
                     <div class="landing__card-icon" :data-icon="item.icon" aria-hidden="true">
                         <svg v-if="item.icon === 'chat'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 20l1.8-5.4A7.77 7.77 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
+                        <svg v-else-if="item.icon === 'autopilot'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'funnel'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M6 12h12M10 20h4" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'nudge'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
                         <svg v-else-if="item.icon === 'ai'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.5l-6 3v6l6 3 6-3v-6l-6-3zm0 6l6 3m-6-3v6m6-3v6M14.25 6.5l6 3v6l-6 3" />
                         </svg>
-                        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                        <svg v-else-if="item.icon === 'team'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
+                        <svg v-else-if="item.icon === 'tasks'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'chart'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <svg v-else-if="item.icon === 'database'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                        </svg>
+                        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                     </div>
-                    <h2 class="landing__card-title">{{ item.title }}</h2>
+                    <h3 class="landing__card-title">{{ item.title }}</h3>
                     <p class="landing__card-text">{{ item.text }}</p>
                 </li>
-            </ul>
+                </ul>
+            </section>
+
+            <section id="pricing" class="landing__pricing">
+                <h2 class="landing__section-title">{{ t('landing.pricingTitle') }}</h2>
+                <div class="landing__pricing-card">
+                    <p class="landing__pricing-plan">{{ t('landing.pricingPlanName') }}</p>
+                    <p class="landing__pricing-amount">
+                        {{ t('landing.pricingAmount') }}
+                        <span class="landing__pricing-period">{{ t('landing.pricingPeriod') }}</span>
+                    </p>
+                    <p class="landing__pricing-trial">{{ t('landing.pricingTrial') }}</p>
+                    <ul class="landing__pricing-list">
+                        <li v-for="bullet in pricingBullets" :key="bullet">{{ bullet }}</li>
+                    </ul>
+                    <button type="button" class="landing__cta-btn landing__pricing-btn" @click="openRequestModal">
+                        {{ t('landing.ctaButton') }}
+                    </button>
+                </div>
+            </section>
 
             <section id="request" class="landing__cta">
                 <button type="button" class="landing__cta-btn" @click="openRequestModal">
@@ -485,6 +555,12 @@ onMounted(() => {
     gap: 1rem;
 }
 
+.landing__nav {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
 .landing__nav-link {
     font-size: 0.875rem;
     color: var(--landing-muted);
@@ -509,22 +585,77 @@ onMounted(() => {
 .landing__main {
     flex: 1;
     width: 100%;
-    max-width: 68rem;
+    max-width: 72rem;
     margin: 0 auto;
     padding: 0 clamp(1.5rem, 5vw, 3rem) 3rem;
 }
 
 .landing__hero {
-    max-width: 36rem;
-    margin: 0 auto 3rem;
+    display: grid;
+    gap: 2.5rem;
+    align-items: center;
+    margin: 0 0 4rem;
+}
+
+.landing__hero-copy {
     text-align: center;
+}
+
+.landing__hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.625rem;
+    margin-top: 1.75rem;
+}
+
+.landing__hero-trial {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--landing-accent);
+}
+
+.landing__hero-visual {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (min-width: 1024px) {
+    .landing__hero {
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        gap: 2rem 3rem;
+    }
+
+    .landing__hero-copy {
+        text-align: left;
+        align-self: center;
+    }
+
+    .landing__hero-actions {
+        align-items: flex-start;
+    }
+}
+
+.landing__section-title {
+    margin: 0 0 1.5rem;
+    font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    text-align: center;
+    color: var(--landing-text);
+}
+
+.landing__features-section {
+    scroll-margin-top: 1.5rem;
+    margin-bottom: 4rem;
 }
 
 .landing__title {
     margin: 0 0 1rem;
-    font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+    font-size: clamp(1.75rem, 4.5vw, 2.75rem);
     font-weight: 600;
-    line-height: 1.2;
+    line-height: 1.15;
     letter-spacing: -0.03em;
     color: var(--landing-text);
 }
@@ -537,18 +668,97 @@ onMounted(() => {
 }
 
 .landing__features {
-    margin: 0 0 3rem;
+    margin: 0;
     padding: 0;
     list-style: none;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 700px) {
     .landing__features {
         grid-template-columns: 1fr;
     }
+}
+
+.landing__pricing {
+    scroll-margin-top: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.landing__pricing-card {
+    max-width: 28rem;
+    margin: 0 auto;
+    padding: 2rem;
+    border-radius: 1.25rem;
+    background: var(--landing-surface);
+    border: 1px solid rgba(1, 185, 100, 0.28);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
+}
+
+.landing__pricing-plan {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--landing-accent);
+}
+
+.landing__pricing-amount {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--landing-text);
+}
+
+.landing__pricing-period {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--landing-muted);
+}
+
+.landing__pricing-trial {
+    margin: 1rem 0 0;
+    font-size: 0.9375rem;
+    color: var(--landing-accent);
+}
+
+.landing__pricing-list {
+    margin: 1.5rem 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.landing__pricing-list li {
+    position: relative;
+    padding-left: 1.375rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--landing-muted);
+}
+
+.landing__pricing-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--landing-accent);
+}
+
+.landing__pricing-btn {
+    width: 100%;
 }
 
 .landing__card {
