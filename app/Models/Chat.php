@@ -30,7 +30,7 @@ final class Chat extends Model
             }
 
             if (! array_key_exists('ai_enabled', $chat->getAttributes())) {
-                $chat->ai_enabled = true;
+                $chat->ai_enabled = false;
             }
 
             if (! array_key_exists('ai_mode', $chat->getAttributes())) {

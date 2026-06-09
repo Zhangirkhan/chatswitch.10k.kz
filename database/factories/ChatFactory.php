@@ -32,7 +32,7 @@ final class ChatFactory extends Factory
             'is_muted' => false,
             'is_favorite' => false,
             'is_lead_closed' => false,
-            'ai_enabled' => true,
+            'ai_enabled' => false,
             'ai_mode' => 'auto',
             'funnel_tracking_enabled' => true,
             'unread_count' => 0,

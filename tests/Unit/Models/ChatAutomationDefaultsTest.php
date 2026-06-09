@@ -13,7 +13,7 @@ final class ChatAutomationDefaultsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_new_direct_chat_has_ai_and_funnel_tracking_enabled_by_default(): void
+    public function test_new_direct_chat_has_ai_disabled_and_funnel_tracking_enabled_by_default(): void
     {
         $session = WhatsappSession::factory()->create();
 
@@ -25,7 +25,7 @@ final class ChatAutomationDefaultsTest extends TestCase
             'last_message_at' => now(),
         ]);
 
-        $this->assertTrue($chat->ai_enabled);
+        $this->assertFalse($chat->ai_enabled);
         $this->assertSame('auto', $chat->ai_mode);
         $this->assertTrue($chat->funnel_tracking_enabled);
     }
