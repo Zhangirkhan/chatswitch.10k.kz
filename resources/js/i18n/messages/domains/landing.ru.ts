@@ -34,7 +34,7 @@ export const landingRu = {
     pricingTrial: '14 дней бесплатно после подключения',
     pricingBullet1: 'Несколько WhatsApp-номеров',
     pricingBullet2: 'AI-автопилот и AI-помощник',
-    pricingBullet3: 'Воронки продаж и дожим клиентов',
+    pricingBullet3: 'Воронки продаж, CRM и дожим клиентов',
     pricingBullet4: 'Команда, задачи, внутренний чат',
     pricingBullet5: 'Дашборды и статистика',
     featureMultiTitle: 'Несколько WhatsApp',

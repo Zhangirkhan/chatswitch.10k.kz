@@ -34,7 +34,7 @@ export const landingKk = {
     pricingTrial: 'Қосылғаннан кейін 14 күн тегін',
     pricingBullet1: 'Бірнеше WhatsApp нөмірлері',
     pricingBullet2: 'AI автопилот және AI көмекші',
-    pricingBullet3: 'Сату шұңқырлары және клиентті дожим',
+    pricingBullet3: 'Сату шұңқырлары, CRM және клиентті дожим',
     pricingBullet4: 'Команда, тапсырмалар, ішкі чат',
     pricingBullet5: 'Дашбордтар мен статистика',
     featureMultiTitle: 'Бірнеше WhatsApp',

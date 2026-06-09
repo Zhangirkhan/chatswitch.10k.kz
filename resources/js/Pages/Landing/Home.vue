@@ -242,6 +242,9 @@ onMounted(() => {
             <nav class="landing__nav">
                 <a href="#features" class="landing__nav-link">{{ t('landing.navFeatures') }}</a>
                 <a href="#pricing" class="landing__nav-link">{{ t('landing.navPricing') }}</a>
+                <button type="button" class="landing__header-cta" @click="openRequestModal">
+                    {{ t('landing.ctaButton') }}
+                </button>
             </nav>
         </header>
 
@@ -322,15 +325,6 @@ onMounted(() => {
                         {{ t('landing.ctaButton') }}
                     </button>
                 </div>
-            </section>
-
-            <section id="request" class="landing__cta">
-                <button type="button" class="landing__cta-btn" @click="openRequestModal">
-                    {{ t('landing.ctaButton') }}
-                </button>
-                <p class="landing__cta-hint">
-                    {{ t('landing.homeCtaHint', { domain: rootDomain }) }}
-                </p>
             </section>
         </main>
 
@@ -569,6 +563,43 @@ onMounted(() => {
 
 .landing__nav-link:hover {
     color: var(--landing-accent);
+}
+
+.landing__header-cta {
+    padding: 0.5rem 1.125rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: var(--landing-accent);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.landing__header-cta:hover {
+    background: var(--landing-accent-hover);
+    transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+    .landing__header--row {
+        flex-wrap: wrap;
+    }
+
+    .landing__nav {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.75rem 1rem;
+    }
+
+    .landing__header-cta {
+        width: 100%;
+        padding-top: 0.625rem;
+        padding-bottom: 0.625rem;
+    }
 }
 
 .landing__brand {
@@ -818,12 +849,6 @@ onMounted(() => {
     color: var(--landing-muted);
 }
 
-.landing__cta {
-    scroll-margin-top: 1.5rem;
-    text-align: center;
-    padding-bottom: 1rem;
-}
-
 .landing__cta-btn {
     padding: 0.875rem 2rem;
     font-size: 1rem;
@@ -840,12 +865,6 @@ onMounted(() => {
 .landing__cta-btn:hover {
     background: var(--landing-accent-hover);
     transform: translateY(-1px);
-}
-
-.landing__cta-hint {
-    margin: 0.75rem 0 0;
-    font-size: 0.8125rem;
-    color: var(--landing-muted);
 }
 
 .landing__toast {

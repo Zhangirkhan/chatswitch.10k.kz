@@ -34,7 +34,7 @@ export const landingEn = {
     pricingTrial: '14-day free trial after activation',
     pricingBullet1: 'Multiple WhatsApp numbers',
     pricingBullet2: 'AI autopilot and AI assistant',
-    pricingBullet3: 'Sales funnels and client follow-up',
+    pricingBullet3: 'Sales funnels, CRM and client follow-up',
     pricingBullet4: 'Team, tasks, internal chat',
     pricingBullet5: 'Dashboards and analytics',
     featureMultiTitle: 'Multiple WhatsApp numbers',
