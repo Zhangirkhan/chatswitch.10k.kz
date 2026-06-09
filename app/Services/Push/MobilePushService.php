@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\Push;
 
-use App\Jobs\SendMobilePushJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\TeamMessage;
 use App\Models\UserDevice;
 use App\Support\ChatBroadcastAudience;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 final class MobilePushService
@@ -27,6 +27,8 @@ final class MobilePushService
     public function dispatchToUsers(array $userIds, array $data, array $excludeUserIds = []): void
     {
         if (! $this->isEnabled()) {
+            Log::debug('mobile_push.skipped_disabled', ['kind' => $data['kind'] ?? null]);
+
             return;
         }
 
@@ -40,7 +42,14 @@ final class MobilePushService
             return;
         }
 
-        SendMobilePushJob::dispatch($recipients, $this->stringifyData($data));
+        $payload = $this->stringifyData($data);
+        $this->sendToUsersNow($recipients, $payload);
+
+        Log::info('mobile_push.sent', [
+            'kind' => $payload['kind'] ?? null,
+            'chat_id' => $payload['chat_id'] ?? null,
+            'recipient_count' => count($recipients),
+        ]);
     }
 
     public function notifyClientMessage(Message $message, Chat $chat): void
