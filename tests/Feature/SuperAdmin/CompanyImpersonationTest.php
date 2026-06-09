@@ -7,6 +7,7 @@ namespace Tests\Feature\SuperAdmin;
 use App\Models\Company;
 use App\Models\User;
 use App\Services\SuperAdmin\TenantImpersonationService;
+use App\Support\TenantRoles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
@@ -51,7 +52,8 @@ final class CompanyImpersonationTest extends TestCase
             'is_active' => true,
             'is_super_admin' => false,
         ]);
-        $owner->assignRole('administrator');
+        TenantRoles::ensureDefaultRolesForCompany($company);
+        TenantRoles::assign($owner, 'administrator');
         $company->update(['owner_user_id' => $owner->id]);
 
         $super = User::factory()->create([
@@ -112,7 +114,8 @@ final class CompanyImpersonationTest extends TestCase
             'company_id' => $company->id,
             'is_active' => true,
         ]);
-        $owner->assignRole('administrator');
+        TenantRoles::ensureDefaultRolesForCompany($company);
+        TenantRoles::assign($owner, 'administrator');
         $company->update(['owner_user_id' => $owner->id]);
 
         $returnUrl = "http://{$adminHost}/companies/{$company->id}";
@@ -151,7 +154,8 @@ final class CompanyImpersonationTest extends TestCase
         ]);
 
         $owner = User::factory()->create(['company_id' => $company->id, 'is_active' => true]);
-        $owner->assignRole('administrator');
+        TenantRoles::ensureDefaultRolesForCompany($company);
+        TenantRoles::assign($owner, 'administrator');
         $company->update(['owner_user_id' => $owner->id]);
 
         $super = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);

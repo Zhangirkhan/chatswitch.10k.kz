@@ -160,7 +160,6 @@ final class TenantRoleService
 
         $users = $company->users()->get();
         $modelHasRoles = config('permission.table_names.model_has_roles');
-        $teamKey = config('permission.column_names.team_foreign_key');
 
         foreach ($users as $user) {
             $roleName = DB::table($modelHasRoles)

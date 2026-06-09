@@ -283,4 +283,22 @@ final class TenantImpersonationService
 
         return is_string($domain) && $domain !== '';
     }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    private function withCompanyTeam(Company $company, callable $callback): mixed
+    {
+        $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+        setPermissionsTeamId($company->id);
+
+        try {
+            return $callback();
+        } finally {
+            setPermissionsTeamId($previousTeamId);
+        }
+    }
 }

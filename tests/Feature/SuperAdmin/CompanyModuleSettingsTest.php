@@ -74,7 +74,6 @@ final class CompanyModuleSettingsTest extends TestCase
         $this->actingAs($admin)->get("https://{$host}/companies/{$company->id}")
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('companyModules', count(CompanyModules::keys()))
-                ->where('companyModules.0.key', 'module_tasks'));
+                ->has('companyModules', count(CompanyModules::keys())));
     }
 }

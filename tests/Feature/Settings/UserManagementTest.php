@@ -122,7 +122,7 @@ final class UserManagementTest extends TestCase
         $this->actingAs($admin)->postJson('/settings/users', [
             'name' => 'Pin Only',
             'email' => null,
-            'pin' => '4321',
+            'pin' => '432100',
             'role' => 'employee',
             'whatsapp_session_ids' => [],
         ])->assertOk();
