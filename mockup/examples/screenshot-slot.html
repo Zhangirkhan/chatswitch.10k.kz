@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hero Mockup — Screenshot Slots</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #e7f9ee;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .page-header {
+      max-width: 48rem;
+      margin: 0 auto 2rem;
+      text-align: center;
+    }
+
+    .page-header h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.35rem;
+      color: #064e3b;
+    }
+
+    .page-header p {
+      margin: 0;
+      color: #374151;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .page-header code {
+      background: #fff;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+    }
+
+    /* ── Root mockup container ── */
+    .hero-mockup-root {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: min(100%, min(1720px, 99vw));
+      margin-left: auto;
+      margin-right: auto;
+      transform: rotate(0.9deg);
+      transition: transform 0.22s ease;
+    }
+
+    .hero-mockup-root:hover {
+      transform: rotate(0.35deg) translateY(-3px);
+    }
+
+    @media (min-width: 1024px) {
+      .hero-mockup-root {
+        max-width: min(100%, min(2200px, 99vw));
+      }
+    }
+
+    /* ── Desktop block: hidden on narrow mobile ── */
+    .hero-mockup-devices--desktop {
+      display: none;
+    }
+
+    .hero-device {
+      width: 100%;
+    }
+
+    .hero-device__shell {
+      position: relative;
+      display: block;
+      width: 100%;
+      isolation: isolate;
+    }
+
+    .hero-device--mobile {
+      display: block;
+    }
+
+    .hero-device__shell--phone {
+      max-width: min(300px, 88vw);
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @media (max-width: 359px) {
+      .hero-device__shell--phone {
+        max-width: min(252px, 92vw);
+      }
+    }
+
+    /* ── Tablet / wide mobile: MacBook + companion ── */
+    @media (min-width: 700px) and (min-height: 480px) {
+      .hero-mockup-devices--desktop {
+        display: flex;
+        width: 100%;
+        align-items: flex-end;
+        justify-content: center;
+        overflow: visible;
+      }
+
+      .hero-device--desktop {
+        position: relative;
+        z-index: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        overflow: visible;
+      }
+
+      .hero-device--desktop .hero-device--companion-overlap {
+        position: absolute;
+        z-index: 5;
+        right: clamp(-6.5rem, -14%, -0.5rem);
+        bottom: clamp(-4.95rem, -3.7vw, -0.56rem);
+        width: clamp(232px, 25.5vw, 338px);
+        max-width: min(56%, 352px);
+        margin: 0;
+        pointer-events: none;
+        filter: drop-shadow(0 14px 30px rgb(0 0 0 / 0.28));
+      }
+
+      .hero-device--mobile {
+        display: none;
+      }
+    }
+
+    @media (min-width: 700px) and (max-width: 1023px) and (min-height: 480px) {
+      .hero-mockup-root {
+        transform: rotate(0.9deg) scale(0.84);
+        transform-origin: 50% 88%;
+      }
+
+      .hero-mockup-root:hover {
+        transform: rotate(0.35deg) translateY(-3px) scale(0.84);
+      }
+    }
+
+    /* ── Frame image (on top) ── */
+    .hero-device__frame {
+      position: relative;
+      z-index: 2;
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+
+    /* ── Screen cutout (content area) ── */
+    .hero-device__screen {
+      position: absolute;
+      z-index: 1;
+      overflow: hidden;
+      background: #fff;
+      pointer-events: none;
+    }
+
+    .hero-device__screen--macbook {
+      top: 0.87%;
+      left: 10.27%;
+      right: 10.29%;
+      bottom: 10.33%;
+      border-radius: 0.82%;
+      container-type: size;
+      pointer-events: auto;
+    }
+
+    .hero-device__screen--iphone {
+      top: 13.666666666666668%;
+      right: 32.166666666666664%;
+      bottom: 13.666666666666668%;
+      left: 32.166666666666664%;
+      border-radius: 12.85% / 6.31%;
+      container-type: size;
+      pointer-events: auto;
+    }
+
+    /* ── MacBook trackpad fill ── */
+    .hero-device__macbook-base-fill {
+      position: absolute;
+      z-index: 1;
+      bottom: 0;
+      left: 50%;
+      width: clamp(48px, 15.5%, 104px);
+      height: clamp(14px, 6.8%, 30px);
+      transform: translateX(-50%);
+      border-radius: 0 0 999px 999px;
+      background: #b4b9c0;
+      pointer-events: none;
+    }
+
+    /* ── Scalable content canvas ── */
+    .hero-device__ui-scale--macbook {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 860px;
+      height: calc(860px * 2387 / 3680);
+      transform-origin: 0 0;
+      transform: scale(calc(100cqw / 860px));
+    }
+
+    .hero-device__ui-scale--iphone {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 248px;
+      height: calc(248px * 872 / 428);
+      transform-origin: 0 0;
+      transform: scale(calc(100cqw / 248px));
+    }
+
+    /*
+     * Placeholder screenshots — замените src на свои файлы:
+     *   ../screenshots/desktop-app.png  (соотношение 3680:2387)
+     *   ../screenshots/mobile-app.png   (соотношение 428:872)
+     */
+    .screenshot-slot {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top left;
+    }
+
+    /* Placeholder: градиент вместо реального скриншота */
+    .screenshot-placeholder {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.4;
+    }
+
+    .screenshot-placeholder--desktop {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 40%, #059669 100%);
+    }
+
+    .screenshot-placeholder--mobile {
+      background: linear-gradient(160deg, #064e3b 0%, #10b981 50%, #34d399 100%);
+    }
+
+    .screenshot-placeholder span {
+      opacity: 0.85;
+      font-weight: 400;
+      font-size: 0.65rem;
+    }
+
+    .hint-box {
+      max-width: 48rem;
+      margin: 2.5rem auto 0;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #d1fae5;
+      font-size: 0.85rem;
+      color: #374151;
+      line-height: 1.55;
+    }
+
+    .hint-box strong {
+      color: #064e3b;
+    }
+
+    .hint-box ol {
+      margin: 0.5rem 0 0;
+      padding-left: 1.25rem;
+    }
+
+    .hint-box li {
+      margin-bottom: 0.35rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>Hero Mockup — слоты под скриншоты</h1>
+    <p>
+      Standalone-пример из <code>mockup/examples/</code>.
+      На узком экране — только iPhone; с 700px — MacBook + телефон поверх.
+    </p>
+  </div>
+
+  <div class="hero-mockup-root">
+
+    <!-- Desktop: MacBook + companion phone -->
+    <div class="hero-mockup-devices hero-mockup-devices--desktop">
+      <div class="hero-device hero-device--desktop">
+
+        <!-- MacBook -->
+        <div class="hero-device__shell hero-device__shell--macbook">
+          <div class="hero-device__screen hero-device__screen--macbook">
+            <div class="hero-device__ui-scale hero-device__ui-scale--macbook">
+              <!--
+                ЗАМЕНИТЕ placeholder на реальный скриншот:
+                <img class="screenshot-slot" src="../screenshots/desktop-app.png" alt="Desktop app" width="3680" height="2387" />
+              -->
+              <div class="screenshot-placeholder screenshot-placeholder--desktop">
+                Desktop screenshot
+                <span>3680 × 2387 px<br>замените на &lt;img&gt;</span>
+              </div>
+            </div>
+          </div>
+          <div class="hero-device__macbook-base-fill" aria-hidden="true"></div>
+          <img
+            class="hero-device__frame"
+            src="../frames/macbook-frame.png"
+            width="656"
+            height="380"
+            alt=""
+            decoding="async"
+          />
+        </div>
+
+        <!-- Companion iPhone (overlaps bottom-right of MacBook) -->
+        <div class="hero-device hero-device--companion hero-device--companion-overlap" aria-hidden="true">
+          <div class="hero-device__shell hero-device__shell--companion">
+            <div class="hero-device__screen hero-device__screen--iphone hero-device__screen--companion">
+              <div class="hero-device__ui-scale hero-device__ui-scale--iphone">
+                <!--
+                  ЗАМЕНИТЕ placeholder на реальный скриншот:
+                  <img class="screenshot-slot" src="../screenshots/mobile-app.png" alt="Mobile app" width="428" height="872" />
+                -->
+                <div class="screenshot-placeholder screenshot-placeholder--mobile">
+                  Mobile screenshot
+                  <span>428 × 872 px<br>замените на &lt;img&gt;</span>
+                </div>
+              </div>
+            </div>
+            <img
+              class="hero-device__frame"
+              src="../frames/iphone-frame.png"
+              width="1200"
+              height="1200"
+              alt=""
+              decoding="async"
+            />
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Mobile: iPhone only -->
+    <div class="hero-device hero-device--mobile">
+      <div class="hero-device__shell hero-device__shell--phone">
+        <div class="hero-device__screen hero-device__screen--iphone">
+          <div class="hero-device__ui-scale hero-device__ui-scale--iphone">
+            <!--
+              ЗАМЕНИТЕ placeholder на реальный скриншот:
+              <img class="screenshot-slot" src="../screenshots/mobile-app.png" alt="Mobile app" width="428" height="872" />
+            -->
+            <div class="screenshot-placeholder screenshot-placeholder--mobile">
+              Mobile screenshot
+              <span>428 × 872 px<br>замените на &lt;img&gt;</span>
+            </div>
+          </div>
+        </div>
+        <img
+          class="hero-device__frame"
+          src="../frames/iphone-frame.png"
+          width="1200"
+          height="1200"
+          alt=""
+          decoding="async"
+        />
+      </div>
+    </div>
+
+  </div>
+
+  <div class="hint-box">
+    <strong>Как подставить свои скриншоты:</strong>
+    <ol>
+      <li>Положите PNG/WebP в папку <code>mockup/screenshots/</code> (создайте при необходимости).</li>
+      <li>Desktop: соотношение <strong>3680:2387</strong>. Mobile: <strong>428:872</strong>.</li>
+      <li>Замените <code>.screenshot-placeholder</code> на <code>&lt;img class="screenshot-slot" src="..."&gt;</code> (примеры в HTML-комментариях).</li>
+      <li>Скопируйте <code>frames/</code> и CSS в <code>public/</code> вашего проекта.</li>
+      <li>Подробности — в <code>mockup/README.md</code>.</li>
+    </ol>
+  </div>
+
+</body>
+</html>
