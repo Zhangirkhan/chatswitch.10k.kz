@@ -70,6 +70,7 @@ final class HandleInertiaRequests extends Middleware
             'tenantCompanyId' => fn () => app(TenantContext::class)->companyIdOrNull() ?? TenantCompany::id(),
             'tenantSlug' => fn () => app(TenantContext::class)->slug(),
             'appLocale' => fn () => (string) app()->getLocale(),
+            'appVersion' => fn () => (string) config('app.version', '1.0.0'),
             'isSuperAdminHost' => fn () => $isSuperAdminHost,
             'impersonation' => fn () => $request->session()->get(TenantImpersonationService::SESSION_KEY),
             'auth' => [

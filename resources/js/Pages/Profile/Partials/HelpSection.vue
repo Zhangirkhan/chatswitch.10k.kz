@@ -2,9 +2,11 @@
 import SectionHeader from './SectionHeader.vue';
 import { computed } from 'vue';
 import { useI18n } from '@/composables/useI18n';
+import { usePage } from '@inertiajs/vue3';
 
 const { t } = useI18n();
-const appVersion = '1.0.0';
+const page = usePage();
+const appVersion = computed(() => (page.props.appVersion as string | undefined) ?? '1.0.0');
 const buildYear = computed(() => new Date().getFullYear());
 </script>
 

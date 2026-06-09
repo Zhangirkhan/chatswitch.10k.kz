@@ -30,6 +30,7 @@ final class SettingsController extends Controller
             ->only($allowedKeys);
 
         return response()->json([
+            'app_version' => (string) config('app.version', '1.0.0'),
             'settings' => $settings,
             'modules' => collect(CompanyModules::keys())
                 ->mapWithKeys(fn (string $key): array => [

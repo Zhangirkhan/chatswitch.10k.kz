@@ -146,7 +146,7 @@ export const profileRu = {
         privacyPolicyDesc: 'Как мы защищаем ваши данные',
         terms: 'Условия использования',
         termsDesc: 'Правила сервиса',
-        version: 'Accel · версия {version}',
+        version: 'Accel {version}',
         copyright: '© {year} Все права защищены.',
     },
 } as const;

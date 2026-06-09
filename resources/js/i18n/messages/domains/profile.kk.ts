@@ -146,7 +146,7 @@ export const profileKk = {
         privacyPolicyDesc: 'Деректеріңізді қалай қорғаймыз',
         terms: 'Пайдалану шарттары',
         termsDesc: 'Сервис ережелері',
-        version: 'Accel · нұсқа {version}',
+        version: 'Accel {version}',
         copyright: '© {year} Барлық құқықтар қорғалған.',
     },
 } as const;

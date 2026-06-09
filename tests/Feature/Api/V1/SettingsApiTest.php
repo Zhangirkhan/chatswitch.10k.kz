@@ -31,6 +31,7 @@ final class SettingsApiTest extends TestCase
 
         $this->getJson('/api/v1/settings')
             ->assertOk()
-            ->assertJsonStructure(['settings', 'modules']);
+            ->assertJsonStructure(['app_version', 'settings', 'modules'])
+            ->assertJsonPath('app_version', '1.0.0');
     }
 }
