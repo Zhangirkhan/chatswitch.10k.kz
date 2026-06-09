@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\User;
+use App\Services\Auth\TenantLoginService;
 use App\Tenancy\TenantContext;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -12,7 +13,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class MobileLoginRequest extends FormRequest
@@ -22,13 +22,22 @@ final class MobileLoginRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('login') && $this->has('email')) {
+            $this->merge([
+                'login' => $this->input('email'),
+            ]);
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'login' => ['required', 'string', 'min:3'],
             'password' => ['required', 'string'],
         ];
     }
@@ -47,7 +56,7 @@ final class MobileLoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => [trans('auth.throttle', [
+            'login' => [trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ])],
@@ -56,7 +65,10 @@ final class MobileLoginRequest extends FormRequest
 
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return app(TenantLoginService::class)->throttleKey(
+            $this->string('login')->toString(),
+            (string) $this->ip(),
+        );
     }
 
     /**
@@ -71,28 +83,28 @@ final class MobileLoginRequest extends FormRequest
         $context = app(TenantContext::class);
         if (! $context->isResolved()) {
             throw ValidationException::withMessages([
-                'email' => [trans('auth.failed')],
+                'login' => [trans('auth.failed')],
             ]);
         }
 
-        $credentials = [
-            'email' => $this->string('email')->toString(),
-            'password' => $this->string('password')->toString(),
-            'company_id' => $context->companyId(),
-        ];
+        $loginService = app(TenantLoginService::class);
+        $login = $this->string('login')->toString();
+        $password = $this->string('password')->toString();
+        $user = $loginService->findUserByLogin($context->companyId(), $login);
 
-        if (! Auth::attempt($credentials)) {
+        if (
+            ! $user instanceof User
+            || ! $loginService->verifyPassword($user, $password)
+        ) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => [trans('auth.failed')],
+                'login' => [trans('auth.failed')],
             ]);
         }
 
+        Auth::login($user);
         RateLimiter::clear($this->throttleKey());
-
-        /** @var User $user */
-        $user = Auth::user();
 
         if (! $user->is_active) {
             Auth::logout();

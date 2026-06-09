@@ -1,8 +1,11 @@
 export const authKk = {
     loginTitle: 'Кіру',
+    credentialsTab: 'Email / телефон',
     emailTab: 'Email',
     pinTab: 'PIN',
     pinSubmit: 'PIN арқылы кіру',
+    loginLabel: 'Email немесе телефон',
+    loginPlaceholder: '+7 … немесе email@company.kz',
     emailLabel: 'Электрондық пошта',
     passwordLabel: 'Құпия сөз',
     passwordPlaceholder: 'Құпия сөзді енгізіңіз',

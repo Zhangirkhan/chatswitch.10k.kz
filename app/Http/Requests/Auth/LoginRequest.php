@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use App\Rules\Recaptcha;
+use App\Services\Auth\TenantLoginService;
 use App\Services\Security\RecaptchaVerifier;
 use App\Tenancy\TenantContext;
 use Illuminate\Auth\Events\Lockout;
@@ -12,7 +14,6 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -23,13 +24,29 @@ class LoginRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('login') && $this->has('email')) {
+            $this->merge([
+                'login' => $this->input('email'),
+            ]);
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
+        $context = app(TenantContext::class);
+        $isSuperAdminHost = $context->isAdminHost((string) $this->getHost());
+
         return [
-            'email' => ['required', 'string', 'email'],
+            'login' => [
+                'required',
+                'string',
+                $isSuperAdminHost ? 'email' : 'min:3',
+            ],
             'password' => ['required', 'string'],
             'recaptcha_token' => [
                 Rule::excludeIf(fn (): bool => ! RecaptchaVerifier::isEnabled()),
@@ -49,33 +66,40 @@ class LoginRequest extends FormRequest
 
         $context = app(TenantContext::class);
         $host = (string) $this->getHost();
+        $login = $this->string('login')->toString();
+        $password = $this->string('password')->toString();
 
         if ($context->isAdminHost($host)) {
             $credentials = [
-                'email' => $this->string('email')->toString(),
-                'password' => $this->string('password')->toString(),
+                'email' => $login,
+                'password' => $password,
                 'is_super_admin' => true,
             ];
-        } else {
-            if (! $context->isResolved()) {
-                $context->resolveBySlug((string) config('tenancy.fallback_slug', 'demo'));
+
+            if (! Auth::attempt($credentials, $this->boolean('remember'))) {
+                $this->failAuthentication();
             }
 
-            $credentials = [
-                'email' => $this->string('email')->toString(),
-                'password' => $this->string('password')->toString(),
-                'company_id' => $context->companyId(),
-            ];
+            RateLimiter::clear($this->throttleKey());
+
+            return;
         }
 
-        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+        if (! $context->isResolved()) {
+            $context->resolveBySlug((string) config('tenancy.fallback_slug', 'demo'));
         }
 
+        $loginService = app(TenantLoginService::class);
+        $user = $loginService->findUserByLogin($context->companyId(), $login);
+
+        if (
+            ! $user instanceof User
+            || ! $loginService->verifyPassword($user, $password)
+        ) {
+            $this->failAuthentication();
+        }
+
+        Auth::login($user, $this->boolean('remember'));
         RateLimiter::clear($this->throttleKey());
     }
 
@@ -93,7 +117,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
+            'login' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => (int) ceil($seconds / 60),
             ]),
@@ -102,6 +126,21 @@ class LoginRequest extends FormRequest
 
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return app(TenantLoginService::class)->throttleKey(
+            $this->string('login')->toString(),
+            (string) $this->ip(),
+        );
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function failAuthentication(): never
+    {
+        RateLimiter::hit($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'login' => trans('auth.failed'),
+        ]);
     }
 }

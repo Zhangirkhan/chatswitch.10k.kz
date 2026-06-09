@@ -53,7 +53,7 @@ const { enabled: recaptchaEnabled } = useRecaptcha();
 const recaptchaRef = ref<InstanceType<typeof AuthRecaptcha> | null>(null);
 
 const form = useForm({
-    email: '',
+    login: '',
     password: '',
     remember: false,
     recaptcha_token: '',
@@ -133,7 +133,7 @@ function switchMode(mode: 'email' | 'pin'): void {
                 :aria-selected="loginMode === 'email'"
                 @click="switchMode('email')"
             >
-                {{ t('auth.emailTab') }}
+                {{ t('auth.credentialsTab') }}
             </button>
             <button
                 type="button"
@@ -150,25 +150,26 @@ function switchMode(mode: 'email' | 'pin'): void {
 
         <form v-if="loginMode === 'email' || isSuperAdminHost || !props.pinLoginAvailable" class="space-y-5" @submit.prevent="submit">
             <div>
-                <label for="email" class="block text-sm text-[var(--wa-text-secondary)] mb-1">{{ t('auth.emailLabel') }}</label>
+                <label for="login" class="block text-sm text-[var(--wa-text-secondary)] mb-1">{{ t('auth.loginLabel') }}</label>
                 <input
-                    id="email"
-                    type="email"
-                    v-model="form.email"
+                    id="login"
+                    type="text"
+                    v-model="form.login"
                     required
                     autofocus
                     autocomplete="username"
+                    inputmode="email"
                     class="w-full px-3 py-2.5 rounded-lg text-sm border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wa-accent)]"
                     :style="{
                         background: 'var(--wa-panel-input)',
                         color: 'var(--wa-text)',
                         borderColor: 'var(--wa-border)',
                     }"
-                    :aria-invalid="form.errors.email ? 'true' : undefined"
-                    :aria-describedby="form.errors.email ? 'email-error' : undefined"
-                    placeholder="admin@accel.kz"
+                    :aria-invalid="form.errors.login ? 'true' : undefined"
+                    :aria-describedby="form.errors.login ? 'login-error' : undefined"
+                    :placeholder="t('auth.loginPlaceholder')"
                 />
-                <p v-if="form.errors.email" id="email-error" role="alert" class="mt-1 text-xs text-red-400">{{ form.errors.email }}</p>
+                <p v-if="form.errors.login" id="login-error" role="alert" class="mt-1 text-xs text-red-400">{{ form.errors.login }}</p>
             </div>
 
             <div>

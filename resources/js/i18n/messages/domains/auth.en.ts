@@ -1,8 +1,11 @@
 export const authEn = {
     loginTitle: 'Log in',
+    credentialsTab: 'Email / phone',
     emailTab: 'Email',
     pinTab: 'PIN',
     pinSubmit: 'Sign in with PIN',
+    loginLabel: 'Email or phone',
+    loginPlaceholder: '+7 … or email@company.com',
     emailLabel: 'Email address',
     passwordLabel: 'Password',
     passwordPlaceholder: 'Enter password',

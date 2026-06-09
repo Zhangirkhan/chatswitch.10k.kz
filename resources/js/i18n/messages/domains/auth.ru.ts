@@ -1,8 +1,11 @@
 export const authRu = {
     loginTitle: 'Вход',
+    credentialsTab: 'Email / телефон',
     emailTab: 'Email',
     pinTab: 'PIN',
     pinSubmit: 'Войти по PIN',
+    loginLabel: 'Email или телефон',
+    loginPlaceholder: '+7 … или email@company.kz',
     emailLabel: 'Электронная почта',
     passwordLabel: 'Пароль',
     passwordPlaceholder: 'Введите пароль',
