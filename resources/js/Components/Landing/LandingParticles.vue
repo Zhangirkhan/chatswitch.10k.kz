@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<ParticlesProps>(), {
 const containerRef = useTemplateRef<HTMLDivElement>('containerRef');
 const prefersReducedMotion = ref(false);
 const hoverCapable = ref(false);
+const canvasReady = ref(false);
 
 let renderer: Renderer | null = null;
 let camera: Camera | null = null;
@@ -171,22 +172,27 @@ function initParticles(): void {
         return;
     }
 
+    canvasReady.value = false;
     interactionRoot = resolveInteractionRoot(container);
     targetMouse = { x: 0, y: 0 };
     currentMouse = { x: 0, y: 0 };
 
-    renderer = new Renderer({ depth: false, alpha: true });
+    renderer = new Renderer({
+        depth: false,
+        alpha: true,
+        premultipliedAlpha: false,
+    });
     const gl = renderer.gl;
-    container.appendChild(gl.canvas);
     gl.clearColor(0, 0, 0, 0);
 
-    gl.canvas.style.width = '100%';
-    gl.canvas.style.height = '100%';
-    gl.canvas.style.display = 'block';
     gl.canvas.style.position = 'absolute';
     gl.canvas.style.top = '0';
     gl.canvas.style.left = '0';
+    gl.canvas.style.width = '100%';
+    gl.canvas.style.height = '100%';
+    gl.canvas.style.display = 'block';
     gl.canvas.style.pointerEvents = 'none';
+    gl.canvas.style.background = 'transparent';
 
     camera = new Camera(gl, { fov: 15 });
     camera.position.set(0, 0, props.cameraDistance);
@@ -261,6 +267,16 @@ function initParticles(): void {
 
     particles = new Mesh(gl, { mode: gl.POINTS, geometry, program });
 
+    container.appendChild(gl.canvas);
+
+    if (renderer && camera && particles) {
+        renderer.render({ scene: particles, camera });
+    }
+
+    requestAnimationFrame(() => {
+        canvasReady.value = true;
+    });
+
     lastTime = performance.now();
     elapsed = 0;
 
@@ -332,6 +348,7 @@ function initParticles(): void {
 function cleanup(): void {
     teardown?.();
     teardown = null;
+    canvasReady.value = false;
 
     if (renderer) {
         renderer.gl.getExtension('WEBGL_lose_context')?.loseContext();
@@ -376,7 +393,10 @@ watch(
     <div
         ref="containerRef"
         class="landing-particles"
-        :class="{ 'landing-particles--static': prefersReducedMotion }"
+        :class="{
+            'landing-particles--static': prefersReducedMotion,
+            'landing-particles--ready': canvasReady,
+        }"
     />
 </template>
 
@@ -386,6 +406,7 @@ watch(
     inset: 0;
     width: 100%;
     height: 100%;
+    background: transparent;
 }
 
 .landing-particles--static {
@@ -398,5 +419,12 @@ watch(
     width: 100%;
     height: 100%;
     pointer-events: none;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+}
+
+.landing-particles--ready :deep(canvas) {
+    opacity: 1;
 }
 </style>

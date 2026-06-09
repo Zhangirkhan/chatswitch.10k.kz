@@ -37,8 +37,9 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const PAGE_SCROLLABLE_PREFIXES = ['Landing/'];
 
 function syncPageScroll(component: string): void {
-    const scrollable = PAGE_SCROLLABLE_PREFIXES.some((prefix) => component.startsWith(prefix));
-    document.documentElement.classList.toggle('page-scrollable', scrollable);
+    const isLanding = component.startsWith('Landing/');
+    document.documentElement.classList.toggle('page-scrollable', isLanding);
+    document.documentElement.classList.toggle('page-landing', isLanding);
 }
 
 router.on('navigate', (event) => {

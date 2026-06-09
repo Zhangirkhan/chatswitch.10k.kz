@@ -624,6 +624,12 @@ html.page-scrollable {
     scroll-behavior: smooth;
 }
 
+html.page-landing,
+html.page-landing body {
+    background: #000;
+    color-scheme: dark;
+}
+
 /* Scrollbar (WhatsApp Web style) */
 .wa-scrollbar::-webkit-scrollbar {
     width: 6px;

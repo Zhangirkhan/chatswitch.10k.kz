@@ -666,6 +666,7 @@ onUnmounted(() => {
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+    background-color: #000;
     background:
         radial-gradient(ellipse 52% 48% at 44% 45%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 38%, transparent 58%),
         radial-gradient(ellipse 68% 62% at 50% 50%, rgba(24, 38, 46, 0.65) 0%, rgba(0, 0, 0, 0.92) 100%),
