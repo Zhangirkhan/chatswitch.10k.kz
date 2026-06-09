@@ -35,7 +35,6 @@ const props = withDefaults(defineProps<ParticlesProps>(), {
 });
 
 const containerRef = useTemplateRef<HTMLDivElement>('containerRef');
-const mouseRef = ref({ x: 0, y: 0 });
 const prefersReducedMotion = ref(false);
 const hoverCapable = ref(false);
 
@@ -47,6 +46,9 @@ let animationFrameId: number | null = null;
 let teardown: (() => void) | null = null;
 let lastTime = 0;
 let elapsed = 0;
+let interactionRoot: HTMLElement | null = null;
+let targetMouse = { x: 0, y: 0 };
+let currentMouse = { x: 0, y: 0 };
 
 const defaultColors = ['#ffffff', '#ffffff', '#ffffff'];
 
@@ -124,16 +126,42 @@ const fragment = /* glsl */ `
   }
 `;
 
-function handleMouseMove(e: MouseEvent): void {
-    const container = containerRef.value;
-    if (!container) {
+function resolveInteractionRoot(container: HTMLElement): HTMLElement {
+    return container.closest('.landing__hero') ?? container.parentElement ?? container;
+}
+
+function updateTargetFromPointer(clientX: number, clientY: number): void {
+    if (!interactionRoot) {
         return;
     }
 
-    const rect = container.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-    mouseRef.value = { x, y };
+    const rect = interactionRoot.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+        return;
+    }
+
+    const inside = clientX >= rect.left
+        && clientX <= rect.right
+        && clientY >= rect.top
+        && clientY <= rect.bottom;
+
+    if (!inside) {
+        targetMouse = { x: 0, y: 0 };
+        return;
+    }
+
+    targetMouse = {
+        x: ((clientX - rect.left) / rect.width) * 2 - 1,
+        y: -(((clientY - rect.top) / rect.height) * 2 - 1),
+    };
+}
+
+function handleWindowMouseMove(e: MouseEvent): void {
+    updateTargetFromPointer(e.clientX, e.clientY);
+}
+
+function handleHeroMouseLeave(): void {
+    targetMouse = { x: 0, y: 0 };
 }
 
 function initParticles(): void {
@@ -141,6 +169,10 @@ function initParticles(): void {
     if (!container || prefersReducedMotion.value) {
         return;
     }
+
+    interactionRoot = resolveInteractionRoot(container);
+    targetMouse = { x: 0, y: 0 };
+    currentMouse = { x: 0, y: 0 };
 
     renderer = new Renderer({ depth: false, alpha: true });
     const gl = renderer.gl;
@@ -178,7 +210,8 @@ function initParticles(): void {
 
     const hoverEnabled = props.moveParticlesOnHover && hoverCapable.value;
     if (hoverEnabled) {
-        container.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mousemove', handleWindowMouseMove, { passive: true });
+        interactionRoot.addEventListener('mouseleave', handleHeroMouseLeave);
     }
 
     const count = props.particleCount;
@@ -235,7 +268,12 @@ function initParticles(): void {
             return;
         }
         animationFrameId = requestAnimationFrame(update);
-        const delta = t - lastTime;
+
+        const delta = Math.min(t - lastTime, 32);
+        if (delta <= 0) {
+            return;
+        }
+
         lastTime = t;
         elapsed += delta * props.speed;
 
@@ -249,8 +287,11 @@ function initParticles(): void {
 
         if (particles) {
             if (hoverEnabled) {
-                particles.position.x = -mouseRef.value.x * props.particleHoverFactor;
-                particles.position.y = -mouseRef.value.y * props.particleHoverFactor;
+                const smooth = 1 - Math.pow(0.001, delta / 1000);
+                currentMouse.x += (targetMouse.x - currentMouse.x) * smooth;
+                currentMouse.y += (targetMouse.y - currentMouse.y) * smooth;
+                particles.position.x = -currentMouse.x * props.particleHoverFactor;
+                particles.position.y = -currentMouse.y * props.particleHoverFactor;
             } else {
                 particles.position.x = 0;
                 particles.position.y = 0;
@@ -273,7 +314,8 @@ function initParticles(): void {
     teardown = (): void => {
         window.removeEventListener('resize', resize);
         if (hoverEnabled) {
-            container.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mousemove', handleWindowMouseMove);
+            interactionRoot?.removeEventListener('mouseleave', handleHeroMouseLeave);
         }
         if (animationFrameId) {
             cancelAnimationFrame(animationFrameId);
@@ -282,6 +324,7 @@ function initParticles(): void {
         if (container.contains(gl.canvas)) {
             container.removeChild(gl.canvas);
         }
+        interactionRoot = null;
     };
 }
 
@@ -297,6 +340,8 @@ function cleanup(): void {
     camera = null;
     particles = null;
     program = null;
+    targetMouse = { x: 0, y: 0 };
+    currentMouse = { x: 0, y: 0 };
 }
 
 function boot(): void {

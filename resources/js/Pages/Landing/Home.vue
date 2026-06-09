@@ -274,6 +274,7 @@ onUnmounted(() => {
                         :particle-base-size="200"
                         :alpha-particles="true"
                         :move-particles-on-hover="true"
+                        :particle-hover-factor="0.65"
                         :disable-rotation="true"
                     />
                 </div>
