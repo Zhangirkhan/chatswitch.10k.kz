@@ -667,8 +667,9 @@ onUnmounted(() => {
     overflow: hidden;
     pointer-events: none;
     background:
-        radial-gradient(ellipse 52% 48% at 58% 45%, rgba(1, 185, 100, 0.22) 0%, rgba(1, 185, 100, 0.06) 38%, transparent 58%),
-        radial-gradient(ellipse 68% 62% at 50% 50%, rgba(24, 38, 46, 0.65) 0%, rgba(0, 0, 0, 0.92) 100%);
+        radial-gradient(ellipse 52% 48% at 44% 45%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 38%, transparent 58%),
+        radial-gradient(ellipse 68% 62% at 50% 50%, rgba(24, 38, 46, 0.65) 0%, rgba(0, 0, 0, 0.92) 100%),
+        radial-gradient(ellipse 38% 42% at 68% 50%, rgba(0, 0, 0, 0.28) 0%, transparent 72%);
     -webkit-mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
     mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
 }

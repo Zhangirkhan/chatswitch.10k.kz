@@ -129,7 +129,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 .hero-device__shell--macbook {
     filter:
         drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
-        drop-shadow(0 0 28px rgba(1, 185, 100, 0.22))
+        drop-shadow(0 0 28px rgba(1, 185, 100, 0.12))
         drop-shadow(0 28px 60px rgba(0, 0, 0, 0.6));
 }
 
@@ -139,7 +139,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
     margin-right: auto;
     filter:
         drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
-        drop-shadow(0 0 22px rgba(1, 185, 100, 0.22))
+        drop-shadow(0 0 22px rgba(1, 185, 100, 0.12))
         drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
 }
 
@@ -178,7 +178,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
         pointer-events: none;
         filter:
             drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
-            drop-shadow(0 0 20px rgba(1, 185, 100, 0.24))
+            drop-shadow(0 0 20px rgba(1, 185, 100, 0.14))
             drop-shadow(0 14px 30px rgb(0 0 0 / 0.5));
     }
 
