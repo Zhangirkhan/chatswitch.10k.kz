@@ -13,7 +13,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
                     <div class="hero-device__screen hero-device__screen--macbook">
                         <div class="hero-device__ui-scale hero-device__ui-scale--macbook">
                             <img
-                                class="hero-device__screenshot"
+                                class="hero-device__screenshot hero-device__screenshot--macbook"
                                 :src="desktopScreenshot"
                                 alt=""
                                 width="3680"
@@ -38,7 +38,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
                         <div class="hero-device__screen hero-device__screen--iphone">
                             <div class="hero-device__ui-scale hero-device__ui-scale--iphone">
                                 <img
-                                    class="hero-device__screenshot"
+                                    class="hero-device__screenshot hero-device__screenshot--iphone"
                                     :src="mobileScreenshot"
                                     alt=""
                                     width="428"
@@ -65,7 +65,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
                 <div class="hero-device__screen hero-device__screen--iphone">
                     <div class="hero-device__ui-scale hero-device__ui-scale--iphone">
                         <img
-                            class="hero-device__screenshot"
+                            class="hero-device__screenshot hero-device__screenshot--iphone"
                             :src="mobileScreenshot"
                             alt=""
                             width="428"
@@ -213,7 +213,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 }
 
 .hero-device__screen--macbook {
-    top: 0.87%;
+    top: 0.55%;
     left: 10.27%;
     right: 10.29%;
     bottom: 10.33%;
@@ -223,9 +223,9 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 
 .hero-device__screen--iphone {
     top: 13.67%;
-    right: 32.17%;
-    bottom: 13.67%;
-    left: 32.17%;
+    right: 31.95%;
+    bottom: 13.55%;
+    left: 31.95%;
     border-radius: 12.85% / 6.31%;
     container-type: size;
 }
@@ -269,5 +269,17 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
     height: 100%;
     object-fit: cover;
     object-position: top left;
+}
+
+.hero-device__screenshot--macbook {
+    object-position: center top;
+    transform: scale(1.012) translateY(-0.6%);
+    transform-origin: top center;
+}
+
+.hero-device__screenshot--iphone {
+    object-position: 2% 1.2%;
+    transform: scale(1.028) translate(-1.4%, 0.9%);
+    transform-origin: center center;
 }
 </style>
