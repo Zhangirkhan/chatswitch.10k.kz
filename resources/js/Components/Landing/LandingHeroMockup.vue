@@ -126,10 +126,21 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
     display: block;
 }
 
+.hero-device__shell--macbook {
+    filter:
+        drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
+        drop-shadow(0 0 28px rgba(1, 185, 100, 0.22))
+        drop-shadow(0 28px 60px rgba(0, 0, 0, 0.6));
+}
+
 .hero-device__shell--phone {
     max-width: min(340px, 92vw);
     margin-left: auto;
     margin-right: auto;
+    filter:
+        drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
+        drop-shadow(0 0 22px rgba(1, 185, 100, 0.22))
+        drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
 }
 
 @media (max-width: 359px) {
@@ -165,7 +176,10 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
         max-width: min(58%, 380px);
         margin: 0;
         pointer-events: none;
-        filter: drop-shadow(0 14px 30px rgb(0 0 0 / 0.45));
+        filter:
+            drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
+            drop-shadow(0 0 20px rgba(1, 185, 100, 0.24))
+            drop-shadow(0 14px 30px rgb(0 0 0 / 0.5));
     }
 
     .hero-device--mobile {

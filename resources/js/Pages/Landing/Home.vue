@@ -667,11 +667,11 @@ onUnmounted(() => {
     overflow: hidden;
     border-radius: inherit;
     background:
-        radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 42%, transparent 72%),
-        radial-gradient(ellipse 100% 100% at 50% 50%, rgba(17, 27, 33, 0.55) 0%, rgba(0, 0, 0, 0.92) 100%);
+        radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.2) 0%, rgba(1, 185, 100, 0.06) 42%, transparent 72%),
+        radial-gradient(ellipse 100% 100% at 50% 50%, rgba(24, 38, 46, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
     box-shadow:
-        inset 0 0 0 1px rgba(1, 185, 100, 0.08),
-        inset 0 0 80px rgba(0, 0, 0, 0.65);
+        inset 0 0 0 1px rgba(1, 185, 100, 0.1),
+        inset 0 0 80px rgba(0, 0, 0, 0.55);
 }
 
 .landing__hero-backdrop::after {
