@@ -165,7 +165,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         }
 
         $resolvedDepartment = null;
-        if ($message->chat !== null && $message->direction === 'inbound') {
+        if ($message->chat !== null && $message->direction === 'inbound' && $message->chat->ai_enabled) {
             $resolvedDepartment = $departmentRouting->resolveAndAssignDepartment($message->chat, $message);
             $message->chat->refresh();
         }

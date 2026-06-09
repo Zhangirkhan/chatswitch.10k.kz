@@ -18,6 +18,11 @@ final class Chat extends Model
 {
     use BelongsToTenant, HasFactory;
 
+    /** @var array<string, mixed> */
+    protected $attributes = [
+        'ai_enabled' => false,
+    ];
+
     protected static function booted(): void
     {
         self::creating(function (Chat $chat): void {

@@ -325,6 +325,7 @@ final class ChatService
                 'chat_name' => $this->resolveInboundChatDisplayName($data),
                 'is_group' => $isGroup,
                 'contact_id' => $contactId,
+                'ai_enabled' => false,
                 'last_message_at' => now(),
             ],
         );
@@ -425,6 +426,7 @@ final class ChatService
                 'chat_name' => $contact->name ?: $contact->push_name ?: $contact->phone_number,
                 'contact_id' => $contact->id,
                 'is_group' => false,
+                'ai_enabled' => false,
                 'last_message_at' => now(),
             ],
         );

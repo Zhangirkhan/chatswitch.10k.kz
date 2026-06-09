@@ -43,7 +43,7 @@ final class InboundAiDispatchService
                 ->where('enabled', true)
                 ->exists();
 
-        if ($orchestratorEnabled) {
+        if ($orchestratorEnabled && $chat->ai_enabled) {
             $delaySeconds = max(1, (int) config('funnel.orchestrator.debounce_seconds', 3));
             RunAiFunnelOrchestratorJob::dispatch($chat->id, $message->id, $chat->company_id)
                 ->delay(now()->addSeconds($delaySeconds));
@@ -51,7 +51,7 @@ final class InboundAiDispatchService
             return;
         }
 
-        if ($shouldAnalyzeFunnel) {
+        if ($shouldAnalyzeFunnel && $chat->ai_enabled) {
             $delaySeconds = max(1, (int) config('funnel.ai.debounce_seconds', 5));
             AnalyzeChatFunnelJob::dispatch($chat->id, $message->id, $chat->company_id)
                 ->delay(now()->addSeconds($delaySeconds));

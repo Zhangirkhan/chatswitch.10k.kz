@@ -122,7 +122,45 @@ final class ReceiveMessageTest extends TestCase
             ->first();
 
         $this->assertNotNull($chat, 'Chat should have been created.');
+        $this->assertFalse($chat->ai_enabled);
         $this->assertSame(1, $chat->unread_count);
         $this->assertSame(1, $chat->messages()->count());
+    }
+
+    public function test_inbound_job_does_not_dispatch_ai_jobs_when_ai_disabled_on_new_chat(): void
+    {
+        WhatsappSession::factory()->create(['session_name' => 'default']);
+
+        Bus::fake([
+            GenerateAiReplyJob::class,
+            RunAiFunnelOrchestratorJob::class,
+            AnalyzeChatFunnelJob::class,
+        ]);
+
+        config(['funnel.department_routing.enabled' => false]);
+
+        $data = [
+            'session' => 'default',
+            'chatId' => '77779876543@c.us',
+            'chatName' => 'New Client',
+            'from' => '77779876543@c.us',
+            'senderPhone' => '77779876543',
+            'senderName' => 'New Client',
+            'body' => 'Здравствуйте',
+            'isGroup' => false,
+            'timestamp' => time(),
+            'messageId' => 'wa-msg-new-client',
+        ];
+
+        $job = new ProcessWhatsappInboundJob($data);
+        $this->app->call([$job, 'handle']);
+
+        $chat = Chat::query()->where('whatsapp_chat_id', '77779876543@c.us')->first();
+        $this->assertNotNull($chat);
+        $this->assertFalse($chat->ai_enabled);
+
+        Bus::assertNotDispatched(GenerateAiReplyJob::class);
+        Bus::assertNotDispatched(RunAiFunnelOrchestratorJob::class);
+        Bus::assertNotDispatched(AnalyzeChatFunnelJob::class);
     }
 }
