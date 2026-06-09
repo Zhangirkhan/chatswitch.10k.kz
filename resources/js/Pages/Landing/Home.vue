@@ -662,15 +662,15 @@ onUnmounted(() => {
 
 .landing__hero-backdrop {
     position: absolute;
-    inset: clamp(-9rem, -12vh, -5rem) clamp(-12rem, -14vw, -3rem) clamp(-14rem, -18vh, -7rem);
+    inset: clamp(-6rem, -8vh, -3rem) clamp(-8rem, -10vw, -2rem) clamp(-10rem, -12vh, -5rem);
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
     background:
-        radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.2) 0%, rgba(1, 185, 100, 0.06) 42%, transparent 72%),
-        radial-gradient(ellipse 100% 100% at 50% 50%, rgba(24, 38, 46, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
-    -webkit-mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, #000 45%, transparent 100%);
-    mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, #000 45%, transparent 100%);
+        radial-gradient(ellipse 52% 48% at 58% 45%, rgba(1, 185, 100, 0.22) 0%, rgba(1, 185, 100, 0.06) 38%, transparent 58%),
+        radial-gradient(ellipse 68% 62% at 50% 50%, rgba(24, 38, 46, 0.65) 0%, rgba(0, 0, 0, 0.92) 100%);
+    -webkit-mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
+    mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
 }
 
 .landing__hero-copy {
