@@ -267,9 +267,8 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 }
 
 .hero-device__screenshot--iphone {
-    object-fit: contain;
-    object-position: center center;
-    transform: scale(0.88);
+    object-position: 2% 1.2%;
+    transform: scale(1.028) translate(-1.4%, 0.9%);
     transform-origin: center center;
 }
 </style>
