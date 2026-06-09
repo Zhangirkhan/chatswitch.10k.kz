@@ -147,6 +147,20 @@ final class TenantRoleService
         });
     }
 
+    public function ensureForCompany(Company $company): void
+    {
+        $teamKey = config('permission.column_names.team_foreign_key');
+
+        $hasTenantRoles = Role::query()
+            ->where($teamKey, $company->id)
+            ->where('guard_name', 'web')
+            ->exists();
+
+        if (! $hasTenantRoles) {
+            $this->migrateCompany($company);
+        }
+    }
+
     public function migrateCompany(Company $company): void
     {
         TenantRoles::ensureDefaultRolesForCompany($company);

@@ -34,6 +34,9 @@ final class UserManagementController extends Controller
 
     public function index(Request $request): Response
     {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $this->tenantRoleService->ensureForCompany($company);
+
         $search = trim((string) $request->input('search', ''));
         $role = trim((string) $request->input('role', ''));
         $status = trim((string) $request->input('status', ''));

@@ -240,6 +240,8 @@ export const settingsExtrasEn = {
         pinSetHint: 'PIN is set. Enter a new one or leave empty to disable PIN login.',
         pinOptionalHint: 'Optional. The employee can log in on the «PIN» tab without email or password.',
         role: 'Role',
+        roleHint: 'Need a custom title (CEO, manager, workshop, workshop lead)? Create it under Roles & permissions, then select it here.',
+        roleManageLink: 'Roles & permissions →',
         departments: 'Departments',
         departmentsHint: 'An employee can belong to several departments — check all that apply.',
         noDepartments: 'No departments yet. Create them in «Departments».',

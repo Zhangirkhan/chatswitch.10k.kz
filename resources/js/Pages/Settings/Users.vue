@@ -6,7 +6,7 @@ import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import type { User, Department, WhatsappSession } from '@/types';
@@ -46,6 +46,8 @@ const props = defineProps<{
 const { show: showToast } = useToastStore();
 const { t } = useI18n();
 const { label: roleLabel } = useRoleLabels();
+
+const defaultRole = computed(() => props.availableRoles[0] ?? 'employee');
 
 const local = ref<User[]>([...props.users.data]);
 const filters = ref<UserFilters>({
@@ -194,7 +196,7 @@ function openAdd() {
         phone: '',
         password: '',
         pin: '',
-        role: 'employee',
+        role: defaultRole.value,
         company_id: props.companies[0]?.id ?? null,
         department_ids: [],
         is_active: true,
@@ -682,9 +684,18 @@ const userDeleteDescription = computed(() => {
                             </div>
                             <div>
                                 <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.usersForm.role') }}</label>
-                                <select v-model="form.role" class="settings-input">
+                                <select v-model="form.role" class="settings-input" :disabled="availableRoles.length === 0">
                                     <option v-for="r in availableRoles" :key="r" :value="r">{{ roleLabel(r) }}</option>
                                 </select>
+                                <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
+                                    {{ t('settings.usersForm.roleHint') }}
+                                    <Link
+                                        :href="route('settings.roles')"
+                                        class="text-[var(--ui-accent)] hover:underline whitespace-nowrap"
+                                    >
+                                        {{ t('settings.usersForm.roleManageLink') }}
+                                    </Link>
+                                </p>
                             </div>
                         </div>
 

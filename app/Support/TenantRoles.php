@@ -44,12 +44,26 @@ final class TenantRoles
     {
         self::ensurePermissionsSeeded();
 
+        $teamKey = config('permission.column_names.team_foreign_key');
         $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
         setPermissionsTeamId($company->id);
 
         try {
             foreach (config('tenant_permissions.default_role_permissions', []) as $roleName => $permissionNames) {
-                $role = Role::findOrCreate($roleName, 'web');
+                $role = Role::query()
+                    ->where('name', $roleName)
+                    ->where('guard_name', 'web')
+                    ->where($teamKey, $company->id)
+                    ->first();
+
+                if ($role === null) {
+                    $role = Role::query()->firstOrCreate([
+                        'name' => $roleName,
+                        'guard_name' => 'web',
+                        $teamKey => $company->id,
+                    ]);
+                }
+
                 $permissions = Permission::query()
                     ->whereIn('name', self::resolvePermissionNames($permissionNames))
                     ->where('guard_name', 'web')
@@ -75,13 +89,31 @@ final class TenantRoles
 
     public static function syncForCompany(User $user, int $companyId, string $roleName): void
     {
+        $teamKey = config('permission.column_names.team_foreign_key');
         $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
         setPermissionsTeamId($companyId);
 
         try {
             self::ensurePermissionsSeeded();
-            Role::findOrCreate($roleName, 'web');
-            $user->syncRoles([$roleName]);
+
+            $roleExists = Role::query()
+                ->where('name', $roleName)
+                ->where('guard_name', 'web')
+                ->where($teamKey, $companyId)
+                ->exists();
+
+            if (! $roleExists) {
+                $company = Company::query()->withoutGlobalScope('tenant')->findOrFail($companyId);
+                self::ensureDefaultRolesForCompany($company);
+            }
+
+            $role = Role::query()
+                ->where('name', $roleName)
+                ->where('guard_name', 'web')
+                ->where($teamKey, $companyId)
+                ->firstOrFail();
+
+            $user->syncRoles([$role]);
         } finally {
             setPermissionsTeamId($previousTeamId);
         }

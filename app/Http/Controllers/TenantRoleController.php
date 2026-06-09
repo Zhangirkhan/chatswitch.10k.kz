@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use App\Services\TenantRoleService;
 use App\Support\TenantCompany;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,10 @@ final class TenantRoleController extends Controller
 
     public function index(): Response
     {
-        $companyId = TenantCompany::id();
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $this->tenantRoleService->ensureForCompany($company);
+
+        $companyId = $company->id;
         $catalog = $this->tenantRoleService->permissionCatalog();
 
         return Inertia::render('Settings/Roles', [
