@@ -63,12 +63,14 @@ final class HandleInertiaRequests extends Middleware
             $user->loadMissing(['departments:id,name']);
         }
 
+        $isSuperAdminHost = app(TenantContext::class)->isAdminHost($request->getHost());
+
         return [
             ...parent::share($request),
             'tenantCompanyId' => fn () => app(TenantContext::class)->companyIdOrNull() ?? TenantCompany::id(),
             'tenantSlug' => fn () => app(TenantContext::class)->slug(),
             'appLocale' => fn () => (string) app()->getLocale(),
-            'isSuperAdminHost' => fn () => app(TenantContext::class)->isAdminHost($request->getHost()),
+            'isSuperAdminHost' => fn () => $isSuperAdminHost,
             'impersonation' => fn () => $request->session()->get(TenantImpersonationService::SESSION_KEY),
             'auth' => [
                 'user' => $user ? array_merge(
@@ -90,9 +92,9 @@ final class HandleInertiaRequests extends Middleware
             'unreadChatsCount' => fn () => $user ? $this->unreadChatsCount($user) : 0,
             /** Непрочитанные только среди чатов, где пользователь в ответственных (для режима «Мои»). */
             'unreadChatsCountMine' => fn () => $user ? $this->unreadChatsCountMine($user) : 0,
-            'orgOpenTasksCount' => fn () => $user ? $this->orgOpenTasksCount($user) : 0,
-            'teamChatUnreadCount' => fn () => $user ? $this->teamChatUnreadTotal($user) : 0,
-            'calendarBadgeCount' => fn () => $user ? app(CalendarMenuBadgeService::class)->countFor($user) : 0,
+            'orgOpenTasksCount' => fn () => ($user && ! $isSuperAdminHost) ? $this->orgOpenTasksCount($user) : 0,
+            'teamChatUnreadCount' => fn () => ($user && ! $isSuperAdminHost) ? $this->teamChatUnreadTotal($user) : 0,
+            'calendarBadgeCount' => fn () => ($user && ! $isSuperAdminHost) ? app(CalendarMenuBadgeService::class)->countFor($user) : 0,
             'whatsappSessions' => fn () => (
                 $user && ! app(TenantContext::class)->isAdminHost($request->getHost())
             ) ? $this->whatsappSessionsForUser($user) : [],

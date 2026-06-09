@@ -9,7 +9,6 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\Funnel;
 use App\Models\FunnelAiScenario;
-use App\Models\FunnelStage;
 use App\Models\FunnelStageAiRule;
 use App\Models\KnowledgeRule;
 use App\Models\User;
@@ -252,13 +251,16 @@ final class TenantDoctorService
      */
     private function checkData(Company $company): array
     {
-        $funnels = Funnel::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->where('is_active', true)->count();
-        $stages = FunnelStage::query()
-            ->whereHas('funnel', static fn ($q) => $q->withoutGlobalScope('tenant')->where('company_id', $company->id))
+        $companyId = $company->id;
+
+        $funnels = Funnel::query()->withoutGlobalScope('tenant')->where('company_id', $companyId)->where('is_active', true)->count();
+        $stages = (int) DB::table('funnel_stages as fs')
+            ->join('funnels as f', 'f.id', '=', 'fs.funnel_id')
+            ->where('f.company_id', $companyId)
             ->count();
-        $scenarios = FunnelAiScenario::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->where('enabled', true)->count();
-        $knowledge = KnowledgeRule::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->where('is_active', true)->count();
-        $departments = Department::query()->withoutGlobalScope('tenant')->where('company_id', $company->id)->where('is_active', true)->count();
+        $scenarios = FunnelAiScenario::query()->withoutGlobalScope('tenant')->where('company_id', $companyId)->where('enabled', true)->count();
+        $knowledge = KnowledgeRule::query()->withoutGlobalScope('tenant')->where('company_id', $companyId)->where('is_active', true)->count();
+        $departments = Department::query()->withoutGlobalScope('tenant')->where('company_id', $companyId)->where('is_active', true)->count();
         $owner = $this->resolveOwner($company);
 
         $checks = [

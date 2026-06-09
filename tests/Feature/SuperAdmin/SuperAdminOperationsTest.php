@@ -73,6 +73,44 @@ final class SuperAdminOperationsTest extends TestCase
             ->has('companies.links'));
     }
 
+    public function test_company_show_loads_tenant_health_without_funnel_stage_company_scope(): void
+    {
+        $plan = Plan::query()->firstOrCreate(
+            ['code' => 'standard'],
+            [
+                'name' => 'Стандарт',
+                'price_cents' => 4_000_000,
+                'currency' => 'KZT',
+                'interval' => 'month',
+                'trial_days' => 14,
+                'is_active' => true,
+            ],
+        );
+
+        $company = Company::query()->create([
+            'name' => 'Health Check Co',
+            'slug' => 'health-check-co',
+            'is_active' => true,
+            'plan_id' => $plan->id,
+            'subscription_status' => 'trial',
+        ]);
+
+        $admin = User::factory()->create([
+            'is_super_admin' => true,
+            'company_id' => null,
+        ]);
+
+        $host = $this->adminHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $this->actingAs($admin)
+            ->get("https://{$host}/companies/{$company->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('SuperAdmin/Companies/Show')
+                ->has('tenantHealth.groups.data'));
+    }
+
     public function test_dashboard_loads_with_active_subscription_mrr(): void
     {
         $plan = Plan::query()->firstOrCreate(
