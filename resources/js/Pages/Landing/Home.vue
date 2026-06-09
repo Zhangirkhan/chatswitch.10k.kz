@@ -558,6 +558,7 @@ onUnmounted(() => {
     color: var(--landing-text);
     font-family: Figtree, ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
 }
 
 .landing__header,
@@ -568,6 +569,7 @@ onUnmounted(() => {
 }
 
 .landing__header {
+    z-index: 2;
     padding: 1.5rem clamp(1.5rem, 5vw, 3rem);
 }
 
@@ -660,9 +662,10 @@ onUnmounted(() => {
 
 .landing__hero-backdrop {
     position: absolute;
-    inset: 0;
+    inset: clamp(-9rem, -12vh, -5rem) clamp(-12rem, -14vw, -3rem) clamp(-14rem, -18vh, -7rem);
     z-index: 0;
     overflow: hidden;
+    pointer-events: none;
     background:
         radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.2) 0%, rgba(1, 185, 100, 0.06) 42%, transparent 72%),
         radial-gradient(ellipse 100% 100% at 50% 50%, rgba(24, 38, 46, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
