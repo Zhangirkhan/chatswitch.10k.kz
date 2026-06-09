@@ -656,8 +656,6 @@ onUnmounted(() => {
     gap: 3rem;
     align-items: center;
     margin: 0 0 5rem;
-    overflow: hidden;
-    border-radius: 1.75rem;
 }
 
 .landing__hero-backdrop {
@@ -665,22 +663,17 @@ onUnmounted(() => {
     inset: 0;
     z-index: 0;
     overflow: hidden;
-    border-radius: inherit;
     background:
         radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.2) 0%, rgba(1, 185, 100, 0.06) 42%, transparent 72%),
         radial-gradient(ellipse 100% 100% at 50% 50%, rgba(24, 38, 46, 0.7) 0%, rgba(0, 0, 0, 0.9) 100%);
-    box-shadow:
-        inset 0 0 0 1px rgba(1, 185, 100, 0.1),
-        inset 0 0 80px rgba(0, 0, 0, 0.55);
-}
-
-.landing__hero-backdrop::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+    -webkit-mask-image:
+        linear-gradient(to right, transparent 0%, #000 10%, #000 90%, transparent 100%),
+        linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+        linear-gradient(to right, transparent 0%, #000 10%, #000 90%, transparent 100%),
+        linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    mask-composite: intersect;
 }
 
 .landing__hero-copy {
@@ -712,7 +705,6 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
     .landing__hero {
-        border-radius: 1.25rem;
         padding: 1.5rem 0;
     }
 }
