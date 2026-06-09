@@ -21,12 +21,14 @@ use App\Services\SuperAdmin\SuperAdminCompanyScope;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\SuperAdmin\TenantSandboxCleanupService;
 use App\Services\Tenancy\CompanyProvisioningService;
+use App\Services\Tenancy\TenantDoctorService;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionLimitService;
 use App\Support\PhoneFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +46,7 @@ final class CompanyController extends Controller
         private readonly SuperAdminCompanyScope $superAdminScope,
         private readonly DemoTenantPopulationService $demoPopulation,
         private readonly TenantSandboxCleanupService $sandboxCleanup,
+        private readonly TenantDoctorService $tenantDoctor,
     ) {}
 
     public function index(Request $request): Response
@@ -162,7 +165,8 @@ final class CompanyController extends Controller
 
         return redirect()
             ->route('super.companies.show', $result['company'])
-            ->with('success', 'Компания создана. Временный пароль владельца: '.$result['temporary_password']);
+            ->with('success', 'Компания создана. Временный пароль владельца: '.$result['temporary_password'])
+            ->with('provisioning_pending', true);
     }
 
     public function show(Request $request, Company $company): Response
@@ -199,6 +203,10 @@ final class CompanyController extends Controller
             ->limit(100)
             ->get();
 
+        $company->load('owner');
+        $tenantHealth = $this->tenantDoctor->diagnose($company, includeInfra: false);
+        $provisioningVerify = Cache::get("tenant_provision_verify:{$company->id}");
+
         return Inertia::render('SuperAdmin/Companies/Show', [
             'company' => $company,
             'companyUsers' => $companyUsers,
@@ -212,6 +220,8 @@ final class CompanyController extends Controller
             'whatsappMaxSessions' => $this->sessionLimits->perTenantMax($company->id),
             'whatsappSessionLimits' => $this->sessionLimits->payload($company->id),
             'auditLogs' => $auditLogs,
+            'tenantHealth' => $tenantHealth,
+            'provisioningVerify' => $provisioningVerify,
             'tenantUrl' => $company->tenantUrl('/login'),
             'canImpersonate' => $this->impersonation->canImpersonate($company),
             'impersonateBlockedReason' => $this->impersonation->impersonationBlockedReason($company),

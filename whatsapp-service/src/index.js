@@ -9,7 +9,7 @@ const path = require('path');
 const axios = require('axios');
 const apiRoutes = require('./api/routes');
 const { laravelAxiosOptions } = require('./laravelHttp');
-const { getOrCreateClient, destroyAll } = require('./whatsapp/clientManager');
+const { getOrCreateClient, destroyAll, getAllClients, getAllClientInstances } = require('./whatsapp/clientManager');
 const { registerMany } = require('./whatsapp/sessionCompanyRegistry');
 const { AUTH_DIR } = require('./whatsapp/clientConfig');
 const { sweepStaleLocksOnStartup } = require('./whatsapp/sessionProfileCleanup');
@@ -24,11 +24,19 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('short'));
 
 app.get('/health', (_req, res) => {
-  // /health не должен побочно создавать WhatsAppClient — иначе
-  // в списке сессий появляется бесполезный "default", который никто не просил.
+  const clients = getAllClients();
+  const entries = Object.values(clients);
+  const alive = entries.filter((c) => c.isReady).length;
+  const qrPending = entries.filter((c) => c.hasQR).length;
+
   res.json({
     status: 'ok',
     uptime: process.uptime(),
+    sessions: {
+      total: entries.length,
+      alive,
+      qr_pending: qrPending,
+    },
   });
 });
 
@@ -164,6 +172,17 @@ app.listen(PORT, '127.0.0.1', () => {
   }
   // Small delay so the HTTP server is fully up before starting browser instances
   setTimeout(() => {
+    try {
+      const instances = getAllClientInstances();
+      if (typeof getAllClientInstances !== 'function') {
+        throw new Error('getAllClientInstances is not a function');
+      }
+      console.log(`[STARTUP] clientManager smoke: ${instances.length} instance(s)`);
+    } catch (err) {
+      console.error('[STARTUP] clientManager smoke test FAILED:', err.message);
+      process.exit(1);
+    }
+
     autoRestoreAllSessions().catch((err) => {
       console.error('[STARTUP] autoRestoreAllSessions failed:', err.message);
     });

@@ -13,6 +13,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProcessWhatsappCallRejectedJob;
 use App\Jobs\ProcessWhatsappInboundJob;
 use App\Jobs\ReinitializeWhatsappSessionJob;
+use App\Jobs\TenantWhatsappPostConnectJob;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\MessageMedia;
@@ -241,6 +242,7 @@ final class WhatsappWebhookController extends Controller
                 $update['wa_platform'] = $platform;
             }
             $session->update($update);
+            TenantWhatsappPostConnectJob::dispatch($session->id)->delay(now()->addSeconds(3));
         }
 
         SafeBroadcast::dispatch(new WhatsappStatusChanged($sessionName, 'connected', $phone, $waName), 'whatsapp-status');

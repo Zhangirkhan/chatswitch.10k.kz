@@ -12,7 +12,7 @@ final class WhatsappSessionStatusHints
     {
         return match ($session->status) {
             'connected' => 'Подключён и принимает сообщения.',
-            'connecting' => 'Идёт подключение к WhatsApp…',
+            'connecting' => 'Переподключение… Идёт восстановление связи с WhatsApp.',
             'qr_pending' => self::qrPendingHint($session),
             'disconnected' => self::disconnectedHint($session),
             default => 'Статус подключения неизвестен.',

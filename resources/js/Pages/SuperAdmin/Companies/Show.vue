@@ -4,6 +4,7 @@ import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import CompanyShowAuditPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowAuditPanel.vue';
 import CompanyShowHeader from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowHeader.vue';
+import CompanyShowHealthPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowHealthPanel.vue';
 import CompanyShowInvoicesPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowInvoicesPanel.vue';
 import CompanyShowModulesPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowModulesPanel.vue';
 import CompanyShowUsersPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowUsersPanel.vue';
@@ -137,6 +138,16 @@ const props = defineProps<{
     companyDepartments: Array<{ id: number; name: string; parent_id: number | null; is_active: boolean }>;
     companyWhatsappSessions: Array<{ id: number; session_name: string; display_name: string | null; status: string }>;
     companyModules: Array<{ key: string; label: string; description: string; enabled: boolean }>;
+    tenantHealth: {
+        ok: boolean;
+        slug: string;
+        groups: Record<string, { ok: boolean; checks: Array<{ key: string; ok: boolean; severity: string; message: string }> }>;
+    };
+    provisioningVerify?: {
+        status: 'pass' | 'fail';
+        failures?: string[];
+        checked_at?: string;
+    } | null;
 }>();
 
 const defaultPlanPriceCents = computed(() => props.company.plan?.price_cents ?? 4_000_000);
@@ -358,6 +369,11 @@ function assignPlan(): void {
 
         <!-- О компании -->
         <div v-show="activeTab === 'info'" class="space-y-6">
+            <CompanyShowHealthPanel
+                :company-id="company.id"
+                :tenant-health="tenantHealth"
+                :provisioning-verify="provisioningVerify"
+            />
             <section class="ui-settings-section">
                 <h2 class="mb-4 text-base font-semibold">{{ t('superAdmin.companies.show.summaryTitle') }}</h2>
                 <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">

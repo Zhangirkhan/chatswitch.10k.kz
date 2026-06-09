@@ -10,6 +10,7 @@ use App\Models\WhatsappSession;
 use App\Services\ChatService;
 use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\WhatsappService;
+use App\Services\WhatsappSessionHealService;
 use App\Services\WhatsappSessionLimitService;
 use App\Support\WhatsappSessionStatusHints;
 use App\Tenancy\TenantContext;
@@ -28,6 +29,7 @@ final class WhatsappSessionController extends Controller
         private readonly ChatService $chatService,
         private readonly WhatsappSessionLimitService $sessionLimits,
         private readonly DemoWhatsappSessionSimulator $demoSessions,
+        private readonly WhatsappSessionHealService $healService,
     ) {}
 
     public function index(): Response
@@ -126,6 +128,20 @@ final class WhatsappSessionController extends Controller
                 ])->save();
 
                 continue;
+            }
+
+            if ($session->status === 'connected') {
+                $verify = $this->whatsappService->verifySession($session->session_name);
+                if (! (bool) ($verify['alive'] ?? false)) {
+                    try {
+                        $this->healService->healSession($session);
+                    } catch (\Throwable) {
+                        // watchdog / post-connect job подхватят
+                    }
+                    $session->forceFill(['status' => 'connecting'])->save();
+
+                    continue;
+                }
             }
 
             if ($hasQr) {

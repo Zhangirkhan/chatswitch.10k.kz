@@ -1,0 +1,22 @@
+[Unit]
+Description=Accel WhatsApp Service (Node)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/accel.kz/whatsapp-service
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=accel-whatsapp
+
+# Chromium/Puppeteer needs a larger limit on some hosts
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

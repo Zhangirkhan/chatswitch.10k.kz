@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Tenancy;
 
 use App\Jobs\IssueTenantCertificateJob;
+use App\Jobs\VerifyTenantProvisioningJob;
 use App\Models\Company;
 use App\Models\Plan;
 use App\Models\User;
@@ -12,10 +13,10 @@ use App\Services\Billing\SubscriptionLifecycleService;
 use App\Services\Company\CompanyOnboardingService;
 use App\Support\TenantRoles;
 use App\Support\PhoneFormatter;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Spatie\Permission\Models\Role;
 
 final class CompanyProvisioningService
 {
@@ -55,13 +56,27 @@ final class CompanyProvisioningService
                 'is_super_admin' => false,
             ]);
 
-            Role::findOrCreate('administrator', 'web');
-            TenantRoles::syncForCompany($owner, $company->id, 'administrator');
+            $context = app(TenantContext::class);
+            $previousCompany = $context->company();
+            $context->setCompany($company);
+            setPermissionsTeamId($company->id);
 
-            $company->update(['owner_user_id' => $owner->id]);
+            try {
+                TenantRoles::ensureDefaultRolesForCompany($company);
+                TenantRoles::syncForCompany($owner, $company->id, 'administrator');
 
-            $this->subscriptions->startTrial($company->fresh(), $plan);
-            $this->onboarding->bootstrap($company->fresh());
+                $company->update(['owner_user_id' => $owner->id]);
+
+                $this->subscriptions->startTrial($company->fresh(), $plan);
+                $this->onboarding->bootstrap($company->fresh(), $owner);
+            } finally {
+                if ($previousCompany instanceof Company) {
+                    $context->setCompany($previousCompany);
+                    setPermissionsTeamId($previousCompany->id);
+                } else {
+                    $context->clear();
+                }
+            }
 
             return [
                 'company' => $company->fresh(['plan', 'owner']),
@@ -71,7 +86,10 @@ final class CompanyProvisioningService
         });
 
         IssueTenantCertificateJob::dispatch($result['company']->slug);
+        VerifyTenantProvisioningJob::dispatch($result['company']->id);
         $this->syncNginxKnownTenantsMap();
+
+        app(\App\Services\AI\AiReadinessService::class)->invalidateCounts($result['company']->id);
 
         app(\App\Services\SuperAdmin\CompanyModuleSettingsService::class)
             ->ensureDefaults($result['company']);

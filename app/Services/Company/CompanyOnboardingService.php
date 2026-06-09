@@ -15,14 +15,21 @@ use App\Models\Product;
 use App\Models\Service;
 use App\Models\User;
 use App\Support\FunnelStageType;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 
 final class CompanyOnboardingService
 {
     public function bootstrap(Company $company, ?User $owner = null): void
     {
-        DB::transaction(function () use ($company, $owner): void {
-            $salesDepartment = $this->department($company, 'Отдел продаж', 'Первичная обработка клиентов, продажи и контроль сделок.');
+        $context = app(TenantContext::class);
+        $previousCompany = $context->company();
+        $context->setCompany($company);
+        setPermissionsTeamId($company->id);
+
+        try {
+            DB::transaction(function () use ($company, $owner): void {
+                $salesDepartment = $this->department($company, 'Отдел продаж', 'Первичная обработка клиентов, продажи и контроль сделок.');
             $operationsDepartment = $this->department($company, 'Операционный отдел', 'Исполнители, доставка, монтаж, сервис и выполнение заказов.');
 
             if ($owner instanceof User) {
@@ -67,7 +74,15 @@ final class CompanyOnboardingService
             $this->stageRules($company, $funnel, $stages, $salesDepartment, $operationsDepartment);
             $this->knowledge($company);
             $this->catalog($company);
-        });
+            });
+        } finally {
+            if ($previousCompany instanceof Company) {
+                $context->setCompany($previousCompany);
+                setPermissionsTeamId($previousCompany->id);
+            } else {
+                $context->clear();
+            }
+        }
     }
 
     private function department(Company $company, string $name, string $description): Department

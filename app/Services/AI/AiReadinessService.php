@@ -146,6 +146,11 @@ final class AiReadinessService
         return Cache::remember("ai_readiness_counts:{$companyId}", self::COUNTS_CACHE_TTL, $resolver);
     }
 
+    public function invalidateCounts(int $companyId): void
+    {
+        Cache::forget("ai_readiness_counts:{$companyId}");
+    }
+
     public function isReadyForEnable(?int $companyId = null): bool
     {
         return $this->evaluate($companyId)['score'] >= self::READY_SCORE;

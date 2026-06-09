@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
+use App\Http\Controllers\SuperAdmin\CompanyDoctorController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CompanyMaintenanceController;
 use App\Http\Controllers\SuperAdmin\CompanyModuleController;
@@ -52,6 +53,8 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::delete('/companies/{company}', [CompanyController::class, 'destroy'])
         ->whereNumber('company')
         ->name('super.companies.destroy');
+    Route::post('/companies/{company}/doctor-fix', [CompanyDoctorController::class, 'fix'])
+        ->name('super.companies.doctor-fix');
     Route::patch('/companies/{company}/toggle-active', [CompanyController::class, 'toggleActive'])->name('super.companies.toggle-active');
     Route::post('/companies/{company}/impersonate', [CompanyImpersonationController::class, 'store'])
         ->name('super.companies.impersonate');
