@@ -1,6 +1,9 @@
-const { getAllClientInstances, removeClient } = require('./clientManager');
 const { AUTH_DIR } = require('./clientConfig');
 const { sweepStaleLocksOnStartup } = require('./sessionProfileCleanup');
+
+function clientManager() {
+  return require('./clientManager');
+}
 
 const WATCHDOG_INTERVAL_MS = 60_000;
 const RECOVER_COOLDOWN_MS = 120_000;
@@ -76,7 +79,7 @@ async function recoverSession(service, verify, reason) {
       service.isInitializing = false;
       service._initializingSince = null;
       await service.destroy();
-      removeClient(service.sessionName);
+      clientManager().removeClient(service.sessionName);
     }
 
     await service.initialize();
@@ -146,7 +149,7 @@ function startSessionWatchdog() {
   setInterval(() => {
     maybeSweepStaleLocks();
 
-    for (const service of getAllClientInstances()) {
+    for (const service of clientManager().getAllClientInstances()) {
       checkSession(service).catch((err) => {
         console.error(`[${service.sessionName}] watchdog check failed:`, err.message);
       });
