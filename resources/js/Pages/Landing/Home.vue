@@ -659,7 +659,7 @@ onUnmounted(() => {
     display: grid;
     gap: 3rem;
     align-items: center;
-    margin: 0 0 5rem;
+    margin: 0 0 7.5rem;
 }
 
 .landing__hero-backdrop {
