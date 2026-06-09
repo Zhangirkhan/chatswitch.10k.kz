@@ -92,7 +92,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: min(100%, min(1720px, 99vw));
+    max-width: min(100%, min(2000px, 105vw));
     margin-left: auto;
     margin-right: auto;
     transform: rotate(0.9deg);
@@ -114,7 +114,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 
 @media (min-width: 1024px) {
     .hero-mockup-root {
-        max-width: min(100%, min(2200px, 99vw));
+        max-width: min(100%, min(2400px, 104vw));
     }
 }
 
@@ -138,7 +138,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 }
 
 .hero-device__shell--phone {
-    max-width: min(300px, 88vw);
+    max-width: min(340px, 92vw);
     margin-left: auto;
     margin-right: auto;
 }
@@ -172,8 +172,8 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
         z-index: 5;
         right: clamp(-6.5rem, -14%, -0.5rem);
         bottom: clamp(-4.95rem, -3.7vw, -0.56rem);
-        width: clamp(232px, 25.5vw, 338px);
-        max-width: min(56%, 352px);
+        width: clamp(260px, 28vw, 380px);
+        max-width: min(58%, 380px);
         margin: 0;
         pointer-events: none;
         filter: drop-shadow(0 14px 30px rgb(0 0 0 / 0.45));
@@ -186,12 +186,12 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 
 @media (min-width: 700px) and (max-width: 1023px) and (min-height: 480px) {
     .hero-mockup-root {
-        transform: rotate(0.9deg) scale(0.84);
+        transform: rotate(0.9deg) scale(0.94);
         transform-origin: 50% 88%;
     }
 
     .hero-mockup-root:hover {
-        transform: rotate(0.35deg) translateY(-3px) scale(0.84);
+        transform: rotate(0.35deg) translateY(-3px) scale(0.94);
     }
 }
 
