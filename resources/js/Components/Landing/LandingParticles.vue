@@ -28,7 +28,7 @@ const props = withDefaults(defineProps<ParticlesProps>(), {
     moveParticlesOnHover: true,
     particleHoverFactor: 1,
     alphaParticles: true,
-    particleBaseSize: 120,
+    particleBaseSize: 200,
     sizeRandomness: 0.35,
     cameraDistance: 20,
     disableRotation: true,
