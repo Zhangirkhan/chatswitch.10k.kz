@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use App\Models\Company;
+use App\Support\TenantRoles;
 use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -39,6 +40,8 @@ abstract class TestCase extends BaseTestCase
         }
 
         app(TenantContext::class)->setCompany($company);
+        setPermissionsTeamId($company->id);
+        TenantRoles::ensureDefaultRolesForCompany($company);
 
         $host = $slug.'.'.config('tenancy.root_domain', 'accel.kz');
         $rootUrl = 'http://'.$host;
@@ -50,6 +53,8 @@ abstract class TestCase extends BaseTestCase
     protected function switchTenant(Company $company): void
     {
         app(TenantContext::class)->setCompany($company);
+        setPermissionsTeamId($company->id);
+        TenantRoles::ensureDefaultRolesForCompany($company);
 
         $host = $company->slug.'.'.config('tenancy.root_domain', 'accel.kz');
         $rootUrl = 'http://'.$host;
@@ -72,5 +77,10 @@ abstract class TestCase extends BaseTestCase
         $this->switchTenant($company);
 
         return $company;
+    }
+
+    protected function assignTenantRole(\App\Models\User $user, string $roleName): void
+    {
+        TenantRoles::assign($user, $roleName);
     }
 }

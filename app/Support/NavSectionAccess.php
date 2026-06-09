@@ -28,14 +28,14 @@ final class NavSectionAccess
         }
 
         return [
-            'chats' => $user->hasAnyRole(['administrator', 'manager', 'employee']),
-            'clients' => self::canAccess($user, ['module_clients'], ['administrator', 'manager', 'employee']),
-            'broadcasts' => self::canAccess($user, ['module_broadcasts'], ['administrator', 'manager']),
-            'ai_chat' => self::canAccess($user, ['module_ai_chat'], ['administrator', 'manager', 'employee']),
-            'analytics' => self::canAccess($user, ['module_analytics', 'module_funnels'], ['administrator', 'manager', 'employee'], anyModule: true),
-            'calendar' => self::canAccess($user, ['module_calendar'], ['administrator', 'manager', 'employee']),
-            'funnels' => self::canAccess($user, ['module_funnels'], ['administrator', 'manager', 'employee']),
-            'organization' => self::canAccess($user, ['module_tasks'], ['administrator', 'manager', 'employee']),
+            'chats' => self::hasChatAccess($user),
+            'clients' => self::canAccess($user, ['module_clients'], ['contacts.view', 'contacts.manage'], ['administrator', 'manager', 'employee']),
+            'broadcasts' => self::canAccess($user, ['module_broadcasts'], ['broadcasts.manage'], ['administrator', 'manager']),
+            'ai_chat' => self::canAccess($user, ['module_ai_chat'], ['chats.send'], ['administrator', 'manager', 'employee']),
+            'analytics' => self::canAccess($user, ['module_analytics', 'module_funnels'], ['analytics.view', 'funnels.view'], ['administrator', 'manager', 'employee'], anyModule: true),
+            'calendar' => self::canAccess($user, ['module_calendar'], ['calendar.manage'], ['administrator', 'manager', 'employee']),
+            'funnels' => self::canAccess($user, ['module_funnels'], ['funnels.view', 'funnels.manage'], ['administrator', 'manager', 'employee']),
+            'organization' => self::canAccess($user, ['module_tasks'], ['team_chat.use'], ['administrator', 'manager', 'employee']),
         ];
     }
 
@@ -54,17 +54,28 @@ final class NavSectionAccess
         );
     }
 
+    private static function hasChatAccess(User $user): bool
+    {
+        return TenantAuthorizer::hasLegacyOrAnyPermission(
+            $user,
+            ['administrator', 'manager', 'employee'],
+            ['chats.view_all', 'chats.view_department', 'chats.view_assigned', 'chats.send'],
+        );
+    }
+
     /**
      * @param  list<string>  $moduleKeys
-     * @param  list<string>  $roles
+     * @param  list<string>  $permissions
+     * @param  list<string>  $legacyRoles
      */
     private static function canAccess(
         User $user,
         array $moduleKeys,
-        array $roles,
+        array $permissions,
+        array $legacyRoles,
         bool $anyModule = false,
     ): bool {
-        if (! $user->hasAnyRole($roles)) {
+        if (! TenantAuthorizer::hasLegacyOrAnyPermission($user, $legacyRoles, $permissions)) {
             return false;
         }
 

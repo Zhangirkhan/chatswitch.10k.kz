@@ -25,10 +25,24 @@ final class OnboardingController extends Controller
         $steps = [
             [
                 'key' => 'roles',
-                'title' => 'Назовите роли в команде',
-                'description' => 'Подпишите три уровня доступа так, как принято у вас: директор, менеджер, монтажник и т.д. Права останутся прежними.',
-                'route' => 'settings.onboarding',
+                'title' => 'Настройте роли и права',
+                'description' => 'Создайте роли и назначьте права доступа — или отредактируйте стандартные роли компании.',
+                'route' => 'settings.roles',
                 'ok' => TenantRoleLabels::isConfigured(),
+            ],
+            [
+                'key' => 'users',
+                'title' => 'Добавьте сотрудников',
+                'description' => 'Создайте операторов и руководителей — это можно сделать до подключения WhatsApp.',
+                'route' => 'settings.users',
+                'ok' => (bool) ($checksByKey['users']['ok'] ?? false),
+            ],
+            [
+                'key' => 'departments',
+                'title' => 'Настройте отделы',
+                'description' => 'Отделы нужны для назначения ответственных и задач менеджерам. Доступно без WhatsApp.',
+                'route' => 'settings.departments',
+                'ok' => (bool) ($checksByKey['departments']['ok'] ?? false),
             ],
             [
                 'key' => 'whatsapp',
@@ -36,20 +50,6 @@ final class OnboardingController extends Controller
                 'description' => 'Добавьте рабочий номер и убедитесь, что сессия в статусе «подключено».',
                 'route' => 'settings.connections',
                 'ok' => (bool) ($checksByKey['whatsapp']['ok'] ?? false),
-            ],
-            [
-                'key' => 'users',
-                'title' => 'Добавьте сотрудников',
-                'description' => 'Создайте операторов и руководителей, от имени которых AI сможет отвечать.',
-                'route' => 'settings.users',
-                'ok' => (bool) ($checksByKey['users']['ok'] ?? false),
-            ],
-            [
-                'key' => 'departments',
-                'title' => 'Настройте отделы',
-                'description' => 'Отделы нужны для назначения ответственных и задач менеджерам.',
-                'route' => 'settings.departments',
-                'ok' => (bool) ($checksByKey['departments']['ok'] ?? false),
             ],
             [
                 'key' => 'funnels',

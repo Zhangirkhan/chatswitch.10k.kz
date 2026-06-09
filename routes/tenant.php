@@ -38,6 +38,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ScheduledMessageController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TenantRoleController;
 use App\Http\Controllers\ToneProfileController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\Tenant\ImpersonationController;
@@ -248,7 +249,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('/media/{media}', [MediaController::class, 'show'])->name('media.show');
 
-    Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
+    Route::middleware(['role:administrator'])->prefix('settings')->group(function (): void {
         Route::get('/connections', [WhatsappSessionController::class, 'index'])->name('settings.connections');
         Route::get('/connections/bootstrap', [WhatsappSessionController::class, 'bootstrap'])->name('settings.connections.bootstrap');
         Route::post('/connections', [WhatsappSessionController::class, 'store'])->name('settings.connections.store');
@@ -267,19 +268,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/departments/{department}/members', [DepartmentController::class, 'syncMembers'])->name('settings.departments.members.sync');
         Route::delete('/departments/{department}', [DepartmentController::class, 'destroy'])->name('settings.departments.destroy');
 
-        Route::get('/funnels', [FunnelController::class, 'index'])->name('settings.funnels');
-        Route::post('/funnels/ai-suggest', [FunnelController::class, 'aiSuggest'])->name('settings.funnels.ai-suggest');
-        Route::post('/funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest'])->name('settings.funnels.ai-onboarding-suggest');
-        Route::post('/funnels/from-template', [FunnelController::class, 'storeTemplate'])->name('settings.funnels.templates.store');
-        Route::post('/funnels', [FunnelController::class, 'store'])->name('settings.funnels.store');
-        Route::put('/funnels/{funnel}', [FunnelController::class, 'update'])->name('settings.funnels.update');
-        Route::put('/funnels/{funnel}/ai-scenario', [FunnelController::class, 'updateAiScenario'])->name('settings.funnels.ai-scenario.update');
-        Route::delete('/funnels/{funnel}', [FunnelController::class, 'destroy'])->name('settings.funnels.destroy');
-        Route::post('/funnels/{funnel}/stages', [FunnelController::class, 'storeStage'])->name('settings.funnels.stages.store');
-        Route::put('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'updateStage'])->name('settings.funnels.stages.update');
-        Route::put('/funnels/{funnel}/stages/{stage}/ai-rule', [FunnelController::class, 'updateStageAiRule'])->name('settings.funnels.stages.ai-rule.update');
-        Route::delete('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'destroyStage'])->name('settings.funnels.stages.destroy');
-        Route::post('/funnels/{funnel}/stages/reorder', [FunnelController::class, 'reorderStages'])->name('settings.funnels.stages.reorder');
+        Route::get('/roles', [TenantRoleController::class, 'index'])->name('settings.roles');
+        Route::post('/roles', [TenantRoleController::class, 'store'])->name('settings.roles.store');
+        Route::put('/roles/{role}', [TenantRoleController::class, 'update'])->name('settings.roles.update');
+        Route::delete('/roles/{role}', [TenantRoleController::class, 'destroy'])->name('settings.roles.destroy');
 
         Route::get('/users', [UserManagementController::class, 'index'])->name('settings.users');
         Route::post('/users', [UserManagementController::class, 'store'])->name('settings.users.store');
@@ -295,6 +287,32 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/onboarding', [OnboardingController::class, 'index'])->name('settings.onboarding');
         Route::post('/onboarding/roles', [OnboardingController::class, 'saveRoleLabels'])->name('settings.onboarding.roles');
         Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('settings.onboarding.complete');
+
+        Route::get('/contact-fields', [ContactFieldDefinitionController::class, 'index'])->name('settings.contact-fields');
+        Route::get('/contact-fields/list', [ContactFieldDefinitionController::class, 'list'])->name('settings.contact-fields.list');
+        Route::post('/contact-fields', [ContactFieldDefinitionController::class, 'store'])->name('settings.contact-fields.store');
+        Route::put('/contact-fields/visibility', [ContactFieldDefinitionController::class, 'syncVisibility'])->name('settings.contact-fields.visibility');
+        Route::delete('/contact-fields/{fieldDefinition}', [ContactFieldDefinitionController::class, 'destroy'])->name('settings.contact-fields.destroy');
+
+        Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
+        Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');
+        Route::post('/system/modules', [SettingsController::class, 'updateModules'])->name('settings.system.modules.update');
+    });
+
+    Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
+        Route::get('/funnels', [FunnelController::class, 'index'])->name('settings.funnels');
+        Route::post('/funnels/ai-suggest', [FunnelController::class, 'aiSuggest'])->name('settings.funnels.ai-suggest');
+        Route::post('/funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest'])->name('settings.funnels.ai-onboarding-suggest');
+        Route::post('/funnels/from-template', [FunnelController::class, 'storeTemplate'])->name('settings.funnels.templates.store');
+        Route::post('/funnels', [FunnelController::class, 'store'])->name('settings.funnels.store');
+        Route::put('/funnels/{funnel}', [FunnelController::class, 'update'])->name('settings.funnels.update');
+        Route::put('/funnels/{funnel}/ai-scenario', [FunnelController::class, 'updateAiScenario'])->name('settings.funnels.ai-scenario.update');
+        Route::delete('/funnels/{funnel}', [FunnelController::class, 'destroy'])->name('settings.funnels.destroy');
+        Route::post('/funnels/{funnel}/stages', [FunnelController::class, 'storeStage'])->name('settings.funnels.stages.store');
+        Route::put('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'updateStage'])->name('settings.funnels.stages.update');
+        Route::put('/funnels/{funnel}/stages/{stage}/ai-rule', [FunnelController::class, 'updateStageAiRule'])->name('settings.funnels.stages.ai-rule.update');
+        Route::delete('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'destroyStage'])->name('settings.funnels.stages.destroy');
+        Route::post('/funnels/{funnel}/stages/reorder', [FunnelController::class, 'reorderStages'])->name('settings.funnels.stages.reorder');
 
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
         Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
@@ -329,16 +347,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::put('/promotions/{promotion}', [PromotionController::class, 'update'])->name('settings.promotions.update');
         Route::put('/promotions-settings', [PromotionController::class, 'updateSettings'])->name('settings.promotions.settings');
         Route::delete('/promotions/{promotion}', [PromotionController::class, 'destroy'])->name('settings.promotions.destroy');
-
-        Route::get('/contact-fields', [ContactFieldDefinitionController::class, 'index'])->name('settings.contact-fields');
-        Route::get('/contact-fields/list', [ContactFieldDefinitionController::class, 'list'])->name('settings.contact-fields.list');
-        Route::post('/contact-fields', [ContactFieldDefinitionController::class, 'store'])->name('settings.contact-fields.store');
-        Route::put('/contact-fields/visibility', [ContactFieldDefinitionController::class, 'syncVisibility'])->name('settings.contact-fields.visibility');
-        Route::delete('/contact-fields/{fieldDefinition}', [ContactFieldDefinitionController::class, 'destroy'])->name('settings.contact-fields.destroy');
-
-        Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
-        Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');
-        Route::post('/system/modules', [SettingsController::class, 'updateModules'])->name('settings.system.modules.update');
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

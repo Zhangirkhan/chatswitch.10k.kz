@@ -28,7 +28,7 @@ final class SettingsReadinessMiddlewareTest extends TestCase
         }
     }
 
-    public function test_admin_can_open_funnels_during_onboarding_before_ai_ready(): void
+    public function test_admin_can_open_users_without_whatsapp(): void
     {
         $this->withoutVite();
 
@@ -36,11 +36,23 @@ final class SettingsReadinessMiddlewareTest extends TestCase
         $admin->assignRole('administrator');
 
         $this->actingAs($admin)
-            ->get(route('settings.funnels'))
+            ->get(route('settings.users'))
             ->assertOk();
     }
 
-    public function test_admin_redirected_from_system_settings_when_ai_not_ready(): void
+    public function test_admin_can_open_departments_without_whatsapp(): void
+    {
+        $this->withoutVite();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->get(route('settings.departments'))
+            ->assertOk();
+    }
+
+    public function test_admin_can_open_system_settings_without_whatsapp(): void
     {
         $this->withoutVite();
 
@@ -49,6 +61,18 @@ final class SettingsReadinessMiddlewareTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('settings.system'))
+            ->assertOk();
+    }
+
+    public function test_admin_redirected_from_funnels_when_ai_not_ready(): void
+    {
+        $this->withoutVite();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->get(route('settings.funnels'))
             ->assertRedirect(route('settings.onboarding'));
     }
 

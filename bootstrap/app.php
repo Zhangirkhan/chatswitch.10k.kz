@@ -12,6 +12,7 @@ use App\Http\Middleware\EnsureSuperAdminHost;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventAuthenticatedDocumentCache;
 use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\SetPermissionsTeamId;
 use App\Http\Middleware\RestrictWhatsappServiceAccess;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\VerifyWhatsappWebhook;
@@ -59,7 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->domain($adminHost)
                 ->group(base_path('routes/admin.php'));
 
-            Route::middleware(['api', 'tenant.resolve', 'tenant.active'])
+            Route::middleware(['api', 'tenant.resolve', 'tenant.active', 'permissions.team'])
                 ->prefix('api')
                 ->domain('{tenant}.'.$rootDomain)
                 ->group(base_path('routes/api-tenant.php'));
@@ -71,7 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     Broadcast::routes();
                 });
 
-            Route::middleware(['web', 'tenant.resolve', 'tenant.active'])
+            Route::middleware(['web', 'tenant.resolve', 'tenant.active', 'permissions.team'])
                 ->domain('{tenant}.'.$rootDomain)
                 ->group(function (): void {
                     require base_path('routes/tenant.php');
@@ -99,6 +100,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'settings.readiness' => EnsureSettingsReadiness::class,
             'tenant.resolve' => ResolveTenant::class,
             'tenant.active' => EnsureActiveCompany::class,
+            'permissions.team' => SetPermissionsTeamId::class,
             'super.admin.host' => EnsureSuperAdminHost::class,
             'super.admin' => EnsureSuperAdmin::class,
             'super.admin.global' => \App\Http\Middleware\EnsureGlobalSuperAdmin::class,
@@ -116,6 +118,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ShareErrorsFromSession::class,
             ResolveTenant::class,
             EnsureActiveCompany::class,
+            SetPermissionsTeamId::class,
             AuthenticatesRequests::class,
             ThrottleRequests::class,
             ThrottleRequestsWithRedis::class,

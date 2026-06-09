@@ -11,6 +11,7 @@ type AdminItem = {
         | 'connections'
         | 'departments'
         | 'users'
+        | 'roles'
         | 'promotions'
         | 'funnels'
         | 'clients'
@@ -74,6 +75,12 @@ const adminItems: AdminItem[] = [
         i18nKey: 'users',
         icon: 'users',
         routeName: 'settings.users',
+    },
+    {
+        kind: 'admin',
+        i18nKey: 'roles',
+        icon: 'users',
+        routeName: 'settings.roles',
     },
     {
         kind: 'admin',

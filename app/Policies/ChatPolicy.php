@@ -6,26 +6,21 @@ namespace App\Policies;
 
 use App\Models\Chat;
 use App\Models\User;
+use App\Support\TenantAuthorizer;
 
 final class ChatPolicy
 {
-    /**
-     * Administrator always sees everything; manager — chats assigned to any
-     * user in their department; employee — only chats assigned to them.
-     */
     public function view(User $user, Chat $chat): bool
     {
-        if ($user->hasRole('administrator')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'chats.view_all')) {
             return true;
         }
 
-        // Множественное членство в отделах: пользователь может состоять в нескольких,
-        // и доступ к чату открывается, если ХОТЬ ОДИН его отдел прикреплён к чату.
         $userDeptIds = $user->departmentIds();
         $userInChatDepartment = $userDeptIds !== []
             && $chat->departments()->whereIn('departments.id', $userDeptIds)->exists();
 
-        if ($user->hasRole('manager')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'manager', 'chats.view_department')) {
             if ($userInChatDepartment) {
                 return true;
             }
@@ -43,11 +38,14 @@ final class ChatPolicy
                 ->exists();
         }
 
-        if ($chat->assignments()->where('user_id', $user->id)->exists()) {
+        if (TenantAuthorizer::can($user, 'chats.view_assigned')
+            && $chat->assignments()->where('user_id', $user->id)->exists()) {
             return true;
         }
 
-        if ($userInChatDepartment && ! $chat->assignments()->exists()) {
+        if (TenantAuthorizer::can($user, 'chats.view_department')
+            && $userInChatDepartment
+            && ! $chat->assignments()->exists()) {
             return true;
         }
 
@@ -61,12 +59,16 @@ final class ChatPolicy
 
     public function sendMessage(User $user, Chat $chat): bool
     {
+        if (! TenantAuthorizer::hasLegacyOrAnyPermission($user, ['administrator', 'manager', 'employee'], ['chats.send'])) {
+            return false;
+        }
+
         return $this->view($user, $chat);
     }
 
     public function manageAi(User $user, Chat $chat): bool
     {
-        if ($user->hasRole('administrator')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'chats.view_all')) {
             return true;
         }
 
@@ -77,7 +79,7 @@ final class ChatPolicy
 
     public function manage(User $user, Chat $chat): bool
     {
-        if ($user->hasRole('administrator')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'chats.view_all')) {
             return true;
         }
 
@@ -86,28 +88,24 @@ final class ChatPolicy
 
     public function assign(User $user, Chat $chat): bool
     {
-        if ($user->hasRole('administrator')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'chats.assign')) {
             return true;
         }
 
-        if ($user->hasRole('manager')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'manager', 'chats.assign')) {
             return $this->view($user, $chat);
         }
 
         return false;
     }
 
-    /**
-     * Прикрепление отделов к чату: только администратор и руководитель.
-     * Сотрудник видит в интерфейсе только свой отдел (без изменения).
-     */
     public function syncDepartments(User $user, Chat $chat): bool
     {
-        if ($user->hasRole('administrator')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'chats.view_all')) {
             return true;
         }
 
-        if ($user->hasRole('manager')) {
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'manager', 'chats.assign')) {
             return $this->view($user, $chat);
         }
 

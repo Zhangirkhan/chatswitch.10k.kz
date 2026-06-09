@@ -6,31 +6,34 @@ namespace App\Policies;
 
 use App\Models\TeamConversation;
 use App\Models\User;
+use App\Support\TenantAuthorizer;
 
 final class TeamConversationPolicy
 {
     public function view(User $user, TeamConversation $teamConversation): bool
     {
-        if ($user->hasRole('administrator') && $teamConversation->isDepartment()) {
+        if (! TenantAuthorizer::hasLegacyOrAnyPermission($user, ['administrator', 'manager', 'employee'], ['team_chat.use'])) {
+            return false;
+        }
+
+        if (TenantAuthorizer::hasLegacyOrPermission($user, 'administrator', 'settings.manage')
+            && $teamConversation->isDepartment()) {
             return true;
         }
 
         return $teamConversation->participants()->where('users.id', $user->id)->exists();
     }
 
-    /**
-     * Закрепить сообщение в чате отдела (общее для всех участников).
-     */
     public function pinRoomMessage(User $user, TeamConversation $teamConversation): bool
     {
+        if (! TenantAuthorizer::hasLegacyOrAnyPermission($user, ['administrator', 'manager'], ['team_chat.pin'])) {
+            return false;
+        }
+
         if (! $teamConversation->isDepartment()) {
             return false;
         }
 
-        if (! $teamConversation->participants()->where('users.id', $user->id)->exists()) {
-            return false;
-        }
-
-        return $user->hasAnyRole(['administrator', 'manager']);
+        return $teamConversation->participants()->where('users.id', $user->id)->exists();
     }
 }

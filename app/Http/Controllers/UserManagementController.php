@@ -11,8 +11,10 @@ use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\Auth\UserPinService;
+use App\Services\TenantRoleService;
 use App\Support\PhoneFormatter;
 use App\Support\TenantCompany;
+use App\Support\TenantRoles;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +29,7 @@ final class UserManagementController extends Controller
 {
     public function __construct(
         private readonly UserPinService $userPins,
+        private readonly TenantRoleService $tenantRoleService,
     ) {}
 
     public function index(Request $request): Response
@@ -59,7 +62,12 @@ final class UserManagementController extends Controller
             });
         }
 
-        if (in_array($role, ['administrator', 'manager', 'employee'], true)) {
+        $tenantRoleNames = $this->tenantRoleService
+            ->listForCompany(TenantCompany::id())
+            ->pluck('name')
+            ->all();
+
+        if ($role !== '' && in_array($role, $tenantRoleNames, true)) {
             $query->role($role);
         }
 
@@ -86,14 +94,14 @@ final class UserManagementController extends Controller
             'users' => $this->paginationPayload($users),
             'filters' => [
                 'search' => $search,
-                'role' => in_array($role, ['administrator', 'manager', 'employee'], true) ? $role : '',
+                'role' => in_array($role, $tenantRoleNames, true) ? $role : '',
                 'department_id' => $departmentId,
                 'status' => in_array($status, ['active', 'inactive'], true) ? $status : '',
             ],
             'departments' => $departments,
             'companies' => Company::query()->whereKey(TenantCompany::id())->get(['id', 'name']),
             'whatsappSessions' => $whatsappSessions,
-            'availableRoles' => ['administrator', 'manager', 'employee'],
+            'availableRoles' => $tenantRoleNames,
         ]);
     }
 
@@ -189,7 +197,7 @@ final class UserManagementController extends Controller
             }
         }
 
-        $user->syncRoles([$validated['role']]);
+        TenantRoles::assign($user, $validated['role']);
         $user->syncDepartments($this->extractDepartmentIds($validated));
         $user->whatsappSessions()->sync($validated['whatsapp_session_ids'] ?? []);
 

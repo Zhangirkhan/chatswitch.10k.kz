@@ -45,7 +45,14 @@ final class UpdateUserRequest extends FormRequest
             'phones' => ['nullable', 'array'],
             'phones.*' => ['nullable', 'string', 'max:40'],
             'password' => ['nullable', 'string', 'min:6'],
-            'role' => ['required', 'string', 'in:administrator,manager,employee'],
+            'role' => [
+                'required',
+                'string',
+                Rule::exists('roles', 'name')
+                    ->where(fn ($query) => $query
+                        ->where('guard_name', 'web')
+                        ->where(config('permission.column_names.team_foreign_key'), TenantCompany::id())),
+            ],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'department_ids' => ['nullable', 'array'],

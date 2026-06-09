@@ -11,6 +11,7 @@ final class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            TenantPermissionSeeder::class,
             RoleSeeder::class,
         ]);
     }
