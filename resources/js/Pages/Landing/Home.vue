@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
 import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
+import LandingParticles from '@/Components/Landing/LandingParticles.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput } from '@/utils/inputMasks';
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'reserved' | 'invalid' | 'error';
 
@@ -48,6 +49,14 @@ const pricingBullets = computed(() => [
     t('landing.pricingBullet4'),
     t('landing.pricingBullet5'),
 ]);
+
+const isMobileViewport = ref(false);
+
+const heroParticleCount = computed(() => (isMobileViewport.value ? 150 : 300));
+
+function syncViewport(): void {
+    isMobileViewport.value = window.matchMedia('(max-width: 768px)').matches;
+}
 
 const form = useForm({
     company_name: '',
@@ -222,12 +231,19 @@ watch(flashSuccess, (msg) => {
 });
 
 onMounted(() => {
+    syncViewport();
+    window.addEventListener('resize', syncViewport, { passive: true });
+
     if (window.location.hash === '#request' || Object.keys(form.errors).length > 0) {
         openRequestModal();
         if (window.location.hash === '#request') {
             history.replaceState(null, '', window.location.pathname);
         }
     }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', syncViewport);
 });
 </script>
 
@@ -263,6 +279,17 @@ onMounted(() => {
                     </div>
                 </div>
                 <div class="landing__hero-visual">
+                    <div class="landing__hero-backdrop" aria-hidden="true">
+                        <LandingParticles
+                            :particle-count="heroParticleCount"
+                            :particle-spread="10"
+                            :speed="0.1"
+                            :particle-base-size="200"
+                            :alpha-particles="true"
+                            :move-particles-on-hover="true"
+                            :disable-rotation="true"
+                        />
+                    </div>
                     <LandingHeroMockup />
                 </div>
             </section>
@@ -647,8 +674,57 @@ onMounted(() => {
 }
 
 .landing__hero-visual {
+    position: relative;
     width: 100%;
     min-width: 0;
+    min-height: min(420px, 72vw);
+}
+
+.landing__hero-backdrop {
+    position: absolute;
+    inset: -6% -4% -4% -4%;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: 1.75rem;
+    background:
+        radial-gradient(ellipse 70% 60% at 52% 42%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 42%, transparent 72%),
+        radial-gradient(ellipse 100% 100% at 50% 50%, rgba(17, 27, 33, 0.55) 0%, rgba(0, 0, 0, 0.92) 100%);
+    box-shadow:
+        inset 0 0 0 1px rgba(1, 185, 100, 0.08),
+        inset 0 0 80px rgba(0, 0, 0, 0.65);
+}
+
+.landing__hero-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.landing__hero-visual :deep(.hero-mockup-root) {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .landing__hero-backdrop {
+        inset: -4% -2% -2% -2%;
+        border-radius: 1.25rem;
+    }
+
+    .landing__hero-visual {
+        min-height: min(380px, 88vw);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing__hero-backdrop {
+        background:
+            radial-gradient(ellipse 70% 60% at 52% 42%, rgba(1, 185, 100, 0.16) 0%, rgba(1, 185, 100, 0.05) 45%, transparent 75%),
+            radial-gradient(ellipse 100% 100% at 50% 50%, rgba(17, 27, 33, 0.6) 0%, rgba(0, 0, 0, 0.95) 100%);
+    }
 }
 
 @media (min-width: 1024px) {

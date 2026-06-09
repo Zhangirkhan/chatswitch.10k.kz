@@ -5,8 +5,6 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 
 <template>
     <div class="hero-mockup-root" aria-hidden="true">
-        <div class="hero-mockup-glow" />
-
         <div class="hero-mockup-devices hero-mockup-devices--desktop">
             <div class="hero-device hero-device--desktop">
                 <div class="hero-device__shell hero-device__shell--macbook">
@@ -101,15 +99,6 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 
 .hero-mockup-root:hover {
     transform: rotate(0.35deg) translateY(-3px);
-}
-
-.hero-mockup-glow {
-    position: absolute;
-    inset: 8% 4% 0 8%;
-    border-radius: 2rem;
-    background: radial-gradient(ellipse at 60% 40%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 45%, transparent 72%);
-    pointer-events: none;
-    z-index: 0;
 }
 
 @media (min-width: 1024px) {
