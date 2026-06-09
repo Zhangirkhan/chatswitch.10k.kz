@@ -141,18 +141,20 @@ final class HandleInertiaRequests extends Middleware
         }
 
         $query = DepartmentPost::query()
-            ->whereIn('status', [DepartmentPost::STATUS_OPEN, DepartmentPost::STATUS_IN_PROGRESS]);
+            ->whereIn('status', [DepartmentPost::STATUS_OPEN, DepartmentPost::STATUS_IN_PROGRESS])
+            ->whereHas('department', function (Builder $q) use ($user): void {
+                $q->where('is_active', true);
 
-        if (! $user->hasRole('administrator')) {
-            $deptIds = $user->departmentIds();
-            if ($deptIds === []) {
-                return 0;
-            }
-            $query->whereHas(
-                'department',
-                fn (Builder $q) => $q->whereIn('departments.id', $deptIds),
-            );
-        }
+                if (! $user->hasRole('administrator')) {
+                    $deptIds = $user->departmentIds();
+                    if ($deptIds === []) {
+                        $q->whereRaw('1 = 0');
+
+                        return;
+                    }
+                    $q->whereIn('departments.id', $deptIds);
+                }
+            });
 
         return $query->count();
     }
@@ -167,12 +169,21 @@ final class HandleInertiaRequests extends Middleware
             app(TeamDepartmentChatSyncService::class)->syncAdministratorToAllDepartmentChats($user);
         }
 
-        $ids = $user->teamConversations()->pluck('team_conversations.id')->all();
+        $conversationQuery = $user->teamConversations();
+        $context = app(TenantContext::class);
+        if ($context->shouldApplyTenantScope()) {
+            $conversationQuery->where(
+                'team_conversations.company_id',
+                $context->companyId(),
+            );
+        }
+
+        $ids = $conversationQuery->pluck('team_conversations.id')->all();
         if ($ids === []) {
             return 0;
         }
 
-        return (int) DB::table('team_messages as m')
+        $query = DB::table('team_messages as m')
             ->join('team_conversation_user as cu', function ($join) use ($user): void {
                 $join->on('cu.team_conversation_id', '=', 'm.team_conversation_id')
                     ->where('cu.user_id', '=', $user->id);
@@ -180,8 +191,14 @@ final class HandleInertiaRequests extends Middleware
             ->whereIn('m.team_conversation_id', $ids)
             ->where('m.sender_id', '!=', $user->id)
             ->whereNull('m.deleted_at')
-            ->whereRaw('m.id > COALESCE(cu.last_read_message_id, 0)')
-            ->count();
+            ->whereRaw('m.id > COALESCE(cu.last_read_message_id, 0)');
+
+        if ($context->shouldApplyTenantScope()) {
+            $query->join('team_conversations as tc', 'tc.id', '=', 'm.team_conversation_id')
+                ->where('tc.company_id', $context->companyId());
+        }
+
+        return (int) $query->count();
     }
 
     /** @return array<int, array<string, mixed>> */
