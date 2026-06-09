@@ -676,6 +676,14 @@ onUnmounted(() => {
     mask-composite: intersect;
 }
 
+.landing__hero-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+}
+
 .landing__hero-copy {
     position: relative;
     z-index: 1;
