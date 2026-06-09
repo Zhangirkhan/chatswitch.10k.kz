@@ -137,6 +137,7 @@ final class ContactProfileFieldFilter
         return [
             'code' => $definition->code,
             'definition_id' => $definition->id,
+            'field_id' => $definition->id,
             'label' => $definition->label,
             'value' => $display !== '' ? $display : '—',
             'raw_value' => $display,
@@ -163,6 +164,7 @@ final class ContactProfileFieldFilter
         return [
             'code' => 'photo',
             'definition_id' => $definition->id,
+            'field_id' => $definition->id,
             'label' => $definition->label,
             'value' => $previewUrl ? 'Загружено' : '—',
             'raw_value' => $meta['raw_value'],
@@ -206,6 +208,7 @@ final class ContactProfileFieldFilter
             return [
                 'code' => $definition->code,
                 'definition_id' => $definition->id,
+                'field_id' => $definition->id,
                 'label' => $definition->label,
                 'value' => $meta['preview_url'] ? ($meta['raw_value'] ?: 'Файл') : '—',
                 'raw_value' => $meta['raw_value'],
@@ -227,6 +230,7 @@ final class ContactProfileFieldFilter
         return [
             'code' => $definition->code,
             'definition_id' => $definition->id,
+            'field_id' => $definition->id,
             'label' => $definition->label,
             'value' => $display !== '' ? $display : '—',
             'raw_value' => $rawValue,

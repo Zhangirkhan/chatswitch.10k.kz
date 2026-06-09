@@ -114,4 +114,45 @@ final class ContactFieldDefinitionTest extends TestCase
             ),
         );
     }
+
+    public function test_contact_fields_update_accepts_definition_id_alias(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $create = $this->actingAs($admin)->postJson(route('settings.contact-fields.store'), [
+            'label' => 'Город доставки',
+            'type' => 'string',
+            'section' => 'contacts',
+        ]);
+
+        $fieldId = (int) $create->json('field.id');
+        $contact = Contact::factory()->create();
+        $session = WhatsappSession::factory()->create();
+        Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'is_group' => false,
+        ]);
+
+        $update = $this->actingAs($admin)->patchJson(route('contacts.fields.update', $contact), [
+            'fields' => [
+                ['definition_id' => $fieldId, 'value' => 'Алматы'],
+            ],
+        ]);
+
+        $update->assertOk();
+
+        $fields = collect($update->json('profile.sections'))
+            ->firstWhere('key', 'contacts')['fields'] ?? [];
+
+        $saved = collect($fields)->first(
+            fn (array $row): bool => ($row['field_id'] ?? null) === $fieldId,
+        );
+
+        $this->assertIsArray($saved);
+        $this->assertSame($fieldId, $saved['field_id'] ?? null);
+        $this->assertSame($fieldId, $saved['definition_id'] ?? null);
+        $this->assertStringContainsString('Алматы', (string) ($saved['value'] ?? ''));
+    }
 }

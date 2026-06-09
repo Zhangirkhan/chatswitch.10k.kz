@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\EntityMemorySubjectType;
+use App\Http\Requests\Contact\UpdateContactFieldsRequest;
 use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Contact;
@@ -376,18 +377,12 @@ final class ContactController extends Controller
         return response()->json(['success' => true, 'contact' => $contact]);
     }
 
-    public function updateFields(Request $request, Contact $contact): JsonResponse
+    public function updateFields(UpdateContactFieldsRequest $request, Contact $contact): JsonResponse
     {
         $this->authorize('update', $contact);
         abort_unless($request->user()?->hasRole('administrator'), 403);
 
-        $data = $request->validate([
-            'fields' => ['required', 'array'],
-            'fields.*.field_id' => ['required', 'integer'],
-            'fields.*.value' => ['nullable'],
-        ]);
-
-        $this->contactFieldValues->upsertForContact($contact, $data['fields']);
+        $this->contactFieldValues->upsertForContact($contact, $request->normalizedFields());
 
         $profile = $this->clientProfileAssembler->build($request->user(), $contact);
 
