@@ -1,0 +1,1252 @@
+@import './ui-primitives.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Accessibility: гарантируем видимый индикатор фокуса с клавиатуры даже там,
+ * где локально стоит focus:outline-none/focus:ring-0. :focus-visible не влияет
+ * на фокус мышью, поэтому визуальный шум для обычных кликов не появляется.
+ */
+@layer base {
+    :focus-visible {
+        outline: 2px solid var(--wa-accent, #25d366);
+        outline-offset: 2px;
+        border-radius: 2px;
+    }
+
+    a:focus-visible,
+    button:focus-visible,
+    [role='button']:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+        outline: 2px solid var(--wa-accent, #25d366);
+        outline-offset: 2px;
+    }
+}
+
+/*
+ * Color system: WhatsApp chat (`--wa-*`) + app/settings UI (`--ui-*`).
+ *
+ * Chat surfaces (bubbles, list, composer): use `--wa-*` or Tailwind `wa-*`.
+ * Settings, admin, shared forms: prefer `--ui-*` or Tailwind `ui-*`.
+ * Control outlines (pills, secondary buttons): `--wa-control-rim` + `--wa-control-rim-shadow`.
+ * Themes are switched by [data-theme] on <html>.
+ */
+
+/* Dark (default) — WhatsApp Web dark palette */
+:root,
+[data-theme='dark'] {
+    /* Backgrounds */
+    --wa-bg: #161717;              /* chat canvas / app background */
+    --wa-sidebar-bg: #1d1f1f;      /* sidebars / chat list */
+    --wa-panel: var(--wa-sidebar-bg);           /* chat list / content panel */
+    --wa-panel-header: var(--wa-sidebar-bg);    /* top bars, search container */
+    --wa-panel-input: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --wa-panel-hover: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
+    --wa-selected: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --wa-rail-bg: var(--wa-sidebar-bg);         /* narrow left icon rail */
+    --wa-rail-btn-hover: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --wa-empty-bg: #161717;
+    /* Фон приложения вне чата (рассылки, календарь, аналитика, настройки) */
+    --wa-page-bg: #161717;
+    --wa-composer-bg: var(--wa-panel);
+
+    /* Borders & dividers */
+    --wa-border: rgba(134, 150, 160, 0.13);
+    --wa-border-strong: rgba(134, 150, 160, 0.22);
+    /* Rim пилюль/кнопок: crisp hairline + лёгкий inset (как на референсе) */
+    --wa-control-surface: color-mix(in srgb, #ffffff 7%, var(--wa-panel-header) 93%);
+    --wa-control-rim: rgba(255, 255, 255, 0.04);
+    --wa-control-rim-hover: rgba(255, 255, 255, 0.46);
+    --wa-control-rim-inset-top: rgba(255, 255, 255, 0.22);
+    --wa-control-rim-inset-bottom: rgba(0, 0, 0, 0.14);
+    --wa-control-rim-outer: rgba(0, 0, 0, 0.24);
+    --wa-control-rim-shadow:
+        inset 0 1px 0 0 var(--wa-control-rim-inset-top),
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-rim-shadow-hover:
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+        inset 0 -1px 0 0 rgba(0, 0, 0, 0.12),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    /* Объём контролов: нижний inset + drop shadow (без белой полоски сверху, как ui-accent-btn) */
+    --wa-control-volume-shadow:
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #000 12%, transparent),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    --wa-chip-active-volume-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 42%, var(--wa-control-rim-inset-bottom)),
+        0 1px 2px 0 color-mix(in srgb, var(--brand-accent) 16%, var(--wa-control-rim-outer));
+    --wa-chip-active-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 48%, var(--wa-control-rim-inset-bottom)),
+        0 2px 4px 0 color-mix(in srgb, var(--brand-accent) 22%, rgba(0, 0, 0, 0.30));
+    /* legacy alias */
+    --wa-control-border: var(--wa-control-rim);
+    --wa-control-border-hover: var(--wa-control-rim-hover);
+    --wa-divider: rgba(134, 150, 160, 0.13);
+    --wa-sidebar-divider: #343636;
+
+    /* Text */
+    --wa-text: #E9EDEF;
+    --wa-text-secondary: #8696a0;
+    --wa-text-muted: #667781;
+
+    /* Brand / accent */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
+    --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 16%, var(--wa-panel));
+    --brand-accent-border: color-mix(in srgb, var(--brand-accent) 38%, var(--wa-border));
+    --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
+    --wa-accent-hover: var(--brand-accent-hover);
+    --wa-accent-soft: var(--brand-accent-soft);     /* subtle accent bg (badges, pills) */
+    --wa-accent-on: #ffffff;       /* foreground on accent bg */
+    --wa-green: var(--brand-accent);
+
+    /*
+     * Chroma tints (badges, pills, highlights).
+     * Dark: mix with transparent → soft on graphite.
+     * Light: redefined below with --wa-chroma-blend: var(--wa-panel).
+     */
+    --wa-chroma-blend: transparent;
+    --wa-chroma-accent-fg: var(--brand-accent);
+    --wa-chroma-accent-bg-8: color-mix(in srgb, var(--brand-accent) 8%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-10: color-mix(in srgb, var(--brand-accent) 10%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-12: color-mix(in srgb, var(--brand-accent) 12%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-18: color-mix(in srgb, var(--brand-accent) 18%, var(--wa-chroma-blend));
+    --wa-chroma-accent-border-35: color-mix(in srgb, var(--brand-accent) 35%, var(--wa-border-strong));
+    --wa-chroma-accent-border-45: color-mix(in srgb, var(--brand-accent) 45%, var(--wa-chroma-blend));
+    --wa-chroma-accent-border-60: color-mix(in srgb, var(--brand-accent) 60%, var(--wa-chroma-blend));
+    --wa-chroma-amber-bg-10: color-mix(in srgb, #f59e0b 10%, var(--wa-panel));
+    --wa-chroma-amber-bg-12: color-mix(in srgb, #f59e0b 12%, var(--wa-chroma-blend));
+    --wa-chroma-amber-border-45: color-mix(in srgb, #f59e0b 45%, var(--wa-border-strong));
+    --wa-chroma-amber-border-50: color-mix(in srgb, #f59e0b 50%, var(--wa-chroma-blend));
+    --wa-chroma-danger-bg-10: color-mix(in srgb, var(--wa-danger) 10%, var(--wa-chroma-blend));
+    --wa-chroma-danger-bg-12: color-mix(in srgb, var(--wa-danger) 12%, var(--wa-chroma-blend));
+    --wa-chroma-danger-bg-18: color-mix(in srgb, var(--wa-danger) 18%, var(--wa-chroma-blend));
+    --wa-chroma-danger-border-45: color-mix(in srgb, var(--wa-danger) 45%, var(--wa-border-strong));
+    --wa-chroma-danger-border-50: color-mix(in srgb, var(--wa-danger) 50%, var(--wa-chroma-blend));
+    --wa-chroma-critical-bg: color-mix(in srgb, #ef4444 18%, var(--wa-chroma-blend));
+    --wa-chroma-critical-fg: #ef4444;
+    --wa-chroma-orange-bg: color-mix(in srgb, #f97316 18%, var(--wa-chroma-blend));
+    --wa-chroma-orange-fg: #f97316;
+    --wa-chroma-yellow-bg: color-mix(in srgb, #eab308 18%, var(--wa-chroma-blend));
+    --wa-chroma-yellow-fg: #ca8a04;
+    --wa-tab-badge-warn-bg: #ca8a04;
+    --wa-tab-badge-warn-text: #ffffff;
+    --wa-chroma-violet-border-45: color-mix(in srgb, #8b5cf6 45%, var(--wa-border-strong));
+    --wa-chroma-muted-bar: color-mix(in srgb, var(--wa-text-secondary) 18%, var(--wa-chroma-blend));
+    --wa-chroma-dot-ring: color-mix(in srgb, currentColor 8%, var(--wa-chroma-blend));
+    --wa-chroma-neutral-bg-22: color-mix(in srgb, var(--wa-text-secondary) 22%, var(--wa-chroma-blend));
+    --wa-chroma-neutral-bg-28: color-mix(in srgb, var(--wa-text-secondary) 28%, var(--wa-chroma-blend));
+    --wa-chroma-violet-bg-18: color-mix(in srgb, #8b5cf6 18%, var(--wa-chroma-blend));
+    --wa-chroma-violet-border-38: color-mix(in srgb, #8b5cf6 38%, var(--wa-chroma-blend));
+    --wa-chroma-violet-fg: #a78bfa;
+    --wa-chroma-accent-ring-30: color-mix(in srgb, var(--brand-accent) 30%, var(--wa-chroma-blend));
+    --wa-chroma-amber-ring-35: color-mix(in srgb, #f59e0b 35%, var(--wa-chroma-blend));
+    --wa-chroma-accent-fill-16: color-mix(in srgb, var(--brand-accent) 16%, var(--wa-chroma-blend));
+    --wa-chroma-accent-fill-20: color-mix(in srgb, var(--brand-accent) 20%, var(--wa-chroma-blend));
+    --wa-chroma-amber-fill-16: color-mix(in srgb, #f59e0b 16%, var(--wa-chroma-blend));
+    --wa-chroma-amber-fill-20: color-mix(in srgb, #f59e0b 20%, var(--wa-chroma-blend));
+    --wa-chroma-amber-border-70: color-mix(in srgb, #f59e0b 70%, var(--wa-chroma-blend));
+    --wa-chroma-success-ring-18: color-mix(in srgb, var(--brand-accent) 18%, var(--wa-chroma-blend));
+    --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 14%, var(--wa-chroma-blend));
+    --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 22%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fg: #60a5fa;
+    --wa-chroma-blue-bg-10: color-mix(in srgb, #3b82f6 10%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-12: color-mix(in srgb, #3b82f6 12%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-18: color-mix(in srgb, #3b82f6 18%, var(--wa-chroma-blend));
+    --wa-chroma-blue-border-35: color-mix(in srgb, #3b82f6 35%, var(--wa-border));
+    --wa-chroma-blue-border-45: color-mix(in srgb, #3b82f6 45%, var(--wa-border-strong));
+    --wa-chroma-blue-fill-16: color-mix(in srgb, #3b82f6 16%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fill-20: color-mix(in srgb, #3b82f6 20%, var(--wa-chroma-blend));
+    --wa-chroma-blue-ring-35: color-mix(in srgb, #3b82f6 35%, var(--wa-chroma-blend));
+
+    /* Organization task statuses */
+    --org-task-open-fg: #f59e0b;
+    --org-task-open-bg: var(--wa-chroma-amber-bg-12);
+    --org-task-open-border: var(--wa-chroma-amber-border-45);
+    --org-task-open-active-bg: color-mix(in srgb, var(--org-task-open-fg) 8%, var(--wa-panel));
+    --org-task-progress-fg: var(--wa-chroma-blue-fg);
+    --org-task-progress-bg: var(--wa-chroma-blue-bg-12);
+    --org-task-progress-border: var(--wa-chroma-blue-border-45);
+    --org-task-progress-active-bg: color-mix(in srgb, var(--org-task-progress-fg) 8%, var(--wa-panel));
+    --org-task-done-fg: var(--wa-chroma-accent-fg);
+    --org-task-done-bg: var(--wa-chroma-accent-bg-12);
+    --org-task-done-border: var(--wa-chroma-accent-border-35);
+    --org-task-done-active-bg: color-mix(in srgb, var(--org-task-done-fg) 8%, var(--wa-panel));
+    --org-task-all-fg: var(--wa-chroma-accent-fg);
+    --org-task-all-bg: var(--wa-chroma-accent-bg-10);
+    --org-task-all-border: var(--wa-chroma-accent-border-45);
+    --org-task-all-active-bg: color-mix(in srgb, var(--org-task-all-fg) 8%, var(--wa-panel));
+    --org-task-neutral-fg: var(--wa-text-secondary);
+    --org-task-neutral-bg: var(--wa-chroma-neutral-bg-22);
+    --org-task-dept-fg: var(--org-task-open-fg);
+    --org-task-dept-bg: var(--wa-chroma-amber-fill-16);
+
+    /* Message bubbles — тёмная тема (до init JS = зелёный пресет) */
+    --wa-bubble-in: #212121;
+    --wa-bubble-out: #00a056;
+    --wa-bubble-text: #E9EDEF;
+    --wa-bubble-text-in: var(--wa-bubble-text);
+    --wa-bubble-text-out: #FFFFFF;
+    --wa-message-accent: #53BDAE;
+    --wa-bubble-tail-shadow: rgba(0, 0, 0, 0.24);
+    --wa-bubble-quote-bg-in: #2C2C2C;
+    --wa-bubble-quote-bg-out: #008A48;
+    --wa-bubble-quote-author-in: #53BDAE;
+    --wa-bubble-quote-author-out: #FFFFFF;
+    --wa-bubble-quote-text-in: #D8DEE3;
+    --wa-bubble-quote-text-out: #D8DEE3;
+
+    /* Indicators */
+    --wa-unread: var(--brand-accent);
+    --wa-unread-text: #111b21;
+    --wa-ack-read: #53bdeb;        /* double-tick "read" */
+
+    /* Iconography */
+    --wa-icon: #aebac1;
+
+    /* Scrollbar */
+    --wa-scrollbar: rgba(134, 150, 160, 0.35);
+    --wa-scrollbar-hover: rgba(134, 150, 160, 0.55);
+
+    /* Misc */
+    --wa-doodle-color: '%231D1F20';
+    --wa-date-bubble: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
+    --wa-date-bubble-text: #d1d7db;
+    /* Центрированные системные строки в ленте (назначения, отделы) — как в WhatsApp */
+    --wa-system-chat-pill-bg: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --wa-system-chat-pill-text: #8696a0;
+    --wa-avatar-bg: color-mix(in srgb, #ffffff 8%, var(--wa-bg));
+    --wa-avatar-icon: #aebac1;
+    --wa-danger: #f15c6d;
+
+    /* Контекстное меню сообщения + полоска быстрых реакций (teleport на body) */
+    --msg-menu-bg: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --msg-menu-border: rgba(233, 237, 239, 0.08);
+    --msg-menu-shadow: 0 10px 32px rgba(0, 0, 0, 0.48);
+    --msg-menu-item-hover: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --msg-menu-divider: rgba(233, 237, 239, 0.08);
+    --msg-reaction-bar-bg: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --msg-reaction-bar-border: rgba(233, 237, 239, 0.08);
+    --msg-reaction-bar-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
+    --msg-reaction-emoji-color: #f5f5f5;
+    --msg-reaction-btn-hover: rgba(255, 200, 100, 0.18);
+
+    /* Modals, media preview, floating format bar */
+    --wa-scrim: rgba(0, 0, 0, 0.62);
+    --wa-scrim-heavy: rgba(0, 0, 0, 0.72);
+    --wa-formatbar-bg: rgba(23, 23, 23, 0.96);
+    --wa-formatbar-border: rgba(255, 255, 255, 0.08);
+    --wa-formatbar-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    --wa-formatbar-fg: rgba(255, 255, 255, 0.88);
+    --wa-formatbar-muted: rgba(255, 255, 255, 0.6);
+    --wa-formatbar-btn-hover: rgba(255, 255, 255, 0.08);
+    --wa-formatbar-sep: rgba(255, 255, 255, 0.12);
+    --wa-link-preview-surface: rgba(255, 255, 255, 0.06);
+    --wa-link-preview-surface-hover: rgba(255, 255, 255, 0.075);
+    --wa-link-preview-border: rgba(255, 255, 255, 0.1);
+    --wa-link-preview-img-bg: rgba(0, 0, 0, 0.25);
+    --wa-link-preview-skel: rgba(255, 255, 255, 0.1);
+    --wa-metric-warn: #fcd34d;
+    --wa-sched-error-fg: #ffd7dc;
+    --wa-sched-error-bg: rgba(239, 68, 68, 0.16);
+    --wa-sched-danger-fg: #fca5a5;
+    --wa-sched-danger-bg: rgba(239, 68, 68, 0.12);
+    --wa-att-preview-bottom-fade: rgba(0, 0, 0, 0.35);
+    --wa-att-thumb-add-border: rgba(255, 255, 255, 0.18);
+    --wa-att-thumb-add-bg: rgba(255, 255, 255, 0.06);
+    --wa-att-thumb-add-bg-hover: rgba(255, 255, 255, 0.12);
+    --wa-att-thumb-add-fg: rgba(233, 237, 239, 0.95);
+
+    /* Шапка чата: пилюли «Отделы» / «Отложенные» */
+    --wa-header-pill-dept-text: #fde68a;
+    --wa-header-pill-dept-text-active: #fffbeb;
+    --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+    --wa-header-pill-sched-text: var(--wa-accent);
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, var(--wa-accent) 16%, var(--wa-panel));
+    --wa-assignee-pill-fg: #b6f7df;
+
+    /* Внутренние «колодцы» списков/графиков (не использовать chat-parchment wa-bg) */
+    --wa-surface-inset: color-mix(in srgb, #ffffff 3%, var(--wa-bg));
+
+    /* Settings/admin surfaces — WhatsApp graphite with clearer depth, not slate-blue. */
+    --ui-bg: var(--wa-bg);
+    --ui-surface: var(--wa-panel);
+    --ui-surface-muted: color-mix(in srgb, #ffffff 5%, var(--wa-bg));
+    --ui-surface-raised: color-mix(in srgb, #ffffff 7%, var(--wa-bg));
+    --ui-surface-inset: color-mix(in srgb, #ffffff 4%, var(--wa-panel));
+    --ui-input-bg: color-mix(in srgb, #ffffff 4%, var(--wa-bg));
+    --ui-border: rgba(174, 186, 193, 0.2);
+    --ui-border-strong: rgba(174, 186, 193, 0.34);
+    --ui-control-border: var(--wa-control-rim);
+    --ui-control-border-hover: var(--wa-control-rim-hover);
+    --ui-control-rim-shadow: var(--wa-control-rim-shadow);
+    --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
+    --ui-control-volume-shadow: var(--wa-control-volume-shadow);
+    --ui-control-volume-shadow-hover: var(--wa-control-volume-shadow-hover);
+    --ui-chip-active-volume-shadow: var(--wa-chip-active-volume-shadow);
+    --ui-chip-active-volume-shadow-hover: var(--wa-chip-active-volume-shadow-hover);
+    --ui-accent: var(--wa-accent);
+    --ui-accent-hover: var(--wa-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 16%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--wa-accent) 38%, var(--ui-border));
+    --ui-text: var(--wa-text);
+    --ui-text-secondary: var(--wa-text-secondary);
+    --ui-text-muted: var(--wa-text-muted);
+    --ui-icon: var(--wa-icon);
+    --ui-danger: var(--wa-danger);
+    --ui-accent-on: var(--wa-accent-on);
+    --ui-accent-btn-rim-inset-bottom: color-mix(in srgb, #000 14%, var(--ui-accent));
+    --ui-accent-btn-rim-outer: rgba(0, 0, 0, 0.24);
+    --ui-accent-btn-border: color-mix(in srgb, var(--ui-accent) 72%, #000 28%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, var(--ui-accent-hover) 72%, #000 28%);
+    --ui-accent-btn-shadow:
+        inset 0 -1px 0 0 var(--ui-accent-btn-rim-inset-bottom),
+        0 1px 1px 0 var(--ui-accent-btn-rim-outer);
+    --ui-accent-btn-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #000 12%, var(--ui-accent-hover)),
+        0 2px 4px 0 rgba(0, 0, 0, 0.30);
+    --ui-surface-hover: var(--wa-panel-hover);
+    --ui-selected: var(--wa-selected);
+    --ui-shadow-card: 0 18px 48px rgba(0, 0, 0, 0.34);
+    --ui-shadow-soft: 0 8px 26px rgba(0, 0, 0, 0.22);
+}
+
+/* Light */
+[data-theme='light'] {
+    /* Backgrounds */
+    --wa-bg: #E5DDD5;              /* classic parchment chat background */
+    --wa-sidebar-bg: #FFFFFF;
+    --wa-panel: #FFFFFF;
+    --wa-panel-header: #F0F2F5;
+    --wa-panel-input: #FFFFFF;
+    --wa-panel-hover: #F5F6F6;
+    --wa-selected: #F0F2F5;
+    --wa-rail-bg: #F0F2F5;
+    --wa-rail-btn-hover: #E9EDEF;
+    --wa-empty-bg: #F0F2F5;
+    /* Нейтральный фон вне чата — без бежевого пергамента чата */
+    --wa-page-bg: #F0F2F5;
+    --wa-composer-bg: var(--wa-panel);
+
+    /* Borders & dividers */
+    --wa-border: #D1D7DB;
+    --wa-border-strong: #D1D7DB;
+    --wa-control-surface: color-mix(in srgb, var(--wa-page-bg) 14%, var(--wa-panel) 86%);
+    --wa-control-rim: rgba(17, 27, 33, 0.28);
+    --wa-control-rim-hover: rgba(17, 27, 33, 0.38);
+    --wa-control-rim-inset-top: rgba(255, 255, 255, 0.98);
+    --wa-control-rim-inset-bottom: rgba(17, 27, 33, 0.09);
+    --wa-control-rim-outer: rgba(17, 27, 33, 0.14);
+    --wa-control-rim-shadow:
+        inset 0 1px 0 0 var(--wa-control-rim-inset-top),
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-rim-shadow-hover:
+        inset 0 1px 0 0 rgba(255, 255, 255, 1),
+        inset 0 -1px 0 0 rgba(17, 27, 33, 0.05),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --wa-control-volume-shadow:
+        inset 0 -1px 0 0 var(--wa-control-rim-inset-bottom),
+        0 1px 1px 0 var(--wa-control-rim-outer);
+    --wa-control-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #111b21 7%, transparent),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --wa-chip-active-volume-shadow:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 38%, var(--wa-control-rim-inset-bottom)),
+        0 1px 2px 0 color-mix(in srgb, var(--brand-accent) 14%, var(--wa-control-rim-outer));
+    --wa-chip-active-volume-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, var(--brand-accent) 44%, var(--wa-control-rim-inset-bottom)),
+        0 2px 4px 0 color-mix(in srgb, var(--brand-accent) 18%, rgba(17, 27, 33, 0.16));
+    --wa-control-border: var(--wa-control-rim);
+    --wa-control-border-hover: var(--wa-control-rim-hover);
+    --wa-divider: #E9EDEF;
+    --wa-sidebar-divider: #d1d7db;
+
+    /* Text */
+    --wa-text: #111B21;
+    --wa-text-secondary: #667781;
+    --wa-text-muted: #8696A0;
+
+    /* Brand / accent — тот же зелёный, что в тёмной теме; для текста ссылок — --wa-chroma-accent-fg */
+    --brand-accent: #01b964;
+    --brand-accent-hover: #08d878;
+    --brand-accent-soft: color-mix(in srgb, var(--brand-accent) 22%, var(--wa-panel));
+    --brand-accent-border: color-mix(in srgb, var(--brand-accent) 42%, var(--wa-border));
+    --wa-accent: var(--brand-accent);          /* primary accent (links, icons, buttons) */
+    --wa-accent-hover: var(--brand-accent-hover);
+    --wa-accent-soft: var(--brand-accent-soft);
+    --wa-accent-on: #ffffff;
+    --wa-green: var(--brand-accent);
+
+    /* Chroma tints — на светлой теме смешиваем с панелью, не с transparent */
+    --wa-chroma-blend: var(--wa-panel);
+    --wa-chroma-accent-fg: #006b47;
+    --wa-chroma-accent-bg-8: color-mix(in srgb, var(--brand-accent) 14%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-10: color-mix(in srgb, var(--brand-accent) 18%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-12: color-mix(in srgb, var(--brand-accent) 22%, var(--wa-chroma-blend));
+    --wa-chroma-accent-bg-18: color-mix(in srgb, var(--brand-accent) 30%, var(--wa-chroma-blend));
+    --wa-chroma-accent-border-35: color-mix(in srgb, var(--brand-accent) 48%, var(--wa-border-strong));
+    --wa-chroma-accent-border-45: color-mix(in srgb, var(--brand-accent) 52%, var(--wa-border));
+    --wa-chroma-accent-border-60: color-mix(in srgb, var(--brand-accent) 58%, var(--wa-border));
+    --wa-chroma-amber-bg-10: color-mix(in srgb, #f59e0b 16%, var(--wa-panel));
+    --wa-chroma-amber-bg-12: color-mix(in srgb, #f59e0b 20%, var(--wa-chroma-blend));
+    --wa-chroma-amber-border-45: color-mix(in srgb, #f59e0b 50%, var(--wa-border-strong));
+    --wa-chroma-amber-border-50: color-mix(in srgb, #f59e0b 55%, var(--wa-border));
+    --wa-chroma-danger-bg-10: color-mix(in srgb, var(--wa-danger) 14%, var(--wa-chroma-blend));
+    --wa-chroma-danger-bg-12: color-mix(in srgb, var(--wa-danger) 16%, var(--wa-chroma-blend));
+    --wa-chroma-danger-bg-18: color-mix(in srgb, var(--wa-danger) 22%, var(--wa-chroma-blend));
+    --wa-chroma-danger-border-45: color-mix(in srgb, var(--wa-danger) 50%, var(--wa-border-strong));
+    --wa-chroma-danger-border-50: color-mix(in srgb, var(--wa-danger) 55%, var(--wa-border));
+    --wa-chroma-critical-bg: color-mix(in srgb, #ef4444 20%, var(--wa-chroma-blend));
+    --wa-chroma-critical-fg: #b91c1c;
+    --wa-chroma-orange-bg: color-mix(in srgb, #ea580c 20%, var(--wa-chroma-blend));
+    --wa-chroma-orange-fg: #c2410c;
+    --wa-chroma-yellow-bg: color-mix(in srgb, #eab308 24%, var(--wa-chroma-blend));
+    --wa-chroma-yellow-fg: #a16207;
+    --wa-tab-badge-warn-bg: #d97706;
+    --wa-tab-badge-warn-text: #ffffff;
+    --wa-chroma-violet-border-45: color-mix(in srgb, #7c3aed 48%, var(--wa-border-strong));
+    --wa-chroma-muted-bar: color-mix(in srgb, var(--wa-text-secondary) 28%, var(--wa-chroma-blend));
+    --wa-chroma-dot-ring: color-mix(in srgb, currentColor 14%, var(--wa-chroma-blend));
+    --wa-chroma-neutral-bg-22: color-mix(in srgb, var(--wa-text-secondary) 32%, var(--wa-chroma-blend));
+    --wa-chroma-neutral-bg-28: color-mix(in srgb, var(--wa-text-secondary) 38%, var(--wa-chroma-blend));
+    --wa-chroma-violet-bg-18: color-mix(in srgb, #7c3aed 20%, var(--wa-chroma-blend));
+    --wa-chroma-violet-border-38: color-mix(in srgb, #7c3aed 45%, var(--wa-border));
+    --wa-chroma-violet-fg: #6d28d9;
+    --wa-chroma-accent-ring-30: color-mix(in srgb, var(--brand-accent) 42%, var(--wa-border));
+    --wa-chroma-amber-ring-35: color-mix(in srgb, #f59e0b 48%, var(--wa-border));
+    --wa-chroma-accent-fill-16: color-mix(in srgb, var(--brand-accent) 24%, var(--wa-chroma-blend));
+    --wa-chroma-accent-fill-20: color-mix(in srgb, var(--brand-accent) 30%, var(--wa-chroma-blend));
+    --wa-chroma-amber-fill-16: color-mix(in srgb, #f59e0b 22%, var(--wa-chroma-blend));
+    --wa-chroma-amber-fill-20: color-mix(in srgb, #f59e0b 28%, var(--wa-chroma-blend));
+    --wa-chroma-amber-border-70: color-mix(in srgb, #f59e0b 65%, var(--wa-border));
+    --wa-chroma-success-ring-18: color-mix(in srgb, var(--brand-accent) 28%, var(--wa-border));
+    --wa-chroma-muted-ring-14: color-mix(in srgb, var(--wa-text-muted) 22%, var(--wa-border));
+    --wa-chroma-current-fill-22: color-mix(in srgb, currentColor 28%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fg: #2563eb;
+    --wa-chroma-blue-bg-10: color-mix(in srgb, #3b82f6 16%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-12: color-mix(in srgb, #3b82f6 20%, var(--wa-chroma-blend));
+    --wa-chroma-blue-bg-18: color-mix(in srgb, #3b82f6 26%, var(--wa-chroma-blend));
+    --wa-chroma-blue-border-35: color-mix(in srgb, #3b82f6 48%, var(--wa-border));
+    --wa-chroma-blue-border-45: color-mix(in srgb, #3b82f6 52%, var(--wa-border-strong));
+    --wa-chroma-blue-fill-16: color-mix(in srgb, #3b82f6 22%, var(--wa-chroma-blend));
+    --wa-chroma-blue-fill-20: color-mix(in srgb, #3b82f6 28%, var(--wa-chroma-blend));
+    --wa-chroma-blue-ring-35: color-mix(in srgb, #3b82f6 48%, var(--wa-border));
+
+    /* Organization task statuses */
+    --org-task-open-fg: #d97706;
+    --org-task-open-bg: var(--wa-chroma-amber-bg-12);
+    --org-task-open-border: var(--wa-chroma-amber-border-45);
+    --org-task-open-active-bg: color-mix(in srgb, var(--org-task-open-fg) 10%, var(--wa-panel));
+    --org-task-progress-fg: var(--wa-chroma-blue-fg);
+    --org-task-progress-bg: var(--wa-chroma-blue-bg-12);
+    --org-task-progress-border: var(--wa-chroma-blue-border-45);
+    --org-task-progress-active-bg: color-mix(in srgb, var(--org-task-progress-fg) 10%, var(--wa-panel));
+    --org-task-done-fg: var(--wa-chroma-accent-fg);
+    --org-task-done-bg: var(--wa-chroma-accent-bg-12);
+    --org-task-done-border: var(--wa-chroma-accent-border-35);
+    --org-task-done-active-bg: color-mix(in srgb, var(--org-task-done-fg) 10%, var(--wa-panel));
+    --org-task-all-fg: var(--wa-chroma-accent-fg);
+    --org-task-all-bg: var(--wa-chroma-accent-bg-10);
+    --org-task-all-border: var(--wa-chroma-accent-border-45);
+    --org-task-all-active-bg: color-mix(in srgb, var(--org-task-all-fg) 10%, var(--wa-panel));
+    --org-task-neutral-fg: var(--wa-text-secondary);
+    --org-task-neutral-bg: var(--wa-chroma-neutral-bg-22);
+    --org-task-dept-fg: var(--org-task-open-fg);
+    --org-task-dept-bg: var(--wa-chroma-amber-fill-16);
+
+    /* Message bubbles — светлая тема (до init JS = зелёный пресет) */
+    --wa-bubble-in: #FFFFFF;
+    --wa-bubble-out: #00a056;
+    --wa-bubble-text: #111B21;
+    --wa-bubble-text-in: var(--wa-bubble-text);
+    --wa-bubble-text-out: #FFFFFF;
+    --wa-message-accent: #008069;
+    --wa-bubble-tail-shadow: rgba(11, 20, 26, 0.07);
+    --wa-bubble-quote-bg-in: #F0F4F8;
+    --wa-bubble-quote-bg-out: #008A48;
+    --wa-bubble-quote-author-in: #008069;
+    --wa-bubble-quote-author-out: #FFFFFF;
+    --wa-bubble-quote-text-in: #5E686F;
+    --wa-bubble-quote-text-out: #5E686F;
+
+    /* Indicators */
+    --wa-unread: var(--brand-accent);          /* brand green badge */
+    --wa-unread-text: #FFFFFF;
+    --wa-ack-read: #53BDEB;
+
+    /* Iconography */
+    --wa-icon: #54656F;
+
+    /* Scrollbar */
+    --wa-scrollbar: rgba(17, 27, 33, 0.16);
+    --wa-scrollbar-hover: rgba(17, 27, 33, 0.3);
+
+    /* Misc */
+    --wa-doodle-color: '%23D1D7DB';
+    --wa-date-bubble: #FFFFFF;
+    --wa-date-bubble-text: #54656F;
+    --wa-system-chat-pill-bg: rgba(255, 255, 255, 0.92);
+    --wa-system-chat-pill-text: #667781;
+    --wa-avatar-bg: #DFE5E7;
+    /* Тёмная силуэтная иконка — белый на светло-сером круге нечитаем */
+    --wa-avatar-icon: #54656F;
+    --wa-danger: #E53935;
+
+    /* Контекстное меню и реакции: белая плашка, читаемые тени и ховеры */
+    --msg-menu-bg: #ffffff;
+    --msg-menu-border: rgba(17, 27, 33, 0.1);
+    --msg-menu-shadow: 0 8px 28px rgba(17, 27, 33, 0.12), 0 2px 10px rgba(17, 27, 33, 0.06);
+    --msg-menu-item-hover: rgba(17, 27, 33, 0.06);
+    --msg-menu-divider: rgba(17, 27, 33, 0.1);
+    --msg-reaction-bar-bg: #ffffff;
+    --msg-reaction-bar-border: rgba(17, 27, 33, 0.12);
+    --msg-reaction-bar-shadow: 0 6px 22px rgba(17, 27, 33, 0.1), 0 1px 3px rgba(17, 27, 33, 0.06);
+    --msg-reaction-emoji-color: #111b21;
+    --msg-reaction-btn-hover: rgba(0, 128, 105, 0.14);
+
+    --wa-scrim: rgba(17, 27, 33, 0.38);
+    --wa-scrim-heavy: rgba(17, 27, 33, 0.52);
+    --wa-formatbar-bg: rgba(255, 255, 255, 0.98);
+    --wa-formatbar-border: rgba(17, 27, 33, 0.1);
+    --wa-formatbar-shadow: 0 8px 28px rgba(17, 27, 33, 0.12);
+    --wa-formatbar-fg: #3b4a54;
+    --wa-formatbar-muted: rgba(17, 27, 33, 0.45);
+    --wa-formatbar-btn-hover: rgba(17, 27, 33, 0.06);
+    --wa-formatbar-sep: rgba(17, 27, 33, 0.12);
+    --wa-link-preview-surface: rgba(17, 27, 33, 0.05);
+    --wa-link-preview-surface-hover: rgba(17, 27, 33, 0.08);
+    --wa-link-preview-border: rgba(17, 27, 33, 0.1);
+    --wa-link-preview-img-bg: rgba(17, 27, 33, 0.06);
+    --wa-link-preview-skel: rgba(17, 27, 33, 0.08);
+    --wa-metric-warn: #b45309;
+    --wa-sched-error-fg: #991b1b;
+    --wa-sched-error-bg: rgba(239, 68, 68, 0.12);
+    --wa-sched-danger-fg: #b91c1c;
+    --wa-sched-danger-bg: rgba(239, 68, 68, 0.1);
+    --wa-att-preview-bottom-fade: rgba(255, 255, 255, 0.55);
+    --wa-att-thumb-add-border: rgba(17, 27, 33, 0.2);
+    --wa-att-thumb-add-bg: rgba(17, 27, 33, 0.04);
+    --wa-att-thumb-add-bg-hover: rgba(17, 27, 33, 0.08);
+    --wa-att-thumb-add-fg: var(--wa-text-secondary);
+
+    --wa-header-pill-dept-text: #92400e;
+    --wa-header-pill-dept-text-active: #78350f;
+    --wa-header-pill-dept-bg-hover: color-mix(in srgb, #f59e0b 22%, var(--wa-panel));
+    --wa-header-pill-sched-text: var(--wa-accent);
+    --wa-header-pill-sched-bg-hover: color-mix(in srgb, var(--wa-accent) 18%, var(--wa-panel));
+    --wa-assignee-pill-fg: #0a5c4a;
+
+    --wa-surface-inset: #e8edf2;
+
+    --ui-bg: var(--wa-page-bg);
+    --ui-surface: var(--wa-panel);
+    --ui-surface-muted: color-mix(in srgb, var(--wa-panel-hover) 82%, var(--wa-panel-header) 18%);
+    --ui-surface-raised: color-mix(in srgb, var(--wa-panel) 86%, var(--wa-panel-header) 14%);
+    --ui-surface-inset: color-mix(in srgb, var(--wa-panel-header) 88%, var(--wa-page-bg) 12%);
+    --ui-input-bg: var(--wa-panel-input);
+    --ui-border: rgba(17, 27, 33, 0.15);
+    --ui-border-strong: rgba(17, 27, 33, 0.26);
+    --ui-control-border: var(--wa-control-rim);
+    --ui-control-border-hover: var(--wa-control-rim-hover);
+    --ui-control-rim-shadow: var(--wa-control-rim-shadow);
+    --ui-control-rim-shadow-hover: var(--wa-control-rim-shadow-hover);
+    --ui-control-volume-shadow: var(--wa-control-volume-shadow);
+    --ui-control-volume-shadow-hover: var(--wa-control-volume-shadow-hover);
+    --ui-chip-active-volume-shadow: var(--wa-chip-active-volume-shadow);
+    --ui-chip-active-volume-shadow-hover: var(--wa-chip-active-volume-shadow-hover);
+    --ui-accent: var(--wa-accent);
+    --ui-accent-hover: var(--wa-accent-hover);
+    --ui-accent-soft: color-mix(in srgb, var(--wa-accent) 22%, var(--ui-surface));
+    --ui-accent-border: color-mix(in srgb, var(--wa-accent) 42%, var(--ui-border));
+    --ui-text: var(--wa-text);
+    --ui-text-secondary: var(--wa-text-secondary);
+    --ui-text-muted: var(--wa-text-muted);
+    --ui-icon: var(--wa-icon);
+    --ui-danger: var(--wa-danger);
+    --ui-accent-on: var(--wa-accent-on);
+    --ui-accent-btn-rim-inset-bottom: color-mix(in srgb, #111b21 10%, var(--ui-accent));
+    --ui-accent-btn-rim-outer: var(--wa-control-rim-outer);
+    --ui-accent-btn-border: color-mix(in srgb, #006b47 30%, var(--ui-accent) 70%);
+    --ui-accent-btn-border-hover: color-mix(in srgb, #006b47 26%, var(--ui-accent-hover) 74%);
+    --ui-accent-btn-shadow:
+        inset 0 -1px 0 0 var(--ui-accent-btn-rim-inset-bottom),
+        0 1px 1px 0 var(--ui-accent-btn-rim-outer);
+    --ui-accent-btn-shadow-hover:
+        inset 0 -1px 0 0 color-mix(in srgb, #111b21 7%, var(--ui-accent-hover)),
+        0 2px 4px 0 rgba(17, 27, 33, 0.16);
+    --ui-surface-hover: var(--wa-panel-hover);
+    --ui-selected: var(--wa-selected);
+    --ui-shadow-card: 0 18px 48px rgba(17, 27, 33, 0.1);
+    --ui-shadow-soft: 0 8px 24px rgba(17, 27, 33, 0.08);
+}
+
+.wa-control-rim {
+    border: 1px solid var(--wa-control-rim);
+    box-shadow: var(--wa-control-rim-shadow);
+}
+
+.wa-control-rim:hover:not(:disabled) {
+    border-color: var(--wa-control-rim-hover);
+    box-shadow: var(--wa-control-rim-shadow-hover);
+}
+
+[data-theme='light'] .ui-btn--primary:hover:not(:disabled) {
+    filter: none;
+}
+
+body {
+    @apply antialiased overflow-hidden;
+    background: var(--wa-bg);
+    color: var(--wa-text);
+    font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, 'Lucida Grande', Arial, Ubuntu, Cantarell, 'Fira Sans', sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Лендинг и другие публичные страницы — прокрутка документа (CRM держит overflow на body) */
+html.page-scrollable,
+html.page-scrollable body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+}
+
+html.page-scrollable {
+    scroll-behavior: smooth;
+}
+
+/* Scrollbar (WhatsApp Web style) */
+.wa-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.wa-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.wa-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--wa-scrollbar);
+    border-radius: 3px;
+}
+.wa-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--wa-scrollbar-hover);
+}
+
+/*
+ * Chat background.
+ *
+ * By default we paint a subtle WhatsApp-style SVG doodle. When a custom
+ * image is configured via `useChatBackground` the <html> element gets
+ * `data-chat-bg="custom"` and two CSS variables:
+ *   --wa-chat-bg-image    - url() of the active image
+ *   --wa-chat-bg-overlay  - rgba() painted on top of the image
+ *
+ * The overlay is layered above the image via CSS stacked backgrounds so it
+ * scrolls with the content and can cross-fade smoothly on theme change.
+ */
+.chat-bg {
+    background-color: var(--wa-bg);
+    background-repeat: repeat;
+    background-size: 366px 366px;
+    /* Scroll with the element box so one panel can wrap messages + input (WhatsApp-like). */
+    background-attachment: scroll;
+    transition: background-color 0.3s ease, background-image 0.3s ease;
+}
+
+[data-chat-bg='custom'] .chat-bg,
+[data-chat-bg='pattern'] .chat-bg {
+    background-color: var(--wa-chat-bg-color, var(--wa-bg));
+    background-image: linear-gradient(
+            var(--wa-chat-bg-overlay, transparent),
+            var(--wa-chat-bg-overlay, transparent)
+        ),
+        var(--wa-chat-bg-image);
+    background-size: auto, var(--wa-chat-bg-size, 280px);
+    background-position: center, center;
+    background-repeat: repeat, repeat;
+    background-attachment: scroll, scroll;
+}
+
+[data-chat-bg='solid'] .chat-bg {
+    background-image: none;
+    background-color: var(--wa-chat-bg-color, var(--wa-bg));
+}
+
+[data-theme='dark']:not([data-chat-bg]) .chat-bg,
+[data-theme='dark'][data-chat-bg='default'] .chat-bg {
+    background-image:
+        linear-gradient(rgba(22, 23, 23, 0.76), rgba(22, 23, 23, 0.76)),
+        url("/images/chat-backgrounds/whatsapp.png");
+    background-size: auto, 420px;
+    background-position: center, center;
+    background-repeat: repeat, repeat;
+}
+[data-theme='light']:not([data-chat-bg]) .chat-bg,
+[data-theme='light'][data-chat-bg='default'] .chat-bg {
+    background-image: url("/images/chat-backgrounds/whatsapp-light.png");
+    background-size: 420px;
+}
+
+.wa-shadow {
+    box-shadow: 0 1px 0.5px var(--wa-bubble-tail-shadow);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--wa-text-secondary);
+}
+
+::selection {
+    background: color-mix(in srgb, var(--wa-accent) 32%, var(--wa-chroma-blend));
+    color: var(--wa-text);
+}
+
+::-moz-selection {
+    background: color-mix(in srgb, var(--wa-accent) 32%, var(--wa-chroma-blend));
+    color: var(--wa-text);
+}
+
+/*
+ * Bubbles set their own text color (--wa-bubble-text-*). Global ::selection used
+ * --wa-text, which breaks contrast when users highlight message text (e.g. AI
+ * replies with dark text on a light green bubble in light theme).
+ */
+.wa-msg-bubble-in ::selection,
+.wa-msg-bubble-in *::selection,
+.wa-system-chat-msg ::selection,
+.wa-system-chat-msg *::selection,
+.wa-bubble-surface-in ::selection,
+.wa-bubble-surface-in *::selection {
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-in));
+    color: var(--wa-bubble-text-in, var(--wa-bubble-text));
+}
+
+.wa-msg-bubble-out ::selection,
+.wa-msg-bubble-out *::selection,
+.wa-bubble-surface-out ::selection,
+.wa-bubble-surface-out *::selection {
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-out));
+    color: var(--wa-bubble-text-out, var(--wa-bubble-text));
+}
+
+.wa-msg-bubble-in ::-moz-selection,
+.wa-msg-bubble-in *::-moz-selection,
+.wa-system-chat-msg ::-moz-selection,
+.wa-system-chat-msg *::-moz-selection,
+.wa-bubble-surface-in ::-moz-selection,
+.wa-bubble-surface-in *::-moz-selection {
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-in));
+    color: var(--wa-bubble-text-in, var(--wa-bubble-text));
+}
+
+.wa-msg-bubble-out ::-moz-selection,
+.wa-msg-bubble-out *::-moz-selection,
+.wa-bubble-surface-out ::-moz-selection,
+.wa-bubble-surface-out *::-moz-selection {
+    background: color-mix(in srgb, var(--wa-message-accent, var(--wa-accent)) 75%, var(--wa-bubble-out));
+    color: var(--wa-bubble-text-out, var(--wa-bubble-text));
+}
+
+button:focus,
+input:focus,
+textarea:focus {
+    outline: none;
+}
+
+.ai-workspace__composer-input:focus,
+.ai-workspace__composer-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/*
+ * Голосовые сообщения в чате (ChatMessage.vue) — глобально, чтобы стили не зависели
+ * только от CSS-чанка компонента (иначе при кэше/порядке загрузки «ничего не меняется»).
+ */
+.wa-voice-shell {
+    color: inherit;
+    position: relative;
+    z-index: 0;
+}
+
+/* Движок воспроизведения без нативного chrome (clip:rect устарел и не всегда скрывает <audio>). */
+audio.wa-voice-audio-engine {
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+    clip-path: inset(50%) !important;
+}
+
+/* Clickable @mentions inside message bubbles */
+button.wa-mention-link {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--wa-accent);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+}
+button.wa-mention-link:hover {
+    text-decoration: underline;
+}
+
+/* Clickable links inside message bubbles (rendered via waMarkup.ts linkify) */
+a.wa-link {
+    color: var(--wa-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    word-break: break-word;
+}
+[data-theme='light'] a.wa-link,
+[data-theme='light'] button.wa-mention-link {
+    color: var(--wa-chroma-accent-fg);
+}
+a.wa-link:hover {
+    filter: brightness(1.08);
+}
+.wa-voice-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+}
+.wa-voice-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+}
+.wa-voice-avatar-wrap:has(.wa-voice-speed-cluster) {
+    height: auto;
+    min-height: 36px;
+    align-self: center;
+}
+.wa-voice-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    user-select: none;
+}
+.wa-voice-avatar-mic {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 15px;
+    height: 15px;
+    border-radius: 9999px;
+    background: var(--wa-accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 2px var(--wa-bubble-out);
+    pointer-events: none;
+}
+.wa-msg-bubble-in .wa-voice-avatar-mic,
+.wa-voice-avatar-mic--in {
+    box-shadow: 0 0 0 2px var(--wa-bubble-in);
+}
+.wa-voice-avatar-mic-svg {
+    width: 9px;
+    height: 9px;
+}
+.wa-msg-bubble-out .wa-voice-avatar--op {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+.wa-msg-bubble-in .wa-voice-avatar--in {
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--wa-bubble-text);
+}
+.wa-voice-avatar--img {
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.wa-msg-bubble-in .wa-voice-avatar--img {
+    border-color: rgba(0, 0, 0, 0.08);
+}
+.wa-voice-play {
+    width: 34px;
+    height: 34px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    transition: background-color 0.12s ease, transform 0.08s ease;
+}
+.wa-msg-bubble-out .wa-voice-play {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+.wa-msg-bubble-out .wa-voice-play:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+.wa-msg-bubble-in .wa-voice-play {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--wa-bubble-text);
+}
+.wa-msg-bubble-in .wa-voice-play:hover {
+    background: rgba(0, 0, 0, 0.12);
+}
+.wa-voice-play--disabled {
+    cursor: default;
+    opacity: 0.65;
+}
+.wa-voice-play-icon {
+    width: 18px;
+    height: 18px;
+    margin-left: 2px;
+}
+/* Колонка: дорожка + время под ней (как в Telegram) */
+.wa-voice-wave-column {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    align-items: stretch;
+    gap: 0;
+}
+.wa-voice-wave-area {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+}
+.wa-voice-wave-track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+}
+.wa-voice-wave-track .wa-voice-wave {
+    width: 100%;
+    height: 100%;
+}
+.wa-voice-wave-track .wa-voice-playhead {
+    position: absolute;
+    z-index: 2;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: grab;
+    will-change: left;
+}
+.wa-voice-wave-track .wa-voice-playhead:active {
+    cursor: grabbing;
+}
+.wa-voice-playhead {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    background: #75bde0;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+.wa-voice-wave {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    overflow: hidden;
+}
+/* Исходящие: непройдено — приглушено, пройдено (слева от точки) — ярко, как в Telegram */
+.wa-msg-bubble-out .wa-voice-wave {
+    color: rgba(255, 255, 255, 0.92);
+}
+.wa-msg-bubble-out .wa-voice-wave .wa-voice-bar {
+    opacity: 0.22;
+    transition: opacity 0.28s ease;
+}
+.wa-msg-bubble-out .wa-voice-wave .wa-voice-bar--played {
+    opacity: 1;
+}
+/* На паузе / до старта — «мертвая» ровная волна */
+.wa-msg-bubble-out .wa-voice-wave:not(.wa-voice-wave--alive) .wa-voice-bar {
+    opacity: 0.14 !important;
+}
+.wa-msg-bubble-out .wa-voice-wave.wa-voice-wave--alive .wa-voice-bar {
+    transition: opacity 0.12s ease;
+}
+/* Входящие */
+.wa-msg-bubble-in .wa-voice-wave {
+    color: rgba(17, 27, 33, 0.75);
+}
+.wa-msg-bubble-in .wa-voice-wave .wa-voice-bar {
+    opacity: 0.22;
+    transition: opacity 0.28s ease;
+}
+.wa-msg-bubble-in .wa-voice-wave .wa-voice-bar--played {
+    opacity: 0.92;
+}
+.wa-msg-bubble-in .wa-voice-wave:not(.wa-voice-wave--alive) .wa-voice-bar {
+    opacity: 0.12 !important;
+}
+.wa-msg-bubble-in .wa-voice-wave.wa-voice-wave--alive .wa-voice-bar {
+    transition: opacity 0.12s ease;
+}
+.wa-voice-bar {
+    width: 2px;
+    flex-shrink: 0;
+    border-radius: 1px;
+    align-self: center;
+    background: currentColor;
+}
+.wa-voice-bar--muted {
+    opacity: 0.28;
+}
+
+/* Кнопка скорости — тёмная пилюля как в Telegram */
+.wa-voice-speed-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    width: 100%;
+    min-height: 36px;
+}
+.wa-voice-speed-btn {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 7px 10px;
+    border-radius: 9999px;
+    border: none;
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    transition: background-color 0.12s ease, transform 0.08s ease;
+}
+.wa-msg-bubble-out .wa-voice-speed-btn {
+    background: rgba(0, 0, 0, 0.32);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.wa-msg-bubble-out .wa-voice-speed-btn:hover {
+    background: rgba(0, 0, 0, 0.42);
+}
+.wa-msg-bubble-out .wa-voice-speed-btn--active {
+    background: rgba(0, 0, 0, 0.45);
+}
+.wa-msg-bubble-in .wa-voice-speed-btn {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--wa-bubble-text);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.wa-msg-bubble-in .wa-voice-speed-btn:hover {
+    background: rgba(0, 0, 0, 0.16);
+}
+.wa-msg-bubble-in .wa-voice-speed-btn--active {
+    background: rgba(0, 0, 0, 0.14);
+}
+.wa-voice-time {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    opacity: 0.92;
+}
+.wa-voice-time-below {
+    margin-top: 2px;
+    align-self: flex-start;
+    line-height: 1.2;
+    font-size: 12px;
+    font-weight: 500;
+}
+.wa-msg-bubble-out .wa-voice-time-below {
+    color: rgba(255, 255, 255, 0.92);
+}
+.wa-msg-bubble-in .wa-voice-time-below {
+    color: rgba(17, 27, 33, 0.75);
+}
+.wa-voice-time--dim {
+    opacity: 0.55;
+}
+.wa-voice-fallback-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.35;
+    opacity: 0.65;
+}
+.wa-ack-ticks {
+    line-height: 0;
+    transform: translateY(1px);
+}
+
+/* Custom checkbox (UiCheckbox + legacy .kb-checkbox) */
+.ui-checkbox {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+}
+
+.ui-checkbox-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ui-checkbox-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.ui-checkbox-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--wa-control-rim, var(--ui-border-strong, var(--wa-border-strong)));
+    background: var(--wa-control-surface, var(--ui-surface, var(--wa-panel)));
+    box-shadow: var(--wa-control-rim-shadow, none);
+    color: var(--ui-accent-on, #111b21);
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.12s ease;
+}
+
+.ui-checkbox-sm .ui-checkbox-box {
+    width: 0.9375rem;
+    height: 0.9375rem;
+    border-radius: 0.3125rem;
+}
+
+.ui-checkbox-icon {
+    width: 0.75rem;
+    height: 0.75rem;
+    opacity: 0;
+    transform: scale(0.65);
+    transition:
+        opacity 0.12s ease,
+        transform 0.12s ease;
+}
+
+.ui-checkbox-sm .ui-checkbox-icon {
+    width: 0.625rem;
+    height: 0.625rem;
+}
+
+.ui-checkbox:hover:not(.ui-checkbox-disabled) .ui-checkbox-box {
+    border-color: var(--wa-control-rim-hover, color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 45%, var(--ui-border-strong, var(--wa-border-strong))));
+    box-shadow: var(--wa-control-rim-shadow-hover, none);
+    background: color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 8%, var(--wa-control-surface, var(--ui-surface, var(--wa-panel))));
+}
+
+.ui-checkbox-checked .ui-checkbox-box {
+    background: var(--ui-accent, var(--wa-accent));
+    border-color: var(--ui-accent, var(--wa-accent));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 18%, transparent);
+}
+
+.ui-checkbox.ui-checkbox-checked:hover:not(.ui-checkbox-disabled) .ui-checkbox-box {
+    background: var(--ui-accent, var(--wa-accent));
+    border-color: var(--ui-accent, var(--wa-accent));
+}
+
+.ui-checkbox.ui-checkbox-checked .ui-checkbox-icon,
+.ui-checkbox-checked .ui-checkbox-icon {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.ui-checkbox-native:focus-visible + .ui-checkbox-box {
+    outline: 2px solid color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 55%, transparent);
+    outline-offset: 2px;
+}
+
+.ui-checkbox-native:active:not(:disabled) + .ui-checkbox-box {
+    transform: scale(0.94);
+}
+
+/* Plain inputs with legacy class names */
+input[type='checkbox'].kb-checkbox,
+input[type='checkbox'].ui-checkbox-legacy {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+    border: 1px solid var(--wa-control-rim, var(--ui-border-strong, var(--wa-border-strong)));
+    background: var(--wa-control-surface, var(--ui-surface, var(--wa-panel)));
+    box-shadow: var(--wa-control-rim-shadow, none);
+    cursor: pointer;
+    vertical-align: middle;
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+input[type='checkbox'].kb-checkbox:hover:not(:disabled),
+input[type='checkbox'].ui-checkbox-legacy:hover:not(:disabled) {
+    border-color: var(--wa-control-rim-hover, var(--ui-border-strong, var(--wa-border-strong)));
+    box-shadow: var(--wa-control-rim-shadow-hover, none);
+}
+
+input[type='checkbox'].kb-checkbox:checked,
+input[type='checkbox'].ui-checkbox-legacy:checked {
+    background-color: var(--ui-accent, var(--wa-accent));
+    border-color: var(--ui-accent, var(--wa-accent));
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23111b21' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.2 6.4 11 12.5 5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0.75rem;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 18%, transparent);
+}
+
+input[type='checkbox'].kb-checkbox:focus-visible,
+input[type='checkbox'].ui-checkbox-legacy:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ui-accent, var(--wa-accent)) 55%, transparent);
+    outline-offset: 2px;
+}
