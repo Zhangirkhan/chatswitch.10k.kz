@@ -64,7 +64,7 @@ final class SettingsReadinessMiddlewareTest extends TestCase
             ->assertOk();
     }
 
-    public function test_admin_redirected_from_funnels_when_ai_not_ready(): void
+    public function test_admin_can_open_funnels_when_ai_not_ready(): void
     {
         $this->withoutVite();
 
@@ -73,6 +73,30 @@ final class SettingsReadinessMiddlewareTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('settings.funnels'))
+            ->assertOk();
+    }
+
+    public function test_admin_can_open_knowledge_when_ai_not_ready(): void
+    {
+        $this->withoutVite();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->get(route('settings.knowledge.rules'))
+            ->assertOk();
+    }
+
+    public function test_admin_redirected_from_ai_quality_when_ai_not_ready(): void
+    {
+        $this->withoutVite();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->get(route('settings.ai-quality'))
             ->assertRedirect(route('settings.onboarding'));
     }
 

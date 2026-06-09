@@ -297,9 +297,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/system', [SettingsController::class, 'index'])->name('settings.system');
         Route::post('/system', [SettingsController::class, 'update'])->name('settings.system.update');
         Route::post('/system/modules', [SettingsController::class, 'updateModules'])->name('settings.system.modules.update');
-    });
 
-    Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
+        // Воронки и база знаний — шаги онбординга; доступны до достижения readiness,
+        // иначе после удаления воронки админ не сможет создать новую.
         Route::get('/funnels', [FunnelController::class, 'index'])->name('settings.funnels');
         Route::post('/funnels/ai-suggest', [FunnelController::class, 'aiSuggest'])->name('settings.funnels.ai-suggest');
         Route::post('/funnels/ai-onboarding-suggest', [FunnelController::class, 'aiOnboardingSuggest'])->name('settings.funnels.ai-onboarding-suggest');
@@ -314,13 +314,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::delete('/funnels/{funnel}/stages/{stage}', [FunnelController::class, 'destroyStage'])->name('settings.funnels.stages.destroy');
         Route::post('/funnels/{funnel}/stages/reorder', [FunnelController::class, 'reorderStages'])->name('settings.funnels.stages.reorder');
 
-        Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
-        Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
-        Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');
-        Route::post('/tone-profile/reanalyze', [ToneProfileController::class, 'reanalyze'])->name('settings.tone-profile.reanalyze');
-        Route::post('/ai-quality/simulate', [AiInsightsController::class, 'simulate'])
-            ->middleware('throttle:20,1')
-            ->name('settings.ai-quality.simulate');
         Route::get('/knowledge/prompt-preview', [KnowledgeBaseController::class, 'promptPreview'])->name('settings.knowledge.prompt-preview');
         Route::get('/knowledge/catalog-audit', [KnowledgeBaseController::class, 'catalogAudit'])->name('settings.knowledge.catalog-audit');
         Route::get('/knowledge/rag-status', [KnowledgeBaseController::class, 'ragStatus'])->name('settings.knowledge.rag-status');
@@ -341,6 +334,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/knowledge/rules/bulk-prompt', [KnowledgeBaseController::class, 'bulkRulesPrompt'])->name('settings.knowledge.rules.bulk-prompt');
         Route::put('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'updateRule'])->name('settings.knowledge.rules.update');
         Route::delete('/knowledge/rules/{rule}', [KnowledgeBaseController::class, 'destroyRule'])->name('settings.knowledge.rules.destroy');
+    });
+
+    Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
+        Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
+        Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
+        Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');
+        Route::post('/tone-profile/reanalyze', [ToneProfileController::class, 'reanalyze'])->name('settings.tone-profile.reanalyze');
+        Route::post('/ai-quality/simulate', [AiInsightsController::class, 'simulate'])
+            ->middleware('throttle:20,1')
+            ->name('settings.ai-quality.simulate');
 
         Route::get('/promotions', [PromotionController::class, 'index'])->name('settings.promotions');
         Route::post('/promotions', [PromotionController::class, 'store'])->name('settings.promotions.store');
