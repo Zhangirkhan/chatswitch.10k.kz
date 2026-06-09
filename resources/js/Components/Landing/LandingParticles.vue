@@ -3,7 +3,7 @@
  * WebGL particles background — adapted from Vue Bits (MIT)
  * https://vue-bits.dev/backgrounds/particles
  */
-import { nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import { Camera, Geometry, Mesh, Program, Renderer } from 'ogl';
 
 interface ParticlesProps {
@@ -166,6 +166,14 @@ function handleHeroMouseLeave(): void {
     targetMouse = { x: 0, y: 0 };
 }
 
+function revealCanvas(): void {
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            canvasReady.value = true;
+        });
+    });
+}
+
 function initParticles(): void {
     const container = containerRef.value;
     if (!container || prefersReducedMotion.value) {
@@ -271,11 +279,10 @@ function initParticles(): void {
 
     if (renderer && camera && particles) {
         renderer.render({ scene: particles, camera });
+        renderer.render({ scene: particles, camera });
     }
 
-    requestAnimationFrame(() => {
-        canvasReady.value = true;
-    });
+    revealCanvas();
 
     lastTime = performance.now();
     elapsed = 0;
@@ -373,20 +380,16 @@ onMounted(async () => {
     prefersReducedMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     hoverCapable.value = window.matchMedia('(hover: hover)').matches;
     await nextTick();
-    boot();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            boot();
+        });
+    });
 });
 
 onUnmounted(() => {
     cleanup();
 });
-
-watch(
-    () => [props.particleCount, props.particleColors],
-    () => {
-        boot();
-    },
-    { deep: true },
-);
 </script>
 
 <template>
@@ -406,11 +409,15 @@ watch(
     inset: 0;
     width: 100%;
     height: 100%;
-    background: transparent;
+    visibility: hidden;
 }
 
 .landing-particles--static {
     display: none;
+}
+
+.landing-particles--ready {
+    visibility: visible;
 }
 
 :deep(canvas) {
@@ -420,11 +427,5 @@ watch(
     height: 100%;
     pointer-events: none;
     background: transparent;
-    opacity: 0;
-    transition: opacity 0.35s ease;
-}
-
-.landing-particles--ready :deep(canvas) {
-    opacity: 1;
 }
 </style>

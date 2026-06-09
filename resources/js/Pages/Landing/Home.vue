@@ -50,7 +50,9 @@ const pricingBullets = computed(() => [
     t('landing.pricingBullet5'),
 ]);
 
-const isMobileViewport = ref(false);
+const isMobileViewport = ref(
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
+);
 
 const heroParticleCount = computed(() => (isMobileViewport.value ? 150 : 300));
 
@@ -666,13 +668,26 @@ onUnmounted(() => {
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
-    background-color: #000;
     background:
         radial-gradient(ellipse 52% 48% at 44% 45%, rgba(1, 185, 100, 0.14) 0%, rgba(1, 185, 100, 0.04) 38%, transparent 58%),
         radial-gradient(ellipse 68% 62% at 50% 50%, rgba(24, 38, 46, 0.65) 0%, rgba(0, 0, 0, 0.92) 100%),
         radial-gradient(ellipse 38% 42% at 68% 50%, rgba(0, 0, 0, 0.28) 0%, transparent 72%);
-    -webkit-mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
-    mask-image: radial-gradient(ellipse 58% 54% at 50% 50%, #000 32%, transparent 100%);
+}
+
+.landing__hero-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(
+        ellipse 58% 54% at 50% 50%,
+        transparent 36%,
+        rgba(0, 0, 0, 0.22) 54%,
+        rgba(0, 0, 0, 0.68) 72%,
+        rgba(0, 0, 0, 0.94) 88%,
+        #000 100%
+    );
 }
 
 .landing__hero-copy {
