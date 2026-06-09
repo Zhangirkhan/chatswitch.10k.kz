@@ -517,7 +517,7 @@ onMounted(() => {
 
 <style scoped>
 .landing {
-    --landing-bg: #111b21;
+    --landing-bg: #000;
     --landing-surface: #1d1f1f;
     --landing-surface-raised: #232626;
     --landing-border: rgba(134, 150, 160, 0.18);

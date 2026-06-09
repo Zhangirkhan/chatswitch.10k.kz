@@ -208,7 +208,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
     position: absolute;
     z-index: 1;
     overflow: hidden;
-    background: #0b141a;
+    background: #000;
     pointer-events: none;
 }
 
