@@ -8,6 +8,8 @@ use App\Models\Company;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsappSession;
+use Spatie\Permission\PermissionRegistrar;
+
 final class CompanyUsersService
 {
     /**
@@ -18,6 +20,25 @@ final class CompanyUsersService
      * }
      */
     public function payloadForCompany(Company $company): array
+    {
+        $previousTeamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+        setPermissionsTeamId($company->id);
+
+        try {
+            return $this->buildPayload($company);
+        } finally {
+            setPermissionsTeamId($previousTeamId);
+        }
+    }
+
+    /**
+     * @return array{
+     *     users: list<array<string, mixed>>,
+     *     departments: list<array<string, mixed>>,
+     *     whatsapp_sessions: list<array<string, mixed>>
+     * }
+     */
+    private function buildPayload(Company $company): array
     {
         $users = User::query()
             ->withoutGlobalScope('tenant')

@@ -7,6 +7,7 @@ namespace App\Services\SuperAdmin;
 use App\Models\Company;
 use App\Models\User;
 use App\Tenancy\TenantContext;
+use Spatie\Permission\PermissionRegistrar;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -42,18 +43,20 @@ final class TenantImpersonationService
                 ->where('is_active', true)
                 ->first();
 
-            if ($owner !== null && $owner->hasRole('administrator')) {
+            if ($owner !== null && $this->withCompanyTeam($company, static fn () => $owner->hasRole('administrator'))) {
                 return $owner;
             }
         }
 
-        return User::query()
-            ->withoutGlobalScope('tenant')
-            ->where('company_id', $company->id)
-            ->where('is_active', true)
-            ->whereHas('roles', fn ($q) => $q->where('name', 'administrator'))
-            ->orderBy('id')
-            ->first();
+        return $this->withCompanyTeam($company, static function () use ($company): ?User {
+            return User::query()
+                ->withoutGlobalScope('tenant')
+                ->where('company_id', $company->id)
+                ->where('is_active', true)
+                ->whereHas('roles', fn ($q) => $q->where('name', 'administrator'))
+                ->orderBy('id')
+                ->first();
+        });
     }
 
     public function canImpersonate(Company $company): bool
@@ -144,7 +147,7 @@ final class TenantImpersonationService
             ->where('is_active', true)
             ->first();
 
-        if ($targetUser === null || ! $targetUser->hasRole('administrator')) {
+        if ($targetUser === null || ! $this->withCompanyTeam($company, static fn () => $targetUser->hasRole('administrator'))) {
             abort(403, 'Пользователь для входа недоступен.');
         }
 

@@ -57,7 +57,7 @@ final class GenerateAiReplyJob implements ShouldQueue
             return;
         }
 
-        if ($this->conflictService->isAiPausedForConflict($chat)) {
+        if ($conflictService->isAiPausedForConflict($chat)) {
             return;
         }
 

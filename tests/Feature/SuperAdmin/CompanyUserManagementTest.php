@@ -105,6 +105,10 @@ final class CompanyUserManagementTest extends TestCase
         setPermissionsTeamId($company->id);
         $this->assertTrue($employee->fresh()->hasRole('administrator'));
         $this->assertFalse($employee->fresh()->hasRole('employee'));
+
+        $payload = app(\App\Services\SuperAdmin\CompanyUsersService::class)->payloadForCompany($company);
+        $updated = collect($payload['users'])->firstWhere('id', $employee->id);
+        $this->assertSame('administrator', $updated['roles'][0]['name'] ?? null);
     }
 
     public function test_administrator_requires_email_on_create(): void
