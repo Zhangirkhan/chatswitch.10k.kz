@@ -10,27 +10,20 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Для администратора: не пускать в разделы настроек, пока AI не готов,
- * кроме онбординга и подключения WhatsApp.
+ * Для администратора: не пускать в прочие разделы настроек, пока AI не готов.
+ * Во время онбординга доступны маршруты шагов чеклиста (воронки, сотрудники и т.д.).
  */
 final class EnsureSettingsReadiness
 {
     /** @var list<string> */
-    private const ALLOWED_ROUTE_NAMES = [
+    private const ONBOARDING_ROUTE_PREFIXES = [
         'settings.onboarding',
-        'settings.onboarding.complete',
-        'settings.onboarding.roles',
         'settings.connections',
-        'settings.connections.bootstrap',
-        'settings.connections.store',
-        'settings.connections.update',
-        'settings.connections.initialize',
-        'settings.connections.qr',
-        'settings.connections.diagnostics',
-        'settings.connections.status',
-        'settings.connections.verify',
-        'settings.connections.logout',
-        'settings.connections.destroy',
+        'settings.users',
+        'settings.departments',
+        'settings.funnels',
+        'settings.knowledge',
+        'settings.ai-quality',
     ];
 
     public function __construct(
@@ -49,7 +42,7 @@ final class EnsureSettingsReadiness
         }
 
         $routeName = $request->route()?->getName();
-        if ($routeName !== null && in_array($routeName, self::ALLOWED_ROUTE_NAMES, true)) {
+        if ($this->isOnboardingRoute($routeName)) {
             return $next($request);
         }
 
@@ -69,5 +62,20 @@ final class EnsureSettingsReadiness
         return redirect()
             ->route('settings.onboarding')
             ->with('warning', 'Завершите настройку компании в онбординге, прежде чем открывать другие разделы.');
+    }
+
+    private function isOnboardingRoute(?string $routeName): bool
+    {
+        if ($routeName === null) {
+            return false;
+        }
+
+        foreach (self::ONBOARDING_ROUTE_PREFIXES as $prefix) {
+            if (str_starts_with($routeName, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
