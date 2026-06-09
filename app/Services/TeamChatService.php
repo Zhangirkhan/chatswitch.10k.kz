@@ -13,6 +13,7 @@ use App\Models\TeamMessage;
 use App\Models\TeamMessageAttachment;
 use App\Models\TeamMessageMention;
 use App\Models\User;
+use App\Services\Push\MobilePushService;
 use App\Support\SharedMessageQuote;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -184,7 +185,7 @@ final class TeamChatService
             ])->save();
 
             DB::afterCommit(function () use ($message): void {
-                broadcast(new TeamMessageReceived($message));
+                $this->afterTeamMessageBroadcast($message);
             });
 
             return new TeamChatSendResult($message, false);
@@ -300,7 +301,7 @@ final class TeamChatService
             ])->save();
 
             DB::afterCommit(function () use ($message): void {
-                broadcast(new TeamMessageReceived($message));
+                $this->afterTeamMessageBroadcast($message);
             });
 
             return new TeamChatSendResult($message, false);
@@ -380,7 +381,7 @@ final class TeamChatService
             ])->save();
 
             DB::afterCommit(function () use ($message): void {
-                broadcast(new TeamMessageReceived($message));
+                $this->afterTeamMessageBroadcast($message);
             });
 
             return new TeamChatSendResult($message, false);
@@ -642,5 +643,11 @@ final class TeamChatService
         }
 
         return 'Чат';
+    }
+
+    private function afterTeamMessageBroadcast(TeamMessage $message): void
+    {
+        broadcast(new TeamMessageReceived($message));
+        app(MobilePushService::class)->notifyTeamMessage($message);
     }
 }

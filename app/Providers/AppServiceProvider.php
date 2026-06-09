@@ -62,6 +62,10 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(30)->by($request->ip());
         });
 
+        RateLimiter::for('device-register', function (Request $request): Limit {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }

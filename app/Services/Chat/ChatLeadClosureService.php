@@ -7,6 +7,7 @@ namespace App\Services\Chat;
 use App\Events\ChatsListNotify;
 use App\Models\Chat;
 use App\Support\ChatBroadcastAudience;
+use App\Services\Push\MobilePushService;
 use App\Support\SafeBroadcast;
 use Illuminate\Support\Carbon;
 
@@ -84,5 +85,7 @@ final class ChatLeadClosureService
                     : null,
             ],
         ), 'chat-lead-closure');
+
+        app(MobilePushService::class)->notifyLeadUpdate($chat, $kind, $recipientUserIds);
     }
 }

@@ -1,23 +1,93 @@
 # Что нужно от backend для Flutter mobile v1
 
-Документ для backend-команды и product: **какие API уже есть**, **чего не хватает**, и **что значит «после обновления API»** в мобильном приложении.
+Документ для backend-kоманды и product: **какие API уже есть**, **чего не хватает**, и **статус интеграции во Flutter**.
+
+**Последнее обновление:** 2026-06-09
 
 ---
 
-## Короткий ответ: «после обновления API» — это что?
+## Передать mobile-команде сейчас
 
-В чате сейчас кнопка AI с badge **«скоро»** и сообщение *«AI toggle будет доступен после обновления API»*.
+Краткий handoff (можно копировать в Slack/Telegram):
 
-Это **не** означает, что нужен отдельный новый сервер или новая архитектура.
+1. **AI-чипы (критично):** после `POST /api/v1/chats/{id}/ai/chat` в поле ввода и при отправке — **`reply_draft`**, не `reply`.  
+   `reply` — полный ответ AI («Лучше так:», кавычки, пояснение); `reply_draft` — только текст для клиента.  
+   Fallback: `reply_draft ?? reply` для старых backend.
 
-Это означает:
+2. **Inbox (backend готов):** `POST .../close|reopen`, `GET .../chats?filter=mine|favorites|auto_reply|closed`, `POST .../chats` `{contact_id}`, поля `is_lead_closed`, WS `chats.notify` → `lead_reopened`.
 
-1. **На вебе функция уже есть** — `PATCH /chats/{chat}/ai` (Inertia/session, `routes/tenant.php`).
-2. **В Mobile API v1 (`/api/v1/...`) этого маршрута нет** — его нет в `routes/api-tenant.php` и в `openapi/mobile-v1.yaml`.
-3. Flutter работает **только через Sanctum + `/api/v1/*`**, поэтому вызывать веб-маршрут из приложения нельзя.
-4. Нужно **добавить (пробросить) тот же endpoint в Mobile API** — с той же бизнес-логикой, что в [`ChatAiSettingsController`](../../app/Http/Controllers/ChatAiSettingsController.php).
+3. **Перевод черновика:** `POST .../translate-draft` — уже в mobile API; Flutter probe + chip.
 
-После этого мы **включим настоящий Switch** в шапке чата вместо заглушки. Изменения на Flutter — минимальные (1 экран).
+4. **Ещё ждёт backend (не блокирует релиз):** optional `brand_color`, realtime funnel/AI на `chat.{id}`.
+
+**Доки:** этот файл + [`CHAT_TRANSLATION_AND_AI_HINTS.md`](./CHAT_TRANSLATION_AND_AI_HINTS.md) + [`BACKEND_REQUESTS.md`](./BACKEND_REQUESTS.md).  
+**OpenAPI:** [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml) — `AiChatResponse.reply_draft`, `filter` на `GET /chats`.
+
+**Flutter (ожидается на клиенте):**
+
+```dart
+// AiService / чипы — только draft
+final draft = (res.data['reply_draft'] as String?)?.trim()
+    ?? (res.data['reply'] as String?)?.trim()
+    ?? '';
+textController.text = draft;
+```
+
+---
+
+## Accel Mobile (Flutter)
+
+Приложение: **Accel** (`accel_mobile`, bundle `com.accel.mobile`). Все запросы — Sanctum + `/api/v1/*` на `https://{slug}.accel.kz`.
+
+**AI toggle в шапке чата:** ✅ `PATCH /api/v1/chats/{id}/ai` + `Switch` (`ChatService.patchAiSettings`).
+
+---
+
+## Статус реализации Flutter (сводка)
+
+| Область | Flutter | Backend / QA |
+|---------|---------|--------------|
+| Inbox: фильтры, close lead, FAB «Написать клиенту» | ✅ | ✅ API + WS `lead_reopened` |
+| AI toggle в шапке чата | ✅ Switch | ✅ `PATCH .../ai` |
+| AI-чипы (Ответить, Улучшить, …) | ✅ `reply_draft` в поле ввода | ✅ `AiChatResponse.reply_draft` |
+| AI-панель (bottom sheet) | ✅ показ `reply`, вставка `reply_draft` | ✅ |
+| Перевод inbound | ✅ + кеш prefs | ✅ |
+| Перевод черновика (чип «Перевести») | ✅ probe + chip | ✅ `POST .../translate-draft` |
+| Подпись отправителя в пузырях (outbound) | ✅ `Message.displaySenderLabel` | ✅ `sender_name` + `sender` в API/WS — §2c |
+| Полоска воронки в чате | ✅ из `GET /chats/{id}` | ✅ |
+| Вкладка «Клиенты» (CRM list + detail с табами) | ✅ | ✅ contacts API |
+| Рассылки: wizard + история | ✅ `GET /broadcasts` (+ local fallback) | ✅ |
+| `brand_color` tenant | ✅ fallback `AppColors.primary` | ⚠️ optional в `GET /settings` |
+| Staff picker для рассылок (admin) | ❌ шлёт от self | ❌ `GET /users` |
+| Org tasks | ⚠️ web-fallback | ❌ REST v2 |
+| CRM file upload | ❌ сообщение «только веб» | ❌ multipart v2 |
+
+Подробнее по переводу и AI-чипам: [`CHAT_TRANSLATION_AND_AI_HINTS.md`](./CHAT_TRANSLATION_AND_AI_HINTS.md).
+
+---
+
+## Flutter готов — остаётся на backend
+
+**Смысл таблицы:** mobile-код уже сделан и выкатывается; без доработки **сервера** на demo часть UX будет пустой или деградирует до pull-to-refresh. Backend-команда — только пункты в колонке «Что нужно от backend».
+
+| # | Функция | Flutter (готово) | Backend (осталось) | Блокирует релиз? |
+|---|---------|------------------|--------------------|------------------|
+| 1 | **Подпись отправителя в исходящих пузырях** | `Message.displaySenderLabel`, `_buildSenderLabel` — text/image/file/voice | ✅ `OutboundSenderDisplayName` в API/WS + при создании outbound — §2c | — |
+| 2 | **Realtime funnel / AI в открытом чате** | Подписка на `chat.{chatId}`; полоска воронки из `GET /chats/{id}` | Broadcast смены `funnel_stage_id`, `ai_enabled` на канал чата — §7 | Нет — refresh работает |
+| 3 | **Realtime доска воронок** | Подписка на `funnel-board.{funnelId}` | Подтвердить события на demo — §7 | Нет |
+| 4 | **`brand_color` tenant** | `AppConfigProvider.brandColor` → `ThemeData.primary`; fallback green | Опционально: hex в `GET /settings` — §1b | Нет |
+| 5 | **Sample JSON для QA** | Парсинг envelope исправлен на клиенте | Примеры ответов demo tenant: board/data, calendar, ai-chat/query, contacts/profile — §A–D | QA / отладка |
+| 6 | **OpenAPI** | Клиент не зависит от спеки | Дописать schemas: funnel fields в Chat, outbound `sender_name` — §OpenAPI | Нет |
+
+**Уже закрыто с обеих сторон (не в таблице выше):** inbox close/filter/create, AI toggle, AI chips + `reply_draft`, translate inbound/draft, broadcasts list, funnel strip, CRM clients, calendar, AI workspace, outbound `sender_name`.
+
+**Не «ждём backend» — v2 / отдельные эпики (Flutter тоже не готов):**
+
+| Функция | Flutter | Backend |
+|---------|---------|---------|
+| Staff picker рассылок (admin) | ❌ шлёт от `auth.user.id` | ❌ `GET /users` |
+| Org tasks | ⚠️ web-scrape fallback | ❌ REST |
+| CRM file upload | ❌ «только веб-CRM» | ❌ multipart |
 
 ---
 
@@ -26,87 +96,84 @@
 | Функция | Mobile API сейчас | Статус | Что нужно |
 |---------|-------------------|--------|-----------|
 | Вход email/password | `POST /api/v1/auth/login` | ✅ OK | — |
+| Workspace resolve | `GET /api/v1/workspace` | ✅ OK | Mobile принимает `{ slug, name }` без `id`; желательно добавить `id`, `is_active` |
 | Вход PIN | `POST /api/v1/auth/login/pin` | ✅ OK | — |
 | Модули tenant | `GET /api/v1/settings` → `modules` | ✅ OK | — |
-| Список чатов | `GET /api/v1/chats` | ✅ OK | Расширить `ChatResource` (см. ниже) |
-| Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | — |
-| AI-панель в чате (подсказки оператору) | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | Не путать с toggle |
-| Перевод черновика («Перевести») | `POST /api/v1/chats/{id}/translate-draft` | ✅ OK | — |
-| Перевод входящего | `POST /api/v1/messages/{id}/translate` | ✅ OK | — |
-| **AI toggle auto/manual** | ✅ `PATCH /api/v1/chats/{id}/ai` | OK | — |
+| **Акцент tenant (brand)** | `GET /api/v1/settings` → `brand_color` | ⚠️ optional | Hex `#RRGGBB`; Flutter fallback `AppColors.primary` |
+| Список чатов | `GET /api/v1/chats` | ✅ OK | `filter` query — server-side (§2b) |
+| **Закрытие лида** | `POST /api/v1/chats/{id}/close` | ✅ OK | `is_lead_closed`, `lead_closed_at` в ChatResource |
+| **Фильтры inbox** | `GET /api/v1/chats?filter=...` | ✅ OK | `mine`, `favorites`, `auto_reply`, `closed` |
+| **Создание чата** | `POST /api/v1/chats` | ✅ OK | `{contact_id, whatsapp_session_id?}` |
+| Сообщения, read, assign | `chats/*`, `messages/*` | ✅ OK | outbound `sender_name` / `sender` — §2c |
+| **Подпись отправителя (UI)** | — | ✅ Flutter | ✅ Backend: `sender_name` / `sender` — §2c |
+| AI-панель / чипы в чате | `POST /api/v1/chats/{id}/ai/chat` | ✅ OK | `reply_draft` для composer — § CHAT doc |
+| Перевод входящего | `POST /api/v1/messages/{id}/translate` | ✅ OK | Flutter: `MessageService.translate` |
+| **Перевод черновика** | `POST /api/v1/chats/{id}/translate-draft` | ✅ OK | Flutter: `DraftTranslationService` + probe |
+| **AI toggle auto/manual** | `PATCH /api/v1/chats/{id}/ai` | ✅ OK | Flutter: Switch в AppBar |
 | Воронка: доска, карточки, PATCH | `funnels/board/*`, `PATCH chats/{id}/funnel` | ✅ OK | — |
-| Полоска воронки в чате | ✅ `GET /api/v1/chats/{id}` | OK | `funnel`, `funnel_stage`, `funnel_progress` в ChatResource |
-| CRM профиль клиента | `GET /contacts/{id}/profile`, `summary` | ✅ OK | — |
-| Рассылки: preview + start + status | `POST preview`, `POST`, `GET {id}` | ✅ OK | — |
-| **История рассылок** | ✅ `GET /api/v1/broadcasts` | OK | пагинация `page` / `per_page` |
-| AI workspace tab | `POST /api/v1/ai-chat/query` | ✅ OK | опционально `contacts[]` в ответе |
+| Полоска воронки в чате | `GET /api/v1/chats/{id}` | ✅ OK | `funnel`, `funnel_stage`, `funnel_progress` |
+| CRM профиль клиента | `GET /contacts/{id}/profile`, `summary` | ✅ OK | Flutter: табы в `ClientDetailPage` |
+| Рассылки | preview, store, list, status | ✅ OK | Flutter: `BroadcastService.listCampaigns` |
+| AI workspace tab | `POST /api/v1/ai-chat/query` | ✅ OK | — |
 | Календарь CRUD | `GET/POST/PUT/DELETE /calendar/events` | ✅ OK | — |
 | Задачи организации | только веб | ⚠️ web-fallback | REST API для tasks (v2) |
 | Загрузка файлов в CRM fields | только веб | ⚠️ | multipart в mobile API (v2) |
 | Список staff для рассылок (admin) | ❌ нет | ⚠️ | `GET /api/v1/users` или аналог |
+| **Push-уведомления (Android FCM)** | ✅ клиент готов | ⚠️ API готов, нужен Firebase | `POST/DELETE /api/v1/devices` + FCM sender — см. [`PUSH_NOTIFICATIONS_BACKEND.md`](./PUSH_NOTIFICATIONS_BACKEND.md) |
 
 ---
 
-## Приоритет 1 — без этого UI остаётся заглушкой
+## Push-уведомления (Android FCM) — ⚠️ API готов, нужен Firebase
 
-### 1. `PATCH /api/v1/chats/{chat}/ai` — **новый маршрут в Mobile API**
+**Зачем:** Reverb работает только при живом приложении; push нужен в background / killed.
 
-**Зачем:** включить/выключить автоответ AI в шапке чата (как зелёная кнопка на вебе).
+**Mobile (готово):** `PushNotificationService`, `DeviceService`, регистрация после login, deep link в чат / team chat, учёт `NotificationPrefs`.
 
-**Откуда взять логику:** уже реализовано на вебе — [`ChatAiSettingsController::update`](../../app/Http/Controllers/ChatAiSettingsController.php), policy `manageAi`.
+**Backend (2026-06-09):** см. [`PUSH_NOTIFICATIONS_BACKEND.md`](./PUSH_NOTIFICATIONS_BACKEND.md):
 
-**Request (предложение, синхронизировать с вебом):**
+| # | Что | Статус |
+|---|-----|--------|
+| 1 | `POST /api/v1/devices` — upsert FCM token | ✅ |
+| 2 | `DELETE /api/v1/devices/{id}` / `POST .../unregister` | ✅ |
+| 3 | FCM data push: `client_message`, `team_message`, `chat_assigned`, `lead_closed`, `lead_reopened` | ✅ (при `FIREBASE_FCM_ENABLED=true`) |
+| 4 | Firebase project + `google-services.json` для `com.accel.mobile` | ❌ ops |
 
-```http
-PATCH /api/v1/chats/123/ai
-Authorization: Bearer {sanctum_token}
-Content-Type: application/json
+**Включение на сервере:** `.env` → `FIREBASE_FCM_ENABLED=true`, `FIREBASE_CREDENTIALS=/secure/path/firebase-sa.json`.
 
-{
-  "ai_enabled": true,
-  "ai_mode": "auto",
-  "confirm_risky_enable": false
-}
-```
+**Scope v1:** клиентские сообщения, team chat, назначения/lead. Звонки (`call_incoming`) — не в v1.
 
-| Поле | Тип | Описание |
-|------|-----|----------|
-| `ai_enabled` | bool | Включён ли автоответ |
-| `ai_mode` | string | `"auto"` \| `"draft"` (как на вебе) |
-| `confirm_risky_enable` | bool | Подтверждение при risky enable |
+**Блокер E2E:** без реального Firebase project + `google-services.json` уведомления не дойдут на устройство.
 
-**Response 200 (предложение):**
+---
 
-```json
-{
-  "data": {
-    "id": 123,
-    "ai_enabled": true,
-    "ai_mode": "auto",
-    "contact_id": 45,
-    "funnel_id": 2,
-    "funnel_stage_id": 7
-  },
-  "requires_confirmation": false,
-  "warnings": []
-}
-```
+## Приоритет 1 — backend follow-up
 
-**Response 422 (risky enable — нужна модалка):**
+### 1. `POST /api/v1/chats/{chat}/translate-draft` — ✅ Mobile API + Flutter
+
+**Зачем:** чип «Перевести» над полем ввода (исходящий черновик на язык клиента).
+
+**Backend:** ✅ `routes/api-tenant.php` → `ChatDraftTranslationController::translate`, `throttle:30,1`.
+
+**Flutter (готово):** `DraftTranslationService` + probe при открытии чата (`ChatTranslationPrefs`); при 404 чип скрыт; чип в `ChatComposerChips`.
+
+**Body:** `{ "text": "...", "lang": "kk" }` (lang optional). **Response 200:** `{ "translation", "target_lang", "unchanged" }`.
+
+---
+
+### 1b. `GET /api/v1/settings` → `brand_color` (tenant accent)
+
+**Зачем:** акцент приложения (кнопки, чипы, NavigationBar) под бренд tenant вместо дефолтного Accel green.
+
+**Flutter (готово):** `AppConfigProvider.brandColor` → `ThemeData.colorScheme.primary` через `AppTheme.light/dark(brandPrimary:)`. Fallback — `AppColors.primary`, если поле отсутствует.
 
 ```json
 {
-  "message": "Требуется подтверждение",
-  "requires_confirmation": true,
-  "warnings": ["Нет назначенного менеджера", "..."]
+  "modules": { "...": true },
+  "brand_color": "#2563EB"
 }
 ```
 
-**Права:** те же, что `manageAi` на вебе (admin — все чаты; manager/employee — назначенные).
-
-**Throttle:** как на вебе или 30/min.
-
-**После добавления на Flutter:** заменим Icon «скоро» на `Switch`, подключим PATCH, покажем `AppDialog` при `requires_confirmation`.
+Hex: `#RGB`, `#RRGGBB`, `#AARRGGBB`.
 
 ---
 
@@ -114,7 +181,7 @@ Content-Type: application/json
 
 **Зачем:** полоска воронки и AI badge в чате **без лишних запросов** к `GET /funnels/board/card/{chat}`.
 
-**Сейчас в mobile:** Flutter делает 2 запроса (чат + board card) — работает, но медленнее и хрупче.
+**Сейчас в mobile:** Flutter загружает полоску воронки одним `GET /api/v1/chats/{id}` (`ChatService.getChatDetail`). Если в ответе нет `funnel` / `funnel_stage` — полоска пустая; `GET /funnels/board/card/{chat}` не используется в экране чата.
 
 **Добавить в JSON чата** (как в Inertia `ChatFunnelStateService::inertiaExtras`):
 
@@ -148,23 +215,137 @@ Content-Type: application/json
 }
 ```
 
-**Также желательно** в `GET /api/v1/chats` (список inbox) — минимум `contact_id`, `funnel_stage_id` для badge в списке (можно v1.1).
+**Также желательно** в `GET /api/v1/chats` (список inbox) для **богатых карточек**:
 
-**После добавления на Flutter:** уберём fallback на `board/card`, полоска будет из одного запроса.
+| Поле | UI |
+|------|-----|
+| `funnel_stage` / `funnel_stage_id` + `name`, `color` | Badge стадии воронки |
+| `assignments[]` или `assignees[]` (`id`, `name`, `avatar_url`) | Строка ответственного |
+| `whatsapp_session_id` + `whatsapp_session` / `session_label` | Иконка и подпись WA |
+| `ai_enabled` | Индикатор AI в списке |
+| `contact_id` | Навигация в CRM |
+| `is_lead_closed` | Фильтр «Закрытые», меню «Закрыть лид» |
+| `lead_closed_at` | optional, сортировка закрытых |
+
+Минимум v1: `contact_id`, `funnel_stage_id` для badge (можно v1.1).
 
 ---
 
-### 3. `GET /api/v1/broadcasts` — список кампаний
+### 2b. Inbox: закрытие лида, фильтры, создание чата — ✅ backend готов
+
+**Backend (2026-06-05):**
+
+```http
+POST /api/v1/chats/{chat}/close
+Response 200: { "data": ChatResource с is_lead_closed: true, lead_closed_at: "..." }
+
+POST /api/v1/chats/{chat}/reopen
+Response 200: { "data": ChatResource с is_lead_closed: false }
+
+GET /api/v1/chats?filter=all|mine|favorites|auto_reply|closed&page=1&per_page=50
+
+POST /api/v1/chats
+Body: { "contact_id": 123, "whatsapp_session_id": 1? }
+Response 201: { "data": ChatResource }
+```
+
+**Reopen автоматически:** inbound от клиента → `is_lead_closed=false` + WS `chats.notify`:
+
+- `kind`: `lead_reopened` (или `lead_closed` при ручном close)
+- `extra.is_lead_closed`, `extra.lead_closed_at`
+
+**Flutter — ✅ выполнено (2026-06-02):**
+
+1. ~~Убрать заглушки~~ SnackBar-workaround для close / create chat убран.
+2. Inbox: server-side `filter` (`ChatService.getChatsPage`); client-side только offline-fallback.
+3. Close lead: локальный `Chat` обновляется из ответа `POST .../close`.
+4. WS inbox: `chats.notify` → `lead_closed` / `lead_reopened` в `ChatsProvider`.
+5. FAB «Написать клиенту»: `POST /chats` через `startChatWithContact`.
+6. Long-press меню на строке чата; фильтры **Все / Мои / Избранные / Автоответ / Закрытые**; иконка «Автоответ».
+
+**Код:** `ChatService.closeLead` / `reopenLead`, `getChatsPage(filter:)`, `chat_inbox_filter.dart`, `chat_actions_sheet.dart`, `new_client_chat_page.dart`.
+
+---
+
+### 2d. AI-чипы: `reply_draft` — ✅ backend + Flutter
+
+**Проблема:** AI возвращает структурированный ответ оператору («Лучше так:», текст в « », пояснение). Если подставлять `reply` в composer — клиенту уходит весь промпт.
+
+**Backend (2026-06-05):** `POST /api/v1/chats/{id}/ai/chat` → [`ChatAiAssistantController`](../../app/Http/Controllers/ChatAiAssistantController.php) + [`AssistantClientDraftExtractor`](../../app/Support/AssistantClientDraftExtractor.php).
+
+**Response 200:**
+
+```json
+{
+  "reply": "Лучше так:\n«Здравствуйте! ...»\nТак звучит спокойнее...",
+  "reply_draft": "Здравствуйте! ...",
+  "reply_intro": null,
+  "reply_variants": null,
+  "product": null
+}
+```
+
+| Поле | Куда во Flutter |
+|------|-----------------|
+| `reply_draft` | Поле ввода, отправка сообщения, «Вставить в ответ» |
+| `reply` | AI bottom sheet — полный текст для оператора |
+| `reply_variants[]` | Кнопки выбора варианта (если AI вернул «Вариант 1:») |
+| `product` | Опционально `product_id` при `POST .../messages` |
+
+**Flutter (готово):** `AiService.draftForComposer` → `reply_draft`; панель — `replyForPanel` → `reply`.
+
+Подробнее: [`CHAT_TRANSLATION_AND_AI_HINTS.md`](./CHAT_TRANSLATION_AND_AI_HINTS.md) §3.
+
+---
+
+### 2c. `MessageResource.sender_name` на исходящих (outbound) — ✅ backend
+
+**Зачем:** в WhatsApp и mobile клиент видит подпись внутри исходящего пузыря: **«Администратор ESL (Администратор)»**, **«Сани (AI)»**.
+
+**Backend (2026-06-05):** [`OutboundSenderDisplayName`](../../app/Support/OutboundSenderDisplayName.php) — при создании outbound, в `MessageResource`, WS `message.received`.
+
+**Контракт для `GET /api/v1/chats/{id}/messages` и WS `messages.*`:**
+
+| Поле | Направление | Значение |
+|------|-------------|----------|
+| `sender_name` | **все outbound** | `"Имя (Роль)"` для оператора/админа или `"Имя (AI)"` для автоответа — **паритет с WhatsApp push / веб-CRM** |
+| `sent_by_user_id` | outbound от пользователя | ID staff; `null` для AI |
+| `sender` | optional | `{ "id": 12, "name": "Сани", "role": "AI" }` — mobile соберёт `"Сани (AI)"` если `sender_name` пуст |
+| `metadata.sender_display_name` / `metadata.sender_label` | optional fallback | строка, если основное поле не заполнено |
+
+**Пример outbound в ленте:**
+
+```json
+{
+  "id": 9001,
+  "direction": "outbound",
+  "body": "Здравствуйте!",
+  "sender_name": "Администратор ESL (Администратор)",
+  "sent_by_user_id": 3
+}
+```
+
+```json
+{
+  "id": 9002,
+  "direction": "outbound",
+  "body": "Могу помочь с заказом.",
+  "sender_name": "Сани (AI)",
+  "sent_by_user_id": null
+}
+```
+
+**Inbound:** для 1:1 `sender_name` клиента не обязателен (mobile не показывает подпись); для **групповых** чатов — желательно для входящих от участников.
+
+**Flutter (готово):** `Message.displaySenderLabel` + `_buildSenderLabel` в `chat_screen.dart`.
+
+---
+
+### 3. `GET /api/v1/broadcasts` — ✅ Mobile API + Flutter
 
 **Зачем:** экран «Последние рассылки» вместо локального списка ID в `SharedPreferences`.
 
-**Сейчас есть только:**
-
-- `POST /api/v1/broadcasts/preview`
-- `POST /api/v1/broadcasts`
-- `GET /api/v1/broadcasts/{campaign}`
-
-**Нужно:**
+**Backend:** ✅ `BroadcastController::apiIndex` в `routes/api-tenant.php`.
 
 ```http
 GET /api/v1/broadcasts?page=1&per_page=20
@@ -192,7 +373,7 @@ GET /api/v1/broadcasts?page=1&per_page=20
 
 **Права:** administrator, manager (как store/preview).
 
-**После добавления на Flutter:** подключим list вместо SharedPreferences workaround.
+**После добавления на Flutter:** ✅ `BroadcastService.listCampaigns` → `GET /api/v1/broadcasts`; local SharedPreferences — fallback при 404/403.
 
 ---
 
@@ -253,12 +434,15 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 ## OpenAPI
 
-После добавления endpoints — обновить [`accel/openapi/mobile-v1.yaml`](./openapi/mobile-v1.yaml):
+После добавления endpoints — обновить [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml):
 
-- [ ] `PATCH /chats/{chat}/ai`
-- [ ] `GET /broadcasts`
-- [ ] поля funnel/ai в `Chat` schema
+- [x] `PATCH /chats/{chat}/ai`
+- [x] `GET /broadcasts`
+- [x] `POST /chats/{chat}/translate-draft`
+- [x] `AiChatResponse.reply_draft`
+- [ ] поля funnel/ai в `Chat` schema (частично)
 - [ ] (опционально) `GET /users`
+- [x] `MessageResource.sender_name` + `sender` — outbound (§2c)
 
 ---
 
@@ -378,7 +562,7 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 ### E. OpenAPI gaps (mobile парсит «вслепую»)
 
-Добавить schemas + examples в [`openapi/mobile-v1.yaml`](./openapi/mobile-v1.yaml):
+Добавить schemas + examples в [`openapi/mobile-v1.yaml`](../../openapi/mobile-v1.yaml):
 
 - [ ] `GET /funnels/board/data` + `GET /funnels/board/stage-cards`
 - [ ] `GET /funnels/active` (**новый**)
@@ -393,11 +577,60 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 - [x] **`PATCH /api/v1/chats/{id}/ai`** — `ChatAiSettingsController::updateForApi`, Sanctum auth
 - [x] **`ChatResource`** — funnel + ai поля в `GET /api/v1/chats/{id}`; в list — `funnel_stage` для badge
+- [x] **`AiChatResponse.reply_draft`** — `AssistantClientDraftExtractor` в `POST .../ai/chat`
 - [x] **`GET /api/v1/broadcasts`** — `BroadcastController::apiIndex`
-- [ ] **Realtime** — funnel/AI events на `chat.{chatId}` и board events на `funnel-board.{funnelId}`
+- [x] **`POST /api/v1/chats/{id}/close|reopen`** — `ChatLeadClosureService`, `is_lead_closed` / `lead_closed_at`
+- [x] **`GET /api/v1/chats?filter=...`** — server-side: `mine`, `favorites`, `auto_reply`, `closed`
+- [x] **`POST /api/v1/chats`** — создание/поиск диалога по `contact_id`
+- [x] **`contact_id` в ChatResource** — list + detail
+- [x] **WS lead reopen** — `ChatsListNotify` `kind: lead_reopened` на inbound
+- [ ] **Realtime** — funnel/AI events на `chat.{chatId}` и board events на `funnel-board.{funnelId}` (желательно payload: `chat_id`, `funnel_stage_id` для incremental merge без полного reload)
 - [x] **`GET /api/v1/funnels/active`** — `FunnelBoardController::active` (picker + first launch)
 - [ ] **Sample JSON** — board/data, calendar/events, ai-chat/query, contacts/profile (demo tenant)
-- [ ] **`contact_id` в ChatResource** — list + detail
+
+## Чеклист для Flutter
+
+### Inbox / CRM (2026-06-05)
+
+- [x] Убрать SnackBar-workaround для `closeLead` / `startChatWithContact`
+- [x] Inbox: server-side `filter` вместо client-side (кроме offline fallback)
+- [x] Обработать WS `chats.notify` → `lead_closed` / `lead_reopened`
+- [x] Парсить `is_lead_closed`, `lead_closed_at` в `Chat.fromJson`
+- [x] Long-press меню на строке чата; FAB «Написать клиенту»
+- [x] Вкладка shell «Клиенты» (CRM list); `ClientDetailPage` — секции как TabBar
+
+### Чат: перевод, AI, подписи (2026-06-02)
+
+- [x] AI toggle — `Switch` + `PATCH .../ai` (не заглушка «скоро»)
+- [x] AI-чипы: `ChatComposerChips` + `AiService.ask` → **`reply_draft`** в поле ввода (`draftForComposer`)
+- [x] AI-панель: показ полного `reply`; «Вставить в ответ» → `reply_draft`
+- [x] Inbound перевод: `MessageService.translate` + кеш `ChatTranslationPrefs`
+- [x] Чип «Перевести»: `DraftTranslationService` + probe endpoint
+- [x] `translate_enabled`, `clientLanguage` (`message_language.dart`)
+- [x] Подпись отправителя в пузырях: `Message.displaySenderLabel`, `_buildSenderLabel` (text/image/file/voice)
+- [x] Backend: `sender_name` / `sender` на outbound в API и WS
+
+### Push (Android FCM) — 2026-06-09
+
+- [x] `DeviceService` + `PushNotificationService` (FCM token → `POST /api/v1/devices`)
+- [x] Register после login / cold start; unregister при logout / 401
+- [x] Foreground + background handler; deep link в `ChatScreen` / `TeamChatScreen`
+- [x] Учёт `NotificationPrefs`; Android notification channels
+- [x] Экран настроек: статус push вместо баннера «в разработке»
+- [ ] E2E на устройстве после backend API + реальный `google-services.json`
+
+---
+
+## Безопасность клиента
+
+План и статус hardening Flutter: [`MOBILE_CLIENT_SECURITY.md`](./MOBILE_CLIENT_SECURITY.md).
+
+Кратко (клиент v1):
+- Sanctum token → `flutter_secure_storage` (Keychain / EncryptedSharedPreferences)
+- Глобальный 401/403 → logout + экран входа
+- Upload validation (размер, расширения)
+- Очистка локальных кэшей при logout / session expired
+- **Backend:** IDOR, policies, rate limits, `/broadcasting/auth` — см. §4 в security doc
 
 ---
 
@@ -405,11 +638,26 @@ Flutter уже подписан на каналы. Нужно подтверди
 
 | Файл | Описание |
 |------|----------|
+| [`CHAT_TRANSLATION_AND_AI_HINTS.md`](./CHAT_TRANSLATION_AND_AI_HINTS.md) | Перевод, AI-чипы, `reply_draft` |
 | [`MOBILE_IMPLEMENTATION_GUIDE.md`](./MOBILE_IMPLEMENTATION_GUIDE.md) | Пошаговое внедрение в backend + Flutter (P0/P1/P2, контракты, QA) |
 | [`FLUTTER_MOBILE_UI.md`](./FLUTTER_MOBILE_UI.md) §3.3 | Детальный UX-паритет с вебом |
 | [`FEATURES_BY_ROLE.md`](./FEATURES_BY_ROLE.md) | Матрица ролей и routes |
-| `lib/features/chat/chat_screen.dart` | Заглушка AI toggle (строка ~1687) |
+| `lib/features/chat/chat_screen.dart` | Чат: chips, перевод, sender labels, AI panel |
+| `lib/services/ai_service.dart` | `draftForComposer` / `replyForPanel` |
 
 ---
 
-*Обновлено: 2026-06-02 — integration fixes (funnel board, calendar, AI, client profile, AppHeader SafeArea)*
+## Mobile funnel drag-and-drop (UX 2026)
+
+Перемещение карточки между этапами на телефоне:
+
+```http
+PATCH /api/v1/chats/{chat}/funnel
+{"funnel_id": 1, "funnel_stage_id": 12}
+```
+
+Отдельного «DnD» endpoint нет. При `funnel_stage_locked` — HTTP 4xx + понятное сообщение; Flutter откатывает optimistic state.
+
+---
+
+*Обновлено: 2026-06-05 — handoff mobile, §2d `reply_draft`; inbox close/filter/create — backend + Flutter*

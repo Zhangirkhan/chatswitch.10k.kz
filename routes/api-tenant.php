@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\FunnelAnalyticsController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DepartmentController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
@@ -43,6 +44,11 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
 
         Route::get('settings', [ApiSettingsController::class, 'show']);
+
+        Route::post('devices', [DeviceController::class, 'store'])
+            ->middleware('throttle:device-register');
+        Route::delete('devices/{device}', [DeviceController::class, 'destroy']);
+        Route::post('devices/unregister', [DeviceController::class, 'unregister']);
         Route::get('users', [UserController::class, 'index']);
         Route::get('staff', [UserController::class, 'index']);
         Route::get('departments', [DepartmentController::class, 'index']);

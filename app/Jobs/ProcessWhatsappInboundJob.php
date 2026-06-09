@@ -12,6 +12,7 @@ use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
+use App\Services\Push\MobilePushService;
 use App\Support\VoiceInboundHelper;
 use App\Support\WhatsappMessageType;
 use App\Support\WhatsappSessionResolver;
@@ -147,6 +148,9 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         }
 
         $message->loadMissing('chat');
+        if ($message->chat !== null) {
+            app(MobilePushService::class)->notifyClientMessage($message, $message->chat);
+        }
 
         if ($message->chat !== null
             && $message->direction === 'inbound'

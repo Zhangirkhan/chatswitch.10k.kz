@@ -43,6 +43,12 @@ return [
         'webhook_secret' => env('WHATSAPP_WEBHOOK_SECRET', ''),
     ],
 
+    'firebase' => [
+        'enabled' => (bool) env('FIREBASE_FCM_ENABLED', false),
+        'credentials' => env('FIREBASE_CREDENTIALS', ''),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+    ],
+
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),

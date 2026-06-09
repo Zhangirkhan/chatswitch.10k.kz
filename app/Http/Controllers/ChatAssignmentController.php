@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Chat\ChatAssignmentAssigneeGuard;
 use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
+use App\Services\Push\MobilePushService;
 use App\Support\ChatBroadcastAudience;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -175,6 +176,8 @@ final class ChatAssignmentController extends Controller
             (bool) $chat->is_muted,
             $added,
         ));
+
+        app(MobilePushService::class)->notifyChatAssigned($chat, $added);
     }
 
     /**

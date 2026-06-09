@@ -60,6 +60,8 @@ tags:
     description: Медиа вложения сообщений
   - name: Departments
     description: Отделы
+  - name: Devices
+    description: Регистрация FCM-токенов для push-уведомлений (Android)
   - name: Users
     description: Сотрудники tenant (team chat, pickers)
   - name: Chats
@@ -204,6 +206,84 @@ paths:
           description: Не авторизован
         "403":
           description: Нет роли / деактивирован
+
+  /api/v1/devices:
+    post:
+      tags: [Devices]
+      summary: Регистрация FCM-токена устройства
+      operationId: devicesRegister
+      description: |
+        Upsert по `(user_id, fcm_token)`. При login другого пользователя на том же устройстве
+        токен перепривязывается к новому `user_id`. Rate limit — 60 req/min на пользователя.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: Токен обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceResourceResponse"
+        "201":
+          description: Токен зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceResourceResponse"
+        "401":
+          description: Не авторизован
+        "422":
+          description: Ошибка валидации
+        "429":
+          description: Слишком много запросов
+
+  /api/v1/devices/{id}:
+    delete:
+      tags: [Devices]
+      summary: Удаление регистрации устройства
+      operationId: devicesDestroy
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Удалено
+        "401":
+          description: Не авторизован
+        "404":
+          description: Устройство не найдено или не принадлежит пользователю
+
+  /api/v1/devices/unregister:
+    post:
+      tags: [Devices]
+      summary: Снятие регистрации по FCM-токену
+      operationId: devicesUnregister
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnregisterDeviceRequest"
+      responses:
+        "204":
+          description: OK
+        "401":
+          description: Не авторизован
+        "422":
+          description: Ошибка валидации
 
   /api/v1/users:
     get:
@@ -1833,3 +1913,47 @@ components:
         uploaded_by:
           type: integer
           description: ID пользователя, загрузившего файл
+
+    RegisterDeviceRequest:
+      type: object
+      required: [platform, fcm_token]
+      properties:
+        platform:
+          type: string
+          enum: [android, ios]
+          description: v1 — только android
+        fcm_token:
+          type: string
+          minLength: 20
+          maxLength: 512
+        device_name:
+          type: string
+          maxLength: 255
+          nullable: true
+        app_version:
+          type: string
+          maxLength: 64
+          nullable: true
+
+    UnregisterDeviceRequest:
+      type: object
+      required: [fcm_token]
+      properties:
+        fcm_token:
+          type: string
+          minLength: 20
+          maxLength: 512
+
+    DeviceResource:
+      type: object
+      properties:
+        id: { type: integer }
+        platform: { type: string }
+        fcm_token: { type: string }
+        updated_at: { type: string, format: date-time, nullable: true }
+
+    DeviceResourceResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DeviceResource"
