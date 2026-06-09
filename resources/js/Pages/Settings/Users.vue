@@ -337,6 +337,12 @@ async function save() {
         }
     }
 
+    const pinTrim = form.value.pin.trim();
+    if (pinTrim !== '' && !/^\d{6}$/.test(pinTrim)) {
+        formError.value = t('settings.usersForm.pinInvalidLength');
+        return;
+    }
+
     saving.value = true;
     try {
         const payload = buildPayload();

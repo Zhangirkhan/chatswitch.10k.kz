@@ -134,7 +134,7 @@ export const miscKk = {
             currentStage: 'Ағымдағы кезең: {name}',
         },
         pinLogin: {
-            hint: '4–6 сандық PIN енгізіңіз',
+            hint: '6 сандық PIN енгізіңіз',
             padAria: 'Сандық пернетақта',
         },
         impersonation: {

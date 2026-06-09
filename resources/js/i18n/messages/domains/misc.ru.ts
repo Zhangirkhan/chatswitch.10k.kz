@@ -134,7 +134,7 @@ export const miscRu = {
             currentStage: 'Текущий этап: {name}',
         },
         pinLogin: {
-            hint: 'Введите PIN из 4–6 цифр',
+            hint: 'Введите PIN из 6 цифр',
             padAria: 'Цифровая клавиатура',
         },
         impersonation: {

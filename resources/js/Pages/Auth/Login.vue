@@ -88,7 +88,7 @@ const submit = async () => {
 };
 
 function submitPin(): void {
-    if (pinForm.pin.length < 4) {
+    if (pinForm.pin.length < 6) {
         return;
     }
 

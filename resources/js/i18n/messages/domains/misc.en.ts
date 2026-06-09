@@ -134,7 +134,7 @@ export const miscEn = {
             currentStage: 'Current stage: {name}',
         },
         pinLogin: {
-            hint: 'Enter a 4–6 digit PIN',
+            hint: 'Enter a 6-digit PIN',
             padAria: 'Numeric keypad',
         },
         impersonation: {

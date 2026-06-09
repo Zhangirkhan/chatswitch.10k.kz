@@ -87,7 +87,7 @@ function clear(): void {
         <button
             type="button"
             class="pin-login__submit"
-            :disabled="disabled || modelValue.length < 4"
+            :disabled="disabled || modelValue.length < 6"
             @click="emit('submit')"
         >
             {{ t('auth.pinSubmit') }}
