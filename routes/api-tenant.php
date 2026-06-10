@@ -67,6 +67,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::patch('posts/{post}', [DepartmentPostController::class, 'update']);
         Route::delete('posts/{post}', [DepartmentPostController::class, 'destroy']);
         Route::post('posts/{post}/complete', [DepartmentPostController::class, 'complete']);
+        Route::get('posts/{post}/comments', [DepartmentPostController::class, 'commentsIndex']);
+        Route::post('posts/{post}/comments', [DepartmentPostController::class, 'storeComment']);
+        Route::delete('posts/{post}/comments/{comment}', [DepartmentPostController::class, 'destroyComment']);
+        Route::post('posts/{post}/attachments', [DepartmentPostController::class, 'storeAttachment'])
+            ->middleware('throttle:10,1');
+        Route::delete('posts/{post}/attachments/{attachment}', [DepartmentPostController::class, 'destroyAttachment']);
         Route::get('whatsapp/sessions', [WhatsappSessionController::class, 'bootstrap']);
 
         Route::get('contacts', [ApiContactController::class, 'index']);

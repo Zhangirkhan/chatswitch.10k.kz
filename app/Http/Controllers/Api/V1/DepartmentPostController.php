@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\StoreDepartmentPostCommentRequest;
 use App\Http\Requests\Api\V1\StoreDepartmentPostRequest;
 use App\Http\Requests\Api\V1\UpdateDepartmentPostRequest;
+use App\Http\Resources\Api\V1\DepartmentPostAttachmentResource;
+use App\Http\Resources\Api\V1\DepartmentPostCommentResource;
 use App\Http\Resources\Api\V1\DepartmentPostResource;
 use App\Models\Department;
 use App\Models\DepartmentPost;
+use App\Models\DepartmentPostAttachment;
+use App\Models\DepartmentPostComment;
 use App\Services\Organization\DepartmentPostService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -113,6 +118,86 @@ final class DepartmentPostController extends Controller
         $this->posts->authorizeDepartmentAccess($user, $department);
 
         return new DepartmentPostResource($this->posts->complete($post));
+    }
+
+    public function commentsIndex(Request $request, DepartmentPost $post): AnonymousResourceCollection
+    {
+        $user = $request->user();
+        abort_if($user === null, 401);
+
+        $this->posts->ensureEnabled();
+        $department = $this->posts->resolvePostDepartment($post);
+        $this->posts->authorizeDepartmentAccess($user, $department);
+
+        return DepartmentPostCommentResource::collection($this->posts->listComments($post));
+    }
+
+    public function storeComment(StoreDepartmentPostCommentRequest $request, DepartmentPost $post): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 401);
+
+        $this->posts->ensureEnabled();
+        $department = $this->posts->resolvePostDepartment($post);
+        $this->posts->authorizeDepartmentAccess($user, $department);
+
+        $comment = $this->posts->createComment($post, $user, (string) $request->validated('body'));
+
+        return (new DepartmentPostCommentResource($comment))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function destroyComment(Request $request, DepartmentPost $post, DepartmentPostComment $comment): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 401);
+
+        $this->posts->ensureEnabled();
+        $this->posts->assertCommentBelongsToPost($comment, $post);
+        $department = $this->posts->resolvePostDepartment($post);
+        $this->posts->authorizeDepartmentAccess($user, $department);
+        $this->posts->authorizeAuthorOrAdmin($user, $comment->author_id);
+
+        $this->posts->deleteComment($comment);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function storeAttachment(Request $request, DepartmentPost $post): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 401);
+
+        $this->posts->ensureEnabled();
+        $department = $this->posts->resolvePostDepartment($post);
+        $this->posts->authorizeDepartmentAccess($user, $department);
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:20480'],
+        ]);
+
+        $attachment = $this->posts->storeAttachment($post, $user, $validated['file']);
+
+        return (new DepartmentPostAttachmentResource($attachment))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function destroyAttachment(Request $request, DepartmentPost $post, DepartmentPostAttachment $attachment): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 401);
+
+        $this->posts->ensureEnabled();
+        $this->posts->assertAttachmentBelongsToPost($attachment, $post);
+        $department = $this->posts->resolvePostDepartment($post);
+        $this->posts->authorizeDepartmentAccess($user, $department);
+        $this->posts->authorizeAuthorOrAdmin($user, $attachment->uploaded_by);
+
+        $this->posts->deleteAttachment($attachment);
+
+        return response()->json(['success' => true]);
     }
 
     /**

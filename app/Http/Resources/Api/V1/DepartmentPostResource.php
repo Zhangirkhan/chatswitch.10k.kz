@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\DepartmentPost;
-use App\Models\DepartmentPostAttachment;
 use App\Models\User;
 use App\Support\OrganizationRichTextSanitizer;
 use Illuminate\Http\Request;
@@ -25,15 +24,7 @@ final class DepartmentPostResource extends JsonResource
             : [];
 
         $attachments = $this->relationLoaded('attachments')
-            ? $this->attachments->map(fn (DepartmentPostAttachment $attachment) => [
-                'id' => $attachment->id,
-                'original_name' => $attachment->original_name,
-                'url' => $attachment->url(),
-                'mime_type' => $attachment->mime_type,
-                'size' => $attachment->size,
-                'is_image' => $attachment->isImage(),
-                'uploaded_by' => $attachment->uploaded_by,
-            ])->values()->all()
+            ? DepartmentPostAttachmentResource::collection($this->attachments)->resolve()
             : [];
 
         return [

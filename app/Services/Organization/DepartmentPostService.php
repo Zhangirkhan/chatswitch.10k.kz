@@ -6,11 +6,15 @@ namespace App\Services\Organization;
 
 use App\Models\Department;
 use App\Models\DepartmentPost;
+use App\Models\DepartmentPostAttachment;
+use App\Models\DepartmentPostComment;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Support\OrganizationDepartmentTasks;
 use App\Support\OrganizationRichTextSanitizer;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 final class DepartmentPostService
 {
@@ -141,6 +145,70 @@ final class DepartmentPostService
         $post->loadCount('comments');
 
         return $post;
+    }
+
+    /**
+     * @return Collection<int, DepartmentPostComment>
+     */
+    public function listComments(DepartmentPost $post): Collection
+    {
+        return $post->comments()
+            ->with('author:id,name')
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    public function createComment(DepartmentPost $post, User $author, string $body): DepartmentPostComment
+    {
+        $comment = DepartmentPostComment::query()->create([
+            'department_post_id' => $post->id,
+            'author_id' => $author->id,
+            'body' => trim($body),
+        ]);
+
+        $comment->load('author:id,name');
+
+        return $comment;
+    }
+
+    public function deleteComment(DepartmentPostComment $comment): void
+    {
+        $comment->delete();
+    }
+
+    public function storeAttachment(DepartmentPost $post, User $user, UploadedFile $file): DepartmentPostAttachment
+    {
+        $path = $file->store("post-attachments/{$post->id}", 'public');
+
+        return DepartmentPostAttachment::query()->create([
+            'department_post_id' => $post->id,
+            'uploaded_by' => $user->id,
+            'original_name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize(),
+        ]);
+    }
+
+    public function deleteAttachment(DepartmentPostAttachment $attachment): void
+    {
+        Storage::disk('public')->delete($attachment->path);
+        $attachment->delete();
+    }
+
+    public function assertCommentBelongsToPost(DepartmentPostComment $comment, DepartmentPost $post): void
+    {
+        abort_unless($comment->department_post_id === $post->id, 404);
+    }
+
+    public function assertAttachmentBelongsToPost(DepartmentPostAttachment $attachment, DepartmentPost $post): void
+    {
+        abort_unless($attachment->department_post_id === $post->id, 404);
+    }
+
+    public function resolvePostDepartment(DepartmentPost $post): Department
+    {
+        return $post->department()->firstOrFail();
     }
 
     /**

@@ -6,9 +6,12 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Department;
 use App\Models\DepartmentPost;
+use App\Models\DepartmentPostComment;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -162,6 +165,103 @@ final class DepartmentPostApiTest extends TestCase
         [$department] = $this->departmentMember();
 
         $this->getJson("/api/v1/departments/{$department->id}/posts")->assertUnauthorized();
+    }
+
+    public function test_department_member_can_manage_comments(): void
+    {
+        [$department, $user] = $this->departmentMember();
+
+        $post = DepartmentPost::query()->create([
+            'department_id' => $department->id,
+            'author_id' => $user->id,
+            'title' => 'Task with comments',
+            'status' => DepartmentPost::STATUS_OPEN,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/v1/posts/{$post->id}/comments")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $create = $this->postJson("/api/v1/posts/{$post->id}/comments", [
+            'body' => 'Нужно уточнить сроки',
+        ]);
+
+        $create->assertCreated()
+            ->assertJsonPath('data.body', 'Нужно уточнить сроки')
+            ->assertJsonPath('data.author.id', $user->id);
+
+        $commentId = (int) $create->json('data.id');
+
+        $this->getJson("/api/v1/posts/{$post->id}/comments")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $this->deleteJson("/api/v1/posts/{$post->id}/comments/{$commentId}")
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseMissing('department_post_comments', ['id' => $commentId]);
+    }
+
+    public function test_employee_cannot_delete_foreign_comment(): void
+    {
+        [$department, $author] = $this->departmentMember();
+
+        $post = DepartmentPost::query()->create([
+            'department_id' => $department->id,
+            'author_id' => $author->id,
+            'title' => 'Task',
+            'status' => DepartmentPost::STATUS_OPEN,
+        ]);
+
+        $comment = DepartmentPostComment::query()->create([
+            'department_post_id' => $post->id,
+            'author_id' => $author->id,
+            'body' => 'Author comment',
+        ]);
+
+        $otherMember = User::factory()->create(['company_id' => $author->company_id]);
+        $otherMember->assignRole('employee');
+        $otherMember->departments()->attach($department->id);
+
+        Sanctum::actingAs($otherMember);
+
+        $this->deleteJson("/api/v1/posts/{$post->id}/comments/{$comment->id}")
+            ->assertForbidden();
+    }
+
+    public function test_department_member_can_upload_and_delete_attachment(): void
+    {
+        Storage::fake('public');
+
+        [$department, $user] = $this->departmentMember();
+
+        $post = DepartmentPost::query()->create([
+            'department_id' => $department->id,
+            'author_id' => $user->id,
+            'title' => 'Task with files',
+            'status' => DepartmentPost::STATUS_OPEN,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $upload = $this->postJson("/api/v1/posts/{$post->id}/attachments", [
+            'file' => UploadedFile::fake()->create('brief.pdf', 120, 'application/pdf'),
+        ]);
+
+        $upload->assertCreated()
+            ->assertJsonPath('data.original_name', 'brief.pdf')
+            ->assertJsonPath('data.uploaded_by', $user->id);
+
+        $attachmentId = (int) $upload->json('data.id');
+
+        $this->deleteJson("/api/v1/posts/{$post->id}/attachments/{$attachmentId}")
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseMissing('department_post_attachments', ['id' => $attachmentId]);
     }
 
     /**
