@@ -10,6 +10,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\AI\Locale\ChatInboundLocaleResolver;
 use App\Services\AI\Locale\KazakhstanLocaleDetector;
 use App\Services\AI\Locale\LocaleReplyGuard;
 use App\Services\Calendar\AppointmentBookingService;
@@ -17,6 +18,7 @@ use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Support\ClientMessageHeuristics;
+use App\Support\LocalizedClientGreeting;
 use App\Support\MessageInboundText;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -35,6 +37,7 @@ final class AiReplyGenerator
         private readonly AppointmentReminderSettings $appointmentReminderSettings,
         private readonly ProductMessageAttachmentService $productAttachments,
         private readonly KazakhstanLocaleDetector $localeDetector,
+        private readonly ChatInboundLocaleResolver $chatLocaleResolver,
         private readonly LocaleReplyGuard $localeReplyGuard,
         private readonly ChatConflictService $conflictService,
         private readonly ConversationAppointmentResolver $conversationAppointments,
@@ -86,8 +89,8 @@ final class AiReplyGenerator
             }
         }
 
-        $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id);
-        $localeProfile = $this->localeDetector->detect($clientQuestion);
+        $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id, $triggerMessage);
+        $localeProfile = $this->chatLocaleResolver->resolve($chat, $triggerMessage);
         $reply = trim($this->openAi->chat(
             $built['messages'],
             0.35,
@@ -315,19 +318,21 @@ final class AiReplyGenerator
             return $reply;
         }
 
+        $localeProfile = $this->chatLocaleResolver->resolve($chat, $trigger);
+
         if (ClientMessageHeuristics::isShortGreetingOnly($triggerBody)) {
             if (ClientMessageHeuristics::isGenericStubReply($reply) || trim($reply) === '') {
-                return 'Здравствуйте! Подскажите, чем можем помочь?';
+                return LocalizedClientGreeting::defaultFirstReply($localeProfile);
             }
         }
 
         $trimmed = trim($reply);
         if ($trimmed === '' || ClientMessageHeuristics::isGenericStubReply($trimmed)) {
-            return 'Здравствуйте! Подскажите, чем можем помочь?';
+            return LocalizedClientGreeting::defaultFirstReply($localeProfile);
         }
 
         if (! ClientMessageHeuristics::usedGreeting($trimmed)) {
-            return 'Здравствуйте! '.$trimmed;
+            return LocalizedClientGreeting::prependGreeting($localeProfile, $trimmed);
         }
 
         return $trimmed;

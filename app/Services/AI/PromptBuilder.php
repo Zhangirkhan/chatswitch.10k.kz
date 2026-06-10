@@ -47,7 +47,7 @@ final class PromptBuilder
     /**
      * @return array{messages: array<int, array{role: 'system'|'user', content: string}>, prompt_hash: string}
      */
-    public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null): array
+    public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null, ?Message $triggerMessage = null): array
     {
         $chat->loadMissing(['assignments.user', 'company:id,name']);
         $companyId ??= $chat->company_id ?? $responder->company_id;
@@ -59,7 +59,7 @@ final class PromptBuilder
         $context = $this->conversationContext($chat, $replyAsCompany);
         $continuity = $this->aiContinuityContext($chat);
 
-        $localeMessages = $this->localeAugmenter->augmentAsMessages($question, $chat, $companyId);
+        $localeMessages = $this->localeAugmenter->augmentAsMessages($question, $chat, $companyId, $triggerMessage);
 
         $messages = [
             ['role' => 'system', 'content' => $system],
