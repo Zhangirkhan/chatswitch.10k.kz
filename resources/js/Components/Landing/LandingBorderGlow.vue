@@ -211,16 +211,31 @@ watch(
 
 const colorSensitivity = computed(() => props.edgeSensitivity + 20);
 const isVisible = computed(() => isHovered.value || sweepActive.value);
-const borderOpacity = computed(() =>
-    isVisible.value
-        ? Math.max(0, (edgeProximity.value * 100 - colorSensitivity.value) / (100 - colorSensitivity.value))
-        : 0,
-);
-const glowOpacity = computed(() =>
-    isVisible.value
-        ? Math.max(0, (edgeProximity.value * 100 - props.edgeSensitivity) / (100 - props.edgeSensitivity))
-        : 0,
-);
+
+/** Always keep a faint border; brighten on hover, strongest near edges. */
+const borderOpacity = computed(() => {
+    const base = 0.42;
+    if (!isVisible.value) {
+        return base;
+    }
+    const edgeBoost = Math.max(
+        0,
+        (edgeProximity.value * 100 - colorSensitivity.value) / (100 - colorSensitivity.value),
+    );
+    return Math.min(1, base + edgeBoost * (1 - base));
+});
+
+/** Outer halo: visible anywhere on the card while hovered, brightest at edges. */
+const glowOpacity = computed(() => {
+    if (!isVisible.value) {
+        return 0;
+    }
+    const edgeBoost = Math.max(
+        0,
+        (edgeProximity.value * 100 - props.edgeSensitivity) / (100 - props.edgeSensitivity),
+    );
+    return Math.min(1, 0.28 + edgeBoost * 0.72);
+});
 
 const meshGradients = computed(() => buildMeshGradients(props.colors));
 const borderBg = computed(() => meshGradients.value.map((g) => `${g} border-box`));
@@ -342,6 +357,9 @@ onMounted(() => {
 }
 
 .landing-border-glow--static {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(1, 185, 100, 0.22);
+    box-shadow:
+        0 0 0 1px rgba(1, 185, 100, 0.06),
+        0 0 24px rgba(1, 185, 100, 0.06);
 }
 </style>

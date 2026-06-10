@@ -611,6 +611,10 @@ onUnmounted(() => {
     color: var(--landing-text);
     font-family: Figtree, ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+}
+
+.landing__hero,
+.landing__header {
     overflow-x: clip;
 }
 
@@ -907,6 +911,7 @@ onUnmounted(() => {
 .landing__features-section {
     scroll-margin-top: 1.5rem;
     margin-bottom: 3rem;
+    overflow: visible;
 }
 
 .landing__title {
@@ -938,10 +943,12 @@ onUnmounted(() => {
 .landing__features-item {
     list-style: none;
     min-height: 0;
+    overflow: visible;
 }
 
 .landing__card-glow {
     height: 100%;
+    overflow: visible;
 }
 
 @media (max-width: 900px) {
