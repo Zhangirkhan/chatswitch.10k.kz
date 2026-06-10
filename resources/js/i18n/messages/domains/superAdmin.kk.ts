@@ -169,6 +169,8 @@ export const superAdminKk = {
         delete: 'Жою',
         confirmDelete: 'Бұл релизді жою керек пе?',
         createModalTitle: 'Жаңа релиз',
+        editModalTitle: 'Релизді өңдеу',
+        edit: 'Өзгерту',
         fieldPlatform: 'Платформа',
         fieldVersionName: 'Version name',
         fieldVersionCode: 'Version code (build)',

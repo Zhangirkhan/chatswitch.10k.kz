@@ -20,12 +20,15 @@ interface ReleaseRow {
     created_at: string;
 }
 
-defineProps<{
+const props = defineProps<{
     releases: ReleaseRow[];
     platforms: string[];
+    nextVersionCode: number;
 }>();
 
 const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const editingRelease = ref<ReleaseRow | null>(null);
 const apkInputRef = ref<HTMLInputElement | null>(null);
 
 const form = useForm({
@@ -39,12 +42,21 @@ const form = useForm({
     apk_file: null as File | null,
 });
 
+const editForm = useForm({
+    version_name: '',
+    version_code: 1,
+    min_version_code: 0,
+    download_url: '',
+    release_notes: '',
+    apk_file: null as File | null,
+});
+
 function openCreateModal(): void {
     form.clearErrors();
     form.reset();
     form.platform = 'android';
-    form.version_code = 1;
-    form.min_version_code = 0;
+    form.version_code = props.nextVersionCode;
+    form.min_version_code = props.nextVersionCode;
     form.download_url = '/apk/app-release.apk';
     form.is_published = false;
     form.apk_file = null;
@@ -52,6 +64,24 @@ function openCreateModal(): void {
         apkInputRef.value.value = '';
     }
     showCreateModal.value = true;
+}
+
+function openEditModal(release: ReleaseRow): void {
+    editingRelease.value = release;
+    editForm.clearErrors();
+    editForm.version_name = release.version_name;
+    editForm.version_code = release.version_code;
+    editForm.min_version_code = release.min_version_code;
+    editForm.download_url = release.download_url;
+    editForm.release_notes = release.release_notes ?? '';
+    editForm.apk_file = null;
+    showEditModal.value = true;
+}
+
+function closeEditModal(): void {
+    if (editForm.processing) return;
+    showEditModal.value = false;
+    editingRelease.value = null;
 }
 
 function closeCreateModal(): void {
@@ -65,7 +95,11 @@ function onApkSelected(event: Event): void {
 }
 
 function submitCreate(): void {
-    form.post('/mobile-releases', {
+    form.transform((data) => ({
+        ...data,
+        version_code: Number(data.version_code),
+        min_version_code: Number(data.min_version_code),
+    })).post('/mobile-releases', {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
@@ -73,6 +107,24 @@ function submitCreate(): void {
             form.reset();
         },
     });
+}
+
+function submitEdit(): void {
+    if (!editingRelease.value) return;
+
+    editForm
+        .transform((data) => ({
+            ...data,
+            version_code: Number(data.version_code),
+            min_version_code: Number(data.min_version_code),
+        }))
+        .put(`/mobile-releases/${editingRelease.value.id}`, {
+            preserveScroll: true,
+            forceFormData: editForm.apk_file !== null,
+            onSuccess: () => {
+                closeEditModal();
+            },
+        });
 }
 
 function publishRelease(id: number): void {
@@ -160,6 +212,13 @@ function formatDate(value: string | null): string {
                         <td class="px-4 py-3">
                             <div class="flex flex-wrap gap-2">
                                 <button
+                                    type="button"
+                                    class="ui-btn ui-btn--ghost ui-btn--sm"
+                                    @click="openEditModal(release)"
+                                >
+                                    {{ t('superAdmin.mobileReleases.edit') }}
+                                </button>
+                                <button
                                     v-if="!release.is_published"
                                     type="button"
                                     class="ui-btn ui-btn--ghost ui-btn--sm"
@@ -211,12 +270,12 @@ function formatDate(value: string | null): string {
                 </label>
                 <label class="block text-sm">
                     <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldVersionCode') }}</span>
-                    <input v-model.number="form.version_code" type="number" min="1" required class="ui-input mt-1" />
+                    <input v-model.number="form.version_code" type="number" min="1" required autocomplete="off" class="ui-input mt-1" />
                     <p v-if="form.errors.version_code" class="mt-1 text-xs text-ui-danger">{{ form.errors.version_code }}</p>
                 </label>
                 <label class="block text-sm">
                     <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldMinVersionCode') }}</span>
-                    <input v-model.number="form.min_version_code" type="number" min="0" class="ui-input mt-1" />
+                    <input v-model.number="form.min_version_code" type="number" min="0" required autocomplete="off" class="ui-input mt-1" />
                     <p class="mt-1 text-xs text-ui-text-muted">{{ t('superAdmin.mobileReleases.fieldMinVersionCodeHint') }}</p>
                 </label>
                 <label class="block text-sm">
@@ -254,6 +313,51 @@ function formatDate(value: string | null): string {
                     </button>
                     <button type="submit" form="mobile-release-create-form" class="ui-btn ui-btn--primary" :disabled="form.processing">
                         {{ form.processing ? t('superAdmin.common.saving') : t('superAdmin.common.create') }}
+                    </button>
+                </div>
+            </template>
+        </UiModal>
+
+        <UiModal
+            :open="showEditModal"
+            :title="t('superAdmin.mobileReleases.editModalTitle')"
+            max-width="md"
+            @close="closeEditModal"
+        >
+            <form id="mobile-release-edit-form" class="space-y-4 px-5 py-4" @submit.prevent="submitEdit">
+                <label class="block text-sm">
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldVersionName') }}</span>
+                    <input v-model="editForm.version_name" type="text" required class="ui-input mt-1" />
+                    <p v-if="editForm.errors.version_name" class="mt-1 text-xs text-ui-danger">{{ editForm.errors.version_name }}</p>
+                </label>
+                <label class="block text-sm">
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldVersionCode') }}</span>
+                    <input v-model.number="editForm.version_code" type="number" min="1" required autocomplete="off" class="ui-input mt-1" />
+                    <p v-if="editForm.errors.version_code" class="mt-1 text-xs text-ui-danger">{{ editForm.errors.version_code }}</p>
+                </label>
+                <label class="block text-sm">
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldMinVersionCode') }}</span>
+                    <input v-model.number="editForm.min_version_code" type="number" min="0" required autocomplete="off" class="ui-input mt-1" />
+                    <p class="mt-1 text-xs text-ui-text-muted">{{ t('superAdmin.mobileReleases.fieldMinVersionCodeHint') }}</p>
+                    <p v-if="editForm.errors.min_version_code" class="mt-1 text-xs text-ui-danger">{{ editForm.errors.min_version_code }}</p>
+                </label>
+                <label class="block text-sm">
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldDownloadUrl') }}</span>
+                    <input v-model="editForm.download_url" type="text" class="ui-input mt-1" />
+                    <p v-if="editForm.errors.download_url" class="mt-1 text-xs text-ui-danger">{{ editForm.errors.download_url }}</p>
+                </label>
+                <label class="block text-sm">
+                    <span class="text-ui-text-secondary">{{ t('superAdmin.mobileReleases.fieldReleaseNotes') }}</span>
+                    <textarea v-model="editForm.release_notes" rows="4" class="ui-input mt-1" />
+                </label>
+            </form>
+            <template #footer>
+                <div class="flex justify-end gap-2 px-5 py-4">
+                    <button type="button" class="ui-btn ui-btn--ghost" @click="closeEditModal">
+                        {{ t('superAdmin.common.cancel') }}
+                    </button>
+                    <button type="submit" form="mobile-release-edit-form" class="ui-btn ui-btn--primary" :disabled="editForm.processing">
+                        {{ editForm.processing ? t('superAdmin.common.saving') : t('superAdmin.common.save') }}
                     </button>
                 </div>
             </template>

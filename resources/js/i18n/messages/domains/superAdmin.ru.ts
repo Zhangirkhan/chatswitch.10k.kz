@@ -169,6 +169,8 @@ export const superAdminRu = {
         delete: 'Удалить',
         confirmDelete: 'Удалить этот релиз?',
         createModalTitle: 'Новый релиз',
+        editModalTitle: 'Редактировать релиз',
+        edit: 'Изменить',
         fieldPlatform: 'Платформа',
         fieldVersionName: 'Version name',
         fieldVersionCode: 'Version code (build)',

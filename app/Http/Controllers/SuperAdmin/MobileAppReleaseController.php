@@ -27,6 +27,7 @@ final class MobileAppReleaseController extends Controller
                 ->orderByDesc('version_code')
                 ->get(),
             'platforms' => MobileAppRelease::PLATFORMS,
+            'nextVersionCode' => (int) (MobileAppRelease::query()->max('version_code') ?? 0) + 1,
         ]);
     }
 
@@ -85,25 +86,27 @@ final class MobileAppReleaseController extends Controller
      */
     private function validated(Request $request, ?MobileAppRelease $release = null): array
     {
+        $platform = $release?->platform ?? (string) $request->input('platform');
+
         $data = $request->validate([
-            'platform' => ['required', 'string', Rule::in(MobileAppRelease::PLATFORMS)],
+            'platform' => [$release === null ? 'required' : 'sometimes', 'string', Rule::in(MobileAppRelease::PLATFORMS)],
             'version_name' => ['required', 'string', 'max:32'],
             'version_code' => [
                 'required',
                 'integer',
                 'min:1',
                 Rule::unique('mobile_app_releases', 'version_code')
-                    ->where('platform', (string) $request->input('platform'))
+                    ->where('platform', $platform)
                     ->ignore($release?->id),
             ],
-            'min_version_code' => ['nullable', 'integer', 'min:0'],
+            'min_version_code' => ['required', 'integer', 'min:0', 'lte:version_code'],
             'download_url' => ['nullable', 'string', 'max:512'],
             'release_notes' => ['nullable', 'string', 'max:10000'],
             'is_published' => ['boolean'],
             'apk_file' => ['nullable', 'file', 'max:102400'],
         ]);
 
-        $data['min_version_code'] = (int) ($data['min_version_code'] ?? 0);
+        $data['min_version_code'] = (int) $data['min_version_code'];
         $data['is_published'] = (bool) ($data['is_published'] ?? false);
 
         if ($release !== null) {

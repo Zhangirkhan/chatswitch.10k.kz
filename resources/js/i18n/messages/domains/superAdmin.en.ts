@@ -169,6 +169,8 @@ export const superAdminEn = {
         delete: 'Delete',
         confirmDelete: 'Delete this release?',
         createModalTitle: 'New release',
+        editModalTitle: 'Edit release',
+        edit: 'Edit',
         fieldPlatform: 'Platform',
         fieldVersionName: 'Version name',
         fieldVersionCode: 'Version code (build)',
