@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\AI\Orchestrator;
 
+use App\Support\KazakhstanCityHeuristics;
+
 final class ClientMessageIntentDetector
 {
     public const INTENT_CATALOG = 'catalog';
@@ -34,6 +36,10 @@ final class ClientMessageIntentDetector
         $body = mb_strtolower(trim($body));
         if ($body === '') {
             return self::INTENT_GENERAL;
+        }
+
+        if ($this->isProvidingAddressOrDeliveryDetail($body)) {
+            return self::INTENT_DELIVERY;
         }
 
         if ($this->isCatalogInquiry($body)) {
@@ -147,6 +153,10 @@ final class ClientMessageIntentDetector
             return false;
         }
 
+        if (KazakhstanCityHeuristics::isDeliveryDestinationStatement($body)) {
+            return true;
+        }
+
         if (preg_match('/(?:привез|достав|оставьте|остав|курьер|жеткіз|жеткиз|орнат)/u', $body) === 1) {
             return true;
         }
@@ -235,6 +245,10 @@ final class ClientMessageIntentDetector
 
     private function isPriceQuestion(string $body): bool
     {
+        if (KazakhstanCityHeuristics::isPriceNegotiation($body)) {
+            return true;
+        }
+
         if (preg_match('/(?:қанша|канша|неше)\s+(?:тг|теңге|тенге|баға|стоим)/u', $body) === 1) {
             return true;
         }

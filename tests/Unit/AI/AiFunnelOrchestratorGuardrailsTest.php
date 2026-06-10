@@ -491,6 +491,97 @@ final class AiFunnelOrchestratorGuardrailsTest extends TestCase
         $this->assertStringContainsString('ближайш', mb_strtolower($reply));
     }
 
+    public function test_delivery_destination_replaces_misguided_city_question(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => 'Доставка по заказу набора 6 в 1 бесплатная.',
+            'message_timestamp' => now()->subMinute(),
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'В Караганду мне надо',
+            'message_timestamp' => now(),
+        ]);
+
+        $badPlan = new AiFunnelOrchestratorPlan(
+            customerReply: 'Что именно вам нужно в Караганду?',
+            targetFunnelStageId: null,
+            appointment: null,
+            assigneeUserId: null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: 0.85,
+            reason: 'test',
+        );
+
+        $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'normalizeDeliveryDestination');
+        $method->setAccessible(true);
+
+        $plan = $method->invoke(app(AiFunnelOrchestratorService::class), $chat, $trigger, $badPlan);
+
+        $reply = mb_strtolower((string) ($plan->customerReply ?? ''));
+        $this->assertTrue(
+            $plan->customerReply === null || str_contains($reply, 'достав') || str_contains($reply, 'логист'),
+            'Expected delivery confirmation or auto-reply delegation',
+        );
+        $this->assertStringNotContainsString('что именно', $reply);
+    }
+
+    public function test_price_negotiation_defers_funnel_template_to_auto_reply(): void
+    {
+        $company = Company::query()->findOrFail(TenantCompany::id());
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        $trigger = Message::query()->create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'text',
+            'body' => 'Набор 6в1 можно за 90000?',
+            'message_timestamp' => now(),
+        ]);
+
+        $badPlan = new AiFunnelOrchestratorPlan(
+            customerReply: 'Здравствуйте! Подскажите, пожалуйста: Ключевые параметры заказа.',
+            targetFunnelStageId: null,
+            appointment: null,
+            assigneeUserId: null,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: 0.85,
+            reason: 'test',
+        );
+
+        $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'normalizePriceNegotiation');
+        $method->setAccessible(true);
+
+        $plan = $method->invoke(app(AiFunnelOrchestratorService::class), $chat, $trigger, $badPlan);
+
+        $this->assertNull($plan->customerReply);
+        $this->assertStringContainsString('автоответ', mb_strtolower($plan->reason));
+    }
+
     public function test_kazakh_time_question_after_catalog_inquiry_does_not_get_catalog_reply(): void
     {
         $company = Company::query()->findOrFail(TenantCompany::id());

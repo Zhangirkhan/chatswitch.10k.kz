@@ -20,6 +20,7 @@ use App\Services\Funnel\FunnelStageTransitionGuard;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Support\AiSafeErrorMessage;
 use App\Support\ClientMessageHeuristics;
+use App\Support\KazakhstanCityHeuristics;
 use App\Support\LocalizedClientGreeting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -725,11 +726,6 @@ final class AiFunnelOrchestratorService
             return $this->normalizeCatalogInquiry($chat, $trigger, $plan);
         }
 
-        $questionPlan = $this->questionFallbackPlan($chat, $trigger, $rule, $plan, $minConfidence);
-        if ($questionPlan instanceof AiFunnelOrchestratorPlan) {
-            return $questionPlan;
-        }
-
         $companyId = (int) ($chat->company_id ?? 0);
         if ($companyId > 0) {
             $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId, $chat, $trigger);
@@ -746,6 +742,15 @@ final class AiFunnelOrchestratorService
                     reason: $dynamic['reason'],
                 );
             }
+        }
+
+        if ($this->shouldDeferToAutoReply($chat, $trigger, null)) {
+            return $this->deferToAutoReplyPlan($plan, 'Контекст заказа понятен — делегировано автоответу AI.');
+        }
+
+        $questionPlan = $this->questionFallbackPlan($chat, $trigger, $rule, $plan, $minConfidence);
+        if ($questionPlan instanceof AiFunnelOrchestratorPlan) {
+            return $questionPlan;
         }
 
         return new AiFunnelOrchestratorPlan(
@@ -803,6 +808,8 @@ final class AiFunnelOrchestratorService
         $plan = $this->normalizeSupplementalBookingDetail($chat, $trigger, $plan);
         $plan = $this->normalizeConflictSituation($chat, $trigger, $plan);
         $plan = $this->normalizeCompletionSignal($chat, $trigger, $plan);
+        $plan = $this->normalizeDeliveryDestination($chat, $trigger, $plan);
+        $plan = $this->normalizePriceNegotiation($chat, $trigger, $plan);
         $plan = $this->normalizeDeliveryScheduling($chat, $trigger, $plan);
         $plan = $this->normalizeEchoReply($chat, $trigger, $plan);
         $plan = $this->normalizePaymentStage($chat, $trigger, $plan);
@@ -895,11 +902,16 @@ final class AiFunnelOrchestratorService
 
         $needsRecovery = $plan->customerReply === null
             || $this->isGenericStubReply($plan->customerReply)
+            || $this->isFunnelTemplateReply($plan->customerReply)
             || $plan->requiresManagerAttention
             || ($this->looksLikeQuestion((string) $plan->customerReply) && $this->isRepeatStopReason((string) $plan->reason));
 
         if (! $needsRecovery) {
             return $plan;
+        }
+
+        if ($this->shouldDeferToAutoReply($chat, $trigger, $plan->customerReply)) {
+            return $this->deferToAutoReplyPlan($plan, 'Шаблон воронки не подходит — делегировано автоответу AI.');
         }
 
         if (! $this->shouldOfferCatalog($chat, $trigger)) {
@@ -1492,7 +1504,134 @@ final class AiFunnelOrchestratorService
 
         return str_contains($text, 'уточню информацию и вернусь')
             || str_contains($text, 'понял вас. уточню')
-            || str_contains($text, 'вернусь с ответом');
+            || str_contains($text, 'вернусь с ответом')
+            || str_contains($text, 'ключевые параметры заказа')
+            || (str_contains($text, 'что именно') && str_contains($text, 'нужно'));
+    }
+
+    private function isFunnelTemplateReply(?string $reply): bool
+    {
+        if ($reply === null || trim($reply) === '') {
+            return false;
+        }
+
+        $text = mb_strtolower(trim($reply));
+
+        return str_contains($text, 'ключевые параметры заказа')
+            || (str_contains($text, 'подскажите, пожалуйста') && str_contains($text, 'параметр'))
+            || (str_contains($text, 'что именно') && str_contains($text, 'нужно'));
+    }
+
+    private function shouldDeferToAutoReply(Chat $chat, Message $trigger, ?string $candidateReply): bool
+    {
+        $body = (string) $trigger->body;
+
+        if (KazakhstanCityHeuristics::isDeliveryDestinationStatement($body)) {
+            return true;
+        }
+
+        if (KazakhstanCityHeuristics::isPriceNegotiation($body)) {
+            return true;
+        }
+
+        if ($candidateReply !== null && ! $this->isFunnelTemplateReply($candidateReply)) {
+            return false;
+        }
+
+        return $this->chatHasActiveProductContext($chat, $trigger);
+    }
+
+    private function chatHasActiveProductContext(Chat $chat, Message $trigger): bool
+    {
+        return Message::query()
+            ->where('chat_id', $chat->id)
+            ->where('id', '<', $trigger->id)
+            ->where('direction', 'outbound')
+            ->latest('id')
+            ->limit(8)
+            ->get()
+            ->contains(fn (Message $message): bool => $this->chatBodyMentionsProduct((string) $message->body)
+                || str_contains(mb_strtolower((string) $message->body), 'достав'));
+    }
+
+    private function chatBodyMentionsProduct(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '') {
+            return false;
+        }
+
+        foreach (['набор', '6в1', '6 в 1', '6в 1', 'шурупов', 'инструмент', 'генератор', 'перфоратор', 'болгарк', 'кухн', 'шкаф'] as $needle) {
+            if (str_contains($body, $needle)) {
+                return true;
+            }
+        }
+
+        return preg_match('/\b\d+\s*в\s*1\b/u', $body) === 1;
+    }
+
+    private function deferToAutoReplyPlan(AiFunnelOrchestratorPlan $plan, string $reason): AiFunnelOrchestratorPlan
+    {
+        return new AiFunnelOrchestratorPlan(
+            customerReply: null,
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: $plan->appointment,
+            assigneeUserId: $plan->assigneeUserId,
+            managerNote: null,
+            task: null,
+            requiresManagerAttention: false,
+            confidence: $plan->confidence,
+            reason: $reason,
+        );
+    }
+
+    private function normalizeDeliveryDestination(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if (! KazakhstanCityHeuristics::isDeliveryDestinationStatement((string) $trigger->body)) {
+            return $plan;
+        }
+
+        $reply = mb_strtolower(trim((string) ($plan->customerReply ?? '')));
+        $misguided = $reply === ''
+            || str_contains($reply, 'что именно')
+            || (str_contains($reply, 'уточн') && str_contains($reply, 'нужно'));
+
+        if (! $misguided) {
+            return $plan;
+        }
+
+        $companyId = (int) ($chat->company_id ?? 0);
+        if ($companyId > 0) {
+            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId, $chat, $trigger);
+            if ($dynamic !== null) {
+                return new AiFunnelOrchestratorPlan(
+                    customerReply: $dynamic['reply'],
+                    targetFunnelStageId: $plan->targetFunnelStageId,
+                    appointment: null,
+                    assigneeUserId: null,
+                    managerNote: null,
+                    task: $dynamic['task'],
+                    requiresManagerAttention: false,
+                    confidence: max($plan->confidence, 0.9),
+                    reason: $dynamic['reason'],
+                );
+            }
+        }
+
+        return $this->deferToAutoReplyPlan($plan, 'Клиент указал город доставки — делегировано автоответу AI.');
+    }
+
+    private function normalizePriceNegotiation(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
+    {
+        if (! KazakhstanCityHeuristics::isPriceNegotiation((string) $trigger->body)) {
+            return $plan;
+        }
+
+        if ($this->isFunnelTemplateReply($plan->customerReply) || $this->looksLikeQuestion((string) ($plan->customerReply ?? ''))) {
+            return $this->deferToAutoReplyPlan($plan, 'Клиент торгуется по цене — делегировано автоответу AI.');
+        }
+
+        return $plan;
     }
 
     private function isRepeatStopReason(string $reason): bool
@@ -1762,8 +1901,13 @@ final class AiFunnelOrchestratorService
             return null;
         }
 
+        $fallbackReply = $this->questionFallbackReply($questions, $trigger);
+        if ($this->shouldDeferToAutoReply($chat, $trigger, $fallbackReply)) {
+            return $this->deferToAutoReplyPlan($plan, 'Шаблон воронки не подходит — делегировано автоответу AI.');
+        }
+
         return new AiFunnelOrchestratorPlan(
-            customerReply: $this->questionFallbackReply($questions, $trigger),
+            customerReply: $fallbackReply,
             targetFunnelStageId: $targetStageId,
             appointment: null,
             assigneeUserId: null,
@@ -1881,9 +2025,10 @@ final class AiFunnelOrchestratorService
             || str_contains($body, 'воскрес');
 
         return match (true) {
-            str_contains($question, 'адрес') || str_contains($question, 'город') || str_contains($question, 'район') => str_contains($body, 'адрес') || str_contains($body, 'ул') || str_contains($body, 'район') || str_contains($body, 'город') || $hasNumber,
+            str_contains($question, 'адрес') || str_contains($question, 'город') || str_contains($question, 'район') => str_contains($body, 'адрес') || str_contains($body, 'ул') || str_contains($body, 'район') || str_contains($body, 'город') || KazakhstanCityHeuristics::mentionsCity($body) || $hasNumber,
             str_contains($question, 'время') || str_contains($question, 'дат') || str_contains($question, 'срок') => $hasTime,
-            str_contains($question, 'бюджет') || str_contains($question, 'цен') || str_contains($question, 'стоим') => str_contains($body, 'тг') || str_contains($body, 'тенге') || str_contains($body, '₸') || $hasNumber,
+            str_contains($question, 'бюджет') || str_contains($question, 'цен') || str_contains($question, 'стоим') => str_contains($body, 'тг') || str_contains($body, 'тенге') || str_contains($body, '₸') || KazakhstanCityHeuristics::isPriceNegotiation($body) || $hasNumber,
+            str_contains($question, 'параметр') || str_contains($question, 'заказ') => $this->chatBodyMentionsProduct($body) || KazakhstanCityHeuristics::isPriceNegotiation($body) || KazakhstanCityHeuristics::isDeliveryDestinationStatement($body),
             str_contains($question, 'оплат') || str_contains($question, 'предоплат') || str_contains($question, 'реквизит') => $this->mentionsPaymentDone($body) || str_contains($body, 'позже') || str_contains($body, 'потом') || str_contains($body, 'реквизит'),
             str_contains($question, 'огранич') || str_contains($question, 'лифт') || str_contains($question, 'парков') => str_contains($body, 'огранич') || str_contains($body, 'лифт') || str_contains($body, 'парков') || str_contains($body, 'нет'),
             default => false,
