@@ -4,6 +4,8 @@ export const landingKk = {
     navFeatures: 'Мүмкіндіктер',
     navPricing: 'Тариф',
     navDownload: 'Жүктеу',
+    downloadAppStoreSoon: 'Жақында',
+    downloadAndroidHint: 'Жүктеу',
     heroTitle: 'Бүкіл командаға WhatsApp',
     heroTagline: 'Чат, AI және тапсырмалар үшін бір терезе — телефон хаосысыз.',
     heroTrialHint: 'Қосылғаннан кейін 14 күн тегін',

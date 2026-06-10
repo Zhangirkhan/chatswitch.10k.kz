@@ -4,6 +4,8 @@ export const landingRu = {
     navFeatures: 'Возможности',
     navPricing: 'Тариф',
     navDownload: 'Скачать',
+    downloadAppStoreSoon: 'Скоро',
+    downloadAndroidHint: 'Скачать для',
     heroTitle: 'WhatsApp для всей команды',
     heroTagline: 'Единое окно для переписки, AI и задач — без хаоса в телефонах.',
     heroTrialHint: '14 дней бесплатно после подключения',

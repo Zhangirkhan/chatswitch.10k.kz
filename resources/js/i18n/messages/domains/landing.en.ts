@@ -4,6 +4,8 @@ export const landingEn = {
     navFeatures: 'Features',
     navPricing: 'Pricing',
     navDownload: 'Download',
+    downloadAppStoreSoon: 'Soon',
+    downloadAndroidHint: 'Get it on',
     heroTitle: 'WhatsApp for your whole team',
     heroTagline: 'One inbox for chats, AI and tasks — no phone chaos.',
     heroTrialHint: '14-day free trial after activation',
