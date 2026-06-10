@@ -26,6 +26,7 @@ use App\Support\WhatsappMessageType;
 use App\Support\TranscribeAudioJobDispatcher;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -474,31 +475,27 @@ final class ChatService
             throw new \InvalidArgumentException('Invalid phone number for contact creation.');
         }
 
-        // 1. Prefer existing contact by phone_number (covers @lid contacts whose phone was extracted)
-        $existing = Contact::where('phone_number', $digits)
+        $existing = Contact::query()
+            ->where('phone_number', $digits)
             ->orderByDesc('id')
             ->first();
         if ($existing !== null) {
-            return $existing;
+            return $this->mergeContactDisplayNames($existing, $name);
         }
 
-        // 2. Match by whatsapp_id variants (plain digits or @c.us)
-        $existing = Contact::where(function (Builder $q) use ($digits): void {
-            $q->where('whatsapp_id', $digits)
-                ->orWhere('whatsapp_id', "{$digits}@c.us");
-        })->orderByDesc('id')->first();
+        $existing = Contact::query()
+            ->where(function (Builder $q) use ($digits): void {
+                $q->where('whatsapp_id', $digits)
+                    ->orWhere('whatsapp_id', "{$digits}@c.us");
+            })
+            ->orderByDesc('id')
+            ->first();
 
         if ($existing !== null) {
-            return $existing;
+            return $this->mergeContactDisplayNames($existing, $name);
         }
 
-        // 3. Create a new contact
-        return Contact::create([
-            'whatsapp_id' => $digits,
-            'phone_number' => $digits,
-            'name' => $name,
-            'push_name' => $name,
-        ]);
+        return $this->firstOrCreateContactRecord($digits, $digits, $name);
     }
 
     public function findOrCreateContact(array $data): Contact
@@ -537,21 +534,74 @@ final class ChatService
             }
         }
 
+        return $this->firstOrCreateContactRecord($whatsappId, '', $senderName);
+    }
+
+    /**
+     * Создаёт контакт в текущем тенанте; при гонке или legacy-индексе — повторный lookup.
+     */
+    private function firstOrCreateContactRecord(string $whatsappId, string $phoneNumber, ?string $name): Contact
+    {
+        $whatsappId = trim($whatsappId);
+        if ($whatsappId === '') {
+            throw new \InvalidArgumentException('WhatsApp id is required for contact creation.');
+        }
+
         $existing = Contact::query()
             ->where('whatsapp_id', $whatsappId)
             ->orderByDesc('id')
             ->first();
 
         if ($existing !== null) {
-            return $existing;
+            return $this->mergeContactDisplayNames($existing, $name);
         }
 
-        return Contact::create([
-            'whatsapp_id' => $whatsappId,
-            'phone_number' => '',
-            'name' => $senderName,
-            'push_name' => $senderName,
-        ]);
+        try {
+            return Contact::query()->create([
+                'whatsapp_id' => $whatsappId,
+                'phone_number' => $phoneNumber,
+                'name' => $name,
+                'push_name' => $name,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            $existing = Contact::query()
+                ->where('whatsapp_id', $whatsappId)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($existing === null) {
+                throw new \RuntimeException(
+                    "Не удалось создать контакт WhatsApp {$whatsappId}: конфликт unique-индекса. "
+                    .'Проверьте миграцию contacts_company_whatsapp_unique.',
+                    0,
+                );
+            }
+
+            return $this->mergeContactDisplayNames($existing, $name);
+        }
+    }
+
+    private function mergeContactDisplayNames(Contact $contact, ?string $name): Contact
+    {
+        if ($name === null || trim($name) === '') {
+            return $contact;
+        }
+
+        $changed = false;
+        if ($contact->name === null || trim((string) $contact->name) === '') {
+            $contact->name = $name;
+            $changed = true;
+        }
+        if ($contact->push_name === null || trim((string) $contact->push_name) === '') {
+            $contact->push_name = $name;
+            $changed = true;
+        }
+
+        if ($changed) {
+            $contact->saveQuietly();
+        }
+
+        return $contact;
     }
 
     public function storeInboundMessage(Chat $chat, WhatsappSession $session, array $data): ?Message

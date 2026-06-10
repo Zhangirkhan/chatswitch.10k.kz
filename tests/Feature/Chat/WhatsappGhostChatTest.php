@@ -246,6 +246,26 @@ final class WhatsappGhostChatTest extends TestCase
         ]);
     }
 
+    public function test_find_or_create_contact_is_idempotent_within_tenant(): void
+    {
+        $company = $this->createTenantCompany(['slug' => 'tenant-idempotent', 'name' => 'Tenant Idempotent']);
+        $whatsappId = '33724234223783@lid';
+
+        $service = app(ChatService::class);
+        $first = $service->findOrCreateContact([
+            'chatId' => $whatsappId,
+            'senderName' => 'Алымжан',
+        ]);
+        $second = $service->findOrCreateContact([
+            'chatId' => $whatsappId,
+            'senderName' => 'Алымжан',
+        ]);
+
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, \App\Models\Contact::query()->where('whatsapp_id', $whatsappId)->count());
+        $this->assertSame($company->id, $first->company_id);
+    }
+
     public function test_prune_command_removes_ghost_chats(): void
     {
         $session = WhatsappSession::factory()->create();

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\Process\Process;
@@ -81,6 +82,18 @@ final class TenantDoctorService
     public function fix(Company $company, array &$groups): array
     {
         $actions = [];
+
+        if ($this->groupNeedsFix($groups, 'infra')) {
+            foreach ($groups['infra']['checks'] ?? [] as $check) {
+                if (($check['key'] ?? '') === 'contacts_whatsapp_index' && ! ($check['ok'] ?? true)) {
+                    Artisan::call('migrate', [
+                        '--force' => true,
+                        '--path' => 'database/migrations/2026_06_10_150000_contacts_whatsapp_id_unique_per_company.php',
+                    ]);
+                    $actions[] = 'migrate-contacts-whatsapp-index';
+                }
+            }
+        }
 
         if ($this->groupNeedsFix($groups, 'data')) {
             $owner = $this->resolveOwner($company);
@@ -202,7 +215,34 @@ final class TenantDoctorService
             ];
         }
 
+        $contactsIndexOk = $this->contactsWhatsappIndexPerTenant();
+        $checks[] = [
+            'key' => 'contacts_whatsapp_index',
+            'ok' => $contactsIndexOk,
+            'severity' => 'critical',
+            'message' => $contactsIndexOk
+                ? 'Индекс contacts (company_id, whatsapp_id) настроен'
+                : 'Устаревший global unique на contacts.whatsapp_id — входящие WhatsApp могут теряться между тенантами',
+            'fixable' => true,
+        ];
+
         return $this->groupResult($checks);
+    }
+
+    private function contactsWhatsappIndexPerTenant(): bool
+    {
+        if (! Schema::hasTable('contacts') || ! Schema::hasColumn('contacts', 'company_id')) {
+            return true;
+        }
+
+        $indexes = Schema::getConnection()->getSchemaBuilder()->getIndexes('contacts');
+        $names = collect($indexes)->pluck('name')->filter()->all();
+
+        if (in_array('contacts_whatsapp_id_unique', $names, true)) {
+            return false;
+        }
+
+        return in_array('contacts_company_whatsapp_unique', $names, true);
     }
 
     /**
