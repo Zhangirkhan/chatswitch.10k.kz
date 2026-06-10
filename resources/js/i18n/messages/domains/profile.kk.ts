@@ -158,6 +158,7 @@ export const profileKk = {
         messagePlaceholder: 'Мәселені немесе идеяны мүмкіндігінше нақты сипаттаңыз…',
         submit: 'Жіберу',
         submitting: 'Жіберілуде…',
+        submitSuccess: 'Хабарлама жіберілді. Рахмет!',
         historyTitle: 'Сіздің хабарламаларыңыз',
         historyEmpty: 'Сіз әлі хабарлама жіберген жоқсыз.',
         statusNew: 'Жаңа',

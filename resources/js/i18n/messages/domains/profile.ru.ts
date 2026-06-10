@@ -158,6 +158,7 @@ export const profileRu = {
         messagePlaceholder: 'Опишите проблему или идею как можно конкретнее…',
         submit: 'Отправить',
         submitting: 'Отправка…',
+        submitSuccess: 'Обращение отправлено. Спасибо!',
         historyTitle: 'Ваши обращения',
         historyEmpty: 'Вы ещё не отправляли обращений.',
         statusNew: 'Новое',

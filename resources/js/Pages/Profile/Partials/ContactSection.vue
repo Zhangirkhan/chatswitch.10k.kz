@@ -2,8 +2,8 @@
 import InputError from '@/Components/InputError.vue';
 import SectionHeader from './SectionHeader.vue';
 import { useI18n } from '@/composables/useI18n';
-import { useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { useForm, router, usePage } from '@inertiajs/vue3';
+import { computed, onUnmounted, ref } from 'vue';
 
 type FeedbackItem = {
     id: number;
@@ -26,6 +26,16 @@ const flashSuccess = computed(() => {
     return flash?.success ?? '';
 });
 
+const showSuccess = ref(false);
+let successTimer: ReturnType<typeof setTimeout> | null = null;
+
+const successMessage = computed(() => {
+    if (showSuccess.value) {
+        return t('profile.contactSection.submitSuccess');
+    }
+    return flashSuccess.value;
+});
+
 const form = useForm({
     type: 'suggestion' as 'complaint' | 'suggestion',
     message: '',
@@ -36,9 +46,24 @@ function submit(): void {
         preserveScroll: true,
         onSuccess: () => {
             form.reset('message');
+            showSuccess.value = true;
+            if (successTimer !== null) {
+                clearTimeout(successTimer);
+            }
+            successTimer = setTimeout(() => {
+                showSuccess.value = false;
+                successTimer = null;
+            }, 6000);
+            router.reload({ only: ['feedbackItems'] });
         },
     });
 }
+
+onUnmounted(() => {
+    if (successTimer !== null) {
+        clearTimeout(successTimer);
+    }
+});
 
 function typeLabel(type: FeedbackItem['type']): string {
     return type === 'complaint'
@@ -84,8 +109,8 @@ function formatDate(value: string | null): string {
                 {{ t('profile.contactSection.intro') }}
             </p>
 
-            <p v-if="flashSuccess" class="text-sm text-[var(--wa-accent)]">
-                {{ flashSuccess }}
+            <p v-if="successMessage" class="text-sm text-[var(--wa-accent)]" role="status">
+                {{ successMessage }}
             </p>
 
             <form class="space-y-4" @submit.prevent="submit">

@@ -158,6 +158,7 @@ export const profileEn = {
         messagePlaceholder: 'Describe the issue or idea in as much detail as you can…',
         submit: 'Send',
         submitting: 'Sending…',
+        submitSuccess: 'Your message has been sent. Thank you!',
         historyTitle: 'Your messages',
         historyEmpty: 'You have not sent any messages yet.',
         statusNew: 'New',
