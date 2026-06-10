@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
+use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
@@ -44,6 +45,10 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
 
         Route::get('settings', [ApiSettingsController::class, 'show']);
+
+        Route::get('feedback', [ApiFeedbackController::class, 'index']);
+        Route::post('feedback', [ApiFeedbackController::class, 'store'])
+            ->middleware('throttle:6,1');
 
         Route::post('devices', [DeviceController::class, 'store'])
             ->middleware('throttle:device-register');

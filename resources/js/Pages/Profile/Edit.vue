@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import SettingsSidebar from '@/Pages/Settings/Partials/SettingsSidebar.vue';
+import ContactSection from './Partials/ContactSection.vue';
 import ProfileSection from './Partials/ProfileSection.vue';
 import AccountSection from './Partials/AccountSection.vue';
 import ChatsSection from './Partials/ChatsSection.vue';
@@ -11,9 +12,17 @@ import { useI18n } from '@/composables/useI18n';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
-defineProps<{
+const props = defineProps<{
     mustVerifyEmail?: boolean;
     status?: string;
+    feedbackItems?: Array<{
+        id: number;
+        type: 'complaint' | 'suggestion';
+        message: string;
+        status: 'new' | 'read' | 'resolved';
+        source: 'web' | 'mobile';
+        created_at: string | null;
+    }>;
 }>();
 
 const { t } = useI18n();
@@ -23,10 +32,11 @@ type Section =
     | 'account'
     | 'chats'
     | 'notifications'
+    | 'contact'
     | 'shortcuts';
 
 const VALID_SECTIONS: readonly Section[] = [
-    'profile', 'account', 'chats', 'notifications', 'shortcuts',
+    'profile', 'account', 'chats', 'notifications', 'contact', 'shortcuts',
 ] as const;
 
 const page = usePage();
@@ -61,6 +71,10 @@ function closeShortcuts() {
                     <AccountSection v-else-if="activeSection === 'account'" />
                     <ChatsSection v-else-if="activeSection === 'chats'" />
                     <NotificationsSection v-else-if="activeSection === 'notifications'" />
+                    <ContactSection
+                        v-else-if="activeSection === 'contact'"
+                        :items="props.feedbackItems ?? []"
+                    />
                 </aside>
             </template>
             <template v-else>

@@ -66,6 +66,7 @@ export const ru: MessageCatalog = {
             chats: { label: 'Чаты', description: 'Тема, обои, настройки чата' },
             notifications: { label: 'Уведомления', description: 'Сообщения, группы, звуки' },
             shortcuts: { label: 'Сочетания клавиш', description: 'Быстрые действия' },
+            contact: { label: 'Связь', description: 'Жалобы и пожелания для Accel' },
         },
         departments: {
             title: 'Отделы',

@@ -66,6 +66,7 @@ export const kk: MessageCatalog = {
             chats: { label: 'Чаттар', description: 'Тема, тұсқағаз, чат баптаулары' },
             notifications: { label: 'Хабарландырулар', description: 'Хабарламалар, топтар, дыбыстар' },
             shortcuts: { label: 'Пернелер', description: 'Жылдам әрекеттер' },
+            contact: { label: 'Байланыс', description: 'Accel үшін шағымдар мен ұсыныстар' },
         },
         departments: {
             title: 'Бөлімдер',

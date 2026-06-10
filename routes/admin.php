@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyDoctorController;
+use App\Http\Controllers\SuperAdmin\ContactMessageController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CompanyMaintenanceController;
 use App\Http\Controllers\SuperAdmin\CompanyModuleController;
@@ -99,4 +100,10 @@ Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function
         ->name('super.signup-requests.approve');
     Route::post('/signup-requests/{signupRequest}/reject', [SignupRequestController::class, 'reject'])
         ->name('super.signup-requests.reject');
+
+    Route::get('/contact-messages', [ContactMessageController::class, 'index'])->name('super.contact-messages.index');
+    Route::patch('/contact-messages/{contactMessage}/read', [ContactMessageController::class, 'markRead'])
+        ->name('super.contact-messages.read');
+    Route::patch('/contact-messages/{contactMessage}/resolve', [ContactMessageController::class, 'resolve'])
+        ->name('super.contact-messages.resolve');
 });

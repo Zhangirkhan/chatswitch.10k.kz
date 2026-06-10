@@ -8,6 +8,8 @@ use App\Models\Chat;
 use App\Models\DepartmentPost;
 use App\Models\SystemSetting;
 use App\Models\TenantSignupRequest;
+use App\Models\UserFeedback;
+use App\Enums\UserFeedbackStatus;
 use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\Calendar\CalendarMenuBadgeService;
@@ -117,6 +119,9 @@ final class HandleInertiaRequests extends Middleware
                     'pending_signups' => $isSandbox
                         ? 0
                         : TenantSignupRequest::query()->where('status', 'pending')->count(),
+                    'unread_feedback' => $isSandbox
+                        ? 0
+                        : UserFeedback::query()->where('status', UserFeedbackStatus::New)->count(),
                     'is_sandbox' => $isSandbox,
                 ];
             },

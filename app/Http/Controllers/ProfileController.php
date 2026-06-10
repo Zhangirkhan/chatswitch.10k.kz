@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\Feedback\UserFeedbackService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,14 +14,30 @@ use Inertia\Response;
 
 class ProfileController extends Controller
 {
+    public function __construct(
+        private readonly UserFeedbackService $feedbackService,
+    ) {}
+
     /**
      * Display the user's profile form.
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'feedbackItems' => $user !== null
+                ? $this->feedbackService->recentForUser($user, 10)->map(static fn ($item) => [
+                    'id' => $item->id,
+                    'type' => $item->type->value,
+                    'message' => $item->message,
+                    'status' => $item->status->value,
+                    'source' => $item->source->value,
+                    'created_at' => $item->created_at?->toIso8601String(),
+                ])->values()
+                : [],
         ]);
     }
 

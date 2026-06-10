@@ -66,6 +66,7 @@ export const en: MessageCatalog = {
             chats: { label: 'Chats', description: 'Theme, wallpaper, chat settings' },
             notifications: { label: 'Notifications', description: 'Messages, groups, sounds' },
             shortcuts: { label: 'Keyboard shortcuts', description: 'Quick actions' },
+            contact: { label: 'Contact', description: 'Complaints and suggestions for Accel' },
         },
         departments: {
             title: 'Departments',

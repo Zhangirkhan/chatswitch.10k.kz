@@ -10,6 +10,7 @@ const user = computed(() => page.props.auth?.user);
 
 type SuperAdminNavProps = {
     pending_signups?: number;
+    unread_feedback?: number;
     is_sandbox?: boolean;
 };
 
@@ -65,6 +66,12 @@ const navItems = computed((): NavItem[] => {
                 label: t('superAdmin.layout.nav.signupRequests'),
                 match: '/signup-requests',
                 badge: superAdminNav.value?.pending_signups,
+            },
+            {
+                href: '/contact-messages',
+                label: t('superAdmin.layout.nav.contact'),
+                match: '/contact-messages',
+                badge: superAdminNav.value?.unread_feedback,
             },
             { href: '/audit-logs', label: t('superAdmin.layout.nav.auditLogs'), match: '/audit-logs' },
         );

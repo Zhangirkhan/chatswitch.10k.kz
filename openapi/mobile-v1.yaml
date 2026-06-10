@@ -62,6 +62,8 @@ tags:
     description: Отделы
   - name: Devices
     description: Регистрация FCM-токенов для push-уведомлений (Android)
+  - name: Feedback
+    description: Обратная связь — жалобы и пожелания пользователей
   - name: Users
     description: Сотрудники tenant (team chat, pickers)
   - name: Chats
@@ -284,6 +286,56 @@ paths:
           description: Не авторизован
         "422":
           description: Ошибка валидации
+
+  /api/v1/feedback:
+    get:
+      tags: [Feedback]
+      summary: История обращений текущего пользователя
+      operationId: feedbackIndex
+      description: |
+        Последние 30 обращений пользователя (жалобы и пожелания).
+        Требуется Bearer-токен Sanctum на поддомене тенанта.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackListResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Деактивирован / приостановленный тенант
+    post:
+      tags: [Feedback]
+      summary: Отправить обращение
+      operationId: feedbackStore
+      description: |
+        Создаёт жалобу или пожелание от имени текущего пользователя.
+        Rate limit — 6 запросов/мин на пользователя.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreFeedbackRequest"
+      responses:
+        "201":
+          description: Обращение создано
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResourceResponse"
+        "401":
+          description: Не авторизован
+        "422":
+          description: Ошибка валидации
+        "429":
+          description: Слишком много запросов
 
   /api/v1/users:
     get:
@@ -1957,3 +2009,62 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/DeviceResource"
+
+    StoreFeedbackRequest:
+      type: object
+      required: [type, message]
+      properties:
+        type:
+          type: string
+          enum: [complaint, suggestion]
+          description: Жалоба или пожелание
+        message:
+          type: string
+          minLength: 10
+          maxLength: 5000
+        app_version:
+          type: string
+          maxLength: 64
+          nullable: true
+        device_platform:
+          type: string
+          maxLength: 32
+          nullable: true
+          description: android / ios
+        device_model:
+          type: string
+          maxLength: 128
+          nullable: true
+
+    FeedbackResource:
+      type: object
+      properties:
+        id: { type: integer }
+        type:
+          type: string
+          enum: [complaint, suggestion]
+        message: { type: string }
+        source:
+          type: string
+          enum: [web, mobile]
+        status:
+          type: string
+          enum: [new, read, resolved]
+        app_version: { type: string, nullable: true }
+        device_platform: { type: string, nullable: true }
+        device_model: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+
+    FeedbackResourceResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/FeedbackResource"
+
+    FeedbackListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeedbackResource"
