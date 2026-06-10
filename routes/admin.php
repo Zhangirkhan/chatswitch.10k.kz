@@ -16,6 +16,7 @@ use App\Http\Controllers\SuperAdmin\GlobalInvoiceController;
 use App\Http\Controllers\SuperAdmin\InvoiceDocumentController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\InvoiceController;
+use App\Http\Controllers\SuperAdmin\MobileAppReleaseController;
 use App\Http\Controllers\SuperAdmin\PaymentController;
 use App\Http\Controllers\SuperAdmin\PlanController;
 use App\Http\Controllers\SuperAdmin\SignupRequestController;
@@ -106,4 +107,11 @@ Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function
         ->name('super.contact-messages.read');
     Route::patch('/contact-messages/{contactMessage}/resolve', [ContactMessageController::class, 'resolve'])
         ->name('super.contact-messages.resolve');
+
+    Route::get('/mobile-releases', [MobileAppReleaseController::class, 'index'])->name('super.mobile-releases.index');
+    Route::post('/mobile-releases', [MobileAppReleaseController::class, 'store'])->name('super.mobile-releases.store');
+    Route::put('/mobile-releases/{mobileRelease}', [MobileAppReleaseController::class, 'update'])->name('super.mobile-releases.update');
+    Route::post('/mobile-releases/{mobileRelease}/publish', [MobileAppReleaseController::class, 'publish'])->name('super.mobile-releases.publish');
+    Route::post('/mobile-releases/{mobileRelease}/unpublish', [MobileAppReleaseController::class, 'unpublish'])->name('super.mobile-releases.unpublish');
+    Route::delete('/mobile-releases/{mobileRelease}', [MobileAppReleaseController::class, 'destroy'])->name('super.mobile-releases.destroy');
 });

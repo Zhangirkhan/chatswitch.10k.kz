@@ -18,9 +18,11 @@ const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 const props = defineProps<{
     rootDomain?: string;
+    androidApkUrl?: string;
 }>();
 
 const rootDomain = computed(() => props.rootDomain ?? 'accel.kz');
+const apkDownloadUrl = computed(() => props.androidApkUrl ?? '/apk/app-release.apk');
 
 const page = usePage();
 const { t } = useI18n();
@@ -45,8 +47,6 @@ const features = computed(() => [
 ]);
 
 const featureGlowColors = ['#01b964', '#06d670', '#2dd4bf'] as const;
-
-const apkDownloadUrl = '/apk/app-release.apk';
 
 const pricingBullets = computed(() => [
     t('landing.pricingBullet1'),

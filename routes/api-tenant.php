@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DepartmentController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\WorkspaceController;
@@ -39,6 +40,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         ->middleware('throttle:workspace-lookup');
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/login/pin', [AuthController::class, 'loginPin']);
+    Route::get('mobile/update-check', MobileUpdateCheckController::class)
+        ->middleware('throttle:60,1');
 
     Route::middleware(['auth:sanctum', 'api.active', 'tenant.user', 'role:administrator,manager,employee'])->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout']);

@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\WhatsappWebhookController;
 use App\Models\WhatsappSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/v1/mobile/update-check', MobileUpdateCheckController::class)
+    ->middleware('throttle:60,1')
+    ->name('api.mobile.update-check');
 
 Route::middleware(['whatsapp.service', 'throttle:whatsapp-service'])->group(function (): void {
     Route::post('/whatsapp/webhook', [WhatsappWebhookController::class, 'handle'])

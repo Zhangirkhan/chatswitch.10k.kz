@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Company;
 use App\Models\TenantSignupRequest;
 use App\Services\Marketing\AiTokenCalculatorService;
+use App\Services\Mobile\MobileAppReleaseService;
 use App\Services\Tenancy\TenantSlugAvailabilityService;
 use App\Support\PhoneFormatter;
 use Illuminate\Http\JsonResponse;
@@ -19,10 +20,15 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 final class LandingController extends Controller
 {
-    public function home(): Response
+    public function home(MobileAppReleaseService $mobileReleases): Response
     {
+        $androidRelease = $mobileReleases->latestPublished('android');
+
         return Inertia::render('Landing/Home', [
             'rootDomain' => (string) config('tenancy.root_domain', 'accel.kz'),
+            'androidApkUrl' => $androidRelease !== null
+                ? $mobileReleases->absoluteDownloadUrl($androidRelease->download_url)
+                : url('/apk/app-release.apk'),
         ]);
     }
 

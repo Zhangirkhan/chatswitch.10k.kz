@@ -73,6 +73,7 @@ const navItems = computed((): NavItem[] => {
                 match: '/contact-messages',
                 badge: superAdminNav.value?.unread_feedback,
             },
+            { href: '/mobile-releases', label: t('superAdmin.layout.nav.mobileReleases'), match: '/mobile-releases' },
             { href: '/audit-logs', label: t('superAdmin.layout.nav.auditLogs'), match: '/audit-logs' },
         );
     }
