@@ -81,6 +81,7 @@ export interface MessageCatalog {
             connections: SidebarNavItemCopy;
             departments: SidebarNavItemCopy;
             users: SidebarNavItemCopy;
+            roles: SidebarNavItemCopy;
             promotions: SidebarNavItemCopy;
             funnels: SidebarNavItemCopy;
             clients: SidebarNavItemCopy;
@@ -96,6 +97,7 @@ export interface MessageCatalog {
             chats: SidebarNavItemCopy;
             notifications: SidebarNavItemCopy;
             shortcuts: SidebarNavItemCopy;
+            contact: SidebarNavItemCopy;
         };
         departments: {
             title: string;

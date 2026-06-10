@@ -307,6 +307,7 @@ export type PageProps<
     flash: {
         success: string | null;
         error: string | null;
+        provisioning_pending?: boolean;
     };
     /** Inertia: страница внутреннего чата организации (опционально). */
     selectedConversationId?: number | null;
