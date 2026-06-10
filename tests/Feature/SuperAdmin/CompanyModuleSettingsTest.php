@@ -38,6 +38,8 @@ final class CompanyModuleSettingsTest extends TestCase
             ]);
         }
 
+        SystemSetting::getValue('module_funnels', null, $company->id);
+
         $admin = User::factory()->create(['is_super_admin' => true, 'company_id' => null]);
         $host = $this->adminHost();
         URL::forceRootUrl('https://'.$host);

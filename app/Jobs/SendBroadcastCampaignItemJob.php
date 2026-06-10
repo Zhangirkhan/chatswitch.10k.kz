@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\BroadcastCampaign;
 use App\Models\BroadcastCampaignItem;
 use App\Models\Chat;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Broadcast\BroadcastCampaignService;
 use App\Services\Broadcast\BroadcastSendRateLimiter;
@@ -62,6 +63,16 @@ final class SendBroadcastCampaignItemJob implements ShouldQueue
 
         $campaign = $item->campaign;
         if ($campaign === null || $campaign->status === BroadcastCampaign::STATUS_CANCELLED) {
+            return;
+        }
+
+        $companyId = (int) ($this->tenantCompanyId ?? $campaign->whatsappSession?->company_id ?? 0);
+        if (
+            $companyId > 0
+            && SystemSetting::getValue('module_broadcasts', 'on', $companyId) !== 'on'
+        ) {
+            $this->markSkipped($item, $campaignService, 'Модуль «Рассылки» отключён администратором.');
+
             return;
         }
 

@@ -62,12 +62,7 @@ final class CompanyModuleSettingsService
                 ->where('key', $key)
                 ->value('value');
 
-            SystemSetting::query()
-                ->withoutGlobalScope('tenant')
-                ->updateOrCreate(
-                    ['company_id' => $company->id, 'key' => $key],
-                    ['value' => $value],
-                );
+            SystemSetting::setValue($key, $value, $company->id);
 
             if ($previous !== $value) {
                 $changes[] = CompanyModules::definitions()[$key]['label'].': '.($enabled ? 'вкл' : 'выкл');

@@ -26,6 +26,8 @@ final class TenantModulesSettingsTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole('administrator');
 
+        SystemSetting::getValue('module_clients');
+
         $this->actingAs($admin)
             ->postJson(route('settings.system.modules.update'), [
                 'modules' => [

@@ -2,7 +2,7 @@
 import EntityMemoryPanel from '@/Components/Memory/EntityMemoryPanel.vue';
 import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
@@ -142,6 +142,7 @@ async function saveModules() {
     try {
         await axios.post(route('settings.system.modules.update'), { modules: moduleForm.value });
         modulesSaved.value = true;
+        router.reload({ only: ['nav', 'modules'] });
         setTimeout(() => modulesSaved.value = false, 3000);
     } catch (err: any) {
         showToast({ message: err.response?.data?.message || t('settings.system.modulesErrorSave'), type: 'warning' });
