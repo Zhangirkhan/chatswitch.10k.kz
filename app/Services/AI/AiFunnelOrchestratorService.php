@@ -15,7 +15,6 @@ use App\Models\User;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\AI\Orchestrator\OrchestratorDynamicReplyBuilder;
 use App\Services\Calendar\CalendarAvailabilityService;
-use App\Services\Funnel\FunnelPaymentStageBypass;
 use App\Services\Funnel\FunnelStageTransitionGuard;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Support\AiSafeErrorMessage;
@@ -38,7 +37,6 @@ final class AiFunnelOrchestratorService
         private readonly ConversationAppointmentResolver $conversationAppointments,
         private readonly ContactAiContextResetService $contactAiContextReset,
         private readonly ChatConflictService $conflictService,
-        private readonly FunnelPaymentStageBypass $paymentBypass,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -614,22 +612,8 @@ final class AiFunnelOrchestratorService
             return $plan;
         }
 
-        $stageId = (int) $this->paymentBypass->resolveTargetStageId($chat, $plan->targetFunnelStageId);
-        if ($stageId !== (int) $plan->targetFunnelStageId) {
-            $plan = new AiFunnelOrchestratorPlan(
-                customerReply: $plan->customerReply,
-                targetFunnelStageId: $stageId,
-                appointment: $plan->appointment,
-                assigneeUserId: $plan->assigneeUserId,
-                managerNote: $plan->managerNote,
-                task: $plan->task,
-                requiresManagerAttention: $plan->requiresManagerAttention,
-                confidence: $plan->confidence,
-                reason: $plan->reason.' (payment-этап пропущен)',
-            );
-        }
-
         $funnelId = (int) $chat->funnel_id;
+        $stageId = (int) $plan->targetFunnelStageId;
         $reject = $this->stageTransitionGuard->rejectReason($chat, $funnelId, $stageId, $plan->confidence);
         if ($reject === null) {
             return $plan;
@@ -1633,23 +1617,6 @@ final class AiFunnelOrchestratorService
 
     private function normalizePaymentStage(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
-        if ($this->paymentBypass->isBypassActive() && $this->paymentBypass->chatIsOnPaymentStage($chat)) {
-            $nextStageId = $this->paymentBypass->nextStageAfterPayment($chat);
-            if ($nextStageId !== null) {
-                return new AiFunnelOrchestratorPlan(
-                    customerReply: 'Зафиксировали. Передаём заказ в работу — менеджер свяжется по деталям.',
-                    targetFunnelStageId: $nextStageId,
-                    appointment: $plan->appointment,
-                    assigneeUserId: $plan->assigneeUserId,
-                    managerNote: null,
-                    task: null,
-                    requiresManagerAttention: false,
-                    confidence: max($plan->confidence, 0.9),
-                    reason: 'Payment-этап пропущен: интеграции оплаты нет.',
-                );
-            }
-        }
-
         if (trim((string) $chat->funnelStage?->name) !== 'Ожидание предоплаты') {
             return $plan;
         }

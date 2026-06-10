@@ -7,7 +7,6 @@ namespace App\Services\AI\Orchestrator;
 use App\Models\Product;
 use App\Models\Service;
 use App\Services\AI\KnowledgeContextRepository;
-use App\Services\Funnel\FunnelPaymentStageBypass;
 use App\Services\AI\Locale\KazakhstanLocaleDetector;
 use App\Services\AI\Locale\KazakhstanLocaleProfile;
 
@@ -17,7 +16,6 @@ final class OrchestratorDynamicReplyBuilder
         private readonly ClientMessageIntentDetector $intents,
         private readonly KazakhstanLocaleDetector $localeDetector,
         private readonly KnowledgeContextRepository $knowledge,
-        private readonly FunnelPaymentStageBypass $paymentBypass,
     ) {}
 
     /**
@@ -211,18 +209,6 @@ final class OrchestratorDynamicReplyBuilder
      */
     private function paymentReply(string $body): array
     {
-        if ($this->paymentBypass->isBypassActive()) {
-            return [
-                'reply' => $this->localize(
-                    $body,
-                    'Продолжаем оформление заказа. Менеджер свяжется по деталям оплаты, если это понадобится.',
-                    'Тапсырысты рәсімдеуді жалғастырамыз. Төлем мәселелері бойынша менеджер қажет болса хабарласады.',
-                ),
-                'reason' => 'Клиент спросил про оплату — интеграции нет, продолжаем без реквизитов.',
-                'task' => null,
-            ];
-        }
-
         return [
             'reply' => $this->localize(
                 $body,

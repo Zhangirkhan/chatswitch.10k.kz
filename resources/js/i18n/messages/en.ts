@@ -397,10 +397,6 @@ export const en: MessageCatalog = {
                     q2: 'When is payment convenient?',
                     transition: 'If the client paid, move to the next stage. If they need details or will pay later, create a manager task.',
                 },
-                paymentBypass: {
-                    goal: 'Confirm order start without requiring payment.',
-                    transition: 'Move to production/work after agreement. Do not require payment.',
-                },
                 delivery: {
                     goal: 'Agree final delivery, installation, pickup, or confirm completion.',
                     q1: 'Preferred day and time',

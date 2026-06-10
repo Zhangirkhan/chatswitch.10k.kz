@@ -243,9 +243,28 @@ final class CompanyOnboardingService
                 'actions' => $replyMoveTask,
                 'department_id' => $salesDepartment->id,
             ],
-            'Согласование условий' => $this->agreementStageRule($replyMoveTask, $salesDepartment->id),
-            'Ожидание предоплаты' => $this->awaitingPrepaymentStageRule($replyMoveTask, $salesDepartment->id),
-            'Предоплата получена' => $this->prepaymentReceivedStageRule($replyMoveSchedule, $operationsDepartment->id),
+            'Согласование условий' => [
+                'goal' => 'Довести клиента до договора/оплаты без самостоятельных обещаний по скидкам и нестандартным условиям.',
+                'questions' => ['Удобно оформить договор онлайн или в офисе?', 'На кого оформить заказ?', 'Нужны ли реквизиты или ссылка для оплаты?'],
+                'conditions' => 'Перейти к ожиданию предоплаты, когда условия согласованы. Скидки, рассрочки и нестандартные условия передавать менеджеру.',
+                'actions' => $replyMoveTask,
+                'department_id' => $salesDepartment->id,
+                'manager_confirmation' => true,
+            ],
+            'Ожидание предоплаты' => [
+                'goal' => 'Корректно обработать оплату или запрос реквизитов, не повторяя вопросы.',
+                'questions' => ['Нужны ли реквизиты или ссылка для оплаты?', 'Когда удобно внести предоплату?'],
+                'conditions' => 'Если клиент сообщил, что оплатил/внёс предоплату, перейти к Предоплата получена. Если просит реквизиты или оплатит позже, зафиксировать один раз и создать задачу.',
+                'actions' => $replyMoveTask,
+                'department_id' => $salesDepartment->id,
+            ],
+            'Предоплата получена' => [
+                'goal' => 'Подтвердить запуск заказа в работу после оплаты.',
+                'questions' => ['Нужно ли сообщить ориентировочный срок готовности?'],
+                'conditions' => 'Перейти в работу после подтверждения оплаты/запуска.',
+                'actions' => $replyMoveSchedule,
+                'department_id' => $operationsDepartment->id,
+            ],
             'В работе' => [
                 'goal' => 'Информировать клиента о статусе без выдумывания сроков.',
                 'questions' => ['Нужно ли уточнить срок готовности у ответственного?'],
@@ -304,83 +323,6 @@ final class CompanyOnboardingService
                 'department_id' => $salesDepartment->id,
                 'manager_confirmation' => true,
             ],
-        ];
-    }
-
-    /**
-     * @param  list<string>  $actions
-     * @return array{goal: string, questions: list<string>, conditions: string, actions: list<string>, department_id: int, manager_confirmation?: bool}
-     */
-    private function agreementStageRule(array $actions, int $departmentId): array
-    {
-        if (! (bool) config('funnel.payment_stages_required', false)) {
-            return [
-                'goal' => 'Довести клиента до запуска заказа без самостоятельных обещаний по скидкам и нестандартным условиям.',
-                'questions' => ['Удобно оформить договор онлайн или в офисе?', 'На кого оформить заказ?'],
-                'conditions' => 'Перейти в работу, когда условия согласованы. Скидки, рассрочки и нестандартные условия передавать менеджеру.',
-                'actions' => $actions,
-                'department_id' => $departmentId,
-                'manager_confirmation' => true,
-            ];
-        }
-
-        return [
-            'goal' => 'Довести клиента до договора/оплаты без самостоятельных обещаний по скидкам и нестандартным условиям.',
-            'questions' => ['Удобно оформить договор онлайн или в офисе?', 'На кого оформить заказ?', 'Нужны ли реквизиты или ссылка для оплаты?'],
-            'conditions' => 'Перейти к ожиданию предоплаты, когда условия согласованы. Скидки, рассрочки и нестандартные условия передавать менеджеру.',
-            'actions' => $actions,
-            'department_id' => $departmentId,
-            'manager_confirmation' => true,
-        ];
-    }
-
-    /**
-     * @param  list<string>  $actions
-     * @return array{goal: string, questions: list<string>, conditions: string, actions: list<string>, department_id: int}
-     */
-    private function awaitingPrepaymentStageRule(array $actions, int $departmentId): array
-    {
-        if (! (bool) config('funnel.payment_stages_required', false)) {
-            return [
-                'goal' => 'Подтвердить запуск заказа в работу без требования оплаты.',
-                'questions' => [],
-                'conditions' => 'Перейти в работу после согласования. Оплату не требовать.',
-                'actions' => $actions,
-                'department_id' => $departmentId,
-            ];
-        }
-
-        return [
-            'goal' => 'Корректно обработать оплату или запрос реквизитов, не повторяя вопросы.',
-            'questions' => ['Нужны ли реквизиты или ссылка для оплаты?', 'Когда удобно внести предоплату?'],
-            'conditions' => 'Если клиент сообщил, что оплатил/внёс предоплату, перейти к Предоплата получена. Если просит реквизиты или оплатит позже, зафиксировать один раз и создать задачу.',
-            'actions' => $actions,
-            'department_id' => $departmentId,
-        ];
-    }
-
-    /**
-     * @param  list<string>  $actions
-     * @return array{goal: string, questions: list<string>, conditions: string, actions: list<string>, department_id: int}
-     */
-    private function prepaymentReceivedStageRule(array $actions, int $departmentId): array
-    {
-        if (! (bool) config('funnel.payment_stages_required', false)) {
-            return [
-                'goal' => 'Подтвердить запуск заказа в работу.',
-                'questions' => ['Нужно ли сообщить ориентировочный срок готовности?'],
-                'conditions' => 'Перейти в работу после подтверждения запуска.',
-                'actions' => $actions,
-                'department_id' => $departmentId,
-            ];
-        }
-
-        return [
-            'goal' => 'Подтвердить запуск заказа в работу после оплаты.',
-            'questions' => ['Нужно ли сообщить ориентировочный срок готовности?'],
-            'conditions' => 'Перейти в работу после подтверждения оплаты/запуска.',
-            'actions' => $actions,
-            'department_id' => $departmentId,
         ];
     }
 

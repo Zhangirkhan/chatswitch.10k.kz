@@ -8,15 +8,12 @@ use App\Models\AiOrchestratorRun;
 use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\Company;
-use App\Models\Funnel;
 use App\Models\FunnelAiScenario;
-use App\Models\FunnelStage;
 use App\Models\Message;
 use App\Models\Product;
 use App\Models\WhatsappSession;
 use App\Services\AI\AiFunnelOrchestratorPlan;
 use App\Services\AI\AiFunnelOrchestratorService;
-use App\Support\FunnelStageType;
 use App\Support\TenantCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionMethod;
@@ -556,81 +553,6 @@ final class AiFunnelOrchestratorGuardrailsTest extends TestCase
         $this->assertStringNotContainsString('в каталоге', mb_strtolower((string) $finalPlan->customerReply));
         $this->assertStringContainsString('мерзім', mb_strtolower((string) $finalPlan->customerReply));
         $this->assertFalse($finalPlan->requiresManagerAttention);
-    }
-
-    public function test_normalize_payment_stage_bypass_advances_to_production_without_requisites_task(): void
-    {
-        config(['funnel.payment_stages_required' => false]);
-
-        $company = Company::query()->findOrFail(TenantCompany::id());
-        $funnel = Funnel::query()->create([
-            'company_id' => $company->id,
-            'name' => 'Payment bypass guardrail funnel',
-            'is_active' => true,
-            'position' => 1,
-        ]);
-
-        $paymentStage = FunnelStage::query()->create([
-            'funnel_id' => $funnel->id,
-            'name' => 'Ожидание предоплаты',
-            'stage_type' => FunnelStageType::PAYMENT,
-            'position' => 4,
-            'is_active' => true,
-        ]);
-        $productionStage = FunnelStage::query()->create([
-            'funnel_id' => $funnel->id,
-            'name' => 'В работе',
-            'stage_type' => FunnelStageType::PRODUCTION,
-            'position' => 6,
-            'is_active' => true,
-        ]);
-
-        $session = WhatsappSession::factory()->create(['company_id' => $company->id]);
-        $chat = Chat::factory()->create([
-            'company_id' => $company->id,
-            'whatsapp_session_id' => $session->id,
-            'funnel_id' => $funnel->id,
-            'funnel_stage_id' => $paymentStage->id,
-        ]);
-        $chat->load(['funnel.stages', 'funnelStage']);
-
-        $trigger = Message::query()->create([
-            'chat_id' => $chat->id,
-            'whatsapp_session_id' => $session->id,
-            'direction' => 'inbound',
-            'type' => 'text',
-            'body' => 'Хорошо, согласен',
-            'message_timestamp' => now(),
-        ]);
-
-        $plan = new AiFunnelOrchestratorPlan(
-            customerReply: 'Нужны реквизиты для оплаты?',
-            targetFunnelStageId: null,
-            appointment: null,
-            assigneeUserId: null,
-            managerNote: null,
-            task: [
-                'title' => 'Отправить реквизиты клиенту',
-                'body' => 'Клиент ждёт реквизиты.',
-            ],
-            requiresManagerAttention: false,
-            confidence: 0.8,
-            reason: 'test',
-        );
-
-        $normalized = $this->invokeNormalizePaymentStage($chat, $trigger, $plan);
-
-        $this->assertSame((int) $productionStage->id, $normalized->targetFunnelStageId);
-        $this->assertNull($normalized->task);
-        $this->assertStringContainsString('работу', mb_strtolower((string) $normalized->customerReply));
-    }
-
-    private function invokeNormalizePaymentStage(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
-    {
-        $method = new ReflectionMethod(AiFunnelOrchestratorService::class, 'normalizePaymentStage');
-        $method->setAccessible(true);
-
-        return $method->invoke(app(AiFunnelOrchestratorService::class), $chat, $trigger, $plan);
     }
 
     private function invokeNormalizeCatalogInquiry(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
