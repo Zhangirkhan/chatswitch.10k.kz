@@ -51,6 +51,7 @@ const editDue = ref<string>(localPost.value.due_at ? toLocalDateTime(localPost.v
 const editAssigneeIds = ref<number[]>(localPost.value.assignees?.map((a) => a.id) ?? []);
 const editError = ref<string | null>(null);
 const editSubmitting = ref(false);
+const completingPost = ref(false);
 
 function toggleEditAssignee(userId: number) {
     const idx = editAssigneeIds.value.indexOf(userId);
@@ -200,6 +201,26 @@ function cancelEdit() {
     editError.value = null;
 }
 
+async function completePost(): Promise<void> {
+    if (completingPost.value) {
+        return;
+    }
+    completingPost.value = true;
+    try {
+        const { data } = await axios.post(route('organization.posts.complete', localPost.value.id));
+        localPost.value = { ...localPost.value, ...data.post };
+        showToast({ message: t('organization.taskCompleted'), type: 'info' });
+    } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+            showToast({ message: e.response?.data?.message || t('organization.actionFailed'), type: 'warning' });
+        } else {
+            showToast({ message: t('organization.actionFailed'), type: 'warning' });
+        }
+    } finally {
+        completingPost.value = false;
+    }
+}
+
 async function saveEdit() {
     if (editSubmitting.value) return;
     if (editTitle.value.trim() === '') {
@@ -327,9 +348,20 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
                     <p class="ui-page-header__subtitle m-0">{{ department.name }}</p>
                     <h1 class="ui-page-header__title truncate">{{ localPost.title }}</h1>
                 </div>
-                <div v-if="canEditPost && !editing" class="flex items-center gap-2 shrink-0">
-                    <button type="button" class="ui-btn ui-btn--secondary ui-btn--pill ui-btn--sm" @click="startEdit">{{ t('organization.edit') }}</button>
-                    <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--pill ui-btn--sm" @click="requestDeletePost">{{ t('organization.delete') }}</button>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button
+                        v-if="localPost.status !== 'done'"
+                        type="button"
+                        class="ui-btn ui-btn--primary ui-btn--pill ui-btn--sm"
+                        :disabled="completingPost"
+                        @click="completePost"
+                    >
+                        {{ completingPost ? t('organization.completingTask') : t('organization.completeTask') }}
+                    </button>
+                    <template v-if="canEditPost && !editing">
+                        <button type="button" class="ui-btn ui-btn--secondary ui-btn--pill ui-btn--sm" @click="startEdit">{{ t('organization.edit') }}</button>
+                        <button type="button" class="ui-btn ui-btn--danger-ghost ui-btn--pill ui-btn--sm" @click="requestDeletePost">{{ t('organization.delete') }}</button>
+                    </template>
                 </div>
             </header>
 

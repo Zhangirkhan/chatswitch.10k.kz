@@ -1819,6 +1819,14 @@
         margin-left: auto;
     }
 
+    .ui-task-card__actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.35rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid var(--wa-border);
+    }
+
     .ui-task-status {
         display: inline-flex;
         align-items: center;

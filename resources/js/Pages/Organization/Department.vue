@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import axios from 'axios';
 import { useI18n } from '@/composables/useI18n';
+import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
+import { useToastStore } from '@/stores/toast';
 import type { OrgDepartment } from './Partials/OrganizationSidebar.vue';
 
 const { t } = useI18n();
+const { show: showToast } = useToastStore();
+const page = usePage<any>();
+const isAdmin = computed<boolean>(() => Array.isArray(page.props.auth?.user?.roles) && page.props.auth.user.roles.includes('administrator'));
 
 export interface OrgAssignee {
     id: number;
@@ -49,8 +54,12 @@ const props = defineProps<{
 }>();
 
 const localPosts = ref<OrgPost[]>([...props.posts]);
+const localArchivedCount = ref(props.archived_count);
 
 const showCreate = ref(false);
+const deleteAllOpen = ref(false);
+const deleteAllBusy = ref(false);
+const completingPostId = ref<number | null>(null);
 const draftTitle = ref('');
 const draftBody = ref('');
 const draftStatus = ref<OrgPost['status']>('open');
@@ -166,6 +175,50 @@ function bodyPreview(body: string | null): string {
 function initial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
 }
+
+async function completePost(post: OrgPost, event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    if (completingPostId.value !== null) {
+        return;
+    }
+    completingPostId.value = post.id;
+    try {
+        await axios.post(route('organization.posts.complete', post.id));
+        localPosts.value = localPosts.value.filter((p) => p.id !== post.id);
+        localArchivedCount.value += 1;
+        router.reload({ only: ['departments'] });
+    } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+            showToast({ message: e.response?.data?.message || t('organization.actionFailed'), type: 'warning' });
+        } else {
+            showToast({ message: t('organization.actionFailed'), type: 'warning' });
+        }
+    } finally {
+        completingPostId.value = null;
+    }
+}
+
+async function confirmDeleteAll(): Promise<void> {
+    if (deleteAllBusy.value) {
+        return;
+    }
+    deleteAllBusy.value = true;
+    try {
+        await axios.delete(route('organization.posts.destroy-all', props.department.id));
+        localPosts.value = [];
+        deleteAllOpen.value = false;
+        router.reload({ only: ['departments', 'archived_count'] });
+    } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+            showToast({ message: e.response?.data?.message || t('organization.actionFailed'), type: 'warning' });
+        } else {
+            showToast({ message: t('organization.actionFailed'), type: 'warning' });
+        }
+    } finally {
+        deleteAllBusy.value = false;
+    }
+}
 </script>
 
 <template>
@@ -193,12 +246,20 @@ function initial(name: string): string {
                     </svg>
                     {{ t('organization.createPost') }}
                 </button>
+                <button
+                    v-if="isAdmin && localPosts.length > 0"
+                    type="button"
+                    class="ui-btn ui-btn--danger-ghost ui-btn--pill shrink-0"
+                    @click="deleteAllOpen = true"
+                >
+                    {{ t('organization.deleteAllTasks') }}
+                </button>
             </header>
 
             <div class="ui-org-list-scroll wa-scrollbar">
                 <div v-if="localPosts.length === 0" class="ui-empty-state ui-empty-state--org">
                     <p class="text-sm text-[var(--wa-text-secondary)] m-0">
-                        <span v-if="archived_count === 0">{{ t('organization.deptEmptyNoTasks') }}</span>
+                        <span v-if="localArchivedCount === 0">{{ t('organization.deptEmptyNoTasks') }}</span>
                         <span v-else>{{ t('organization.deptEmptyAllDone') }}</span>
                     </p>
                 </div>
@@ -269,10 +330,21 @@ function initial(name: string): string {
                             {{ post.comments_count }}
                         </span>
                     </div>
+
+                    <div class="ui-task-card__actions">
+                        <button
+                            type="button"
+                            class="ui-btn ui-btn--secondary ui-btn--pill ui-btn--sm"
+                            :disabled="completingPostId === post.id"
+                            @click="completePost(post, $event)"
+                        >
+                            {{ completingPostId === post.id ? t('organization.completingTask') : t('organization.completeTask') }}
+                        </button>
+                    </div>
                 </Link>
 
                 <Link
-                    v-if="archived_count > 0"
+                    v-if="localArchivedCount > 0"
                     :href="route('organization.archive')"
                     class="ui-org-archive-inline"
                 >
@@ -280,7 +352,7 @@ function initial(name: string): string {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4" />
                     </svg>
                     {{ t('organization.deptArchiveLink') }}
-                    <span class="ui-org-archive-inline__count">{{ archived_count }}</span>
+                    <span class="ui-org-archive-inline__count">{{ localArchivedCount }}</span>
                     <svg class="w-3.5 h-3.5 ml-auto opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -363,5 +435,16 @@ function initial(name: string): string {
                 </div>
             </form>
         </UiModal>
+
+        <DangerConfirmModal
+            :open="deleteAllOpen"
+            :title="t('organization.deleteAllTasksTitle')"
+            :description="t('organization.deleteAllTasksDesc', { count: localPosts.length })"
+            :confirm-label="t('organization.deleteAllTasks')"
+            :busy="deleteAllBusy"
+            confirm-variant="danger"
+            @close="deleteAllOpen = false"
+            @confirm="confirmDeleteAll"
+        />
     </OrganizationLayout>
 </template>

@@ -239,8 +239,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/organization/archive', [OrganizationController::class, 'archive'])->name('organization.archive');
         Route::get('/organization/departments/{department}', [OrganizationController::class, 'showDepartment'])->name('organization.departments.show');
         Route::post('/organization/departments/{department}/posts', [OrganizationController::class, 'storePost'])->name('organization.posts.store');
+        Route::delete('/organization/departments/{department}/posts', [OrganizationController::class, 'destroyAllDepartmentPosts'])->name('organization.posts.destroy-all');
         Route::get('/organization/posts/{post}', [OrganizationController::class, 'showPost'])->name('organization.posts.show');
         Route::patch('/organization/posts/{post}', [OrganizationController::class, 'updatePost'])->name('organization.posts.update');
+        Route::post('/organization/posts/{post}/complete', [OrganizationController::class, 'completePost'])->name('organization.posts.complete');
         Route::delete('/organization/posts/{post}', [OrganizationController::class, 'destroyPost'])->name('organization.posts.destroy');
         Route::post('/organization/posts/{post}/comments', [OrganizationController::class, 'storeComment'])->name('organization.posts.comments.store');
         Route::delete('/organization/posts/{post}/comments/{comment}', [OrganizationController::class, 'destroyComment'])->name('organization.posts.comments.destroy');

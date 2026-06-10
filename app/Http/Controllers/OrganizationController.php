@@ -199,6 +199,45 @@ final class OrganizationController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function completePost(Request $request, DepartmentPost $post): JsonResponse
+    {
+        $this->ensureDepartmentTasksEnabled();
+        $department = $post->department()->firstOrFail();
+        $this->authorizeDepartmentAccess($request->user(), $department);
+
+        if ($post->status === DepartmentPost::STATUS_DONE) {
+            return response()->json([
+                'success' => true,
+                'post' => $this->transformPost($post->load(['author:id,name', 'assignees:id,name'])->loadCount('comments')),
+            ]);
+        }
+
+        $post->update(['status' => DepartmentPost::STATUS_DONE]);
+        $post->load(['author:id,name', 'assignees:id,name']);
+        $post->loadCount('comments');
+
+        return response()->json([
+            'success' => true,
+            'post' => $this->transformPost($post),
+        ]);
+    }
+
+    public function destroyAllDepartmentPosts(Request $request, Department $department): JsonResponse
+    {
+        $this->ensureDepartmentTasksEnabled();
+        $this->authorizeDepartmentAccess($request->user(), $department);
+        $this->authorizeAdministrator($request->user());
+
+        $deleted = $department->posts()
+            ->whereIn('status', [DepartmentPost::STATUS_OPEN, DepartmentPost::STATUS_IN_PROGRESS])
+            ->delete();
+
+        return response()->json([
+            'success' => true,
+            'deleted' => $deleted,
+        ]);
+    }
+
     public function storeComment(Request $request, DepartmentPost $post): JsonResponse
     {
         $this->ensureDepartmentTasksEnabled();
@@ -409,6 +448,11 @@ final class OrganizationController extends Controller
         }
 
         abort(403, 'Можно изменять только свои записи.');
+    }
+
+    private function authorizeAdministrator(User $user): void
+    {
+        abort_unless($user->hasRole('administrator'), 403, 'Доступно только администратору.');
     }
 
     /**

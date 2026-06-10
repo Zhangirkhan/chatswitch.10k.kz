@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI\Locale;
 
 use App\Models\Chat;
+use App\Models\Message;
 use Illuminate\Support\Facades\Cache;
 
 final class LocalePromptAugmenter
@@ -14,6 +15,7 @@ final class LocalePromptAugmenter
         private readonly ResponseStyleMatcher $styleMatcher,
         private readonly LocaleFewShotRetriever $fewShotRetriever,
         private readonly LocaleSlangRagRetriever $slangRagRetriever,
+        private readonly ChatInboundLocaleResolver $chatLocaleResolver,
     ) {}
 
     /**
@@ -22,7 +24,7 @@ final class LocalePromptAugmenter
      *     blocks: list<string>
      * }
      */
-    public function augment(string $userText, ?Chat $chat = null, ?int $companyId = null): array
+    public function augment(string $userText, ?Chat $chat = null, ?int $companyId = null, ?Message $trigger = null): array
     {
         if (! config('locale_assistant.enabled', true)) {
             return [
@@ -31,8 +33,9 @@ final class LocalePromptAugmenter
             ];
         }
 
-        // Язык ответа — только по текущему сообщению клиента, не по истории чата.
-        $profile = $this->detector->detect($userText);
+        $profile = $chat !== null
+            ? $this->chatLocaleResolver->resolve($chat, $trigger)
+            : $this->detector->detect($userText);
         $blocks = [];
 
         $basePrompt = $this->loadSystemPrompt();
@@ -65,9 +68,9 @@ final class LocalePromptAugmenter
     /**
      * @return list<array{role: 'system', content: string}>
      */
-    public function augmentAsMessages(string $userText, ?Chat $chat = null, ?int $companyId = null): array
+    public function augmentAsMessages(string $userText, ?Chat $chat = null, ?int $companyId = null, ?Message $trigger = null): array
     {
-        $result = $this->augment($userText, $chat, $companyId);
+        $result = $this->augment($userText, $chat, $companyId, $trigger);
         $messages = [];
         foreach ($result['blocks'] as $block) {
             if (trim($block) === '') {
