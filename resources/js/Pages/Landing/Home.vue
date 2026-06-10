@@ -256,7 +256,7 @@ onUnmounted(() => {
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
-                <AccelMark :size="28" class="landing__brand-mark" />
+                <AccelMark :size="28" variant="badge" class="landing__brand-mark" />
                 <span>Accel</span>
             </a>
             <nav class="landing__nav">

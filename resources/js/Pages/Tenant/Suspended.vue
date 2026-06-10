@@ -58,7 +58,7 @@ const iconPath = computed(() => {
 
         <header class="suspended__header">
             <a href="https://accel.kz/" class="suspended__brand">
-                <AccelMark :size="28" />
+                <AccelMark :size="28" variant="badge" />
                 <span>Accel</span>
             </a>
             <span class="suspended__badge" :style="{ color: accent.color, borderColor: accent.color }">

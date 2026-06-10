@@ -36,7 +36,7 @@ const subheading = computed(() => {
 
         <header class="not-found__header">
             <a href="/" class="not-found__brand">
-                <AccelMark :size="28" />
+                <AccelMark :size="28" variant="badge" />
                 <span>Accel</span>
             </a>
             <nav class="not-found__nav">

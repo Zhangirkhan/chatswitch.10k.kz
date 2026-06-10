@@ -252,7 +252,7 @@ const visibleScenarios = computed(() =>
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
-                <AccelMark :size="28" />
+                <AccelMark :size="28" variant="badge" />
                 <span>Accel</span>
             </a>
             <nav class="landing__nav">
