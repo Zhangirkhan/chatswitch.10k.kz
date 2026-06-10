@@ -294,7 +294,7 @@ final class AiReplyGenerator
         $timezone = (string) config('app.timezone', 'UTC');
         $localStart = $startsAt->copy()->timezone($timezone);
 
-        $suffix = $this->appointmentReminderSettings->clientReminderSuffixForBookingConfirmation($reminderLeadMinutes);
+        $suffix = $this->appointmentReminderSettings->clientReminderSuffixForBookingConfirmation($startsAt, $reminderLeadMinutes);
 
         return 'Записала вас на '.$serviceName.' '.$localStart->format('d.m в H:i').'.'.$suffix;
     }

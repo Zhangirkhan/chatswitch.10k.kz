@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Calendar;
 
 use App\Models\SystemSetting;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 
 final readonly class AppointmentReminderSettings
 {
@@ -56,13 +58,50 @@ final readonly class AppointmentReminderSettings
         return $this->leadTimeMinutes();
     }
 
-    public function clientReminderSuffixForBookingConfirmation(?int $clientRequestedMinutes = null): string
+    /**
+     * Lead time (minutes) for which a reminder can still be scheduled before $startsAt.
+     * Tries the preferred interval first, then falls back to the minimum lead time.
+     */
+    public function resolveSchedulableLeadMinutes(CarbonInterface $startsAt, ?int $clientRequestedMinutes = null): ?int
     {
+        if (! $this->enabled()) {
+            return null;
+        }
+
+        $preferred = $this->resolveLeadMinutes($clientRequestedMinutes);
+        $candidates = array_values(array_unique([
+            $preferred,
+            self::MIN_LEAD_TIME_MINUTES,
+        ]));
+
+        foreach ($candidates as $leadMinutes) {
+            if ($this->reminderAt($startsAt, $leadMinutes)->isFuture()) {
+                return $leadMinutes;
+            }
+        }
+
+        return null;
+    }
+
+    public function clientReminderSuffixForBookingConfirmation(
+        CarbonInterface $startsAt,
+        ?int $clientRequestedMinutes = null,
+    ): string {
         if (! $this->enabled()) {
             return '';
         }
 
-        return ' '.$this->formatReminderPromiseRu($this->resolveLeadMinutes($clientRequestedMinutes));
+        $leadMinutes = $this->resolveSchedulableLeadMinutes($startsAt, $clientRequestedMinutes);
+        if ($leadMinutes === null) {
+            return '';
+        }
+
+        return ' '.$this->formatReminderPromiseRu($leadMinutes);
+    }
+
+    public function reminderAt(CarbonInterface $startsAt, int $leadMinutes): CarbonInterface
+    {
+        return Carbon::instance($startsAt->toDateTime())->copy()->subMinutes($leadMinutes);
     }
 
     public function formatReminderPromiseRu(int $minutes): string

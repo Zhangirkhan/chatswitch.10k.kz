@@ -43,12 +43,14 @@ final class MobilePushService
         }
 
         $payload = $this->stringifyData($data);
-        $this->sendToUsersNow($recipients, $payload);
+        $deviceStats = $this->sendToUsersNow($recipients, $payload);
 
         Log::info('mobile_push.sent', [
             'kind' => $payload['kind'] ?? null,
             'chat_id' => $payload['chat_id'] ?? null,
             'recipient_count' => count($recipients),
+            'device_count' => $deviceStats['device_count'],
+            'users_without_device_count' => $deviceStats['users_without_device_count'],
         ]);
     }
 
@@ -156,11 +158,12 @@ final class MobilePushService
     /**
      * @param  list<int>  $userIds
      * @param  array<string, string>  $data
+     * @return array{device_count: int, users_without_device_count: int}
      */
-    public function sendToUsersNow(array $userIds, array $data): void
+    public function sendToUsersNow(array $userIds, array $data): array
     {
         if (! $this->isEnabled() || $userIds === []) {
-            return;
+            return ['device_count' => 0, 'users_without_device_count' => 0];
         }
 
         $devices = UserDevice::query()
@@ -168,12 +171,19 @@ final class MobilePushService
             ->whereIn('user_id', $userIds)
             ->get();
 
+        $usersWithDevice = $devices->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->count();
+
         foreach ($devices as $device) {
             $result = app(FcmClient::class)->sendData($device->fcm_token, $data);
             if ($result->tokenInvalid) {
                 $device->delete();
             }
         }
+
+        return [
+            'device_count' => $devices->count(),
+            'users_without_device_count' => max(0, count($userIds) - $usersWithDevice),
+        ];
     }
 
     private function teamMessagePreview(TeamMessage $message): string

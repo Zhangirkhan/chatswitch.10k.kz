@@ -72,6 +72,24 @@ final class MobilePushServiceTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_send_to_users_now_reports_device_stats(): void
+    {
+        Config::set('services.firebase.enabled', true);
+
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+        $employee = User::factory()->create();
+        $employee->assignRole('employee');
+
+        $stats = app(MobilePushService::class)->sendToUsersNow(
+            [$admin->id, $employee->id],
+            ['kind' => 'client_message', 'chat_id' => '10', 'title' => 'T', 'body' => 'B'],
+        );
+
+        $this->assertSame(0, $stats['device_count']);
+        $this->assertSame(2, $stats['users_without_device_count']);
+    }
+
     public function test_muted_chat_skips_push(): void
     {
         Config::set('services.firebase.enabled', true);

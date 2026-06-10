@@ -113,8 +113,8 @@ final class AppointmentBookingService
             return null;
         }
 
-        $leadMinutes = $this->resolveLeadMinutesForEvent($event, $reminderLeadMinutes);
-        $reminderAt = Carbon::instance($startsAt->toDateTime())->copy()->subMinutes($leadMinutes);
+        $preferredLead = $this->resolveLeadMinutesForEvent($event, $reminderLeadMinutes);
+        $leadMinutes = $this->reminderSettings->resolveSchedulableLeadMinutes($startsAt, $preferredLead);
 
         $existing = ScheduledMessage::query()
             ->where('calendar_event_id', $event->id)
@@ -122,11 +122,13 @@ final class AppointmentBookingService
             ->where('status', ScheduledMessage::STATUS_PENDING)
             ->first();
 
-        if (! $reminderAt->isFuture()) {
+        if ($leadMinutes === null) {
             $existing?->delete();
 
             return null;
         }
+
+        $reminderAt = $this->reminderSettings->reminderAt($startsAt, $leadMinutes);
 
         $body = $this->reminderBody($serviceName, $startsAt);
         $payload = [
