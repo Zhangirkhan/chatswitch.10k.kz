@@ -27,7 +27,7 @@ function resolveDefaultFaviconHref(): string {
             return cachedDefaultHref;
         }
     }
-    cachedDefaultHref = new URL('/favicon.ico', window.location.origin).href;
+    cachedDefaultHref = new URL('/icons/icon-192.png', window.location.origin).href;
     return cachedDefaultHref;
 }
 

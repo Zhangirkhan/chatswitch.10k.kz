@@ -12,12 +12,15 @@
         <meta name="apple-mobile-web-app-title" content="Accel">
         <meta name="theme-color" content="#048B4F">
         <meta name="application-name" content="Accel">
+        @php
+            $faviconVersion = @filemtime(public_path('favicon.ico')) ?: '1';
+        @endphp
         <link rel="manifest" href="/build/manifest.webmanifest">
-        <link rel="icon" href="/branding/logo-mark.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-        <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
-        <link rel="shortcut icon" href="/favicon.ico">
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico?v={{ $faviconVersion }}">
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v={{ $faviconVersion }}">
+        <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png?v={{ $faviconVersion }}">
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v={{ $faviconVersion }}">
+        <link rel="shortcut icon" href="/favicon.ico?v={{ $faviconVersion }}">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
