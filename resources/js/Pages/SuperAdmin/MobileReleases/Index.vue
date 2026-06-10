@@ -229,10 +229,13 @@ function formatDate(value: string | null): string {
                     <input
                         ref="apkInputRef"
                         type="file"
-                        accept=".apk,application/vnd.android.package-archive"
                         class="ui-input mt-1"
                         @change="onApkSelected"
                     />
+                    <p class="mt-1 text-xs text-ui-text-muted">{{ t('superAdmin.mobileReleases.fieldApkFileHint') }}</p>
+                    <p v-if="form.apk_file" class="mt-1 text-xs text-ui-accent">
+                        {{ form.apk_file.name }}
+                    </p>
                     <p v-if="form.errors.apk_file" class="mt-1 text-xs text-ui-danger">{{ form.errors.apk_file }}</p>
                 </label>
                 <label class="block text-sm">

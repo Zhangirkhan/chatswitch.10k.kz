@@ -176,6 +176,7 @@ export const superAdminEn = {
         fieldMinVersionCodeHint: 'Clients below this code receive force_update.',
         fieldDownloadUrl: 'APK URL',
         fieldApkFile: 'Or upload APK',
+        fieldApkFileHint: 'Up to 100 MB. If release.apk is greyed out on macOS, use the URL field above or choose “All files”.',
         fieldReleaseNotes: 'Release notes',
         fieldPublishNow: 'Publish immediately',
     },

@@ -176,6 +176,7 @@ export const superAdminRu = {
         fieldMinVersionCodeHint: 'Клиенты с code ниже этого получат force_update.',
         fieldDownloadUrl: 'Ссылка на APK',
         fieldApkFile: 'Или загрузить APK',
+        fieldApkFileHint: 'До 100 МБ. Если release.apk серый в диалоге macOS — укажите ссылку выше или выберите «Все файлы».',
         fieldReleaseNotes: 'Release notes',
         fieldPublishNow: 'Опубликовать сразу',
     },

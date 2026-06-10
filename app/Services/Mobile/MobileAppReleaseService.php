@@ -174,6 +174,19 @@ final class MobileAppReleaseService
             ]);
         }
 
+        $directory = public_path('apk');
+        if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw ValidationException::withMessages([
+                'apk_file' => 'Каталог public/apk недоступен для записи.',
+            ]);
+        }
+
+        if (! is_writable($directory)) {
+            throw ValidationException::withMessages([
+                'apk_file' => 'Каталог public/apk недоступен для записи (права www-data).',
+            ]);
+        }
+
         $filename = sprintf(
             'accel-%s-%d-%s.apk',
             $platform,
@@ -181,7 +194,7 @@ final class MobileAppReleaseService
             Str::lower(Str::random(6)),
         );
 
-        $file->move(public_path('apk'), $filename);
+        $file->move($directory, $filename);
 
         return '/apk/'.$filename;
     }

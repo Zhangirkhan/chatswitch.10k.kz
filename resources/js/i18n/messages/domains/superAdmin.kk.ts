@@ -176,6 +176,7 @@ export const superAdminKk = {
         fieldMinVersionCodeHint: 'Осы code-тен төмен клиенттер force_update алады.',
         fieldDownloadUrl: 'APK сілтемесі',
         fieldApkFile: 'Немесе APK жүктеу',
+        fieldApkFileHint: '100 МБ дейін. macOS-та release.apk сұр болса — жоғарыдағы URL немесе «Барлық файлдар».',
         fieldReleaseNotes: 'Release notes',
         fieldPublishNow: 'Дереу жариялау',
     },

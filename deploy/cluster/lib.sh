@@ -75,6 +75,10 @@ accel_cluster_build_release() {
     if [[ -d "${release_dir}/public/build" ]]; then
         chown -R www-data:www-data "${release_dir}/public/build"
     fi
+    if [[ -d "${release_dir}/public/apk" ]]; then
+        chown -R www-data:www-data "${release_dir}/public/apk"
+        chmod 775 "${release_dir}/public/apk"
+    fi
 }
 
 accel_cluster_activate_release() {
