@@ -50,6 +50,24 @@ TEXT;
     }
 
     #[Test]
+    public function it_parses_numbered_list_variants(): void
+    {
+        $content = <<<'TEXT'
+Клиент спрашивает про доставку в Караганду.
+1. Аалымжан, доставка до Караганде бесплатная — привезём на ваш адрес.
+2. По Караганде до адреса доставляем бесплатно. Напишите адрес и удобное время.
+TEXT;
+
+        $parsed = $this->parser->parse($content);
+
+        $this->assertNotNull($parsed);
+        $this->assertStringContainsString('Караганду', $parsed['intro']);
+        $this->assertCount(2, $parsed['variants']);
+        $this->assertStringContainsString('Аалымжан', $parsed['variants'][0]['text']);
+        $this->assertStringContainsString('По Караганде', $parsed['variants'][1]['text']);
+    }
+
+    #[Test]
     public function it_returns_null_without_variants(): void
     {
         $this->assertNull($this->parser->parse('Просто текст без вариантов.'));

@@ -12,6 +12,8 @@ export type ParsedAssistantReply = {
 const VARIANT_HEADER_RE =
     /(?:^|[\n\r]+)\s*(?:[-•*]\s*)?(?:\*{1,2})?\s*(?:вариант|variant|option|нұсқа)\s*(\d+|[a-zа-я])\s*[:—.]?\s*(?:\*{1,2})?\s*/giu;
 
+const NUMBERED_VARIANT_RE = /(?:^|\n)\s*(\d+)\.\s+/g;
+
 function stripOuterQuotes(text: string): string {
     let result = text.trim();
 
@@ -49,13 +51,11 @@ function extractVariantText(raw: string): string {
     return stripOuterQuotes(text);
 }
 
-export function parseAssistantReplyVariants(content: string): ParsedAssistantReply | null {
-    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    if (normalized === '') {
-        return null;
-    }
-
-    const matches = [...normalized.matchAll(VARIANT_HEADER_RE)];
+function parseVariantsFromMatches(
+    normalized: string,
+    matches: RegExpMatchArray[],
+    variantTextFromRaw: (raw: string) => string,
+): ParsedAssistantReply | null {
     if (matches.length === 0) {
         return null;
     }
@@ -69,8 +69,7 @@ export function parseAssistantReplyVariants(content: string): ParsedAssistantRep
         const start = (match.index ?? 0) + match[0].length;
         const end = i + 1 < matches.length ? (matches[i + 1].index ?? normalized.length) : normalized.length;
         const raw = normalized.slice(start, end).trim();
-        const line = raw.split('\n')[0]?.trim() ?? '';
-        const text = extractVariantText(line);
+        const text = variantTextFromRaw(raw);
 
         if (text !== '') {
             variants.push({
@@ -86,6 +85,39 @@ export function parseAssistantReplyVariants(content: string): ParsedAssistantRep
     }
 
     return { intro, variants };
+}
+
+function parseLabeledVariants(normalized: string): ParsedAssistantReply | null {
+    const matches = [...normalized.matchAll(VARIANT_HEADER_RE)];
+
+    return parseVariantsFromMatches(normalized, matches, (raw) => {
+        const line = raw.split('\n')[0]?.trim() ?? '';
+
+        return extractVariantText(line);
+    });
+}
+
+function parseNumberedListVariants(normalized: string): ParsedAssistantReply | null {
+    const matches = [...normalized.matchAll(NUMBERED_VARIANT_RE)];
+    if (matches.length < 2) {
+        return null;
+    }
+
+    const labels = matches.map((match) => Number.parseInt(String(match[1]), 10));
+    if (labels.some((label) => Number.isNaN(label)) || labels[0] !== 1) {
+        return null;
+    }
+
+    return parseVariantsFromMatches(normalized, matches, (raw) => extractVariantText(raw.replace(/\n+/g, ' ').trim()));
+}
+
+export function parseAssistantReplyVariants(content: string): ParsedAssistantReply | null {
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    if (normalized === '') {
+        return null;
+    }
+
+    return parseLabeledVariants(normalized) ?? parseNumberedListVariants(normalized);
 }
 
 export function parsedReplyFromApi(payload: {

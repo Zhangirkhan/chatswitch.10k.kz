@@ -11,6 +11,8 @@ final class AssistantReplyVariantParser
 {
     private const VARIANT_HEADER_PATTERN = '/(?:^|[\n\r]+)\s*(?:[-•*]\s*)?(?:\*{1,2})?\s*(?:вариант|variant|option|нұсқа)\s*(\d+|[a-zа-я])\s*[:—.]?\s*(?:\*{1,2})?\s*/iu';
 
+    private const NUMBERED_VARIANT_PATTERN = '/(?:^|\n)\s*(\d+)\.\s+/u';
+
     /**
      * @return array{intro: string, variants: list<array{label: string, text: string}>}|null
      */
@@ -21,12 +23,66 @@ final class AssistantReplyVariantParser
             return null;
         }
 
+        $parsed = $this->parseLabeledVariants($normalized);
+
+        return $parsed ?? $this->parseNumberedListVariants($normalized);
+    }
+
+    /**
+     * @return array{intro: string, variants: list<array{label: string, text: string}>}|null
+     */
+    private function parseLabeledVariants(string $normalized): ?array
+    {
         if (! preg_match_all(self::VARIANT_HEADER_PATTERN, $normalized, $matches, PREG_OFFSET_CAPTURE)) {
             return null;
         }
 
-        $labels = $matches[1];
+        return $this->buildVariantsFromMatches(
+            $normalized,
+            $matches[0],
+            $matches[1],
+            static fn (string $raw): string => trim(strtok($raw, "\n") ?: $raw),
+        );
+    }
+
+    /**
+     * @return array{intro: string, variants: list<array{label: string, text: string}>}|null
+     */
+    private function parseNumberedListVariants(string $normalized): ?array
+    {
+        if (! preg_match_all(self::NUMBERED_VARIANT_PATTERN, $normalized, $matches, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
         $headers = $matches[0];
+        if (count($headers) < 2) {
+            return null;
+        }
+
+        $firstLabel = (int) ($matches[1][0][0] ?? 0);
+        if ($firstLabel !== 1) {
+            return null;
+        }
+
+        return $this->buildVariantsFromMatches(
+            $normalized,
+            $headers,
+            $matches[1],
+            static fn (string $raw): string => preg_replace('/\n+/u', ' ', trim($raw)) ?? trim($raw),
+        );
+    }
+
+    /**
+     * @param  list<array{0: string, 1: int}>  $headers
+     * @param  list<array{0: string, 1: int}>  $labels
+     * @return array{intro: string, variants: list<array{label: string, text: string}>}|null
+     */
+    private function buildVariantsFromMatches(
+        string $normalized,
+        array $headers,
+        array $labels,
+        callable $rawToLine,
+    ): ?array {
         $count = count($headers);
         if ($count === 0) {
             return null;
@@ -42,7 +98,7 @@ final class AssistantReplyVariantParser
             $start = $headerOffset + strlen($header);
             $end = $i + 1 < $count ? $headers[$i + 1][1] : strlen($normalized);
             $raw = trim(substr($normalized, $start, $end - $start));
-            $line = trim(strtok($raw, "\n") ?: $raw);
+            $line = $rawToLine($raw);
             $text = $this->extractVariantText($line);
 
             if ($text === '') {

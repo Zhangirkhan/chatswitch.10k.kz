@@ -1402,7 +1402,18 @@ function insertDraft(text: string): void {
     });
 }
 
-defineExpose({ insertDraft });
+async function insertDraftAndSend(text: string): Promise<void> {
+    const trimmed = text.trim();
+    if (trimmed === '') {
+        return;
+    }
+
+    setEditorPlainText(trimmed);
+    await nextTick();
+    await sendMessage();
+}
+
+defineExpose({ insertDraft, insertDraftAndSend });
 </script>
 
 <template>

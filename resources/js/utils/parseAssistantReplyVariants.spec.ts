@@ -27,6 +27,22 @@ describe('parseAssistantReplyVariants', () => {
         expect(parsed?.variants[0].text).toBe('Hello! We are online.');
     });
 
+    it('parses numbered list variants', () => {
+        const content = [
+            'Клиент спрашивает про доставку в Караганду.',
+            '1. Аалымжан, доставка до Караганде бесплатная — привезём на ваш адрес.',
+            '2. По Караганде до адреса доставляем бесплатно. Напишите адрес и удобное время.',
+        ].join('\n');
+
+        const parsed = parseAssistantReplyVariants(content);
+
+        expect(parsed).not.toBeNull();
+        expect(parsed?.intro).toContain('Караганду');
+        expect(parsed?.variants).toHaveLength(2);
+        expect(parsed?.variants[0].text).toContain('Аалымжан');
+        expect(parsed?.variants[1].text).toContain('По Караганде');
+    });
+
     it('returns null when no variants are found', () => {
         expect(parseAssistantReplyVariants('Просто текст без вариантов.')).toBeNull();
     });

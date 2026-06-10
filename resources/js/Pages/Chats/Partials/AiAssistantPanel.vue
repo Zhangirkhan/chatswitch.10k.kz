@@ -501,7 +501,7 @@ function useReplyVariant(text: string): void {
     }
 
     emit('use-reply', trimmed);
-    showToast({ message: t('chats.aiAssistant.replyInserted') });
+    showToast({ message: t('chats.aiAssistant.replySent') });
 }
 
 function normalizeMessageBody(message: Message): string {
@@ -996,11 +996,17 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                                 :key="variant.index"
                                 type="button"
                                 class="ai-reply-variant-btn"
+                                :title="t('chats.aiAssistant.variantSendHint')"
                                 @click="useReplyVariant(variant.text)"
                             >
-                                <span class="text-[11px] font-medium opacity-70">
-                                    {{ t('chats.aiAssistant.variantOption', { n: variant.label }) }}
-                                </span>
+                                <div class="flex items-start justify-between gap-2">
+                                    <span class="text-[11px] font-medium opacity-70">
+                                        {{ t('chats.aiAssistant.variantOption', { n: variant.label }) }}
+                                    </span>
+                                    <span class="shrink-0 text-[10px] font-medium opacity-70">
+                                        {{ t('chats.aiAssistant.variantSendHint') }}
+                                    </span>
+                                </div>
                                 <span class="mt-0.5 block text-left">{{ variant.text }}</span>
                             </button>
                         </div>
@@ -1315,6 +1321,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
     border: 1px solid color-mix(in srgb, var(--wa-accent) 35%, var(--wa-border));
     background: color-mix(in srgb, var(--wa-accent) 8%, var(--wa-panel));
     color: inherit;
+    cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
