@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
 import AccelMark from '@/Components/AccelMark.vue';
+import LandingBorderGlow from '@/Components/Landing/LandingBorderGlow.vue';
 import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
 import LandingParticles from '@/Components/Landing/LandingParticles.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
@@ -303,7 +304,19 @@ onUnmounted(() => {
             <section id="features" class="landing__features-section">
                 <h2 class="landing__section-title">{{ t('landing.featuresSectionTitle') }}</h2>
                 <ul class="landing__features">
-                <li v-for="item in features" :key="item.title" class="landing__card">
+                <li v-for="item in features" :key="item.title" class="landing__features-item">
+                    <LandingBorderGlow
+                        class="landing__card-glow"
+                        background-color="#1d1f1f"
+                        :border-radius="12"
+                        :edge-sensitivity="11"
+                        :glow-radius="52"
+                        :glow-intensity="1.5"
+                        :cone-spread="25"
+                        :colors="['#c084fc', '#f472b6', '#38bdf8']"
+                        glow-color="280 70 75"
+                    >
+                    <div class="landing__card">
                     <div class="landing__card-icon" :data-icon="item.icon" aria-hidden="true">
                         <svg v-if="item.icon === 'chat'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 20l1.8-5.4A7.77 7.77 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -338,6 +351,8 @@ onUnmounted(() => {
                     </div>
                     <h3 class="landing__card-title">{{ item.title }}</h3>
                     <p class="landing__card-text">{{ item.text }}</p>
+                    </div>
+                    </LandingBorderGlow>
                 </li>
                 </ul>
             </section>
@@ -795,6 +810,16 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
+    overflow: visible;
+}
+
+.landing__features-item {
+    list-style: none;
+    min-height: 0;
+}
+
+.landing__card-glow {
+    height: 100%;
 }
 
 @media (max-width: 900px) {
@@ -894,15 +919,7 @@ onUnmounted(() => {
     align-items: flex-start;
     gap: 0.5rem;
     padding: 0.875rem 1rem;
-    border-radius: 0.75rem;
-    background: var(--landing-surface);
-    border: 1px solid var(--landing-border);
-    transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.landing__card:hover {
-    border-color: rgba(1, 185, 100, 0.35);
-    transform: translateY(-1px);
+    height: 100%;
 }
 
 .landing__card-icon {
