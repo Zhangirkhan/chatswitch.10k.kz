@@ -44,6 +44,8 @@ const features = computed(() => [
     { icon: 'calendar', title: t('landing.feature10Title'), text: t('landing.feature10Text') },
 ]);
 
+const featureGlowColors = ['#01b964', '#06d670', '#2dd4bf'] as const;
+
 const pricingBullets = computed(() => [
     t('landing.pricingBullet1'),
     t('landing.pricingBullet2'),
@@ -313,8 +315,8 @@ onUnmounted(() => {
                         :glow-radius="52"
                         :glow-intensity="1.5"
                         :cone-spread="25"
-                        :colors="['#c084fc', '#f472b6', '#38bdf8']"
-                        glow-color="280 70 75"
+                        :colors="[...featureGlowColors]"
+                        glow-color="152 99 36"
                     >
                     <div class="landing__card">
                     <div class="landing__card-icon" :data-icon="item.icon" aria-hidden="true">
