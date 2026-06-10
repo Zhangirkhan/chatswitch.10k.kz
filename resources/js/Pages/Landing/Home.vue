@@ -301,6 +301,7 @@ onUnmounted(() => {
                         </svg>
                     </button>
                     <div class="landing__download-popover" role="menu">
+                        <div class="landing__download-popover-panel">
                         <button
                             type="button"
                             class="landing__store-option landing__store-option--disabled"
@@ -336,6 +337,7 @@ onUnmounted(() => {
                                 <span class="landing__store-label-main">Android</span>
                             </span>
                         </a>
+                        </div>
                     </div>
                 </div>
                 <button type="button" class="landing__header-cta" @click="openRequestModal(); closeMobileNav()">
@@ -656,8 +658,7 @@ onUnmounted(() => {
     -webkit-font-smoothing: antialiased;
 }
 
-.landing__hero,
-.landing__header {
+.landing__hero {
     overflow-x: clip;
 }
 
@@ -727,20 +728,14 @@ onUnmounted(() => {
 
 .landing__download-popover {
     position: absolute;
-    top: calc(100% + 0.375rem);
+    top: 100%;
     right: 0;
     min-width: 13.5rem;
-    padding: 0.375rem;
-    background: var(--landing-surface-raised);
-    border: 1px solid var(--landing-border);
-    border-radius: 0.875rem;
-    box-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.35),
-        0 12px 28px -8px rgba(0, 0, 0, 0.55);
+    padding-top: 0.625rem;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translateY(-0.375rem) scale(0.96);
+    transform: translateY(-0.25rem) scale(0.98);
     transform-origin: top right;
     transition:
         opacity 0.18s ease,
@@ -749,16 +744,18 @@ onUnmounted(() => {
     z-index: 20;
 }
 
-.landing__download-popover::after {
-    content: '';
-    position: absolute;
-    top: -0.5rem;
-    left: 0;
-    right: 0;
-    height: 0.5rem;
+.landing__download-popover-panel {
+    position: relative;
+    padding: 0.375rem;
+    background: var(--landing-surface-raised);
+    border: 1px solid var(--landing-border);
+    border-radius: 0.875rem;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.35),
+        0 12px 28px -8px rgba(0, 0, 0, 0.55);
 }
 
-.landing__download-popover::before {
+.landing__download-popover-panel::before {
     content: '';
     position: absolute;
     top: -0.375rem;
@@ -955,18 +952,22 @@ onUnmounted(() => {
         position: static;
         min-width: 0;
         margin-bottom: 0.25rem;
-        padding: 0.25rem 0 0.5rem;
-        background: transparent;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
+        padding: 0;
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
         transform: none;
     }
 
-    .landing__download-popover::before {
+    .landing__download-popover-panel {
+        padding: 0.25rem 0 0.5rem;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .landing__download-popover-panel::before {
         display: none;
     }
 
