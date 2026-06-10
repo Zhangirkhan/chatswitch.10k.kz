@@ -9,6 +9,7 @@ use App\Jobs\GenerateAiReplyJob;
 use App\Jobs\ProcessWhatsappInboundJob;
 use App\Jobs\RunAiFunnelOrchestratorJob;
 use App\Models\Chat;
+use App\Models\Company;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\WhatsappSession;
@@ -176,6 +177,73 @@ final class WhatsappGhostChatTest extends TestCase
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->all();
         $this->assertContains($closedArchived->id, $ids);
+    }
+
+    public function test_inbound_contact_can_exist_in_multiple_tenants_with_same_whatsapp_id(): void
+    {
+        $companyA = $this->createTenantCompany(['slug' => 'tenant-a', 'name' => 'Tenant A']);
+        $companyB = Company::query()->create([
+            'name' => 'Tenant B',
+            'slug' => 'tenant-b',
+            'is_active' => true,
+            'subscription_status' => 'active',
+        ]);
+
+        $whatsappId = '33724234223783@lid';
+
+        $this->switchTenant($companyA);
+        $contactA = app(ChatService::class)->findOrCreateContact([
+            'chatId' => $whatsappId,
+            'senderName' => 'Алымжан',
+        ]);
+        $this->assertSame($companyA->id, $contactA->company_id);
+
+        $this->switchTenant($companyB);
+        $sessionB = WhatsappSession::factory()->create([
+            'company_id' => $companyB->id,
+            'session_name' => 'wa-tenant-b',
+        ]);
+
+        Bus::fake([
+            GenerateAiReplyJob::class,
+            RunAiFunnelOrchestratorJob::class,
+            AnalyzeChatFunnelJob::class,
+        ]);
+
+        $job = new ProcessWhatsappInboundJob([
+            'session' => $sessionB->session_name,
+            'companyId' => $companyB->id,
+            'messageId' => 'false_'.$whatsappId.'_TESTMSG',
+            'from' => $whatsappId,
+            'to' => '77770188444@c.us',
+            'body' => 'Здравствуйте, хочу заказать набор 6в1',
+            'type' => 'chat',
+            'timestamp' => now()->timestamp,
+            'isGroup' => false,
+            'chatId' => $whatsappId,
+            'chatName' => '+7 707 226 8668',
+            'senderPhone' => '33724234223783',
+            'senderName' => 'Алымжан',
+        ]);
+
+        $job->handle(
+            app(ChatService::class),
+            app(\App\Services\AI\ChatDepartmentRoutingService::class),
+            app(\App\Services\AI\ChatOffHoursReplyService::class),
+            app(\App\Services\AI\AutomatedPeerReplyGuard::class),
+            app(\App\Tenancy\TenantContext::class),
+            app(\App\Services\AI\InboundAiDispatchService::class),
+        );
+
+        $contactB = \App\Models\Contact::query()->where('whatsapp_id', $whatsappId)->first();
+        $this->assertNotNull($contactB);
+        $this->assertSame($companyB->id, $contactB->company_id);
+        $this->assertNotSame($contactA->id, $contactB->id);
+
+        $this->assertDatabaseHas('messages', [
+            'body' => 'Здравствуйте, хочу заказать набор 6в1',
+            'direction' => 'inbound',
+        ]);
     }
 
     public function test_prune_command_removes_ghost_chats(): void
