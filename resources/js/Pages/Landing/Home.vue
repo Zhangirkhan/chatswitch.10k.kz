@@ -927,17 +927,12 @@ onUnmounted(() => {
 .landing__card-icon {
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.5rem;
-    background: rgba(1, 185, 100, 0.12);
     color: var(--landing-accent);
 }
 
 .landing__card-icon svg {
-    width: 1rem;
-    height: 1rem;
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 .landing__card-title {
