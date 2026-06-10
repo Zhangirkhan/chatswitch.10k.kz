@@ -58,11 +58,29 @@ final class KazakhstanLocaleDetectorTest extends TestCase
         $this->assertSame(KazakhstanLocaleProfile::DOMINANT_KK, $profile->dominant);
     }
 
-    public function test_detects_russian_after_kazakh_conversation_not_in_context(): void
+    public function test_detects_plain_cyrillic_kazakh_without_special_letters(): void
+    {
+        $profile = $this->detector->detect('Ассалаумагалайкум канша турады?');
+
+        $this->assertSame(KazakhstanLocaleProfile::DOMINANT_KK, $profile->dominant);
+        $this->assertGreaterThan($profile->ruPct, $profile->kkPct);
+    }
+
+    public function test_detects_russian_for_clearly_russian_message(): void
     {
         $profile = $this->detector->detect('Сколько стоит доставка?');
 
         $this->assertSame(KazakhstanLocaleProfile::DOMINANT_RU, $profile->dominant);
         $this->assertGreaterThan($profile->kkPct, $profile->ruPct);
+    }
+
+    public function test_detect_from_samples_prefers_kazakh_when_recent_messages_mixed(): void
+    {
+        $profile = $this->detector->detectFromSamples([
+            '6 инструмент',
+            'Ассалаумағалайкум қанша тұрады?',
+        ]);
+
+        $this->assertGreaterThan($profile->ruPct, $profile->kkPct);
     }
 }

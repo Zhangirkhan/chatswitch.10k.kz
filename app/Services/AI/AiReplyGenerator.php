@@ -11,7 +11,6 @@ use App\Models\Message;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AI\Locale\ChatInboundLocaleResolver;
-use App\Services\AI\Locale\KazakhstanLocaleDetector;
 use App\Services\AI\Locale\LocaleReplyGuard;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
@@ -36,7 +35,6 @@ final class AiReplyGenerator
         private readonly AppointmentBookingService $bookingService,
         private readonly AppointmentReminderSettings $appointmentReminderSettings,
         private readonly ProductMessageAttachmentService $productAttachments,
-        private readonly KazakhstanLocaleDetector $localeDetector,
         private readonly ChatInboundLocaleResolver $chatLocaleResolver,
         private readonly LocaleReplyGuard $localeReplyGuard,
         private readonly ChatConflictService $conflictService,

@@ -15,6 +15,15 @@ final class ClientMessageHeuristics
             || str_contains($body, 'доброе')
             || str_contains($body, 'привет')
             || str_contains($body, 'салам')
+            || str_contains($body, 'сәлем')
+            || str_contains($body, 'салем')
+            || str_contains($body, 'саламат')
+            || str_contains($body, 'сәлемет')
+            || str_contains($body, 'салемет')
+            || str_contains($body, 'ассалаума')
+            || str_contains($body, 'assalaum')
+            || str_contains($body, 'assalamu')
+            || str_contains($body, 'assalauma')
             || str_contains($body, 'hello')
             || str_contains($body, 'hi ');
     }

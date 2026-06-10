@@ -40,11 +40,12 @@ final class AiFunnelPlannerService
             $responder,
             trim(MessageInboundText::forMessage($trigger)),
             $chat->company_id ?? $responder->company_id,
+            $trigger,
         );
 
         $context = $this->contextPayload($chat, $trigger, $scenario, $rule, $candidateAssignees, $availableSlots);
         $triggerText = trim(MessageInboundText::forMessage($trigger));
-        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id ?? $responder->company_id);
+        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id ?? $responder->company_id, $trigger);
         $messages = [
             ...$base['messages'],
             ['role' => 'system', 'content' => $this->localeAugmenter->workspaceLanguageInstruction($locale['profile'])],
@@ -77,7 +78,7 @@ final class AiFunnelPlannerService
     ): array {
         $chat->loadMissing(['funnel.stages', 'funnelStage']);
         $triggerText = trim(MessageInboundText::forMessage($trigger));
-        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id);
+        $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id, $trigger);
 
         return [
             'chat_id' => $chat->id,

@@ -14,10 +14,13 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\AI\Orchestrator\OrchestratorDynamicReplyBuilder;
+use App\Services\AI\Locale\ChatInboundLocaleResolver;
 use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Funnel\FunnelStageTransitionGuard;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Support\AiSafeErrorMessage;
+use App\Support\ClientMessageHeuristics;
+use App\Support\LocalizedClientGreeting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -37,6 +40,7 @@ final class AiFunnelOrchestratorService
         private readonly ConversationAppointmentResolver $conversationAppointments,
         private readonly ContactAiContextResetService $contactAiContextReset,
         private readonly ChatConflictService $conflictService,
+        private readonly ChatInboundLocaleResolver $chatLocaleResolver,
     ) {}
 
     public function run(int $chatId, int $triggerMessageId): void
@@ -728,7 +732,7 @@ final class AiFunnelOrchestratorService
 
         $companyId = (int) ($chat->company_id ?? 0);
         if ($companyId > 0) {
-            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId);
+            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId, $chat, $trigger);
             if ($dynamic !== null) {
                 return new AiFunnelOrchestratorPlan(
                     customerReply: $dynamic['reply'],
@@ -899,7 +903,7 @@ final class AiFunnelOrchestratorService
         }
 
         if (! $this->shouldOfferCatalog($chat, $trigger)) {
-            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId);
+            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId, $chat, $trigger);
             if ($dynamic !== null) {
                 return new AiFunnelOrchestratorPlan(
                     customerReply: $dynamic['reply'],
@@ -936,10 +940,13 @@ final class AiFunnelOrchestratorService
         string $reason,
     ): AiFunnelOrchestratorPlan {
         $companyId = (int) $chat->company_id;
-        $reply = $this->buildCatalogReply($companyId, (string) $trigger->body);
+        $reply = $this->buildCatalogReply($companyId, (string) $trigger->body, $chat, $trigger);
 
-        if ($this->clientUsedGreeting((string) $trigger->body) && ! $this->clientUsedGreeting($reply)) {
-            $reply = 'Здравствуйте! '.$reply;
+        if (ClientMessageHeuristics::usedGreeting((string) $trigger->body) && ! ClientMessageHeuristics::usedGreeting($reply)) {
+            $reply = LocalizedClientGreeting::prependGreeting(
+                $this->chatLocaleResolver->resolve($chat, $trigger),
+                $reply,
+            );
         }
 
         return new AiFunnelOrchestratorPlan(
@@ -961,7 +968,7 @@ final class AiFunnelOrchestratorService
             return $plan;
         }
 
-        if (! $this->clientUsedGreeting((string) $trigger->body)) {
+        if (! ClientMessageHeuristics::usedGreeting((string) $trigger->body)) {
             return $plan;
         }
 
@@ -975,12 +982,15 @@ final class AiFunnelOrchestratorService
         }
 
         $reply = trim($plan->customerReply);
-        if ($this->clientUsedGreeting($reply)) {
+        if (ClientMessageHeuristics::usedGreeting($reply)) {
             return $plan;
         }
 
         return new AiFunnelOrchestratorPlan(
-            customerReply: 'Здравствуйте! '.$reply,
+            customerReply: LocalizedClientGreeting::prependGreeting(
+                $this->chatLocaleResolver->resolve($chat, $trigger),
+                $reply,
+            ),
             targetFunnelStageId: $plan->targetFunnelStageId,
             appointment: $plan->appointment,
             assigneeUserId: $plan->assigneeUserId,
@@ -1034,7 +1044,7 @@ final class AiFunnelOrchestratorService
 
         $companyId = (int) ($chat->company_id ?? 0);
         if ($companyId > 0) {
-            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId);
+            $dynamic = $this->dynamicReplies->buildForMessage((string) $trigger->body, $companyId, $chat, $trigger);
             if ($dynamic !== null) {
                 return new AiFunnelOrchestratorPlan(
                     customerReply: $dynamic['reply'],
@@ -1061,7 +1071,7 @@ final class AiFunnelOrchestratorService
         }
 
         return new AiFunnelOrchestratorPlan(
-            customerReply: $this->dynamicReplies->topicShiftAcknowledgement((string) $trigger->body),
+            customerReply: $this->dynamicReplies->topicShiftAcknowledgement((string) $trigger->body, $chat, $trigger),
             targetFunnelStageId: $plan->targetFunnelStageId,
             appointment: null,
             assigneeUserId: null,
@@ -1194,7 +1204,7 @@ final class AiFunnelOrchestratorService
         }
 
         $triggerBody = trim((string) $trigger->body);
-        if ($this->clientUsedGreeting($triggerBody) && mb_strlen($triggerBody) <= 40) {
+        if (ClientMessageHeuristics::usedGreeting($triggerBody) && mb_strlen($triggerBody) <= 40) {
             if ($companyId > 0 && $this->hasCatalogProducts($companyId)) {
                 return $this->makeCatalogPlan(
                     $chat,
@@ -1204,8 +1214,13 @@ final class AiFunnelOrchestratorService
                 );
             }
 
+            $localeProfile = $this->chatLocaleResolver->resolve($chat, $trigger);
+            $greetingReply = LocalizedClientGreeting::isKazakhPreferred($localeProfile)
+                ? 'Сәлеметсіз бе! Не таңдағыңыз келеді — немесе «не бар» деп жазыңыз, каталогтан позицияларды жіберемін.'
+                : 'Здравствуйте! Подскажите, что хотите подобрать — или напишите «что есть», пришлю позиции из каталога.';
+
             return new AiFunnelOrchestratorPlan(
-                customerReply: 'Здравствуйте! Подскажите, что хотите подобрать — или напишите «что есть», пришлю позиции из каталога.',
+                customerReply: $greetingReply,
                 targetFunnelStageId: $plan->targetFunnelStageId,
                 appointment: $plan->appointment,
                 assigneeUserId: $plan->assigneeUserId,
@@ -1508,25 +1523,19 @@ final class AiFunnelOrchestratorService
             || str_contains($signature, 'наличии');
     }
 
-    private function clientUsedGreeting(string $body): bool
-    {
-        $body = mb_strtolower($body);
-
-        return str_contains($body, 'здравств')
-            || str_contains($body, 'добрый')
-            || str_contains($body, 'доброе')
-            || str_contains($body, 'привет');
-    }
-
-    private function buildCatalogReply(int $companyId, string $triggerBody = 'каталог'): string
+    private function buildCatalogReply(int $companyId, string $triggerBody, Chat $chat, Message $trigger): string
     {
         $catalogPrompt = $this->clientIntents->isCatalogInquiry($triggerBody) ? $triggerBody : 'каталог';
-        $dynamic = $this->dynamicReplies->buildForMessage($catalogPrompt, $companyId);
+        $dynamic = $this->dynamicReplies->buildForMessage($catalogPrompt, $companyId, $chat, $trigger);
         if ($dynamic !== null) {
             return $dynamic['reply'];
         }
 
-        return 'Сейчас в каталоге нет готового списка в системе — менеджер уточнит ассортимент и пришлёт варианты. Напишите, что вас интересует.';
+        $localeProfile = $this->chatLocaleResolver->resolve($chat, $trigger);
+
+        return LocalizedClientGreeting::isKazakhPreferred($localeProfile)
+            ? 'қазір жүйеде дайын тізім жоқ — менеджер ассортиментті нақтылап, нұсқаларды жібереді. Не қызықтыратыныңызды жазыңыз.'
+            : 'Сейчас в каталоге нет готового списка в системе — менеджер уточнит ассортимент и пришлёт варианты. Напишите, что вас интересует.';
     }
 
     /**
@@ -1574,11 +1583,11 @@ final class AiFunnelOrchestratorService
             return $plan;
         }
 
-        $dynamic = $this->dynamicReplies->buildForMessage($body, $companyId);
+        $dynamic = $this->dynamicReplies->buildForMessage($body, $companyId, $chat, $trigger);
         if ($dynamic === null) {
             if ($this->clientIntents->isSpecific($body)) {
                 return new AiFunnelOrchestratorPlan(
-                    customerReply: $this->dynamicReplies->topicShiftAcknowledgement($body),
+                    customerReply: $this->dynamicReplies->topicShiftAcknowledgement($body, $chat, $trigger),
                     targetFunnelStageId: $plan->targetFunnelStageId,
                     appointment: null,
                     assigneeUserId: null,
