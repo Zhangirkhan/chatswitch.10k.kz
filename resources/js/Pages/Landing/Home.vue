@@ -27,6 +27,11 @@ const apkDownloadUrl = computed(() => props.androidApkUrl ?? '/apk/app-release.a
 const page = usePage();
 const { t } = useI18n();
 const requestModalOpen = ref(false);
+const mobileNavOpen = ref(false);
+
+function closeMobileNav(): void {
+    mobileNavOpen.value = false;
+}
 
 const flashSuccess = computed(() => {
     const flash = page.props.flash as { success?: string } | undefined;
@@ -264,15 +269,33 @@ onUnmounted(() => {
                 <AccelMark :size="28" variant="badge" class="landing__brand-mark" />
                 <span>Accel</span>
             </a>
-            <nav class="landing__nav">
-                <a href="#features" class="landing__nav-link">{{ t('landing.navFeatures') }}</a>
-                <a href="#pricing" class="landing__nav-link">{{ t('landing.navPricing') }}</a>
+            <button
+                type="button"
+                class="landing__nav-toggle"
+                :aria-expanded="mobileNavOpen"
+                aria-label="Меню"
+                @click="mobileNavOpen = !mobileNavOpen"
+            >
+                <svg v-if="!mobileNavOpen" class="landing__nav-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+                <svg v-else class="landing__nav-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <nav
+                class="landing__nav"
+                :class="{ 'landing__nav--open': mobileNavOpen }"
+            >
+                <a href="#features" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFeatures') }}</a>
+                <a href="#pricing" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navPricing') }}</a>
                 <a
                     :href="apkDownloadUrl"
                     class="landing__nav-link"
                     download="accel.apk"
+                    @click="closeMobileNav"
                 >{{ t('landing.navDownload') }}</a>
-                <button type="button" class="landing__header-cta" @click="openRequestModal">
+                <button type="button" class="landing__header-cta" @click="openRequestModal(); closeMobileNav()">
                     {{ t('landing.ctaButton') }}
                 </button>
             </nav>
@@ -358,8 +381,10 @@ onUnmounted(() => {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                     </div>
+                    <div class="landing__card-body">
                     <h3 class="landing__card-title">{{ item.title }}</h3>
                     <p class="landing__card-text">{{ item.text }}</p>
+                    </div>
                     </div>
                     </LandingBorderGlow>
                 </li>
@@ -643,21 +668,85 @@ onUnmounted(() => {
     transform: translateY(-1px);
 }
 
+.landing__nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.25rem;
+    background: none;
+    border: none;
+    color: var(--landing-muted);
+    cursor: pointer;
+}
+
+.landing__nav-toggle-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
 @media (max-width: 640px) {
     .landing__header--row {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        position: relative;
+    }
+
+    .landing__nav-toggle {
+        display: flex;
     }
 
     .landing__nav {
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 0.75rem 1rem;
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        margin-top: 0.75rem;
+        padding: 0.75rem clamp(1.5rem, 5vw, 3rem) 1rem;
+        background: #111;
+        border-bottom: 1px solid var(--landing-border);
+        z-index: 10;
+    }
+
+    .landing__nav--open {
+        display: flex;
+    }
+
+    .landing__nav-link {
+        padding: 0.625rem 0;
+        font-size: 1rem;
+        border-bottom: 1px solid var(--landing-border);
+    }
+
+    .landing__nav-link:last-of-type {
+        border-bottom: none;
     }
 
     .landing__header-cta {
+        margin-top: 0.75rem;
         width: 100%;
         padding-top: 0.625rem;
         padding-bottom: 0.625rem;
+    }
+
+    .landing__main {
+        padding-bottom: 2rem;
+    }
+
+    .landing__section-title {
+        font-size: 1.125rem;
+    }
+
+    .landing__pricing-card {
+        padding: 1.25rem 1rem;
+        border-radius: 1rem;
+    }
+
+    .landing__pricing-amount {
+        font-size: clamp(1.75rem, 8vw, 2.25rem);
     }
 }
 
@@ -749,7 +838,31 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
     .landing__hero {
-        padding: 1.5rem 0;
+        padding: 1rem 0 0;
+        margin: 0 0 3.5rem;
+        gap: 1.5rem;
+    }
+
+    .landing__hero-copy {
+        padding-top: 0.5rem;
+    }
+
+    .landing__title {
+        font-size: clamp(1.75rem, 8vw, 2.5rem);
+    }
+
+    .landing__tagline {
+        font-size: 1rem;
+    }
+
+    .landing__hero-visual {
+        max-height: 44vh;
+        overflow: hidden;
+    }
+
+    .landing__cta-btn {
+        width: 100%;
+        text-align: center;
     }
 }
 
@@ -840,6 +953,26 @@ onUnmounted(() => {
 @media (max-width: 560px) {
     .landing__features {
         grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .landing__card {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.875rem;
+    }
+
+    .landing__card-icon {
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+    }
+
+    .landing__card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 0;
     }
 }
 
