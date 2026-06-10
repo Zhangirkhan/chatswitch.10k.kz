@@ -39,6 +39,7 @@ final class ClientSituationDetectorTest extends TestCase
             'refund' => ['Верните деньги, Kaspi оспорю', ClientSituation::SITUATION_REFUND, 2],
             'scam' => ['Вы мошенники, развод на предоплату', ClientSituation::SITUATION_SCAM_ACCUSATION, 2],
             'aggression_caps' => ['ВЫ ИДИОТЫ!!!', ClientSituation::SITUATION_AGGRESSION, 2],
+            'positive_thanks' => ['добрый вечер, помидоры получил. очень вкусно спасибо большое!!! буду еще заказывать', ClientSituation::SITUATION_NONE, 0],
             'legal' => ['Подам в суд и в прокуратуру', ClientSituation::SITUATION_LEGAL, 3],
             'complaint' => ['Я очень недоволен качеством', ClientSituation::SITUATION_COMPLAINT, 1],
             'price_pressure' => ['У конкурентов на 30% дешевле', ClientSituation::SITUATION_PRICE_PRESSURE, 1],

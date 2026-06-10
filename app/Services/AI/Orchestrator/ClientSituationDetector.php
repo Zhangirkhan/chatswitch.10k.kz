@@ -21,6 +21,10 @@ final class ClientSituationDetector
             return ClientSituation::none();
         }
 
+        if ($this->matchesPositiveFeedback($normalized)) {
+            return ClientSituation::none();
+        }
+
         $signals = [];
 
         if ($this->matchesLegalThreat($normalized)) {
@@ -118,19 +122,57 @@ final class ClientSituationDetector
             return true;
         }
 
-        $letters = preg_replace('/[^a-zа-яёәіңғүұқөһ]/ui', '', $body) ?? '';
-        if ($letters !== '' && mb_strlen($letters) >= 6) {
-            $upper = mb_strlen(preg_replace('/[^A-ZА-ЯЁ]/u', '', $body) ?? '');
-            if ($upper / mb_strlen($letters) >= 0.6) {
-                return true;
-            }
-        }
-
-        return substr_count($body, '!!!') >= 1
+        return $this->hasShoutingCaps($body)
             || str_contains($body, 'идиот')
             || str_contains($body, 'дебил')
             || str_contains($body, 'туп')
             || str_contains($body, 'урод');
+    }
+
+    private function hasShoutingCaps(string $body): bool
+    {
+        $letters = preg_replace('/[^a-zа-яёәіңғүұқөһ]/ui', '', $body) ?? '';
+        if ($letters === '' || mb_strlen($letters) < 6) {
+            return false;
+        }
+
+        $upper = mb_strlen(preg_replace('/[^A-ZА-ЯЁ]/u', '', $body) ?? '');
+
+        return $upper / mb_strlen($letters) >= 0.6;
+    }
+
+    private function matchesPositiveFeedback(string $body): bool
+    {
+        $positiveNeedles = [
+            'спасибо', 'благодар', 'отлично', 'супер', 'класс', 'вкусно', 'рекоменд',
+            'молодцы', 'доволен', 'довольна', 'замечательно', 'прекрасно', 'обожаю',
+            'лучшие', 'круто', 'шикарно', 'восхит', 'рад ', 'рада ', 'рады ',
+        ];
+        $negativeNeedles = [
+            'жалоб', 'недовол', 'возмущ', 'верните', 'вернуть', 'мошенник', 'обман',
+            'ужас', 'кошмар', 'плох', 'брак', 'дефект', 'идиот', 'дебил', 'туп', 'урод',
+            'развод', 'кидал', 'претенз', 'рекламац',
+        ];
+
+        $hasPositive = false;
+        foreach ($positiveNeedles as $needle) {
+            if (str_contains($body, $needle)) {
+                $hasPositive = true;
+                break;
+            }
+        }
+
+        if (! $hasPositive) {
+            return false;
+        }
+
+        foreach ($negativeNeedles as $needle) {
+            if (str_contains($body, $needle)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function hasProfanity(string $body): bool
