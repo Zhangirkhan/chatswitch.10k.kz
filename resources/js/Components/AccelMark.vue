@@ -21,11 +21,20 @@ const isBadge = computed(() => props.variant === 'badge');
     <span
         class="accel-mark"
         :class="{ 'accel-mark--badge': isBadge }"
-        :style="isBadge ? { width: `${size}px`, height: `${size}px` } : undefined"
     >
+        <img
+            v-if="isBadge"
+            src="/branding/logo-badge.png"
+            :width="size"
+            :height="size"
+            :alt="title"
+            class="accel-mark__badge-img"
+            decoding="async"
+        />
         <svg
-            :width="isBadge ? undefined : size"
-            :height="isBadge ? undefined : size"
+            v-else
+            :width="size"
+            :height="size"
             viewBox="0 0 768 768"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -36,7 +45,7 @@ const isBadge = computed(() => props.variant === 'badge');
             <title>{{ title }}</title>
             <path
                 d="M552 248L384 384L552 520"
-                :stroke="isBadge ? '#066B3F' : '#048B4F'"
+                stroke="#048B4F"
                 stroke-width="88"
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -61,19 +70,15 @@ const isBadge = computed(() => props.variant === 'badge');
     line-height: 0;
 }
 
-.accel-mark--badge {
+.accel-mark__badge-img {
+    display: block;
     border-radius: 24%;
-    background: #01b964;
-    padding: 19%;
-    box-sizing: border-box;
     box-shadow:
         0 0 0 1px rgba(1, 185, 100, 0.35),
         0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
-.accel-mark--badge .accel-mark__svg {
+.accel-mark__svg {
     display: block;
-    width: 100%;
-    height: 100%;
 }
 </style>
