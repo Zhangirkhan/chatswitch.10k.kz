@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccelMark from '@/Components/AccelMark.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from '@/composables/useI18n';
@@ -56,7 +57,10 @@ const iconPath = computed(() => {
         </div>
 
         <header class="suspended__header">
-            <a href="https://accel.kz/" class="suspended__brand">Accel</a>
+            <a href="https://accel.kz/" class="suspended__brand">
+                <AccelMark :size="28" />
+                <span>Accel</span>
+            </a>
             <span class="suspended__badge" :style="{ color: accent.color, borderColor: accent.color }">
                 <span class="suspended__badge-dot" :style="{ background: accent.color }"></span>
                 {{ accent.label }}
@@ -175,6 +179,9 @@ const iconPath = computed(() => {
 }
 
 .suspended__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
     font-size: 1.25rem;
     font-weight: 700;
     color: #ffffff;

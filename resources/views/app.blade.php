@@ -10,12 +10,14 @@
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="Accel">
-        <meta name="theme-color" content="#25d366">
+        <meta name="theme-color" content="#048B4F">
         <meta name="application-name" content="Accel">
         <link rel="manifest" href="/build/manifest.webmanifest">
+        <link rel="icon" href="/branding/logo-mark.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
         <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
+        <link rel="shortcut icon" href="/favicon.ico">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 

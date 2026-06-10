@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
+import AccelMark from '@/Components/AccelMark.vue';
 import { ref, watch, computed, onBeforeUnmount, onMounted } from 'vue';
 import ChatListItem from './ChatListItem.vue';
 import NewChatPanel from './NewChatPanel.vue';
@@ -645,8 +646,9 @@ onBeforeUnmount(() => {
     <div class="w-full h-full flex flex-col bg-[var(--wa-panel)]">
         <!-- Panel header -->
         <div class="h-[60px] px-4 flex items-center justify-between shrink-0">
-            <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate">
-                Accel
+            <h1 class="min-w-0 text-[var(--wa-text)] text-xl font-normal m-0 truncate flex items-center gap-2">
+                <AccelMark :size="24" class="shrink-0" />
+                <span>Accel</span>
             </h1>
             <div class="flex items-center gap-1">
                 <button

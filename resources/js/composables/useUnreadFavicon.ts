@@ -2,7 +2,7 @@ import { router } from '@inertiajs/vue3';
 import { onUnmounted, toValue, watch, type MaybeRefOrGetter } from 'vue';
 
 const FAVICON_LINK_ID = 'accel-unread-favicon';
-const BUBBLE = '#24A15E';
+const BUBBLE = '#048B4F';
 const TEXT = '#FFFFFF';
 const LOGICAL = 128;
 const SUPERSAMPLE = 4;

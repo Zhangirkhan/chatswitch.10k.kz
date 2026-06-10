@@ -14,6 +14,7 @@ import {
     type ScenarioConfig,
 } from '@/utils/aiTokenCalculator';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import AccelMark from '@/Components/AccelMark.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
@@ -251,7 +252,8 @@ const visibleScenarios = computed(() =>
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
-                Accel
+                <AccelMark :size="28" />
+                <span>Accel</span>
             </a>
             <nav class="landing__nav">
                 <Link href="/" class="landing__nav-link">{{ t('landing.backHome') }}</Link>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccelMark from '@/Components/AccelMark.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from '@/composables/useI18n';
@@ -34,7 +35,10 @@ const subheading = computed(() => {
         </div>
 
         <header class="not-found__header">
-            <a href="/" class="not-found__brand">Accel</a>
+            <a href="/" class="not-found__brand">
+                <AccelMark :size="28" />
+                <span>Accel</span>
+            </a>
             <nav class="not-found__nav">
                 <a href="https://app.accel.kz/login" class="not-found__nav-link">{{ t('misc.login') }}</a>
                 <a href="/#request" class="not-found__nav-cta">{{ t('landing.notFoundRequest') }}</a>
@@ -170,6 +174,9 @@ const subheading = computed(() => {
 }
 
 .not-found__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
     font-size: 1.25rem;
     font-weight: 700;
     color: #ffffff;

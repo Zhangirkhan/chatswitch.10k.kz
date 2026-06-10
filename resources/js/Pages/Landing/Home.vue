@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
+import AccelMark from '@/Components/AccelMark.vue';
 import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
 import LandingParticles from '@/Components/Landing/LandingParticles.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
@@ -255,7 +256,8 @@ onUnmounted(() => {
 
         <header class="landing__header landing__header--row">
             <a href="/" class="landing__brand">
-                Accel
+                <AccelMark :size="28" class="landing__brand-mark" />
+                <span>Accel</span>
             </a>
             <nav class="landing__nav">
                 <a href="#features" class="landing__nav-link">{{ t('landing.navFeatures') }}</a>
@@ -633,6 +635,10 @@ onUnmounted(() => {
         padding-top: 0.625rem;
         padding-bottom: 0.625rem;
     }
+}
+
+.landing__brand-mark {
+    flex-shrink: 0;
 }
 
 .landing__brand {

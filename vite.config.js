@@ -113,8 +113,8 @@ export default defineConfig({
                 scope: '/',
                 display: 'standalone',
                 orientation: 'portrait-primary',
-                background_color: '#111b21',
-                theme_color: '#25d366',
+                background_color: '#0b1116',
+                theme_color: '#048B4F',
                 lang: 'ru',
                 icons: [
                     {
