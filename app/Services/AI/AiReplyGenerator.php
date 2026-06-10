@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Models\AiResponseLog;
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\SystemSetting;
@@ -36,6 +37,7 @@ final class AiReplyGenerator
         private readonly KazakhstanLocaleDetector $localeDetector,
         private readonly LocaleReplyGuard $localeReplyGuard,
         private readonly ChatConflictService $conflictService,
+        private readonly ConversationAppointmentResolver $conversationAppointments,
     ) {}
 
     /**
@@ -48,6 +50,10 @@ final class AiReplyGenerator
             : '';
 
         if ($triggerMessage !== null) {
+            if ($this->conversationAppointments->isSupplementalDetailAfterBooking($chat, $triggerMessage)) {
+                return $this->handleSupplementalBookingDetail($chat, $triggerMessage, $log);
+            }
+
             $appointment = $this->appointmentIntent->detect($chat, $responder, $triggerMessage);
             if ($appointment !== null) {
                 return $this->handleAppointmentIntent($chat, $responder, $triggerMessage, $appointment, $log);
@@ -128,6 +134,35 @@ final class AiReplyGenerator
     /**
      * @return array{reply: string, prompt_hash: string, metadata?: array<string, mixed>}
      */
+    private function handleSupplementalBookingDetail(
+        Chat $chat,
+        Message $triggerMessage,
+        ?AiResponseLog $log,
+    ): array {
+        $reply = $this->conversationAppointments->supplementalDeliveryReply($chat, $triggerMessage);
+        $promptHash = hash('sha256', 'supplemental_delivery:'.$chat->id.':'.$triggerMessage->id);
+
+        $booking = $this->conversationAppointments->findMatchingChatBooking($chat, $triggerMessage);
+        if ($booking instanceof CalendarEvent) {
+            $note = trim(MessageInboundText::forMessage($triggerMessage));
+            $description = trim((string) $booking->description);
+            $booking->forceFill([
+                'description' => $description === ''
+                    ? 'Адрес доставки: '.$note
+                    : $description."\nАдрес доставки: ".$note,
+                'trigger_message_id' => $triggerMessage->id,
+            ])->save();
+        }
+
+        return $this->appointmentReply($reply, $promptHash, $log, [
+            'status' => 'delivery_detail_added',
+            'calendar_event_id' => $booking?->id,
+        ]);
+    }
+
+    /**
+     * @return array{reply: string, prompt_hash: string, metadata?: array<string, mixed>}
+     */
     private function handleAppointmentIntent(
         Chat $chat,
         User $responder,
@@ -188,8 +223,13 @@ final class AiReplyGenerator
 
         $durationMinutes = $intent->durationMinutes ?? 60;
         $endsAt = $startsAt->copy()->addMinutes($durationMinutes);
+        $existingChatBooking = $this->conversationAppointments->findMatchingChatBooking($chat, $triggerMessage);
         $conflict = $this->availability->firstConflict($responder, $startsAt, $endsAt);
         if ($conflict !== null) {
+            if ($existingChatBooking !== null && (int) ($conflict['id'] ?? 0) === $existingChatBooking->id) {
+                return $this->handleSupplementalBookingDetail($chat, $triggerMessage, $log);
+            }
+
             return $this->appointmentReply(
                 'На это время уже есть запись. Я передам оператору, чтобы он уточнил свободное окно и подтвердил запись.',
                 $promptHash,

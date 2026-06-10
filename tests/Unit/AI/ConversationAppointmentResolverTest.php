@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\AI;
 
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\Message;
+use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\AI\ConversationAppointmentResolver;
 use App\Support\TenantCompany;
@@ -116,6 +118,73 @@ final class ConversationAppointmentResolverTest extends TestCase
         $trigger = $this->createInbound($chat, $session->id, 'к 18:00', now());
 
         $this->assertTrue($this->resolver->shouldTriggerAppointmentAnalysis($chat, $trigger));
+    }
+
+    public function test_ignores_calendar_date_token_when_parsing_confirmation_reply_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-10 12:00:00', config('app.timezone')));
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createInbound($chat, $session->id, 'хочу сделать заказ на сегодня в 14:00', now()->subMinutes(2));
+        $this->createOutbound($chat, $session->id, 'Записала вас на заказ помидоров 10.06 в 14:00.', now()->subMinute());
+        $trigger = $this->createInbound($chat, $session->id, 'привезите на абая 67', now());
+
+        $parsed = $this->resolver->parseDateTimeFromConversation($chat, $trigger);
+
+        $this->assertNotNull($parsed);
+        $this->assertSame('14:00', $parsed->format('H:i'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_address_follow_up_after_booking_is_not_new_appointment_request(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-10 12:00:00', config('app.timezone')));
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createInbound($chat, $session->id, 'хочу сделать заказ на сегодня в 14:00', now()->subMinutes(2));
+        $this->createOutbound($chat, $session->id, 'Записала вас на заказ помидоров 10.06 в 14:00.', now()->subMinute());
+        $trigger = $this->createInbound($chat, $session->id, 'привезите на абая 67', now());
+
+        $this->assertFalse($this->resolver->shouldTriggerAppointmentAnalysis($chat, $trigger));
+        $this->assertTrue($this->resolver->isSupplementalDetailAfterBooking($chat, $trigger));
+        $this->assertFalse($this->resolver->triggerAddsSchedulingRequest($trigger));
+        $this->assertStringContainsString('Приняла адрес доставки', $this->resolver->supplementalDeliveryReply($chat, $trigger));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_address_follow_up_matches_existing_chat_booking(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-10 12:00:00', config('app.timezone')));
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+        $user = User::factory()->create();
+
+        $this->createInbound($chat, $session->id, 'хочу сделать заказ на сегодня в 14:00', now()->subMinutes(2));
+        CalendarEvent::query()->create([
+            'user_id' => $user->id,
+            'assignee_user_id' => $user->id,
+            'chat_id' => $chat->id,
+            'title' => 'Заказ',
+            'starts_at' => now()->copy()->setTime(14, 0),
+            'ends_at' => now()->copy()->setTime(15, 0),
+            'all_day' => false,
+            'source' => CalendarEvent::SOURCE_AI_AUTO,
+        ]);
+        $trigger = $this->createInbound($chat, $session->id, 'привезите на абая 67', now());
+
+        $booking = $this->resolver->findMatchingChatBooking($chat, $trigger);
+
+        $this->assertNotNull($booking);
+        $this->assertTrue($this->resolver->isSupplementalDetailAfterBooking($chat, $trigger));
+
+        Carbon::setTestNow();
     }
 
     private function createOutbound(Chat $chat, int $sessionId, string $body, Carbon $at): Message

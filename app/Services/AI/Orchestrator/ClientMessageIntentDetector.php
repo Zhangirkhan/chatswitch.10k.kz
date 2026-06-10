@@ -133,6 +133,31 @@ final class ClientMessageIntentDetector
         return false;
     }
 
+    /**
+     * Клиент дополняет заказ адресом/доставкой, а не задаёт новый вопрос о записи.
+     */
+    public function isProvidingAddressOrDeliveryDetail(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '' || str_contains($body, '?')) {
+            return false;
+        }
+
+        if ($this->isTimeQuestion($body)) {
+            return false;
+        }
+
+        if (preg_match('/(?:привез|достав|оставьте|остав|курьер|жеткіз|жеткиз|орнат)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:ул\.?|улиц|просп|пр\.|микрорайон|мкр\.?|район|кв\.?|кварти|подъезд|этаж|дом\s*\d)/u', $body) === 1) {
+            return true;
+        }
+
+        return preg_match('/(?:на\s+)?\p{L}{2,}(?:\s+\p{L}+)?\s+\d{1,4}\b/u', $body) === 1;
+    }
+
     public function isCatalogInquiry(string $body): bool
     {
         $body = mb_strtolower(trim($body));

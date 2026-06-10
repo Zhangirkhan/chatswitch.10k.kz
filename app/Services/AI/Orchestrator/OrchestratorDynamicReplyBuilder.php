@@ -190,6 +190,18 @@ final class OrchestratorDynamicReplyBuilder
      */
     private function deliveryReply(string $body): array
     {
+        if ($this->intents->isProvidingAddressOrDeliveryDetail($body)) {
+            return [
+                'reply' => $this->localize(
+                    $body,
+                    'Приняла адрес доставки. Передаю в логистику — заказ оформлен.',
+                    'Жеткізу мекенжайын қабылдадым. Логистикаға беремін — тапсырыс рәсімделді.',
+                ),
+                'reason' => 'Клиент указал адрес доставки — AI зафиксировал без повторной записи.',
+                'task' => null,
+            ];
+        }
+
         return [
             'reply' => $this->localize(
                 $body,

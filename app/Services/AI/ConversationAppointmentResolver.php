@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Models\CalendarEvent;
 use App\Models\Chat;
 use App\Models\Message;
+use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Support\MessageInboundText;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
@@ -18,6 +20,10 @@ use Illuminate\Support\Collection;
 final class ConversationAppointmentResolver
 {
     private const HISTORY_LIMIT = 10;
+
+    public function __construct(
+        private readonly ClientMessageIntentDetector $clientIntents,
+    ) {}
 
     /**
      * @param  list<array{user_id: int, user_name: string, starts_at: string, ends_at: string}>  $availableSlots
@@ -57,6 +63,10 @@ final class ConversationAppointmentResolver
             return false;
         }
 
+        if ($this->isSupplementalDetailAfterBooking($chat, $trigger)) {
+            return false;
+        }
+
         if ($this->conversationHasBookingIntent($chat, $trigger)) {
             return true;
         }
@@ -87,6 +97,78 @@ final class ConversationAppointmentResolver
         }
 
         return $this->conversationHasSchedulingFlow($rows);
+    }
+
+    public function triggerAddsSchedulingRequest(Message $trigger): bool
+    {
+        $body = mb_strtolower(trim(MessageInboundText::forMessage($trigger)));
+        if ($body === '') {
+            return false;
+        }
+
+        if ($this->clientIntents->isProvidingAddressOrDeliveryDetail($body)) {
+            return false;
+        }
+
+        return $this->textHasTimeSignals($body)
+            || $this->textHasExplicitBookingSignals($body)
+            || $this->textHasSemanticSchedulingIntent($body);
+    }
+
+    public function isSupplementalDetailAfterBooking(Chat $chat, Message $trigger): bool
+    {
+        $body = mb_strtolower(trim(MessageInboundText::forMessage($trigger)));
+        if ($body === '' || ! $this->clientIntents->isProvidingAddressOrDeliveryDetail($body)) {
+            return false;
+        }
+
+        if ($this->triggerAddsSchedulingRequest($trigger)) {
+            return false;
+        }
+
+        if ($this->findMatchingChatBooking($chat, $trigger) instanceof CalendarEvent) {
+            return true;
+        }
+
+        return $this->conversationHasBookingIntent($chat, $trigger)
+            && $this->hasRecentBookingConfirmation($chat, $trigger);
+    }
+
+    public function findMatchingChatBooking(Chat $chat, Message $trigger): ?CalendarEvent
+    {
+        $requestedAt = $this->parseDateTimeFromConversation($chat, $trigger);
+        if ($requestedAt === null) {
+            return null;
+        }
+
+        $events = CalendarEvent::query()
+            ->where('chat_id', $chat->id)
+            ->where('starts_at', '>=', now()->subDay())
+            ->orderByDesc('starts_at')
+            ->get();
+
+        foreach ($events as $event) {
+            if ($event->starts_at->isSameDay($requestedAt)
+                && $event->starts_at->format('H:i') === $requestedAt->format('H:i')) {
+                return $event;
+            }
+        }
+
+        return null;
+    }
+
+    public function supplementalDeliveryReply(Chat $chat, Message $trigger): string
+    {
+        $address = trim(MessageInboundText::forMessage($trigger));
+        $booking = $this->findMatchingChatBooking($chat, $trigger);
+        $when = $booking?->starts_at?->timezone((string) config('app.timezone', 'UTC'))->format('d.m в H:i')
+            ?? $this->parseDateTimeFromConversation($chat, $trigger)?->timezone((string) config('app.timezone', 'UTC'))->format('d.m в H:i');
+
+        if ($when !== null) {
+            return "Приняла адрес доставки: {$address}. Заказ остаётся на {$when} — передаю в доставку.";
+        }
+
+        return "Приняла адрес доставки: {$address}. Передаю в доставку.";
     }
 
     public function parseDateTimeFromConversation(Chat $chat, Message $trigger): ?CarbonInterface
@@ -463,10 +545,26 @@ final class ConversationAppointmentResolver
             return null;
         }
 
-        if (preg_match('/\b(\d{1,2})[:\.](\d{2})\b/u', $text, $matches) === 1) {
+        if (preg_match('/\b(?:в|на|к|to|at)\s*(\d{1,2})(?:[:\.](\d{2}))?\b/u', $text, $matches) === 1) {
+            $hour = (int) $matches[1];
+            $minute = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : 0;
+            if ($hour <= 23 && $minute <= 59) {
+                return ['hour' => $hour, 'minute' => $minute];
+            }
+        }
+
+        if (preg_match('/\b(\d{1,2}):(\d{2})\b/u', $text, $matches) === 1) {
             $hour = (int) $matches[1];
             $minute = (int) $matches[2];
             if ($hour <= 23 && $minute <= 59) {
+                return ['hour' => $hour, 'minute' => $minute];
+            }
+        }
+
+        if (preg_match('/\b(\d{1,2})\.(\d{2})\b/u', $text, $matches) === 1) {
+            $hour = (int) $matches[1];
+            $minute = (int) $matches[2];
+            if ($hour <= 23 && $minute <= 59 && ! $this->looksLikeCalendarDateToken($hour, $minute)) {
                 return ['hour' => $hour, 'minute' => $minute];
             }
         }
@@ -478,14 +576,12 @@ final class ConversationAppointmentResolver
             }
         }
 
-        if (preg_match('/\b(?:в|на|к|to|at)\s*(\d{1,2})\b/u', $text, $matches) === 1) {
-            $hour = (int) $matches[1];
-            if ($hour >= 0 && $hour <= 23) {
-                return ['hour' => $hour, 'minute' => 0];
-            }
-        }
-
         return null;
+    }
+
+    private function looksLikeCalendarDateToken(int $first, int $second): bool
+    {
+        return $first >= 1 && $first <= 31 && $second >= 1 && $second <= 12;
     }
 
     /**
@@ -525,5 +621,18 @@ final class ConversationAppointmentResolver
         return $this->recentConversationRows($chat, $trigger)
             ->pluck('text')
             ->values();
+    }
+
+    private function hasRecentBookingConfirmation(Chat $chat, Message $trigger): bool
+    {
+        return $chat->messages()
+            ->where('direction', 'outbound')
+            ->where('id', '<', $trigger->id)
+            ->whereNotNull('body')
+            ->where('body', '!=', '')
+            ->latest('id')
+            ->limit(3)
+            ->pluck('body')
+            ->contains(fn (string $body): bool => $this->replyPromisesBookingWithoutCalendar($body));
     }
 }

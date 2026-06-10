@@ -425,6 +425,28 @@ final class AiFunnelOrchestratorService
     /**
      * @param  list<array{user_id: int, user_name: string, starts_at: string, ends_at: string}>  $availableSlots
      */
+    private function normalizeSupplementalBookingDetail(
+        Chat $chat,
+        Message $trigger,
+        AiFunnelOrchestratorPlan $plan,
+    ): AiFunnelOrchestratorPlan {
+        if (! $this->conversationAppointments->isSupplementalDetailAfterBooking($chat, $trigger)) {
+            return $plan;
+        }
+
+        return new AiFunnelOrchestratorPlan(
+            customerReply: $this->conversationAppointments->supplementalDeliveryReply($chat, $trigger),
+            targetFunnelStageId: $plan->targetFunnelStageId,
+            appointment: null,
+            assigneeUserId: null,
+            managerNote: null,
+            task: $plan->task,
+            requiresManagerAttention: false,
+            confidence: max($plan->confidence, 0.9),
+            reason: 'Клиент уточнил адрес доставки к уже оформленному заказу.',
+        );
+    }
+
     private function recoverSplitMessageAppointment(
         Chat $chat,
         Message $trigger,
@@ -432,6 +454,10 @@ final class AiFunnelOrchestratorService
         array $availableSlots,
     ): AiFunnelOrchestratorPlan {
         if ($plan->appointment !== null) {
+            return $plan;
+        }
+
+        if ($this->conversationAppointments->isSupplementalDetailAfterBooking($chat, $trigger)) {
             return $plan;
         }
 
@@ -770,6 +796,7 @@ final class AiFunnelOrchestratorService
 
     private function normalizePlan(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
+        $plan = $this->normalizeSupplementalBookingDetail($chat, $trigger, $plan);
         $plan = $this->normalizeConflictSituation($chat, $trigger, $plan);
         $plan = $this->normalizeCompletionSignal($chat, $trigger, $plan);
         $plan = $this->normalizeDeliveryScheduling($chat, $trigger, $plan);
@@ -1532,8 +1559,7 @@ final class AiFunnelOrchestratorService
             return $plan;
         }
 
-        if ($this->conversationAppointments->conversationHasBookingIntent($chat, $trigger)
-            && $this->conversationAppointments->parseDateTimeFromConversation($chat, $trigger) !== null) {
+        if ($this->conversationAppointments->triggerAddsSchedulingRequest($trigger)) {
             return $plan;
         }
 
