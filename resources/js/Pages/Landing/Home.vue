@@ -46,6 +46,8 @@ const features = computed(() => [
 
 const featureGlowColors = ['#01b964', '#06d670', '#2dd4bf'] as const;
 
+const apkDownloadUrl = '/apk/app-release.apk';
+
 const pricingBullets = computed(() => [
     t('landing.pricingBullet1'),
     t('landing.pricingBullet2'),
@@ -265,6 +267,11 @@ onUnmounted(() => {
             <nav class="landing__nav">
                 <a href="#features" class="landing__nav-link">{{ t('landing.navFeatures') }}</a>
                 <a href="#pricing" class="landing__nav-link">{{ t('landing.navPricing') }}</a>
+                <a
+                    :href="apkDownloadUrl"
+                    class="landing__nav-link"
+                    download="accel.apk"
+                >{{ t('landing.navDownload') }}</a>
                 <button type="button" class="landing__header-cta" @click="openRequestModal">
                     {{ t('landing.ctaButton') }}
                 </button>

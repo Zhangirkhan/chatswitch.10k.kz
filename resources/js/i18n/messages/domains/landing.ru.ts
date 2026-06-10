@@ -3,6 +3,7 @@ export const landingRu = {
     calculatorLink: 'Калькулятор AI',
     navFeatures: 'Возможности',
     navPricing: 'Тариф',
+    navDownload: 'Скачать',
     heroTitle: 'WhatsApp для всей команды',
     heroTagline: 'Единое окно для переписки, AI и задач — без хаоса в телефонах.',
     heroTrialHint: '14 дней бесплатно после подключения',

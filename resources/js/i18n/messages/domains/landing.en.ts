@@ -3,6 +3,7 @@ export const landingEn = {
     calculatorLink: 'AI calculator',
     navFeatures: 'Features',
     navPricing: 'Pricing',
+    navDownload: 'Download',
     heroTitle: 'WhatsApp for your whole team',
     heroTagline: 'One inbox for chats, AI and tasks — no phone chaos.',
     heroTrialHint: '14-day free trial after activation',
