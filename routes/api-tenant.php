@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DepartmentController;
+use App\Http\Controllers\Api\V1\DepartmentPostController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
@@ -60,6 +61,12 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('users', [UserController::class, 'index']);
         Route::get('staff', [UserController::class, 'index']);
         Route::get('departments', [DepartmentController::class, 'index']);
+        Route::get('departments/{department}/posts', [DepartmentPostController::class, 'index']);
+        Route::post('departments/{department}/posts', [DepartmentPostController::class, 'store']);
+        Route::get('posts/{post}', [DepartmentPostController::class, 'show']);
+        Route::patch('posts/{post}', [DepartmentPostController::class, 'update']);
+        Route::delete('posts/{post}', [DepartmentPostController::class, 'destroy']);
+        Route::post('posts/{post}/complete', [DepartmentPostController::class, 'complete']);
         Route::get('whatsapp/sessions', [WhatsappSessionController::class, 'bootstrap']);
 
         Route::get('contacts', [ApiContactController::class, 'index']);

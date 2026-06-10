@@ -81,7 +81,8 @@ tags:
     description: |
       Посты-задачи внутри отделов. Статусы: `open`, `in_progress`, `done`.
       Завершённые задачи (done) уходят в архив.
-      **Авторизация:** сессия (`auth`).
+      **Мобильный API:** Bearer (`/api/v1/departments/{id}/posts`, `/api/v1/posts/{id}`).
+      **Web (legacy):** сессия (`/organization/*`).
 
 paths:
   /api/v1/workspace:
@@ -403,6 +404,154 @@ paths:
           description: Не авторизован
         "403":
           description: Нет роли / деактивирован
+
+  /api/v1/departments/{department}/posts:
+    get:
+      tags: [Задачи]
+      summary: Список задач отдела
+      operationId: departmentPostsIndex
+      security:
+        - bearerAuth: []
+      description: |
+        По умолчанию — активные задачи (`open`, `in_progress`).
+        Query `status=done` — архив; `status=all` — все статусы.
+      parameters:
+        - $ref: "#/components/parameters/DepartmentId"
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, done, all]
+            default: active
+          description: Фильтр по статусу (`active` — open + in_progress)
+      responses:
+        "200":
+          description: OK (обёртка Laravel `data`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostListResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа к отделу / модуль отключён
+    post:
+      tags: [Задачи]
+      summary: Создать задачу в отделе
+      operationId: departmentPostsStore
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DepartmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        "201":
+          description: Созданная задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResourceResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Не является членом отдела
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/posts/{post}:
+    get:
+      tags: [Задачи]
+      summary: Задача по ID
+      operationId: departmentPostsShow
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResourceResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа к отделу
+        "404":
+          description: Задача не найдена
+    patch:
+      tags: [Задачи]
+      summary: Обновить задачу
+      operationId: departmentPostsUpdate
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        "200":
+          description: Обновлённая задача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResourceResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа / можно менять только свои задачи
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [Задачи]
+      summary: Удалить задачу
+      operationId: departmentPostsDestroy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlag"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа / можно удалять только свои задачи
+
+  /api/v1/posts/{post}/complete:
+    post:
+      tags: [Задачи]
+      summary: Завершить задачу
+      operationId: departmentPostsComplete
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: Задача со статусом `done`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResourceResponse"
+        "401":
+          description: Не авторизован
+        "403":
+          description: Нет доступа к отделу
 
   /api/v1/whatsapp/sessions:
     get:
@@ -1950,6 +2099,22 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AttachmentResource"
+
+    PostListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostResource"
+
+    PostResourceResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PostResource"
 
     AttachmentResource:
       type: object
