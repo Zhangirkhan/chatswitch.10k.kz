@@ -54,6 +54,7 @@ final class FunnelController extends Controller
 
         return Inertia::render('Settings/Funnels', [
             'funnels' => $funnels,
+            'paymentStagesRequired' => (bool) config('funnel.payment_stages_required', false),
             'funnelTemplates' => $this->industryTemplates(),
             'promotions' => CompanyPromotion::query()
                 ->where('company_id', $companyId)
@@ -552,15 +553,31 @@ final class FunnelController extends Controller
             'name' => $name,
             'description' => $description,
             'color' => $color,
-            'stages' => array_map(static fn (array $stage): array => [
-                'name' => $stage[0],
-                'color' => $stage[1],
-                'stage_type' => FunnelStageType::guessFromName($stage[0]),
-                'goal' => $stage[2],
-                'questions' => $stage[3],
-                'conditions' => $stage[4],
-                'manager_confirmation' => (bool) ($stage[5] ?? false),
-            ], $stages),
+            'stages' => array_map(function (array $stage): array {
+                $name = $stage[0];
+                $goal = $stage[2];
+                $questions = $stage[3];
+                $conditions = $stage[4];
+
+                if (! (bool) config('funnel.payment_stages_required', false)) {
+                    $lower = mb_strtolower($name);
+                    if (str_contains($lower, 'оплат') || str_contains($lower, 'предоплат')) {
+                        $goal = 'Подтвердить запуск заказа в работу без требования оплаты.';
+                        $questions = [];
+                        $conditions = 'Перейти в производство/работу после согласования. Оплату не требовать.';
+                    }
+                }
+
+                return [
+                    'name' => $name,
+                    'color' => $stage[1],
+                    'stage_type' => FunnelStageType::guessFromName($name),
+                    'goal' => $goal,
+                    'questions' => $questions,
+                    'conditions' => $conditions,
+                    'manager_confirmation' => (bool) ($stage[5] ?? false),
+                ];
+            }, $stages),
         ];
     }
 

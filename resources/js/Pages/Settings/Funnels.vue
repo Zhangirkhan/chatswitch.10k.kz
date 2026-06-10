@@ -109,6 +109,7 @@ type PromotionOption = {
 
 const props = defineProps<{
     funnels: Funnel[];
+    paymentStagesRequired?: boolean;
     funnelTemplates?: FunnelTemplate[];
     promotions?: PromotionOption[];
     aiScenarioUsers?: Array<{ id: number; name: string; department_id: number | null }>;
@@ -752,6 +753,17 @@ function suggestedStageRule(funnel: Funnel, stage: FunnelStage, index: number, t
     }
 
     if (name.includes('оплат') || name.includes('предоплат')) {
+        if (props.paymentStagesRequired === false) {
+            return {
+                goal: current.goal || t('settings.funnels.presets.paymentBypass.goal'),
+                required_questions: current.required_questions?.length ? current.required_questions : [],
+                transition_conditions: current.transition_conditions || t('settings.funnels.presets.paymentBypass.transition'),
+                allowed_actions: baseActions,
+                assignee_department_id: current.assignee_department_id ?? scenarioDraft(funnel).fallback_department_id ?? null,
+                require_manager_confirmation: false,
+            };
+        }
+
         return {
             goal: current.goal || t('settings.funnels.presets.payment.goal'),
             required_questions: current.required_questions?.length

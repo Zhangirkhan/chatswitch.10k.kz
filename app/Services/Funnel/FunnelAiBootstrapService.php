@@ -148,6 +148,17 @@ final class FunnelAiBootstrapService
         }
 
         if ($this->nameMatches($name, ['оплат', 'предоплат'])) {
+            if (! (bool) config('funnel.payment_stages_required', false)) {
+                return [
+                    'goal' => 'Подтвердить запуск заказа в работу без требования оплаты.',
+                    'questions' => [],
+                    'conditions' => 'Перейти в производство/работу после согласования условий. Оплату не требовать.',
+                    'allowed_actions' => $baseActions,
+                    'assignee_department_id' => $fallbackDepartmentId,
+                    'manager_confirmation' => false,
+                ];
+            }
+
             return [
                 'goal' => 'Корректно обработать оплату, реквизиты или перенос оплаты без повторных вопросов.',
                 'questions' => ['Нужны ли реквизиты?', 'Когда удобно оплатить?'],

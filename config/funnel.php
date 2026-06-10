@@ -3,6 +3,12 @@
 declare(strict_types=1);
 
 return [
+    /**
+     * Требовать прохождение payment-этапов воронки (предоплата, реквизиты).
+     * false — AI пропускает оплату и переводит сделку в работу (пока нет интеграций).
+     */
+    'payment_stages_required' => (bool) env('FUNNEL_PAYMENT_STAGES_REQUIRED', false),
+
     /** Блокировать разделы настроек для админа, пока AI readiness ≠ ready. */
     'enforce_settings_readiness_gate' => (bool) env('FUNNEL_ENFORCE_SETTINGS_READINESS', true),
 
