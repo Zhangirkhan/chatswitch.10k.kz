@@ -119,6 +119,7 @@ final class ChatController extends Controller
             $request->input('search'),
             $listOwnership,
             $listFilter,
+            archivedScope: true,
         )
             ->where('is_archived', true)
             ->paginate(self::CHAT_LIST_PER_PAGE);
@@ -150,7 +151,13 @@ final class ChatController extends Controller
 
         $listOwnership = $this->chatListOwnership($request);
         $listFilter = $this->chatListFilter($request);
-        $paginator = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership, $listFilter)
+        $paginator = $this->chatService->getChatsForUser(
+            $request->user(),
+            $search,
+            $listOwnership,
+            $listFilter,
+            archivedScope: $archived,
+        )
             ->where('is_archived', $archived)
             ->when(! $archived, fn ($q) => $q->whereNotNull('last_message_at'))
             ->paginate(self::CHAT_LIST_PER_PAGE, ['*'], 'page', $page);
@@ -158,7 +165,13 @@ final class ChatController extends Controller
         $items = $paginator->items();
         $ensureChatId = max(0, (int) $request->query('ensure_chat_id', 0));
         if ($ensureChatId > 0 && ! collect($items)->contains(fn (Chat $row): bool => (int) $row->id === $ensureChatId)) {
-            $extra = $this->chatService->getChatsForUser($request->user(), $search, $listOwnership, $listFilter)
+            $extra = $this->chatService->getChatsForUser(
+                $request->user(),
+                $search,
+                $listOwnership,
+                $listFilter,
+                archivedScope: $archived,
+            )
                 ->where('is_archived', $archived)
                 ->when(! $archived, fn ($q) => $q->whereNotNull('last_message_at'))
                 ->whereKey($ensureChatId)
@@ -388,7 +401,7 @@ final class ChatController extends Controller
             return 0;
         }
 
-        return (int) $this->chatService->getChatsForUser($user, null, 'mine')
+        return (int) $this->chatService->getChatsForUser($user, null, 'mine', archivedScope: $isArchived)
             ->where('is_archived', $isArchived)
             ->count();
     }
@@ -1930,7 +1943,13 @@ final class ChatController extends Controller
      */
     private function sidebarChatsQuery(User $user, Chat $contextChat, string $listOwnership, ?string $listFilter): Builder
     {
-        return $this->chatService->getChatsForUser($user, null, $listOwnership, $listFilter)
+        return $this->chatService->getChatsForUser(
+            $user,
+            null,
+            $listOwnership,
+            $listFilter,
+            archivedScope: $contextChat->is_archived,
+        )
             ->where(function (Builder $q) use ($contextChat): void {
                 $q->where('is_archived', false);
                 if ($contextChat->is_archived) {

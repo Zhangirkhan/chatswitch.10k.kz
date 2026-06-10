@@ -135,6 +135,7 @@ final class ChatService
         ?string $search = null,
         string $listOwnership = 'all',
         ?string $filter = null,
+        bool $archivedScope = false,
     ): Builder {
         // Закреплённые — сверху; затем по времени последней активности.
         // COALESCE нужен, чтобы только что созданные чаты (без сообщений)
@@ -163,7 +164,7 @@ final class ChatService
                 ->orderByRaw('COALESCE(last_message_at, created_at) DESC');
         }
 
-        $this->applyInboxFilter($query, $filter);
+        $this->applyInboxFilter($query, $filter, $archivedScope);
 
         return $query
             ->orderByDesc('is_pinned')
@@ -173,7 +174,7 @@ final class ChatService
     /**
      * @param  Builder<Chat>  $query
      */
-    private function applyInboxFilter(Builder $query, ?string $filter): void
+    private function applyInboxFilter(Builder $query, ?string $filter, bool $archivedScope = false): void
     {
         if ($filter === 'closed') {
             $query->where('is_lead_closed', true);
@@ -181,7 +182,10 @@ final class ChatService
             return;
         }
 
-        $query->where('is_lead_closed', false);
+        // В архиве показываем и закрытые лиды — иначе бейдж и список расходятся.
+        if (! $archivedScope) {
+            $query->where('is_lead_closed', false);
+        }
 
         if ($filter === 'favorites') {
             $query->where('is_favorite', true);

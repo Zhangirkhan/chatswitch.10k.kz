@@ -146,6 +146,38 @@ final class WhatsappGhostChatTest extends TestCase
         $this->assertNotContains($ghost->id, $ids);
     }
 
+    public function test_archived_feed_includes_closed_leads(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create();
+
+        $closedArchived = Chat::factory()->create([
+            'whatsapp_session_id' => $session->id,
+            'is_archived' => true,
+            'is_lead_closed' => true,
+            'last_message_at' => now(),
+        ]);
+
+        Message::create([
+            'chat_id' => $closedArchived->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'Закрытый лид',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('chats.feed', ['archived' => 1]));
+
+        $response->assertOk();
+        $ids = collect($response->json('data'))->pluck('id')->all();
+        $this->assertContains($closedArchived->id, $ids);
+    }
+
     public function test_prune_command_removes_ghost_chats(): void
     {
         $session = WhatsappSession::factory()->create();
