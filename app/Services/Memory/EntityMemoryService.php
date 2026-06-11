@@ -156,6 +156,25 @@ final class EntityMemoryService
             // fields absent from this run but existing in the AI section are kept.
             $existingFacts = $this->parseAiFactsSection($previous);
             $nonEmpty = array_filter($facts, static fn (mixed $v): bool => $v !== null && $v !== '' && $v !== []);
+
+            // Per-fact timestamps: when a TIMESTAMPED_KEY fact actually changes value,
+            // update its _at timestamp so the LLM can see budget/timeline progression.
+            $now = now()->format('d.m H:i');
+            foreach (self::TIMESTAMPED_KEYS as $key) {
+                $newVal = $nonEmpty[$key] ?? null;
+                if ($newVal === null) {
+                    continue;
+                }
+                $oldVal = $existingFacts[$key] ?? null;
+                if ((string) $newVal !== (string) $oldVal) {
+                    // Value changed or newly extracted — stamp it.
+                    $nonEmpty[$key.'_at'] = $now;
+                } elseif (isset($existingFacts[$key.'_at'])) {
+                    // Value unchanged — preserve the existing timestamp.
+                    $nonEmpty[$key.'_at'] = $existingFacts[$key.'_at'];
+                }
+            }
+
             $merged = array_merge($existingFacts, $nonEmpty);
 
             $newSection = $this->renderAiFactsSection($merged);
@@ -198,7 +217,16 @@ final class EntityMemoryService
     private const AI_FACTS_SECTION_END = '<!-- /ai-facts -->';
 
     /**
+     * Facts that get a per-fact timestamp displayed for budget/timeline progression auditing.
+     * The LLM can see "Бюджет: 1 000 000 тг (обн. 12.06 14:30)" and reason about recency.
+     */
+    private const TIMESTAMPED_KEYS = ['budget', 'requirements', 'agreements', 'objections'];
+
+    /**
      * Render the managed AI-facts section from structured facts.
+     *
+     * For TIMESTAMPED_KEYS, if `facts[$key.'_at']` is present, appends
+     * "(обн. DATE)" after the value so the LLM can reason about recency.
      *
      * @param  array<string, mixed>  $facts
      */
@@ -231,6 +259,13 @@ final class EntityMemoryService
             if ($value === '') {
                 continue;
             }
+
+            // Append per-fact timestamp for auditable progression facts.
+            $at = $facts[$key.'_at'] ?? null;
+            if (in_array($key, self::TIMESTAMPED_KEYS, true) && is_string($at) && $at !== '') {
+                $value .= " (обн. {$at})";
+            }
+
             $lines[] = "**{$label}:** {$value}";
         }
 
@@ -244,6 +279,7 @@ final class EntityMemoryService
     /**
      * Parse the structured key→value pairs from the managed AI-facts section.
      * Returns an associative array suitable for re-passing to renderAiFactsSection.
+     * Per-fact timestamps "(обн. …)" are extracted into separate "$key_at" keys.
      *
      * @return array<string, string>
      */
@@ -269,9 +305,19 @@ final class EntityMemoryService
         foreach ($labels as $label => $key) {
             // renderAiFactsSection produces "**Label:** value" (colon inside bold markers).
             if (preg_match('/\*\*'.preg_quote($label, '/').':\*\*\s*(.+)/u', $m[1], $lm)) {
-                $value = trim($lm[1]);
-                if ($value !== '') {
-                    $result[$key] = $value;
+                $rawValue = trim($lm[1]);
+                if ($rawValue === '') {
+                    continue;
+                }
+
+                // Extract embedded per-fact timestamp: "(обн. DD.MM HH:ii)" suffix.
+                if (in_array($key, self::TIMESTAMPED_KEYS, true)
+                    && preg_match('/^(.*?)\s*\(обн\.\s*([^)]+)\)\s*$/u', $rawValue, $tm)
+                ) {
+                    $result[$key] = trim($tm[1]);
+                    $result[$key.'_at'] = trim($tm[2]);
+                } else {
+                    $result[$key] = $rawValue;
                 }
             }
         }

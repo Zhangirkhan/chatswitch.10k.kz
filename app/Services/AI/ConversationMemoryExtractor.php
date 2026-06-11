@@ -90,10 +90,26 @@ final class ConversationMemoryExtractor
     {
         $limit = max(5, (int) config('ai.memory_extraction_history_messages', 20));
 
-        return Message::query()
-            ->where('chat_id', $chat->id)
+        // Contact-scoped history: include messages from all of the contact's chats
+        // so extraction captures context from multiple conversations (e.g. the client
+        // stated their budget in chat A and their requirements in chat B).
+        $useContactScope = $chat->contact_id !== null
+            && (bool) config('ai.memory_extraction_contact_scope', true);
+
+        $query = Message::query()
             ->whereIn('direction', ['inbound', 'outbound'])
-            ->whereNotNull('body')
+            ->whereNotNull('body');
+
+        if ($useContactScope) {
+            // Fetch from all chats belonging to the same contact (same company).
+            $query->whereHas('chat', fn ($q) => $q
+                ->where('contact_id', $chat->contact_id)
+                ->where('company_id', $chat->company_id));
+        } else {
+            $query->where('chat_id', $chat->id);
+        }
+
+        return $query
             ->orderByDesc('message_timestamp')
             ->orderByDesc('id')
             ->limit($limit)
