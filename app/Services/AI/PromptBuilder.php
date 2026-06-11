@@ -73,6 +73,11 @@ final class PromptBuilder
             $companyId,
         );
 
+        // Compact key-facts anchor injected just before the user message to protect
+        // against "lost in the middle" — memory/KB at position [0] is far from
+        // the current question.  Budget: 3–6 lines maximum.
+        $keyFactsBlock = $this->compactKeyFactsBlock($chat, $companyId, $responder);
+
         if ($includeAiReplies) {
             // New mode: proper user/assistant message array — no more continuity block.
             $historyMessages = $this->buildHistoryMessages($chat, $replyAsCompany);
@@ -82,8 +87,13 @@ final class PromptBuilder
                 ['role' => 'system', 'content' => $system],
                 ...$historyMessages,
                 ...$localeMessages,
-                ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"],
             ];
+
+            if ($keyFactsBlock !== '') {
+                $messages[] = ['role' => 'system', 'content' => $keyFactsBlock];
+            }
+
+            $messages[] = ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"];
         } else {
             // Legacy mode: history as a single system string + continuity block.
             $context = $this->conversationContext($chat, $replyAsCompany);
@@ -95,8 +105,13 @@ final class PromptBuilder
                 ['role' => 'system', 'content' => $context],
                 ['role' => 'system', 'content' => $continuity],
                 ...$localeMessages,
-                ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"],
             ];
+
+            if ($keyFactsBlock !== '') {
+                $messages[] = ['role' => 'system', 'content' => $keyFactsBlock];
+            }
+
+            $messages[] = ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"];
         }
 
         return [
@@ -531,6 +546,67 @@ PROMPT;
         }
 
         return $block."\n\nЕсли клиент сомневается или спрашивает про выгоду — уместно предложи одну из акций выше. Не выдумывай другие скидки.";
+    }
+
+    /**
+     * Build a compact 3–6 line "key facts" block injected directly before the
+     * user message to prevent "lost in the middle" context loss.
+     *
+     * Sources (in order of priority):
+     *  1. AI-facts from EntityMemory (budget, requirements, agreements)
+     *  2. Active topic from the chat
+     *
+     * Returns empty string when no meaningful facts are available.
+     */
+    private function compactKeyFactsBlock(Chat $chat, int $companyId, User $responder): string
+    {
+        $lines = [];
+
+        // Active topic.
+        $activeTopic = $chat->active_topic;
+        if ($activeTopic !== null && $activeTopic !== '') {
+            $topicClean = (string) preg_replace('/^\[[a-z_]+\]\s*/u', '', $activeTopic);
+            if ($topicClean !== '') {
+                $lines[] = "Текущая тема: {$topicClean}";
+            }
+        }
+
+        // Key AI-facts from entity memory (budget, requirements, agreements).
+        if ($chat->contact_id !== null) {
+            try {
+                $facts = $this->entityMemories->readAiFacts(
+                    \App\Enums\EntityMemorySubjectType::Contact,
+                    (int) $chat->contact_id,
+                );
+
+                $priority = ['budget', 'requirements', 'agreements', 'objections', 'preferences'];
+                $labels = [
+                    'budget'       => 'Бюджет клиента',
+                    'requirements' => 'Что ищет',
+                    'agreements'   => 'Договорённости',
+                    'objections'   => 'Возражения',
+                    'preferences'  => 'Предпочтения',
+                ];
+
+                foreach ($priority as $key) {
+                    if (count($lines) >= 6) {
+                        break;
+                    }
+                    $val = $facts[$key] ?? null;
+                    if ($val !== null && $val !== '') {
+                        $lines[] = "{$labels[$key]}: ".Str::limit($val, 120, '…');
+                    }
+                }
+            } catch (\Throwable) {
+                // Non-fatal — missing memory should not block reply generation.
+            }
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return "Контекст клиента (держи в уме при ответе):\n".implode("\n", $lines);
     }
 
     private function entityMemoryBlock(Chat $chat, User $responder): string
