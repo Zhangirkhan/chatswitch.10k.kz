@@ -1,4 +1,5 @@
 @import './ui-primitives.css';
+@import './landing.css';
 
 @tailwind base;
 @tailwind components;

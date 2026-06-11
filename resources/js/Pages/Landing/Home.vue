@@ -554,15 +554,6 @@ onUnmounted(() => {
 
 <style scoped>
 .landing {
-    --landing-bg: #000;
-    --landing-surface: #1d1f1f;
-    --landing-surface-raised: #232626;
-    --landing-border: rgba(134, 150, 160, 0.18);
-    --landing-text: #e9edef;
-    --landing-muted: #8696a0;
-    --landing-accent: #01b964;
-    --landing-accent-hover: #06d670;
-
     position: relative;
     display: flex;
     flex-direction: column;

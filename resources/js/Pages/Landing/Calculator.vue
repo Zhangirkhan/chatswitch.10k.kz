@@ -576,54 +576,6 @@ const visibleScenarios = computed(() =>
     z-index: 1;
 }
 
-.landing__header {
-    flex-shrink: 0;
-    padding: 0.875rem clamp(1.25rem, 2.5vw, 2.5rem) 0.75rem;
-    z-index: 60;
-}
-
-@media (min-width: 961px) {
-    .landing__header {
-        border-bottom: 1px solid var(--ui-border);
-        background: color-mix(in srgb, var(--wa-bg) 94%, transparent);
-        backdrop-filter: blur(10px);
-    }
-}
-
-.landing__header--row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--primitive-gap-lg);
-}
-
-.landing__brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.625rem;
-    font-size: 1.0625rem;
-    font-weight: 600;
-    color: var(--wa-text);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-    transition: opacity 0.15s ease;
-}
-
-.landing__brand:hover {
-    opacity: 0.9;
-}
-
-.landing__nav-link {
-    font-size: 0.875rem;
-    color: var(--wa-text-secondary);
-    text-decoration: none;
-    transition: color 0.15s ease;
-}
-
-.landing__nav-link:hover {
-    color: var(--wa-accent);
-}
-
 .landing__main {
     flex: 1;
     width: 100%;
