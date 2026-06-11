@@ -41,6 +41,32 @@ final class OpenAiChatService
     }
 
     /**
+     * Like chat() but also returns token usage for populating AiResponseLog.
+     *
+     * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
+     * @return array{content: string, tokens_prompt: int, tokens_completion: int}
+     */
+    public function chatWithUsage(
+        array $messages,
+        ?float $temperature = null,
+        ?int $maxTokens = null,
+        ?AiUsageOptions $usage = null,
+    ): array {
+        $result = $this->send($messages, $temperature, $maxTokens, null, $usage);
+        $content = $result['message']['content'] ?? null;
+
+        if (! is_string($content) || trim($content) === '') {
+            throw new RuntimeException('Пустой ответ от OpenAI.');
+        }
+
+        return [
+            'content'           => $content,
+            'tokens_prompt'     => $result['tokens_prompt'] ?? 0,
+            'tokens_completion' => $result['tokens_completion'] ?? 0,
+        ];
+    }
+
+    /**
      * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
      * @return array<string, mixed>
      */
@@ -68,7 +94,7 @@ final class OpenAiChatService
     /**
      * @param  array<int, array{role: 'system'|'user'|'assistant', content: string}>  $messages
      * @param  array<string, mixed>|null  $responseFormat
-     * @return array{message: array<string, mixed>, model: string}
+     * @return array{message: array<string, mixed>, model: string, tokens_prompt: int, tokens_completion: int}
      */
     private function send(
         array $messages,
@@ -158,9 +184,13 @@ final class OpenAiChatService
             );
         }
 
+        $usageData = is_array($data['usage'] ?? null) ? $data['usage'] : [];
+
         return [
-            'message' => $message,
-            'model' => (string) ($data['model'] ?? $model),
+            'message'            => $message,
+            'model'              => (string) ($data['model'] ?? $model),
+            'tokens_prompt'      => (int) ($usageData['prompt_tokens'] ?? 0),
+            'tokens_completion'  => (int) ($usageData['completion_tokens'] ?? 0),
         ];
     }
 }

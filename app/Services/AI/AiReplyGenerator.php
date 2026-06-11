@@ -90,12 +90,14 @@ final class AiReplyGenerator
         $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id, $triggerMessage);
         $localeProfile = $this->chatLocaleResolver->resolve($chat, $triggerMessage);
         $maxReplyTokens = max(300, (int) config('services.openai.max_reply_tokens', 700));
-        $reply = trim($this->openAi->chat(
+        $companyId = $chat->company_id ?? $responder->company_id;
+        $llmResult = $this->openAi->chatWithUsage(
             $built['messages'],
             0.35,
             $maxReplyTokens,
-            new AiUsageOptions('ai_reply', $chat->company_id ?? $responder->company_id),
-        ));
+            new AiUsageOptions('ai_reply', $companyId),
+        );
+        $reply = trim($llmResult['content']);
         $reply = $this->sanitizeReply($reply);
         $reply = $this->localeReplyGuard->apply($reply, $localeProfile);
         $reply = $this->normalizeCurrency($reply);
@@ -114,15 +116,16 @@ final class AiReplyGenerator
             }
         }
 
-        $companyId = $chat->company_id ?? $responder->company_id;
-
         $log?->forceFill([
-            'prompt_hash' => $built['prompt_hash'],
-            'model' => $this->modelResolver->chatModel($companyId),
+            'prompt_hash'       => $built['prompt_hash'],
+            'model'             => $this->modelResolver->chatModel($companyId),
+            'tokens_prompt'     => $llmResult['tokens_prompt'],
+            'tokens_completion' => $llmResult['tokens_completion'],
             'metadata' => [
                 ...($log->metadata ?? []),
-                'messages_count' => count($built['messages']),
+                'messages_count'    => count($built['messages']),
                 'product_attach_id' => $parsed['product_id'],
+                'decision_manifest' => $built['manifest'] ?? [],
             ],
         ])->save();
 

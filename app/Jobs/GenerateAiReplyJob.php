@@ -145,10 +145,11 @@ final class GenerateAiReplyJob implements ShouldQueue
         $log = AiResponseLog::firstOrCreate(
             ['trigger_message_id' => $trigger->id, 'mode' => $mode],
             [
-                'company_id' => $chat->company_id ?? $responder->company_id,
-                'chat_id' => $chat->id,
-                'user_id' => $responder->id,
-                'status' => 'pending',
+                'company_id'     => $chat->company_id ?? $responder->company_id,
+                'chat_id'        => $chat->id,
+                'user_id'        => $responder->id,
+                'status'         => 'pending',
+                'correlation_id' => \Illuminate\Support\Str::uuid()->toString(),
             ],
         );
 

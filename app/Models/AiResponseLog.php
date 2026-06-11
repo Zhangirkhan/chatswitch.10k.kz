@@ -23,6 +23,7 @@ final class AiResponseLog extends Model
         'tokens_completion',
         'status',
         'error',
+        'correlation_id',
     ];
 
     protected function casts(): array

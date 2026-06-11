@@ -42,6 +42,15 @@ final class PromptBuilder
      */
     private const AI_CONTINUITY_LIMIT = 5;
 
+    /**
+     * Per-build decision manifest collected by sub-methods (retrieval query,
+     * domain, active_topic at call time, funnel stage).  Reset at the start
+     * of each build() call so there is no cross-request bleed.
+     *
+     * @var array<string, mixed>
+     */
+    private array $buildManifest = [];
+
     public function __construct(
         private readonly KnowledgeContextTextFormatter $knowledgeTextFormatter,
         private readonly OpenAiChatService $openAi,
@@ -58,10 +67,19 @@ final class PromptBuilder
     ) {}
 
     /**
-     * @return array{messages: array<int, array{role: 'system'|'user'|'assistant', content: string}>, prompt_hash: string}
+     * @return array{messages: array<int, array{role: 'system'|'user'|'assistant', content: string}>, prompt_hash: string, manifest: array<string, mixed>}
      */
     public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null, ?Message $triggerMessage = null): array
     {
+        // Reset per-build manifest so sub-methods can populate it cleanly.
+        $this->buildManifest = [
+            'active_topic'    => $chat->active_topic,
+            'funnel_stage_id' => $chat->funnel_stage_id,
+            'retrieval_query' => null,
+            'domain'          => null,
+            'memory_hash'     => null,
+        ];
+
         $chat->loadMissing(['assignments.user', 'company:id,name']);
         $companyId ??= $chat->company_id ?? $responder->company_id;
         $replyAsCompany = ! $chat->hasManualAssignees();
@@ -116,9 +134,25 @@ final class PromptBuilder
             $messages[] = ['role' => 'user', 'content' => "Вопрос клиента/задача:\n{$question}"];
         }
 
+        // Capture memory hash for observability (content-addressed snapshot).
+        if ($chat->contact_id !== null) {
+            try {
+                $memFacts = $this->entityMemories->readAiFacts(
+                    EntityMemorySubjectType::Contact,
+                    (int) $chat->contact_id,
+                );
+                if ($memFacts !== []) {
+                    $this->buildManifest['memory_hash'] = md5(json_encode($memFacts, JSON_THROW_ON_ERROR));
+                }
+            } catch (\Throwable) {
+                // Non-fatal.
+            }
+        }
+
         return [
-            'messages' => $messages,
+            'messages'    => $messages,
             'prompt_hash' => hash('sha256', json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)),
+            'manifest'    => $this->buildManifest,
         ];
     }
 
@@ -648,6 +682,10 @@ PROMPT;
             $domainSelector = app(KnowledgeDomainSelector::class);
             $domain = $domainSelector->detect((string) $rawQuery, $chat);
         }
+
+        // Record in manifest for observability.
+        $this->buildManifest['retrieval_query'] = $rawQuery;
+        $this->buildManifest['domain']          = $domain;
 
         $query = $rawQuery;
         $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query, $domain);

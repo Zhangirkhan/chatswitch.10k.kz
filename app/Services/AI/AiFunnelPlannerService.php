@@ -62,6 +62,9 @@ final class AiFunnelPlannerService
             new AiUsageOptions('funnel_orchestrator', $chat->company_id ?? $responder->company_id),
         );
 
+        // Embed the decision manifest from PromptBuilder into the context for observability.
+        $context['decision_manifest'] = $base['manifest'] ?? [];
+
         return [AiFunnelOrchestratorPlan::fromArray($raw), $context];
     }
 
