@@ -21,10 +21,10 @@ final class KnowledgeContextTextFormatter
      *
      * @return list<string>
      */
-    public function knowledgeLines(int $companyId, ?string $query = null): array
+    public function knowledgeLines(int $companyId, ?string $query = null, ?string $domain = null): array
     {
         if ($this->ragRetriever->shouldUseForQuery($query)) {
-            $ragLines = $this->ragRetriever->retrieveLines($companyId, (string) $query);
+            $ragLines = $this->ragRetriever->retrieveLines($companyId, (string) $query, $domain);
             if ($ragLines !== []) {
                 return $this->ragHeader($query, true, $ragLines);
             }

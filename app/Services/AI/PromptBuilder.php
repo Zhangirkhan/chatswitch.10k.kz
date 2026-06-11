@@ -12,6 +12,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\AI\Retrieval\RetrievalQueryBuilder;
+use App\Services\Knowledge\KnowledgeDomainSelector;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\Memory\EntityMemoryService;
 use App\Services\Promotion\CompanyPromotionCatalog;
@@ -502,8 +503,15 @@ PROMPT;
             $rawQuery = $this->retrievalQueryBuilder->build($rawQuery, $chat);
         }
 
+        // Domain-based retrieval boost: detect topic domain and pass to retriever.
+        $domain = null;
+        if (AiFeatureFlags::enabled(AiFeatureFlags::RETRIEVAL_DOMAIN_FILTER, $companyId)) {
+            $domainSelector = app(KnowledgeDomainSelector::class);
+            $domain = $domainSelector->detect((string) $rawQuery, $chat);
+        }
+
         $query = $rawQuery;
-        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query);
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query, $domain);
         $historyCharBudget = (int) config('ai.history_char_budget', 24000);
         $fullContext = implode("\n", $lines);
         if (mb_strlen($fullContext) <= $historyCharBudget) {

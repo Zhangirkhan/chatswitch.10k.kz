@@ -19,6 +19,7 @@ final class KnowledgeChunk extends Model
         'company_id',
         'source_type',
         'source_id',
+        'domain',
         'content_text',
         'display_line',
         'content_hash',

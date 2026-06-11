@@ -35,7 +35,7 @@ final class KnowledgeRagRetriever
     /**
      * @return list<string>
      */
-    public function retrieveLines(int $companyId, string $query): array
+    public function retrieveLines(int $companyId, string $query, ?string $domain = null): array
     {
         $chunks = KnowledgeChunk::query()
             ->where('company_id', $companyId)
@@ -64,6 +64,8 @@ final class KnowledgeRagRetriever
         $minSimilarity = (float) config('knowledge.rag.min_similarity', 0.30);
         $topK = (int) config('knowledge.rag.top_k', 12);
         $maxRules = (int) config('knowledge.rag.max_rules', 5);
+        // Domain-matching chunks receive this cosine score boost (additive).
+        $domainBoost = (float) config('knowledge.rag.domain_boost', 0.08);
 
         $scored = [];
         foreach ($chunks as $chunk) {
@@ -73,6 +75,12 @@ final class KnowledgeRagRetriever
             }
 
             $score = VectorCosine::similarity($queryVector, array_map(static fn ($v): float => (float) $v, $vector));
+
+            // Apply domain boost when domain filter is active and chunk matches.
+            if ($domain !== null && $chunk->domain === $domain) {
+                $score += $domainBoost;
+            }
+
             if ($score < $minSimilarity) {
                 continue;
             }
