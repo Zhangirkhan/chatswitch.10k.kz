@@ -386,7 +386,6 @@ function openRequest(): void {
     color: #fff;
     background: var(--landing-accent);
     border: none;
-    border-radius: 999px;
     cursor: pointer;
     white-space: nowrap;
 }

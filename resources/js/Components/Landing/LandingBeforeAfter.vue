@@ -143,7 +143,7 @@ defineProps<{
 
 .landing-before-after__cell {
     padding: 1.35rem 1.45rem;
-    border-radius: 16px;
+    border-radius: var(--landing-radius);
     border: 1px solid var(--landing-border-bright);
     min-height: 7.5rem;
     box-shadow: var(--landing-elevation);
@@ -206,7 +206,7 @@ defineProps<{
 
 .landing-before-after__aside {
     padding: 1.5rem 1.6rem;
-    border-radius: 16px;
+    border-radius: var(--landing-radius);
     border: 1px solid var(--landing-border-bright);
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
     box-shadow: var(--landing-elevation);

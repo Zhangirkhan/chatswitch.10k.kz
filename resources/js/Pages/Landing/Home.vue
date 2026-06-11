@@ -813,7 +813,7 @@ onUnmounted(() => {
 
     .landing__pricing-card {
         padding: 1.25rem 1rem;
-        border-radius: 1rem;
+        border-radius: var(--landing-radius);
     }
 
     .landing__pricing-amount {
@@ -958,7 +958,7 @@ onUnmounted(() => {
     flex-direction: column;
     min-height: 100%;
     padding: 1.85rem;
-    border-radius: 1.25rem;
+    border-radius: var(--landing-radius);
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
     border: 1px solid var(--landing-border-bright);
     box-shadow: var(--landing-elevation);
@@ -1113,7 +1113,7 @@ onUnmounted(() => {
     padding: 1.35rem 1.5rem;
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
     border: 1px solid var(--landing-border-bright);
-    border-radius: 14px;
+    border-radius: var(--landing-radius);
     box-shadow: var(--landing-elevation);
     transition:
         transform 0.22s ease,
@@ -1162,6 +1162,8 @@ onUnmounted(() => {
     gap: 0.75rem;
     padding: 1.15rem 1.2rem;
     height: 100%;
+    border-radius: inherit;
+    overflow: hidden;
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
 }
 
@@ -1211,7 +1213,6 @@ onUnmounted(() => {
     color: #fff;
     background: var(--landing-accent);
     border: none;
-    border-radius: 999px;
     cursor: pointer;
     box-shadow: 0 10px 28px -12px rgba(1, 185, 100, 0.55);
     transition:
@@ -1371,7 +1372,6 @@ onUnmounted(() => {
     font-size: 0.875rem;
     font-weight: 600;
     font-family: inherit;
-    border-radius: 0.5rem;
     cursor: pointer;
     border: none;
     transition: opacity 0.15s ease;

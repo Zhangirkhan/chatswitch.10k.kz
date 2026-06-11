@@ -108,7 +108,7 @@ const props = withDefaults(defineProps<BorderGlowProps>(), {
     edgeSensitivity: 30,
     glowColor: '40 80 80',
     backgroundColor: '#060010',
-    borderRadius: 28,
+    borderRadius: 16,
     glowRadius: 40,
     glowIntensity: 1.0,
     coneSpread: 25,
@@ -345,7 +345,7 @@ onMounted(() => {
             />
         </span>
 
-        <div class="z-[1] relative flex flex-col overflow-auto">
+        <div class="z-[1] relative flex flex-col overflow-hidden">
             <slot />
         </div>
     </div>
@@ -354,9 +354,11 @@ onMounted(() => {
 <style scoped>
 .landing-border-glow {
     height: 100%;
+    overflow: hidden;
 }
 
 .landing-border-glow--static {
+    overflow: hidden;
     border: 1px solid rgba(1, 185, 100, 0.22);
     box-shadow:
         0 0 0 1px rgba(1, 185, 100, 0.06),

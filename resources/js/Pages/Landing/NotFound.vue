@@ -207,7 +207,6 @@ const subheading = computed(() => {
     align-items: center;
     height: 2.25rem;
     padding: 0 1rem;
-    border-radius: 9999px;
     background: rgba(16, 185, 129, 0.12);
     border: 1px solid rgba(16, 185, 129, 0.45);
     color: #6ee7b7;
@@ -330,7 +329,6 @@ const subheading = computed(() => {
     gap: 0.5rem;
     height: 2.75rem;
     padding: 0 1.4rem;
-    border-radius: 9999px;
     font-size: 0.9rem;
     font-weight: 600;
     text-decoration: none;

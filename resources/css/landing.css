@@ -15,6 +15,17 @@
     --landing-glow: 0 0 0 1px rgba(1, 185, 100, 0.18), 0 22px 60px -30px rgba(1, 185, 100, 0.35);
     --landing-section-gap: 3.75rem;
     --landing-section-gap-lg: 6rem;
+    --landing-radius: 1rem;
+}
+
+.landing__surface {
+    border-radius: var(--landing-radius);
+    overflow: hidden;
+}
+
+.landing :is(.landing__cta-btn, .landing__header-cta, .landing-modal-form__btn),
+.not-found :is(.not-found__btn, .not-found__nav-cta) {
+    border-radius: var(--landing-radius);
 }
 
 .landing__section-block {

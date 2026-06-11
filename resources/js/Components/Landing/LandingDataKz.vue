@@ -204,7 +204,7 @@ defineProps<{
 
 .landing-data-kz__card {
     padding: 1.5rem 1.6rem;
-    border-radius: 16px;
+    border-radius: var(--landing-radius);
     border: 1px solid var(--landing-border-bright);
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
     box-shadow: var(--landing-elevation);
@@ -224,7 +224,7 @@ defineProps<{
     position: relative;
     overflow: hidden;
     padding: 1.75rem 1.5rem 1.35rem;
-    border-radius: 16px;
+    border-radius: var(--landing-radius);
     border: 1px solid var(--landing-border-bright);
     background:
         radial-gradient(120% 120% at 50% 20%, rgba(1, 185, 100, 0.12), transparent 70%),
@@ -337,7 +337,7 @@ defineProps<{
 .landing-data-kz__law {
     margin: 0;
     padding: 1.5rem 1.6rem;
-    border-radius: 16px;
+    border-radius: var(--landing-radius);
     border: 1px solid rgba(1, 185, 100, 0.28);
     background:
         linear-gradient(180deg, rgba(1, 185, 100, 0.12) 0%, transparent 40%),
