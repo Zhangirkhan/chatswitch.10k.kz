@@ -16,6 +16,7 @@ use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Calendar\AppointmentBookingService;
+use App\Services\Calendar\CalendarAvailabilityService;
 use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
@@ -27,6 +28,7 @@ use App\Services\TeamChatService;
 use App\Services\TeamDepartmentChatSyncService;
 use App\Support\ChatUrl;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 final class AiFunnelActionExecutor
@@ -35,6 +37,7 @@ final class AiFunnelActionExecutor
         private readonly OutboundChatMessageDispatcher $dispatcher,
         private readonly ChatFunnelStateService $funnelState,
         private readonly AppointmentBookingService $booking,
+        private readonly CalendarAvailabilityService $calendarAvailability,
         private readonly ChatService $chatService,
         private readonly TeamChatService $teamChatService,
         private readonly TeamDepartmentChatSyncService $teamDepartmentChatSync,
@@ -261,6 +264,26 @@ final class AiFunnelActionExecutor
             ? (int) $appointment['reminder_lead_minutes']
             : null;
         $assignee = $this->resolveAppointmentAssignee($chat, $plan, $actor);
+
+        // Slot availability guard: re-validate the proposed starts_at against the
+        // assignee's calendar at execution time.  The LLM picked the slot during
+        // planning; by now the slot may have been taken by another booking.
+        $endsAtCandidate = $startsAt->copy()->addMinutes($duration);
+        if ($startsAt->isFuture() && $this->calendarAvailability->hasConflict($assignee, $startsAt, $endsAtCandidate)) {
+            Log::info('[ai-orchestrator] slot conflict at execution time', [
+                'action_id' => $action->id,
+                'chat_id' => $chat->id,
+                'starts_at' => $startsAt->toIso8601String(),
+                'assignee_user_id' => $assignee->id,
+            ]);
+
+            $action->forceFill([
+                'status' => \App\Models\AiOrchestratorAction::STATUS_SKIPPED,
+                'result' => ['skipped' => true, 'reason' => 'slot_conflict_at_execution'],
+            ])->save();
+
+            return ['skipped' => true, 'reason' => 'slot_conflict_at_execution'];
+        }
 
         $existing = CalendarEvent::query()
             ->where('chat_id', $chat->id)
