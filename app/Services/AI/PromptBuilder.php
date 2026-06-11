@@ -10,6 +10,7 @@ use App\Models\CompanyToneProfile;
 use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AI\ChatSalesStateService;
 use App\Services\AI\Locale\LocalePromptAugmenter;
 use App\Services\AI\Retrieval\RetrievalQueryBuilder;
 use App\Services\Knowledge\KnowledgeDomainSelector;
@@ -53,6 +54,7 @@ final class PromptBuilder
         private readonly LocalePromptAugmenter $localeAugmenter,
         private readonly CompanyPromotionCatalog $promotionCatalog,
         private readonly RetrievalQueryBuilder $retrievalQueryBuilder,
+        private readonly ChatSalesStateService $salesStateService,
     ) {}
 
     /**
@@ -599,6 +601,14 @@ PROMPT;
                 }
             } catch (\Throwable) {
                 // Non-fatal — missing memory should not block reply generation.
+            }
+        }
+
+        // Sales state: qualified / next_action / open objections.
+        if (AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $companyId)) {
+            $salesSummary = $this->salesStateService->promptSummary($chat);
+            if ($salesSummary !== '') {
+                $lines[] = $salesSummary;
             }
         }
 

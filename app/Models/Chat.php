@@ -91,6 +91,8 @@ final class Chat extends Model
         'ai_paused_at',
         'active_topic',
         'active_topic_updated_at',
+        'sales_state',
+        'sales_state_updated_at',
     ];
 
     protected function casts(): array
@@ -115,6 +117,8 @@ final class Chat extends Model
             'ai_orchestrator_last_action_at' => 'datetime',
             'ai_paused_at' => 'datetime',
             'active_topic_updated_at' => 'datetime',
+            'sales_state' => 'array',
+            'sales_state_updated_at' => 'datetime',
         ];
     }
 

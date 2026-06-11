@@ -11,6 +11,7 @@ use App\Models\FunnelStageAiRule;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
+use App\Support\AiFeatureFlags;
 use App\Support\MessageInboundText;
 
 final class AiFunnelPlannerService
@@ -19,6 +20,7 @@ final class AiFunnelPlannerService
         private readonly OpenAiChatService $openAi,
         private readonly PromptBuilder $promptBuilder,
         private readonly LocalePromptAugmenter $localeAugmenter,
+        private readonly ChatSalesStateService $salesStateService,
     ) {}
 
     /**
@@ -113,6 +115,9 @@ final class AiFunnelPlannerService
             ] : null,
             'candidate_assignees' => $candidateAssignees,
             'available_slots' => $availableSlots,
+            'sales_state' => AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
+                ? ($chat->sales_state ?? null)
+                : null,
             'existing_appointments' => CalendarEvent::query()
                 ->where('chat_id', $chat->id)
                 ->where('starts_at', '>=', now()->subDays(ChatCalendarContextBuilder::PAST_DAYS)->startOfDay())

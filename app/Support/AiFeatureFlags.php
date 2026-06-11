@@ -43,6 +43,9 @@ final class AiFeatureFlags
     /** Filter RAG chunks by detected knowledge domain (delivery/pricing/…). */
     public const RETRIEVAL_DOMAIN_FILTER = 'ai.retrieval_domain_filter';
 
+    /** Persist and inject structured sales state (qualified, budget_known, next_action, …). */
+    public const SALES_STATE = 'ai.sales_state';
+
     /** All known flag keys — used for validation and documentation. */
     public const ALL_KEYS = [
         self::MEMORY_EXTRACTION,
@@ -53,6 +56,7 @@ final class AiFeatureFlags
         self::CRM_WRITEBACK,
         self::RETRIEVAL_CONTEXT_AWARE,
         self::RETRIEVAL_DOMAIN_FILTER,
+        self::SALES_STATE,
     ];
 
     /**

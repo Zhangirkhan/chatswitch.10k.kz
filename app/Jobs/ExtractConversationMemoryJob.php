@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
 use App\Services\AI\AiCrmWritebackService;
+use App\Services\AI\ChatSalesStateService;
 use App\Services\AI\ConversationMemoryExtractor;
+use App\Services\Memory\EntityMemoryService;
 use App\Support\AiFeatureFlags;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -37,10 +40,14 @@ final class ExtractConversationMemoryJob implements ShouldQueue
         public readonly ?int $tenantCompanyId = null,
     ) {}
 
-    public function handle(ConversationMemoryExtractor $extractor, AiCrmWritebackService $crm): void
-    {
+    public function handle(
+        ConversationMemoryExtractor $extractor,
+        AiCrmWritebackService $crm,
+        ChatSalesStateService $salesState,
+        EntityMemoryService $entityMemories,
+    ): void {
         $chat = Chat::query()
-            ->with(['contact:id,name,push_name,phone_number,company_id'])
+            ->with(['contact:id,name,push_name,phone_number,company_id', 'funnelStage:id,name'])
             ->whereKey($this->chatId)
             ->first();
 
@@ -66,6 +73,23 @@ final class ExtractConversationMemoryJob implements ShouldQueue
 
         // CRM writeback: persist extracted facts as contact tags and enrichment.
         $crm->writeContactEnrichment($chat, $facts);
+
+        // Sales state: update the deterministic structured state from the latest facts.
+        // Read from memory (merged) so state reflects the full accumulated picture.
+        if (AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)) {
+            try {
+                $mergedFacts = $entityMemories->readAiFacts(
+                    EntityMemorySubjectType::Contact,
+                    (int) $chat->contact_id,
+                );
+                $salesState->updateFromFacts($chat, $mergedFacts);
+            } catch (\Throwable $e) {
+                Log::warning('[memory-extractor] sales state update failed', [
+                    'chat_id' => $chat->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     public function viaQueue(): string
