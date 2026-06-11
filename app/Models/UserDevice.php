@@ -18,8 +18,21 @@ final class UserDevice extends Model
         'platform',
         'fcm_token',
         'device_name',
+        'device_model',
+        'device_manufacturer',
+        'os_version',
+        'locale',
+        'is_physical_device',
         'app_version',
+        'last_seen_ip',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_physical_device' => 'boolean',
+        ];
+    }
 
     public function user(): BelongsTo
     {

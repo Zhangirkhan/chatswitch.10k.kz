@@ -15,7 +15,18 @@ final class UserDeviceService
     ) {}
 
     /**
-     * @param  array{platform: string, fcm_token: string, device_name?: ?string, app_version?: ?string}  $data
+     * @param  array{
+     *     platform: string,
+     *     fcm_token: string,
+     *     device_name?: ?string,
+     *     device_model?: ?string,
+     *     device_manufacturer?: ?string,
+     *     os_version?: ?string,
+     *     locale?: ?string,
+     *     is_physical_device?: ?bool,
+     *     app_version?: ?string,
+     *     last_seen_ip?: ?string
+     * }  $data
      */
     public function register(User $user, array $data): UserDevice
     {
@@ -37,7 +48,13 @@ final class UserDeviceService
             'user_id' => $user->id,
             'platform' => $data['platform'],
             'device_name' => $data['device_name'] ?? null,
+            'device_model' => $data['device_model'] ?? null,
+            'device_manufacturer' => $data['device_manufacturer'] ?? null,
+            'os_version' => $data['os_version'] ?? null,
+            'locale' => $data['locale'] ?? null,
+            'is_physical_device' => $data['is_physical_device'] ?? null,
             'app_version' => $data['app_version'] ?? null,
+            'last_seen_ip' => $data['last_seen_ip'] ?? null,
         ])->save();
 
         return $device->fresh() ?? $device;

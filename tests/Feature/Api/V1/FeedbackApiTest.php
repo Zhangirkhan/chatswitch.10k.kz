@@ -123,6 +123,50 @@ final class FeedbackApiTest extends TestCase
             ->assertJsonValidationErrors(['message']);
     }
 
+    public function test_feedback_stores_device_metadata_and_client_ip(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.99'])
+            ->postJson('/api/v1/feedback', [
+                'type' => 'complaint',
+                'message' => '[diagnostic] Crash on chat open after update.',
+                'device_model' => 'SM-G991B',
+                'device_manufacturer' => 'samsung',
+                'os_version' => 'Android 14 (API 34)',
+                'locale' => 'ru_RU',
+                'app_version' => '1.0.4+12',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('user_feedback', [
+            'user_id' => $user->id,
+            'device_model' => 'SM-G991B',
+            'device_manufacturer' => 'samsung',
+            'os_version' => 'Android 14 (API 34)',
+            'locale' => 'ru_RU',
+            'app_version' => '1.0.4+12',
+            'client_ip' => '203.0.113.99',
+        ]);
+    }
+
+    public function test_feedback_ignores_unknown_fields_without_breaking_legacy_clients(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/feedback', [
+            'type' => 'suggestion',
+            'message' => 'Старое приложение без новых полей метаданных.',
+            'unknown_future_field' => 'ignored',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.type', 'suggestion');
+    }
+
     public function test_sanctum_token_from_other_tenant_cannot_access_feedback(): void
     {
         $homeCompany = Company::query()

@@ -21,6 +21,11 @@ final class RegisterDeviceRequest extends FormRequest
             'platform' => ['required', 'string', Rule::in(['android', 'ios'])],
             'fcm_token' => ['required', 'string', 'min:20', 'max:512'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            'device_model' => ['nullable', 'string', 'max:128'],
+            'device_manufacturer' => ['nullable', 'string', 'max:64'],
+            'os_version' => ['nullable', 'string', 'max:128'],
+            'locale' => ['nullable', 'string', 'max:16'],
+            'is_physical_device' => ['nullable', 'boolean'],
             'app_version' => ['nullable', 'string', 'max:64'],
         ];
     }

@@ -259,7 +259,9 @@ onMounted(() => {
         :class="['landing-border-glow landing-border-glow--static', props.className]"
         :style="shellStyle"
     >
-        <slot />
+        <div class="landing-border-glow__content">
+            <slot />
+        </div>
     </div>
 
     <div
@@ -345,7 +347,7 @@ onMounted(() => {
             />
         </span>
 
-        <div class="z-[1] relative flex flex-col overflow-hidden">
+        <div class="landing-border-glow__content z-[1] relative flex flex-col overflow-hidden">
             <slot />
         </div>
     </div>
@@ -355,6 +357,12 @@ onMounted(() => {
 .landing-border-glow {
     height: 100%;
     overflow: hidden;
+    isolation: isolate;
+}
+
+.landing-border-glow__content {
+    height: 100%;
+    border-radius: inherit;
 }
 
 .landing-border-glow--static {

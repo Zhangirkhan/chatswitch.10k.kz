@@ -148,6 +148,7 @@ export const superAdminKk = {
         modalTitle: 'Хабарлама #{id}',
         deviceInfo: 'Құрылғы',
         appVersion: 'Қолданба нұсқасы',
+        clientIp: 'Клиент IP',
     },
     mobileReleases: {
         pageTitle: 'Мобильді қолданба',

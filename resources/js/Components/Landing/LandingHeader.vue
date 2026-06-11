@@ -133,7 +133,7 @@ function openRequest(): void {
                     <button
                         v-if="mode === 'marketing'"
                         type="button"
-                        class="landing__header-cta"
+                        class="landing__cta-btn landing__header-cta"
                         @click="openRequest"
                     >
                         {{ t('landing.ctaButton') }}
@@ -378,16 +378,7 @@ function openRequest(): void {
 }
 
 .landing__header-cta {
-    padding: 0.4375rem 1rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    font-family: inherit;
-    line-height: 1.2;
-    color: #fff;
-    background: var(--landing-accent);
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .landing__header-cta:hover {

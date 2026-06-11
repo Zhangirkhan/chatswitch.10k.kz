@@ -24,6 +24,9 @@ final class StoreFeedbackRequest extends FormRequest
             'app_version' => ['nullable', 'string', 'max:64'],
             'device_platform' => ['nullable', 'string', 'max:32'],
             'device_model' => ['nullable', 'string', 'max:128'],
+            'device_manufacturer' => ['nullable', 'string', 'max:64'],
+            'os_version' => ['nullable', 'string', 'max:128'],
+            'locale' => ['nullable', 'string', 'max:16'],
         ];
     }
 }

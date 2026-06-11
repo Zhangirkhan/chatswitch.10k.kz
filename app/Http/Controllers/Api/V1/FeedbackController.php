@@ -34,10 +34,13 @@ final class FeedbackController extends Controller
         $user = $request->user();
         abort_if($user === null, 401);
 
+        $payload = $request->validated();
+        $payload['client_ip'] = $request->ip();
+
         $feedback = $this->feedbackService->create(
             $user,
             UserFeedbackSource::Mobile,
-            $request->validated(),
+            $payload,
         );
 
         return (new FeedbackResource($feedback))

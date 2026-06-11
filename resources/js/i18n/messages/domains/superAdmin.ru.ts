@@ -148,6 +148,7 @@ export const superAdminRu = {
         modalTitle: 'Обращение #{id}',
         deviceInfo: 'Устройство',
         appVersion: 'Версия приложения',
+        clientIp: 'IP клиента',
     },
     mobileReleases: {
         pageTitle: 'Мобильное приложение',

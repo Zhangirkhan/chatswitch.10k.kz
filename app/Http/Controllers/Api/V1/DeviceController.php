@@ -26,6 +26,7 @@ final class DeviceController extends Controller
         abort_if($user === null, 401);
 
         $validated = $request->validated();
+        $validated['last_seen_ip'] = $request->ip();
         $existing = UserDevice::query()
             ->where('user_id', $user->id)
             ->where('fcm_token', $validated['fcm_token'])

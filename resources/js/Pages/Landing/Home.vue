@@ -904,7 +904,7 @@ onUnmounted(() => {
 
 .landing__card-glow {
     height: 100%;
-    overflow: visible;
+    overflow: hidden;
 }
 
 @media (max-width: 900px) {
@@ -1162,7 +1162,7 @@ onUnmounted(() => {
     gap: 0.75rem;
     padding: 1.15rem 1.2rem;
     height: 100%;
-    border-radius: inherit;
+    border-radius: var(--landing-radius);
     overflow: hidden;
     background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
 }

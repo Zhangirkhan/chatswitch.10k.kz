@@ -28,6 +28,40 @@
     border-radius: var(--landing-radius);
 }
 
+.landing__cta-btn {
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1.2;
+    color: #fff;
+    background: var(--landing-accent);
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 10px 28px -12px rgba(1, 185, 100, 0.55);
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+.landing__cta-btn:hover {
+    background: var(--landing-accent-hover);
+    transform: translateY(-2px);
+    box-shadow:
+        0 14px 36px -10px rgba(1, 185, 100, 0.65),
+        0 0 0 1px rgba(1, 185, 100, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing__cta-btn,
+    .landing__cta-btn:hover {
+        transform: none;
+        transition: none;
+    }
+}
+
 .landing__section-block {
     scroll-margin-top: 5rem;
     margin-block: var(--landing-section-gap);

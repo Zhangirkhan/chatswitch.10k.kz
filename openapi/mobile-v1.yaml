@@ -218,6 +218,10 @@ paths:
       description: |
         Upsert по `(user_id, fcm_token)`. При login другого пользователя на том же устройстве
         токен перепривязывается к новому `user_id`. Rate limit — 60 req/min на пользователя.
+
+        Опциональные поля `device_model`, `device_manufacturer`, `os_version`, `locale`,
+        `is_physical_device` сохраняются при каждом upsert. IP клиента (`last_seen_ip`) записывается
+        на сервере из HTTP-запроса (не передаётся в body).
       security:
         - bearerAuth: []
       requestBody:
@@ -316,6 +320,9 @@ paths:
       description: |
         Создаёт жалобу или пожелание от имени текущего пользователя.
         Rate limit — 6 запросов/мин на пользователя.
+
+        Опциональные поля `device_manufacturer`, `os_version`, `locale` сохраняются в structured columns.
+        IP клиента (`client_ip`) записывается на сервере из HTTP-запроса (не передаётся в body).
       security:
         - bearerAuth: []
       requestBody:
@@ -2435,6 +2442,30 @@ components:
           type: string
           maxLength: 255
           nullable: true
+        device_model:
+          type: string
+          maxLength: 128
+          nullable: true
+          description: Модель устройства, напр. SM-G991B, iPhone15,2
+        device_manufacturer:
+          type: string
+          maxLength: 64
+          nullable: true
+          description: Производитель, напр. samsung, Apple
+        os_version:
+          type: string
+          maxLength: 128
+          nullable: true
+          description: Версия ОС, напр. Android 14 (API 34)
+        locale:
+          type: string
+          maxLength: 16
+          nullable: true
+          description: Локаль устройства, напр. ru_RU
+        is_physical_device:
+          type: boolean
+          nullable: true
+          description: false для эмулятора/симулятора
         app_version:
           type: string
           maxLength: 64
@@ -2487,6 +2518,18 @@ components:
         device_model:
           type: string
           maxLength: 128
+          nullable: true
+        device_manufacturer:
+          type: string
+          maxLength: 64
+          nullable: true
+        os_version:
+          type: string
+          maxLength: 128
+          nullable: true
+        locale:
+          type: string
+          maxLength: 16
           nullable: true
 
     FeedbackResource:

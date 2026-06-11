@@ -148,6 +148,7 @@ export const superAdminEn = {
         modalTitle: 'Message #{id}',
         deviceInfo: 'Device',
         appVersion: 'App version',
+        clientIp: 'Client IP',
     },
     mobileReleases: {
         pageTitle: 'Mobile app',

@@ -156,4 +156,73 @@ final class DevicesApiTest extends TestCase
             'fcm_token' => 'no-auth-token-'.str_repeat('f', 40),
         ])->assertUnauthorized();
     }
+
+    public function test_register_device_stores_metadata_and_client_ip(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        $token = 'meta-token-'.str_repeat('g', 40);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.42'])
+            ->postJson('/api/v1/devices', [
+                'platform' => 'android',
+                'fcm_token' => $token,
+                'device_name' => 'samsung SM-G991B',
+                'device_model' => 'SM-G991B',
+                'device_manufacturer' => 'samsung',
+                'os_version' => 'Android 14 (API 34)',
+                'locale' => 'ru_RU',
+                'is_physical_device' => true,
+                'app_version' => '1.0.4+12',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('user_devices', [
+            'user_id' => $user->id,
+            'fcm_token' => $token,
+            'device_model' => 'SM-G991B',
+            'device_manufacturer' => 'samsung',
+            'os_version' => 'Android 14 (API 34)',
+            'locale' => 'ru_RU',
+            'is_physical_device' => 1,
+            'app_version' => '1.0.4+12',
+            'last_seen_ip' => '203.0.113.42',
+        ]);
+    }
+
+    public function test_register_device_upsert_updates_metadata_and_last_seen_ip(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        $token = 'upsert-meta-'.str_repeat('h', 40);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.10'])
+            ->postJson('/api/v1/devices', [
+                'platform' => 'android',
+                'fcm_token' => $token,
+                'device_model' => 'Pixel 7',
+            ])
+            ->assertCreated();
+
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->postJson('/api/v1/devices', [
+                'platform' => 'android',
+                'fcm_token' => $token,
+                'device_model' => 'Pixel 8',
+                'locale' => 'kk_KZ',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('user_devices', [
+            'user_id' => $user->id,
+            'fcm_token' => $token,
+            'device_model' => 'Pixel 8',
+            'locale' => 'kk_KZ',
+            'last_seen_ip' => '198.51.100.20',
+        ]);
+    }
 }

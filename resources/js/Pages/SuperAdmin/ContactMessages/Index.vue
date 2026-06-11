@@ -19,6 +19,10 @@ type ContactMessageRow = {
     app_version: string | null;
     device_platform: string | null;
     device_model: string | null;
+    device_manufacturer: string | null;
+    os_version: string | null;
+    locale: string | null;
+    client_ip: string | null;
     admin_note: string | null;
     created_at: string;
     resolved_at: string | null;
@@ -129,8 +133,10 @@ const deviceInfo = computed(() => {
     const row = selected.value;
     if (!row) return '';
     const parts = [
-        row.device_platform,
-        row.device_model,
+        row.device_manufacturer,
+        row.device_model ?? row.device_platform,
+        row.os_version,
+        row.locale,
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : t('superAdmin.common.emDash');
 });
@@ -288,6 +294,10 @@ const deviceInfo = computed(() => {
                     <div v-if="selected.source === 'mobile'">
                         <div class="text-xs text-ui-text-muted">{{ t('superAdmin.contactMessages.appVersion') }}</div>
                         <div>{{ selected.app_version ?? t('superAdmin.common.emDash') }}</div>
+                    </div>
+                    <div v-if="selected.client_ip">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.contactMessages.clientIp') }}</div>
+                        <div class="font-mono text-xs">{{ selected.client_ip }}</div>
                     </div>
                 </div>
 

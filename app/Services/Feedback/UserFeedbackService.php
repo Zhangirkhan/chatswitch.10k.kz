@@ -21,7 +21,11 @@ final class UserFeedbackService
      *     message: string,
      *     app_version?: string|null,
      *     device_platform?: string|null,
-     *     device_model?: string|null
+     *     device_model?: string|null,
+     *     device_manufacturer?: string|null,
+     *     os_version?: string|null,
+     *     locale?: string|null,
+     *     client_ip?: string|null
      * }  $data
      */
     public function create(User $user, UserFeedbackSource $source, array $data): UserFeedback
@@ -35,6 +39,10 @@ final class UserFeedbackService
             'app_version' => Arr::get($data, 'app_version'),
             'device_platform' => Arr::get($data, 'device_platform'),
             'device_model' => Arr::get($data, 'device_model'),
+            'device_manufacturer' => Arr::get($data, 'device_manufacturer'),
+            'os_version' => Arr::get($data, 'os_version'),
+            'locale' => Arr::get($data, 'locale'),
+            'client_ip' => Arr::get($data, 'client_ip'),
             'status' => UserFeedbackStatus::New,
         ]);
     }
