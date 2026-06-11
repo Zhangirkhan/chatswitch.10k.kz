@@ -19,9 +19,10 @@ final class KnowledgeContextTextFormatter
     /**
      * Строки блока базы знаний в том же формате, что уходит в system prompt (до обрезки/суммаризации).
      *
+     * @param  list<string>|string|null  $domain  Ranked domains list (top-2) or legacy single domain.
      * @return list<string>
      */
-    public function knowledgeLines(int $companyId, ?string $query = null, ?string $domain = null): array
+    public function knowledgeLines(int $companyId, ?string $query = null, array|string|null $domain = null): array
     {
         if ($this->ragRetriever->shouldUseForQuery($query)) {
             $ragLines = $this->ragRetriever->retrieveLines($companyId, (string) $query, $domain);

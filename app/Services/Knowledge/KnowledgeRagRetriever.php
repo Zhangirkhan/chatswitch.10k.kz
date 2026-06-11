@@ -33,10 +33,17 @@ final class KnowledgeRagRetriever
     }
 
     /**
+     * @param  list<string>|string|null  $domains  Ranked domain list (top-2), or legacy single domain string.
      * @return list<string>
      */
-    public function retrieveLines(int $companyId, string $query, ?string $domain = null): array
+    public function retrieveLines(int $companyId, string $query, array|string|null $domains = null): array
     {
+        // Normalise legacy single-string domain parameter.
+        if (is_string($domains)) {
+            $domains = [$domains];
+        }
+        $domains = $domains ?? [];
+
         $chunks = KnowledgeChunk::query()
             ->where('company_id', $companyId)
             ->whereNotNull('embedding')
@@ -64,8 +71,14 @@ final class KnowledgeRagRetriever
         $minSimilarity = (float) config('knowledge.rag.min_similarity', 0.30);
         $topK = (int) config('knowledge.rag.top_k', 12);
         $maxRules = (int) config('knowledge.rag.max_rules', 5);
-        // Domain-matching chunks receive this cosine score boost (additive).
+        // Primary domain boost; secondary domain gets 60% of the boost.
         $domainBoost = (float) config('knowledge.rag.domain_boost', 0.08);
+
+        // Build domain-to-boost lookup: top domain → full boost, second → 60%.
+        $domainBoostMap = [];
+        foreach ($domains as $rank => $d) {
+            $domainBoostMap[$d] = $domainBoost * ($rank === 0 ? 1.0 : 0.6);
+        }
 
         $scored = [];
         foreach ($chunks as $chunk) {
@@ -76,9 +89,9 @@ final class KnowledgeRagRetriever
 
             $score = VectorCosine::similarity($queryVector, array_map(static fn ($v): float => (float) $v, $vector));
 
-            // Apply domain boost when domain filter is active and chunk matches.
-            if ($domain !== null && $chunk->domain === $domain) {
-                $score += $domainBoost;
+            // Apply ranked domain boost.
+            if ($chunk->domain !== null && isset($domainBoostMap[$chunk->domain])) {
+                $score += $domainBoostMap[$chunk->domain];
             }
 
             if ($score < $minSimilarity) {

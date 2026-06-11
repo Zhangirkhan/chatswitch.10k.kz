@@ -64,21 +64,67 @@ final class KnowledgeDomainSelector
      *
      * Returns null when no domain can be confidently identified (retrieval
      * should then run without domain filtering).
+     *
+     * @deprecated Use detectRanked() for multi-topic support.
      */
     public function detect(string $query, Chat $chat): ?string
     {
-        // Prefer the active topic which was already domain-tagged by ActiveTopicDetector.
+        $ranked = $this->detectRanked($query, $chat);
+
+        return $ranked[0] ?? null;
+    }
+
+    /**
+     * Detect up to 2 ranked knowledge domains from the query and chat context.
+     *
+     * Priority:
+     *  1. Active topic (domain-hinted by ActiveTopicDetector, highest fidelity)
+     *  2. Recent topics (for multi-topic conversations)
+     *  3. Raw query keyword scan
+     *
+     * Returns a de-duplicated ranked list; empty array means no domain detected.
+     *
+     * @return list<string>
+     */
+    public function detectRanked(string $query, Chat $chat): array
+    {
+        $domains = [];
+
+        // 1. Active topic (primary — highest priority).
         $activeTopic = (string) ($chat->active_topic ?? '');
         if ($activeTopic !== '') {
-            $domain = $this->extractDomainHint($activeTopic)
+            $d = $this->extractDomainHint($activeTopic)
                 ?? $this->scanKeywords(mb_strtolower($activeTopic));
-            if ($domain !== null) {
-                return $domain;
+            if ($d !== null) {
+                $domains[] = $d;
             }
         }
 
-        // Fallback: scan the raw query.
-        return $this->scanKeywords(mb_strtolower($query));
+        // 2. Recent topics (secondary — support multi-topic chats).
+        $recent = is_array($chat->recent_topics) ? $chat->recent_topics : [];
+        foreach ($recent as $recentTopic) {
+            if (count($domains) >= 2) {
+                break;
+            }
+            $rt = (string) $recentTopic;
+            if ($rt === '') {
+                continue;
+            }
+            $d = $this->extractDomainHint($rt) ?? $this->scanKeywords(mb_strtolower($rt));
+            if ($d !== null && ! in_array($d, $domains, true)) {
+                $domains[] = $d;
+            }
+        }
+
+        // 3. Fallback: raw query keyword scan (tertiary, not a duplicate).
+        if (count($domains) < 2) {
+            $d = $this->scanKeywords(mb_strtolower($query));
+            if ($d !== null && ! in_array($d, $domains, true)) {
+                $domains[] = $d;
+            }
+        }
+
+        return array_values($domains);
     }
 
     /**

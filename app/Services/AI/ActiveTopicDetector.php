@@ -81,14 +81,23 @@ final class ActiveTopicDetector
             return;
         }
 
+        // Shift the current active_topic into recent_topics (keep up to 2).
+        $recent = is_array($chat->recent_topics) ? $chat->recent_topics : [];
+        if ($chat->active_topic !== null && $chat->active_topic !== '') {
+            array_unshift($recent, $chat->active_topic);
+            $recent = array_values(array_unique(array_slice($recent, 0, 2)));
+        }
+
         $chat->forceFill([
-            'active_topic' => $topic,
-            'active_topic_updated_at' => now(),
+            'active_topic'             => $topic,
+            'active_topic_updated_at'  => now(),
+            'recent_topics'            => $recent !== [] ? $recent : null,
         ])->save();
 
         Log::debug('[active-topic] updated', [
-            'chat_id' => $chat->id,
-            'topic' => $topic,
+            'chat_id'       => $chat->id,
+            'topic'         => $topic,
+            'recent_topics' => $recent,
         ]);
     }
 

@@ -676,19 +676,20 @@ PROMPT;
             $rawQuery = $this->retrievalQueryBuilder->build($rawQuery, $chat);
         }
 
-        // Domain-based retrieval boost: detect topic domain and pass to retriever.
-        $domain = null;
+        // Domain-based retrieval boost: detect ranked domains and pass to retriever.
+        $domains = [];
         if (AiFeatureFlags::enabled(AiFeatureFlags::RETRIEVAL_DOMAIN_FILTER, $companyId)) {
             $domainSelector = app(KnowledgeDomainSelector::class);
-            $domain = $domainSelector->detect((string) $rawQuery, $chat);
+            $domains = $domainSelector->detectRanked((string) $rawQuery, $chat);
         }
 
         // Record in manifest for observability.
         $this->buildManifest['retrieval_query'] = $rawQuery;
-        $this->buildManifest['domain']          = $domain;
+        $this->buildManifest['domain']          = $domains[0] ?? null;
+        $this->buildManifest['domains']         = $domains;
 
         $query = $rawQuery;
-        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query, $domain);
+        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query, $domains !== [] ? $domains : null);
         $historyCharBudget = (int) config('ai.history_char_budget', 24000);
         $fullContext = implode("\n", $lines);
         if (mb_strlen($fullContext) <= $historyCharBudget) {
