@@ -11,6 +11,8 @@ interface ChangelogEntry {
     title: Record<string, string>;
     body: Record<string, string>;
     is_published: boolean;
+    git_commit_hash: string | null;
+    source_commit_subject: string | null;
     created_at: string;
 }
 
@@ -22,6 +24,7 @@ const { t } = useI18n();
 
 const showCreate = ref(false);
 const editing = ref<ChangelogEntry | null>(null);
+const syncingGit = ref(false);
 
 const form = useForm({
     published_at: new Date().toISOString().slice(0, 10),
@@ -93,6 +96,16 @@ function destroyEntry(entry: ChangelogEntry): void {
     router.delete(`/platform-changelog/${entry.id}`, { preserveScroll: true });
 }
 
+function syncFromGit(): void {
+    syncingGit.value = true;
+    router.post('/platform-changelog/sync-git', {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            syncingGit.value = false;
+        },
+    });
+}
+
 const showEditModal = computed({
     get: () => editing.value !== null,
     set: (open: boolean) => {
@@ -110,9 +123,19 @@ const showEditModal = computed({
                 <h1 class="text-xl font-bold sm:text-2xl">{{ t('superAdmin.platformChangelog.heading') }}</h1>
                 <p class="mt-1 text-sm text-ui-text-secondary">{{ t('superAdmin.platformChangelog.lead') }}</p>
             </div>
-            <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="openCreate">
-                {{ t('superAdmin.platformChangelog.add') }}
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    type="button"
+                    class="ui-btn ui-btn--secondary ui-btn--sm"
+                    :disabled="syncingGit"
+                    @click="syncFromGit"
+                >
+                    {{ syncingGit ? t('superAdmin.platformChangelog.syncingGit') : t('superAdmin.platformChangelog.syncGit') }}
+                </button>
+                <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="openCreate">
+                    {{ t('superAdmin.platformChangelog.add') }}
+                </button>
+            </div>
         </div>
 
         <div class="ui-panel overflow-hidden p-0">
@@ -134,7 +157,15 @@ const showEditModal = computed({
                     <tr v-for="entry in entries" :key="entry.id">
                         <td class="whitespace-nowrap">{{ formatDate(entry.published_at) }}</td>
                         <td>
-                            <div class="font-medium">{{ entry.title.ru }}</div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-medium">{{ entry.title.ru }}</span>
+                                <span v-if="entry.git_commit_hash" class="ui-badge ui-badge--neutral text-xs">
+                                    {{ t('superAdmin.platformChangelog.fromGit') }}
+                                </span>
+                            </div>
+                            <div v-if="entry.source_commit_subject" class="mt-0.5 text-xs text-ui-text-muted">
+                                {{ entry.source_commit_subject }}
+                            </div>
                             <div class="mt-0.5 line-clamp-2 text-sm text-ui-text-secondary">{{ entry.body.ru }}</div>
                         </td>
                         <td>

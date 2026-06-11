@@ -45,6 +45,7 @@ accel_cluster_build_release "${RELEASE}"
 accel_cluster_activate_release "${RELEASE}"
 accel_cluster_reload_services
 sudo -u www-data php "${APP_LINK}/artisan" tenants:sync-nginx-map --reload 2>/dev/null || true
+sudo -u www-data php "${APP_LINK}/artisan" platform-changelog:sync-git --no-interaction 2>/dev/null || true
 accel_cluster_prune_releases
 
 accel_cluster_log "Деплой завершён. Активный релиз: $(accel_cluster_current_release)"

@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 final class PlatformChangelogEntry extends Model
 {
     protected $fillable = [
+        'git_commit_hash',
+        'source_commit_subject',
         'published_at',
         'title',
         'body',

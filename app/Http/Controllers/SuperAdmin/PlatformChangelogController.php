@@ -6,6 +6,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlatformChangelogEntry;
+use App\Services\PlatformChangelog\PlatformChangelogGitSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -47,6 +48,26 @@ final class PlatformChangelogController extends Controller
         $platformChangelog->delete();
 
         return back()->with('success', 'Запись changelog удалена.');
+    }
+
+    public function syncFromGit(PlatformChangelogGitSyncService $sync): RedirectResponse
+    {
+        if (! (bool) config('changelog.git_sync.enabled', true)) {
+            return back()->with('error', 'Синхронизация changelog из git отключена.');
+        }
+
+        $stats = $sync->sync();
+
+        if ($stats['created'] === 0 && $stats['processed'] === 0 && $stats['errors'] !== []) {
+            return back()->with('error', $stats['errors'][0] ?? 'Синхронизация не выполнена.');
+        }
+
+        $message = "Синхронизация завершена: создано {$stats['created']}, пропущено {$stats['skipped']}.";
+        if ($stats['errors'] !== []) {
+            $message .= ' Ошибки: '.implode(' ', array_slice($stats['errors'], 0, 3));
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

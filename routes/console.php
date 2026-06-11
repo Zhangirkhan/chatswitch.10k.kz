@@ -118,3 +118,9 @@ Schedule::command('chats:repair-funnel-integrity')
     ->dailyAt('03:25')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('platform-changelog:sync-git')
+    ->dailyAt('05:15')
+    ->when(fn (): bool => (bool) config('changelog.git_sync.enabled', true))
+    ->withoutOverlapping()
+    ->runInBackground();

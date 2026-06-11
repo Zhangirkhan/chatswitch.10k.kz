@@ -120,6 +120,7 @@ Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function
     Route::post('/mobile-releases/{mobileRelease}/unpublish', [MobileAppReleaseController::class, 'unpublish'])->name('super.mobile-releases.unpublish');
     Route::delete('/mobile-releases/{mobileRelease}', [MobileAppReleaseController::class, 'destroy'])->name('super.mobile-releases.destroy');
 
+    Route::post('/platform-changelog/sync-git', [SuperAdminPlatformChangelogController::class, 'syncFromGit'])->name('super.platform-changelog.sync-git');
     Route::get('/platform-changelog', [SuperAdminPlatformChangelogController::class, 'index'])->name('super.platform-changelog.index');
     Route::post('/platform-changelog', [SuperAdminPlatformChangelogController::class, 'store'])->name('super.platform-changelog.store');
     Route::put('/platform-changelog/{platformChangelog}', [SuperAdminPlatformChangelogController::class, 'update'])->name('super.platform-changelog.update');
