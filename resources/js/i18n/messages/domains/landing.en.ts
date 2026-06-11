@@ -51,7 +51,7 @@ export const landingEn = {
         },
         boxed: {
             name: 'Boxed installation',
-            badge: 'Boxed',
+            badge: 'Recommended',
             period: 'one-time',
             trial: 'No monthly platform fee after installation',
             bullet1: 'Full platform: WhatsApp, team, funnels, CRM',

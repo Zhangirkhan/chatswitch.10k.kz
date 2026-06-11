@@ -383,10 +383,12 @@ onUnmounted(() => {
                         class="landing__pricing-card"
                         :class="{ 'landing__pricing-card--boxed': plan.code === 'boxed' }"
                     >
-                        <p v-if="plan.code === 'boxed'" class="landing__pricing-badge">
-                            {{ planField('boxed', 'badge') }}
-                        </p>
-                        <p class="landing__pricing-plan">{{ planField(plan.code, 'name') }}</p>
+                        <div class="landing__pricing-head">
+                            <p class="landing__pricing-plan">{{ planField(plan.code, 'name') }}</p>
+                            <p v-if="plan.code === 'boxed'" class="landing__pricing-badge">
+                                {{ planField('boxed', 'badge') }}
+                            </p>
+                        </div>
                         <p class="landing__pricing-amount">
                             {{ plan.price }}
                             <span class="landing__pricing-period">{{ planField(plan.code, 'period') }}</span>
@@ -850,13 +852,15 @@ onUnmounted(() => {
     gap: 1.25rem;
     max-width: 56rem;
     margin: 0 auto;
+    align-items: stretch;
 }
 
 .landing__pricing-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 2rem;
+    min-height: 100%;
+    padding: 1.75rem;
     border-radius: 1.25rem;
     background: var(--landing-surface);
     border: 1px solid rgba(1, 185, 100, 0.28);
@@ -870,26 +874,36 @@ onUnmounted(() => {
         0 0 0 1px rgba(45, 212, 191, 0.08);
 }
 
+.landing__pricing-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
 .landing__pricing-badge {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    margin: 0;
-    padding: 0.25rem 0.625rem;
-    font-size: 0.6875rem;
+    flex-shrink: 0;
+    margin: 0.125rem 0 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.625rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
     color: #04111d;
     background: linear-gradient(135deg, #2dd4bf, #01b964);
     border-radius: 999px;
 }
 
 .landing__pricing-plan {
-    margin: 0 0 0.5rem;
-    font-size: 0.875rem;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8125rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    line-height: 1.35;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--landing-accent);
 }
@@ -918,19 +932,20 @@ onUnmounted(() => {
 }
 
 .landing__pricing-list {
-    margin: 1.5rem 0;
+    margin: 1.25rem 0 0.875rem;
     padding: 0;
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
+    gap: 0.5rem;
+    flex: 1;
 }
 
 .landing__pricing-list li {
     position: relative;
-    padding-left: 1.375rem;
-    font-size: 0.9375rem;
-    line-height: 1.5;
+    padding-left: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
     color: var(--landing-muted);
 }
 
@@ -946,19 +961,20 @@ onUnmounted(() => {
 }
 
 .landing__pricing-ai-note {
-    margin: -0.5rem 0 0;
-    padding: 0.75rem 0.875rem;
-    font-size: 0.8125rem;
-    line-height: 1.45;
+    margin: 0 0 1rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
     color: var(--landing-muted);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--landing-border);
-    border-radius: 0.625rem;
+    border-radius: 0.5rem;
 }
 
 .landing__pricing-btn {
     width: 100%;
     margin-top: auto;
+    flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
