@@ -1544,29 +1544,62 @@ final class ChatController extends Controller
 
         $beforeTs = $request->input('before_timestamp');
         $beforeId = (int) $request->input('before_id', 0);
+        $afterTs = $request->input('after_timestamp');
+        $afterId = (int) $request->input('after_id', 0);
 
-        $messages = $chat->messages()
-            ->with(OutboundChatMessageDispatcher::messageWithRelations())
-            ->when(
-                is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
-                function ($q) use ($beforeTs, $beforeId): void {
-                    if ($beforeId > 0) {
+        $hasBefore = is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '';
+        $hasAfter = $afterId > 0
+            || (is_string($afterTs) ? trim($afterTs) !== '' : $afterTs !== null && $afterTs !== '');
+
+        $query = $chat->messages()
+            ->with(OutboundChatMessageDispatcher::messageWithRelations());
+
+        if ($hasAfter) {
+            $messages = $query
+                ->when(true, function ($q) use ($afterTs, $afterId): void {
+                    if ($afterId > 0 && (is_string($afterTs) ? trim($afterTs) !== '' : $afterTs !== null && $afterTs !== '')) {
                         $q->whereRaw(
-                            '(COALESCE(message_timestamp, created_at) < ?) OR (COALESCE(message_timestamp, created_at) = ? AND id < ?)',
-                            [$beforeTs, $beforeTs, $beforeId],
+                            '(COALESCE(message_timestamp, created_at) > ?) OR (COALESCE(message_timestamp, created_at) = ? AND id > ?)',
+                            [$afterTs, $afterTs, $afterId],
                         );
 
                         return;
                     }
-                    $q->whereRaw('COALESCE(message_timestamp, created_at) < ?', [$beforeTs]);
-                },
-            )
-            ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get()
-            ->reverse()
-            ->values();
+                    if ($afterId > 0) {
+                        $q->where('id', '>', $afterId);
+
+                        return;
+                    }
+                    $q->whereRaw('COALESCE(message_timestamp, created_at) > ?', [$afterTs]);
+                })
+                ->orderByRaw('COALESCE(message_timestamp, created_at) ASC')
+                ->orderBy('id')
+                ->limit($limit)
+                ->get()
+                ->values();
+        } else {
+            $messages = $query
+                ->when(
+                    $hasBefore,
+                    function ($q) use ($beforeTs, $beforeId): void {
+                        if ($beforeId > 0) {
+                            $q->whereRaw(
+                                '(COALESCE(message_timestamp, created_at) < ?) OR (COALESCE(message_timestamp, created_at) = ? AND id < ?)',
+                                [$beforeTs, $beforeTs, $beforeId],
+                            );
+
+                            return;
+                        }
+                        $q->whereRaw('COALESCE(message_timestamp, created_at) < ?', [$beforeTs]);
+                    },
+                )
+                ->orderByRaw('COALESCE(message_timestamp, created_at) DESC')
+                ->orderByDesc('id')
+                ->limit($limit)
+                ->get()
+                ->reverse()
+                ->values();
+        }
 
         return response()->json(['messages' => $messages]);
     }
