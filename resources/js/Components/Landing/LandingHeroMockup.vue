@@ -114,7 +114,11 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 }
 
 .hero-mockup-devices--desktop {
-    display: none;
+    display: flex;
+    width: 100%;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: visible;
 }
 
 .hero-device {
@@ -129,7 +133,16 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 }
 
 .hero-device--mobile {
-    display: block;
+    display: none;
+}
+
+.hero-device--desktop {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
 }
 
 .hero-device__shell--macbook {
@@ -139,57 +152,47 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
         drop-shadow(0 28px 60px rgba(0, 0, 0, 0.6));
 }
 
-.hero-device__shell--phone {
-    max-width: min(340px, 92vw);
-    margin-left: auto;
-    margin-right: auto;
+.hero-device--desktop .hero-device--companion-overlap {
+    position: absolute;
+    z-index: 5;
+    right: clamp(-6.5rem, -14%, -0.5rem);
+    bottom: clamp(-4.95rem, -3.7vw, -0.56rem);
+    width: clamp(260px, 28vw, 380px);
+    max-width: min(58%, 380px);
+    margin: 0;
+    pointer-events: none;
     filter:
         drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
-        drop-shadow(0 0 22px rgba(1, 185, 100, 0.12))
-        drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+        drop-shadow(0 0 20px rgba(1, 185, 100, 0.14))
+        drop-shadow(0 14px 30px rgb(0 0 0 / 0.5));
 }
 
-@media (max-width: 359px) {
-    .hero-device__shell--phone {
-        max-width: min(252px, 92vw);
-    }
-}
-
-@media (min-width: 700px) and (min-height: 480px) {
-    .hero-mockup-devices--desktop {
-        display: flex;
-        width: 100%;
-        align-items: flex-end;
-        justify-content: center;
-        overflow: visible;
+@media (max-width: 699px) {
+    .hero-mockup-root {
+        transform: rotate(0.9deg) scale(clamp(0.68, 0.55 + 100vw / 900, 0.92));
+        transform-origin: 50% 100%;
     }
 
-    .hero-device--desktop {
-        position: relative;
-        z-index: 1;
-        flex: 1 1 auto;
-        min-width: 0;
-        max-width: 100%;
-        overflow: visible;
+    .hero-mockup-root:hover {
+        transform: rotate(0.35deg) translateY(-3px) scale(clamp(0.68, 0.55 + 100vw / 900, 0.92));
     }
 
     .hero-device--desktop .hero-device--companion-overlap {
-        position: absolute;
-        z-index: 5;
-        right: clamp(-6.5rem, -14%, -0.5rem);
-        bottom: clamp(-4.95rem, -3.7vw, -0.56rem);
-        width: clamp(260px, 28vw, 380px);
-        max-width: min(58%, 380px);
-        margin: 0;
-        pointer-events: none;
-        filter:
-            drop-shadow(0 0 1px rgba(233, 237, 239, 0.35))
-            drop-shadow(0 0 20px rgba(1, 185, 100, 0.14))
-            drop-shadow(0 14px 30px rgb(0 0 0 / 0.5));
+        right: clamp(-3.5rem, -8%, -0.25rem);
+        bottom: clamp(-2.75rem, -2.2vw, -0.4rem);
+        width: clamp(140px, 34vw, 240px);
+        max-width: min(52%, 240px);
+    }
+}
+
+@media (max-width: 399px) {
+    .hero-mockup-root {
+        transform: rotate(0.9deg) scale(clamp(0.58, 0.42 + 100vw / 720, 0.78));
+        transform-origin: 50% 100%;
     }
 
-    .hero-device--mobile {
-        display: none;
+    .hero-mockup-root:hover {
+        transform: rotate(0.35deg) translateY(-3px) scale(clamp(0.58, 0.42 + 100vw / 720, 0.78));
     }
 }
 

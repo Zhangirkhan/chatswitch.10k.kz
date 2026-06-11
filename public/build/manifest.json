@@ -2464,7 +2464,7 @@
     ]
   },
   "resources/js/Pages/Landing/Home.vue": {
-    "file": "assets/Home-DYKf01B2.js",
+    "file": "assets/Home-D09hbgoU.js",
     "name": "Home",
     "src": "resources/js/Pages/Landing/Home.vue",
     "isEntry": true,
@@ -2483,7 +2483,7 @@
       "_UiModal.vue_vue_type_script_setup_true_lang-DaZmN_FR.js"
     ],
     "css": [
-      "assets/Home-BmenUzG7.css"
+      "assets/Home-uJGzabli.css"
     ]
   },
   "resources/js/Pages/Landing/NotFound.vue": {
@@ -2755,7 +2755,7 @@
     ]
   },
   "resources/js/Pages/Profile/Edit.vue": {
-    "file": "assets/Edit-v3UsqJt_.js",
+    "file": "assets/Edit-CnVEXciG.js",
     "name": "Edit",
     "src": "resources/js/Pages/Profile/Edit.vue",
     "isDynamicEntry": true,
@@ -2808,7 +2808,7 @@
     ]
   },
   "resources/js/Pages/Profile/Partials/ChatsSection.vue": {
-    "file": "assets/ChatsSection-CG4B57R8.js",
+    "file": "assets/ChatsSection-o8ki2UT9.js",
     "name": "ChatsSection",
     "src": "resources/js/Pages/Profile/Partials/ChatsSection.vue",
     "isDynamicEntry": true,
@@ -3793,7 +3793,7 @@
     ]
   },
   "resources/js/app.ts": {
-    "file": "assets/app-BCBmv_VV.js",
+    "file": "assets/app-BrtRdZ9i.js",
     "name": "app",
     "src": "resources/js/app.ts",
     "isEntry": true,

@@ -342,6 +342,12 @@ onUnmounted(() => {
     overflow-x: clip;
 }
 
+@media (max-width: 768px) {
+    .landing__hero {
+        overflow-x: visible;
+    }
+}
+
 .landing__main,
 .landing__footer {
     position: relative;
@@ -445,8 +451,7 @@ onUnmounted(() => {
     }
 
     .landing__hero-visual {
-        max-height: 44vh;
-        overflow: hidden;
+        overflow: visible;
     }
 
     .landing__cta-btn {
