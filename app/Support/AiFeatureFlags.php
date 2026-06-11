@@ -57,9 +57,11 @@ final class AiFeatureFlags
             return false;
         }
 
-        $value = SystemSetting::getValue($flag, '0', $companyId);
+        // Default is '1' — all flags are ON unless explicitly disabled via SystemSetting.
+        // To disable a flag for a specific company: AiFeatureFlags::disable($flag, $companyId)
+        $value = SystemSetting::getValue($flag, '1', $companyId);
 
-        return in_array($value, ['1', 'true', 'on', 'yes'], true);
+        return ! in_array($value, ['0', 'false', 'off', 'no'], true);
     }
 
     /**
