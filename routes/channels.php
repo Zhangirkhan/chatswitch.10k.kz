@@ -78,3 +78,11 @@ Broadcast::channel(TenantChannels::FUNNEL_BOARD_PRESENCE, function (User $user, 
         'name' => (string) $user->name,
     ];
 });
+
+Broadcast::channel(TenantChannels::PLATFORM_BANNERS, function (User $user, int $companyId): bool {
+    return (int) $user->company_id === $companyId;
+});
+
+Broadcast::channel('platform.admin-banners', function (User $user): bool {
+    return $user->is_super_admin;
+});

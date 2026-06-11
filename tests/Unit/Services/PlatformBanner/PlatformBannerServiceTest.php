@@ -172,4 +172,35 @@ final class PlatformBannerServiceTest extends TestCase
         $this->assertSame('KK 3', $banners[1]['message']);
         $this->assertSame('KK 2', $banners[2]['message']);
     }
+
+    public function test_delivery_state_reflects_schedule_and_targets(): void
+    {
+        $draft = PlatformBanner::query()->create([
+            'message' => ['ru' => 'Draft'],
+            'background_color' => '#2563eb',
+            'targets' => PlatformBanner::TARGET_BOTH,
+            'is_published' => false,
+        ]);
+
+        $expired = PlatformBanner::query()->create([
+            'message' => ['ru' => 'Expired'],
+            'background_color' => '#2563eb',
+            'targets' => PlatformBanner::TARGET_BOTH,
+            'is_published' => true,
+            'ends_at' => now()->subMinute(),
+        ]);
+
+        $webOnly = PlatformBanner::query()->create([
+            'message' => ['ru' => 'Web only'],
+            'background_color' => '#2563eb',
+            'targets' => PlatformBanner::TARGET_WEB,
+            'is_published' => true,
+        ]);
+
+        $this->assertSame('draft', $draft->deliveryState()['code']);
+        $this->assertSame('expired', $expired->deliveryState()['code']);
+        $this->assertSame('active', $webOnly->deliveryState()['code']);
+        $this->assertTrue($webOnly->deliveryState()['web']);
+        $this->assertFalse($webOnly->deliveryState()['mobile']);
+    }
 }

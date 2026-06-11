@@ -33,6 +33,13 @@ final class TenantChannels
 
     public const FUNNEL_BOARD_PRESENCE = 't.{companyId}.funnel-board-presence.{funnelId}';
 
+    public const PLATFORM_BANNERS = 't.{companyId}.platform-banners';
+
+    public static function platformBanners(int $companyId): string
+    {
+        return "t.{$companyId}.platform-banners";
+    }
+
     public static function chat(int $companyId, int $chatId): string
     {
         return "t.{$companyId}.chat.{$chatId}";

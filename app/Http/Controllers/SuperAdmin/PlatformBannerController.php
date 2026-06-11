@@ -7,9 +7,11 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\PlatformBanner;
+use App\Services\PlatformBanner\PlatformBannerNotifier;
 use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,6 +20,7 @@ final class PlatformBannerController extends Controller
 {
     public function __construct(
         private readonly SuperAdminAuditLogger $audit,
+        private readonly PlatformBannerNotifier $notifier,
     ) {}
 
     public function index(): Response
@@ -28,7 +31,11 @@ final class PlatformBannerController extends Controller
                 ->orderByDesc('is_published')
                 ->orderByDesc('priority')
                 ->orderByDesc('id')
-                ->get(),
+                ->get()
+                ->map(fn (PlatformBanner $banner) => [
+                    ...$banner->toArray(),
+                    'delivery' => $banner->deliveryState(),
+                ]),
             'companies' => Company::query()->orderBy('name')->get(['id', 'name', 'slug']),
         ]);
     }
@@ -50,6 +57,8 @@ final class PlatformBannerController extends Controller
             ['targets' => $banner->targets],
         );
 
+        $this->notifier->notifyForBanner($banner);
+
         return back()->with('success', 'Баннер создан.');
     }
 
@@ -66,6 +75,8 @@ final class PlatformBannerController extends Controller
             ['targets' => $platformBanner->targets],
         );
 
+        $this->notifier->notifyForBanner($platformBanner);
+
         return back()->with('success', 'Баннер обновлён.');
     }
 
@@ -75,9 +86,13 @@ final class PlatformBannerController extends Controller
             ? Company::query()->find($platformBanner->company_id)
             : null;
 
+        $companyId = $platformBanner->company_id !== null ? (int) $platformBanner->company_id : null;
+
         $this->audit->log($company, $request->user(), 'platform_banner.deleted', $platformBanner);
 
         $platformBanner->delete();
+
+        $this->notifier->notifyScope($companyId);
 
         return back()->with('success', 'Баннер удалён.');
     }
@@ -116,11 +131,20 @@ final class PlatformBannerController extends Controller
             ],
             'background_color' => strtolower($data['background_color']),
             'text_color' => strtolower((string) ($data['text_color'] ?? '#fffbeb')),
-            'starts_at' => $data['starts_at'] ?? null,
-            'ends_at' => $data['ends_at'] ?? null,
+            'starts_at' => $this->parseScheduleInput($data['starts_at'] ?? null),
+            'ends_at' => $this->parseScheduleInput($data['ends_at'] ?? null),
             'targets' => $data['targets'],
             'priority' => (int) ($data['priority'] ?? 0),
             'is_published' => (bool) ($data['is_published'] ?? true),
         ];
+    }
+
+    private function parseScheduleInput(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return Carbon::parse($value, config('app.timezone'));
     }
 }

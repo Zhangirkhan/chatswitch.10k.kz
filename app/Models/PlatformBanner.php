@@ -71,4 +71,31 @@ final class PlatformBanner extends Model
 
         return null;
     }
+
+    /**
+     * Whether the banner is currently deliverable on web/mobile (schedule + publish + targets).
+     *
+     * @return array{code: string, web: bool, mobile: bool}
+     */
+    public function deliveryState(?\Illuminate\Support\Carbon $now = null): array
+    {
+        $now ??= now();
+
+        if (! $this->is_published) {
+            return ['code' => 'draft', 'web' => false, 'mobile' => false];
+        }
+
+        if ($this->starts_at !== null && $this->starts_at->isAfter($now)) {
+            return ['code' => 'scheduled', 'web' => false, 'mobile' => false];
+        }
+
+        if ($this->ends_at !== null && $this->ends_at->isBefore($now)) {
+            return ['code' => 'expired', 'web' => false, 'mobile' => false];
+        }
+
+        $web = in_array($this->targets, [self::TARGET_WEB, self::TARGET_BOTH], true);
+        $mobile = in_array($this->targets, [self::TARGET_MOBILE, self::TARGET_BOTH], true);
+
+        return ['code' => 'active', 'web' => $web, 'mobile' => $mobile];
+    }
 }
