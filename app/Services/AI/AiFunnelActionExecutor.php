@@ -169,11 +169,24 @@ final class AiFunnelActionExecutor
         try {
             /** @var array<string, mixed> $result */
             $result = $callback($action);
-            $action->forceFill([
-                'status' => AiOrchestratorAction::STATUS_DONE,
-                'result' => $result,
-                'error' => null,
-            ])->save();
+
+            // If the callback itself decided to skip the action (e.g., guard rejected a
+            // funnel transition, or create_task has no department configured) persist
+            // STATUS_SKIPPED so the orchestrator run log accurately reflects what happened
+            // and ops/analytics can detect systematically skipped intentions.
+            if (! empty($result['skipped'])) {
+                $action->forceFill([
+                    'status' => AiOrchestratorAction::STATUS_SKIPPED,
+                    'result' => $result,
+                    'error' => $result['reason'] ?? 'Skipped by action logic.',
+                ])->save();
+            } else {
+                $action->forceFill([
+                    'status' => AiOrchestratorAction::STATUS_DONE,
+                    'result' => $result,
+                    'error' => null,
+                ])->save();
+            }
 
             return $result;
         } catch (Throwable $e) {
@@ -182,7 +195,17 @@ final class AiFunnelActionExecutor
                 'error' => mb_substr($e->getMessage(), 0, 2000),
             ])->save();
 
-            throw $e;
+            // Do NOT re-throw: isolate single-action failures so remaining actions
+            // in the same plan still execute.  The failed action is recorded and
+            // surfaced via the run's action list for diagnostics.
+            Log::warning('[ai-orchestrator] action failed (isolated)', [
+                'action_id' => $action->id,
+                'type' => $type,
+                'chat_id' => $action->chat_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['failed' => true, 'error' => mb_substr($e->getMessage(), 0, 500)];
         }
     }
 
