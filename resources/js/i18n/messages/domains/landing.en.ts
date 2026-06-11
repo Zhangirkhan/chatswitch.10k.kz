@@ -60,7 +60,7 @@ export const landingEn = {
                 },
                 {
                     question: 'What is boxed installation?',
-                    answer: 'A one-time 1,000,000 ₸ platform setup with no monthly subscription fee. AI tokens are billed separately.',
+                    answer: 'A one-time 1,000,000 ₸ platform setup. Support, updates and maintenance — 40,000 ₸ per month. AI tokens are billed separately.',
                 },
                 {
                     question: 'Is there a free trial?',
@@ -258,11 +258,11 @@ export const landingEn = {
             name: 'Boxed installation',
             badge: 'Recommended',
             period: 'one-time',
-            trial: 'No monthly platform fee after installation',
+            trial: '40,000 ₸ per month for support, updates and maintenance',
             bullet1: 'Full platform: WhatsApp, team, funnels, CRM',
             bullet2: 'All modules, no cap on users or numbers',
             bullet3: 'Installation, setup and personal onboarding',
-            bullet4: 'Priority support',
+            bullet4: 'Priority support — 40,000 ₸ per month',
             bullet5: 'No monthly platform subscription',
             aiNote: 'AI and tokens billed separately by usage',
         },

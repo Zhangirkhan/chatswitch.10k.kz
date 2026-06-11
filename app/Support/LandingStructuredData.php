@@ -134,7 +134,7 @@ final class LandingStructuredData
                 ],
                 'boxed' => [
                     'name' => 'Коробочная установка',
-                    'description' => 'Разовая установка платформы Accel, 1 000 000 ₸. AI-токены оплачиваются отдельно.',
+                    'description' => 'Разовая установка платформы Accel — 1 000 000 ₸. Поддержка и обновления — 40 000 ₸ в месяц. AI-токены оплачиваются отдельно.',
                 ],
             ],
             'en' => [
@@ -144,7 +144,7 @@ final class LandingStructuredData
                 ],
                 'boxed' => [
                     'name' => 'Boxed installation',
-                    'description' => 'One-time Accel platform installation, 1,000,000 ₸. AI tokens billed separately.',
+                    'description' => 'One-time Accel platform installation — 1,000,000 ₸. Support and updates — 40,000 ₸ per month. AI tokens billed separately.',
                 ],
             ],
             default => [
@@ -154,7 +154,7 @@ final class LandingStructuredData
                 ],
                 'boxed' => [
                     'name' => 'Қораптық орнату',
-                    'description' => 'Accel платформасын бір рет орнату, 1 000 000 ₸. AI токендері бөлек төленеді.',
+                    'description' => 'Accel платформасын бір рет орнату — 1 000 000 ₸. Қолдау және жаңартулар — айына 40 000 ₸. AI токендері бөлек төленеді.',
                 ],
             ],
         };
