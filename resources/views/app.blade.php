@@ -6,17 +6,42 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         @isset($landingMeta)
+            <title>{{ $landingMeta['title'] }}</title>
             <meta name="description" content="{{ $landingMeta['description'] }}">
+            @if(! empty($landingMeta['robots']))
+                <meta name="robots" content="{{ $landingMeta['robots'] }}">
+            @endif
+            <link rel="canonical" href="{{ $landingMeta['canonical_url'] }}">
+            @foreach($landingMeta['alternates'] as $alternate)
+                <link rel="alternate" hreflang="{{ $alternate['hreflang'] }}" href="{{ $alternate['href'] }}">
+            @endforeach
             <meta property="og:type" content="website">
             <meta property="og:site_name" content="Accel">
             <meta property="og:title" content="{{ $landingMeta['title'] }}">
             <meta property="og:description" content="{{ $landingMeta['description'] }}">
             <meta property="og:image" content="{{ $landingMeta['og_image'] }}">
+            <meta property="og:image:width" content="{{ $landingMeta['og_image_width'] }}">
+            <meta property="og:image:height" content="{{ $landingMeta['og_image_height'] }}">
             <meta property="og:url" content="{{ $landingMeta['og_url'] }}">
+            <meta property="og:locale" content="{{ $landingMeta['og_locale'] }}">
+            @foreach($landingMeta['og_locale_alternate'] as $ogLocaleAlternate)
+                <meta property="og:locale:alternate" content="{{ $ogLocaleAlternate }}">
+            @endforeach
             <meta name="twitter:card" content="summary_large_image">
             <meta name="twitter:title" content="{{ $landingMeta['title'] }}">
             <meta name="twitter:description" content="{{ $landingMeta['description'] }}">
             <meta name="twitter:image" content="{{ $landingMeta['og_image'] }}">
+            @if($googleVerification = config('landing.google_site_verification'))
+                <meta name="google-site-verification" content="{{ $googleVerification }}">
+            @endif
+            @if($yandexVerification = config('landing.yandex_verification'))
+                <meta name="yandex-verification" content="{{ $yandexVerification }}">
+            @endif
+            @if(! empty($landingStructuredData))
+                @foreach($landingStructuredData as $graph)
+                    <script type="application/ld+json">{!! json_encode($graph, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
+                @endforeach
+            @endif
         @endisset
 
         <!-- PWA -->
@@ -36,7 +61,9 @@
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v={{ $faviconVersion }}">
         <link rel="shortcut icon" href="/favicon.ico?v={{ $faviconVersion }}">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        @unless(isset($landingMeta))
+            <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        @endunless
 
         <script>
             (function() {
@@ -63,6 +90,9 @@
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
+        @isset($landingMeta)
+            @include('partials.landing-analytics')
+        @endisset
         @inertia
     </body>
 </html>

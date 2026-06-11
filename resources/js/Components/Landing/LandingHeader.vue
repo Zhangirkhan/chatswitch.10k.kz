@@ -59,6 +59,7 @@ function openRequest(): void {
             >
                 <div v-if="mode === 'marketing'" class="landing__nav-links">
                     <a href="#features" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFeatures') }}</a>
+                    <a href="#faq" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFaq') }}</a>
                     <a href="#pricing" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navPricing') }}</a>
                     <div class="landing__download-menu">
                         <button

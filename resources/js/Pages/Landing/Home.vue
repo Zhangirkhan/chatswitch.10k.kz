@@ -9,8 +9,9 @@ import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput 
 import LandingHead from '@/Components/Landing/LandingHead.vue';
 import LandingHeader from '@/Components/Landing/LandingHeader.vue';
 import { useLandingLocale } from '@/composables/useLandingLocale';
+import { messagesForLocale } from '@/i18n/messages';
 import type { MessageKey } from '@/i18n/types';
-import { useForm, usePage } from '@inertiajs/vue3';
+import { useForm, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -36,7 +37,7 @@ const rootDomain = computed(() => props.rootDomain ?? 'accel.kz');
 const apkDownloadUrl = computed(() => props.androidApkUrl ?? '/apk/app-release.apk');
 
 const page = usePage();
-const { t } = useLandingLocale();
+const { t, locale } = useLandingLocale();
 const requestModalOpen = ref(false);
 
 const flashSuccess = computed(() => {
@@ -78,6 +79,8 @@ const visiblePricingPlans = computed(() =>
         isPricingPlanCode(plan.code),
     ),
 );
+
+const faqItems = computed(() => messagesForLocale(locale.value).landing.faqItems ?? []);
 
 const isMobileViewport = ref(
     typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
@@ -280,7 +283,7 @@ onUnmounted(() => {
 
 <template>
     <div class="landing">
-        <LandingHead :title="t('landing.pageTitle')" />
+        <LandingHead page="home" />
 
         <LandingHeader :android-apk-url="apkDownloadUrl" @request="openRequestModal" />
 
@@ -312,7 +315,7 @@ onUnmounted(() => {
                     </div>
                 </div>
                 <div class="landing__hero-visual">
-                    <LandingHeroMockup />
+                    <LandingHeroMockup :alt="t('landing.heroMockupAlt')" />
                 </div>
             </section>
 
@@ -397,12 +400,29 @@ onUnmounted(() => {
                         <ul class="landing__pricing-list">
                             <li v-for="bullet in planBullets(plan.code)" :key="bullet">{{ bullet }}</li>
                         </ul>
-                        <p class="landing__pricing-ai-note">{{ planField(plan.code, 'aiNote') }}</p>
+                        <p class="landing__pricing-ai-note">
+                            {{ planField(plan.code, 'aiNote') }}
+                            <Link href="/calculator" class="landing__pricing-calc-link">{{ t('landing.pricingCalcLink') }}</Link>
+                        </p>
                         <button type="button" class="landing__cta-btn landing__pricing-btn" @click="openRequestModal">
                             {{ t('landing.ctaButton') }}
                         </button>
                     </article>
                 </div>
+            </section>
+
+            <section id="faq" class="landing__faq">
+                <h2 class="landing__section-title">{{ t('landing.faqTitle') }}</h2>
+                <dl class="landing__faq-list">
+                    <div
+                        v-for="(item, index) in faqItems"
+                        :key="index"
+                        class="landing__faq-item"
+                    >
+                        <dt class="landing__faq-question">{{ item.question }}</dt>
+                        <dd class="landing__faq-answer">{{ item.answer }}</dd>
+                    </div>
+                </dl>
             </section>
         </main>
 
@@ -582,7 +602,10 @@ onUnmounted(() => {
 
         <footer class="landing__footer">
             <span>© {{ new Date().getFullYear() }} Accel</span>
-            <a href="mailto:hello@accel.kz">hello@accel.kz</a>
+            <nav class="landing__footer-links">
+                <a href="mailto:hello@accel.kz">hello@accel.kz</a>
+                <Link href="/calculator">{{ t('landing.calculatorLink') }}</Link>
+            </nav>
         </footer>
     </div>
 </template>
@@ -971,6 +994,52 @@ onUnmounted(() => {
     border-radius: 0.5rem;
 }
 
+.landing__pricing-calc-link {
+    display: inline-block;
+    margin-left: 0.375rem;
+    color: var(--landing-accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.landing__pricing-calc-link:hover {
+    text-decoration: underline;
+}
+
+.landing__faq {
+    padding: 4rem clamp(1.5rem, 5vw, 3rem) 5rem;
+    max-width: 48rem;
+    margin: 0 auto;
+}
+
+.landing__faq-list {
+    margin: 2rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.landing__faq-item {
+    padding: 1.25rem 1.5rem;
+    background: var(--landing-surface-raised, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--landing-border);
+    border-radius: 0.875rem;
+}
+
+.landing__faq-question {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--landing-text);
+}
+
+.landing__faq-answer {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--landing-muted);
+}
+
 .landing__pricing-btn {
     width: 100%;
     margin-top: auto;
@@ -1269,10 +1338,18 @@ onUnmounted(() => {
 .landing__footer {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 1rem;
     padding: 1.25rem clamp(1.5rem, 5vw, 3rem);
     font-size: 0.8125rem;
     color: #667781;
+}
+
+.landing__footer-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
 }
 
 .landing__footer a {

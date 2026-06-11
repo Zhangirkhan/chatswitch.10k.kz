@@ -22,7 +22,8 @@ final class LandingMetaTest extends TestCase
         $host = $this->landingHost();
         URL::forceRootUrl('https://'.$host);
 
-        $description = config('landing.meta.kk.description');
+        $meta = config('landing.pages.home.kk');
+        $description = $meta['description'];
 
         $this->withoutVite()
             ->withServerVariables(['HTTP_HOST' => $host])
@@ -30,8 +31,18 @@ final class LandingMetaTest extends TestCase
             ->assertOk()
             ->assertSee('<html lang="kk"', false)
             ->assertSee('<meta name="description" content="'.$description.'"', false)
-            ->assertSee('<meta property="og:title" content="'.config('landing.meta.kk.title').'"', false)
-            ->assertSee('<meta property="og:description" content="'.$description.'"', false);
+            ->assertSee('<meta property="og:title" content="'.$meta['title'].'"', false)
+            ->assertSee('<meta property="og:description" content="'.$description.'"', false)
+            ->assertSee('<link rel="canonical" href="https://'.$host.'/"', false)
+            ->assertSee('hreflang="kk"', false)
+            ->assertSee('hreflang="ru"', false)
+            ->assertSee('hreflang="en"', false)
+            ->assertSee('hreflang="x-default"', false)
+            ->assertSee('<meta property="og:locale" content="kk_KZ"', false)
+            ->assertSee('<meta property="og:image:width" content="1200"', false)
+            ->assertSee('<meta property="og:image:height" content="630"', false)
+            ->assertSee('application/ld+json', false)
+            ->assertSee('"@type":"Organization"', false);
     }
 
     public function test_lang_query_switches_og_meta_to_english(): void
@@ -39,7 +50,8 @@ final class LandingMetaTest extends TestCase
         $host = $this->landingHost();
         URL::forceRootUrl('https://'.$host);
 
-        $description = config('landing.meta.en.description');
+        $meta = config('landing.pages.home.en');
+        $description = $meta['description'];
 
         $this->withoutVite()
             ->withServerVariables(['HTTP_HOST' => $host])
@@ -47,7 +59,8 @@ final class LandingMetaTest extends TestCase
             ->assertOk()
             ->assertSee('<html lang="en"', false)
             ->assertSee('<meta name="description" content="'.$description.'"', false)
-            ->assertSee('<meta property="og:title" content="'.config('landing.meta.en.title').'"', false);
+            ->assertSee('<meta property="og:title" content="'.$meta['title'].'"', false)
+            ->assertSee('<meta property="og:locale" content="en_US"', false);
     }
 
     public function test_lang_query_sets_landing_locale_cookie(): void
@@ -70,7 +83,7 @@ final class LandingMetaTest extends TestCase
         URL::forceRootUrl('https://'.$host);
 
         $cookieName = (string) config('landing.cookie_name', 'landing_locale');
-        $description = config('landing.meta.ru.description');
+        $description = config('landing.pages.home.ru.description');
 
         $this->withoutVite()
             ->withServerVariables(['HTTP_HOST' => $host])
@@ -79,5 +92,32 @@ final class LandingMetaTest extends TestCase
             ->assertOk()
             ->assertSee('<html lang="ru"', false)
             ->assertSee('<meta name="description" content="'.$description.'"', false);
+    }
+
+    public function test_calculator_page_has_page_specific_meta(): void
+    {
+        $host = $this->landingHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $meta = config('landing.pages.calculator.kk');
+
+        $this->withoutVite()
+            ->withServerVariables(['HTTP_HOST' => $host])
+            ->get("https://{$host}/calculator")
+            ->assertOk()
+            ->assertSee('<meta name="description" content="'.$meta['description'].'"', false)
+            ->assertSee('<link rel="canonical" href="https://'.$host.'/calculator"', false);
+    }
+
+    public function test_not_found_page_has_noindex_robots(): void
+    {
+        $host = $this->landingHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $this->withoutVite()
+            ->withServerVariables(['HTTP_HOST' => $host])
+            ->get("https://{$host}/404")
+            ->assertNotFound()
+            ->assertSee('<meta name="robots" content="noindex, follow"', false);
     }
 }

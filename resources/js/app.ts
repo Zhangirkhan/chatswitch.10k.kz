@@ -73,7 +73,7 @@ window.addEventListener('vite:preloadError', (event: Event) => {
 });
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => (title.includes('Accel') ? title : `${title} - ${appName}`),
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.vue`,

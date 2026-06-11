@@ -2,6 +2,42 @@ export const landingEn = {
     pageTitle: 'Accel — WhatsApp for teams',
     ogTitle: 'Accel — WhatsApp for teams',
     metaDescription: 'WhatsApp for your whole team: chats, AI autopilot, funnels, tasks, and analytics — one workspace, no phone chaos.',
+    meta: {
+        home: {
+            title: 'Accel — WhatsApp for teams',
+            description: 'WhatsApp for your whole team: chats, AI autopilot, funnels, tasks, and analytics — one workspace, no phone chaos.',
+        },
+        calculator: {
+            title: 'AI calculator — Accel',
+            description: 'Estimate monthly OpenAI token spend: AI autopilot, Whisper, translations and scenarios on the Accel platform.',
+        },
+    },
+    navFaq: 'FAQ',
+    faqTitle: 'Frequently asked questions',
+    pricingCalcLink: 'Estimate AI cost',
+    heroMockupAlt: 'Accel interface mockup: WhatsApp chats, AI autopilot, and team dashboard',
+    faqItems: [
+        {
+            question: 'What is Accel?',
+            answer: 'Accel is a platform for team WhatsApp: chats, AI autopilot, funnels and tasks in one workspace.',
+        },
+        {
+            question: 'How much does AI cost?',
+            answer: 'AI tokens are billed separately by usage. Estimate monthly spend with the AI calculator on this site.',
+        },
+        {
+            question: 'What is boxed installation?',
+            answer: 'A one-time 1,000,000 ₸ platform setup with no monthly subscription fee. AI tokens are billed separately.',
+        },
+        {
+            question: 'Is there a free trial?',
+            answer: 'The Standard plan includes a 14-day trial after activation. Boxed installation has no trial.',
+        },
+        {
+            question: 'Can we connect multiple WhatsApp numbers?',
+            answer: 'Yes, all numbers and team chats work in a single Accel interface.',
+        },
+    ],
     navMenuAria: 'Menu',
     localeSwitcherAria: 'Language',
     storeDownloadOn: 'Download on the',

@@ -1,10 +1,16 @@
 <script setup lang="ts">
+const props = withDefaults(defineProps<{
+    alt?: string;
+}>(), {
+    alt: 'Accel platform interface preview',
+});
+
 const desktopScreenshot = '/landing/screenshots/desktop-app.png';
 const mobileScreenshot = '/landing/screenshots/mobile-app.png';
 </script>
 
 <template>
-    <div class="hero-mockup-root" aria-hidden="true">
+    <div class="hero-mockup-root" role="img" :aria-label="props.alt">
         <div class="hero-mockup-devices hero-mockup-devices--desktop">
             <div class="hero-device hero-device--desktop">
                 <div class="hero-device__shell hero-device__shell--macbook">
@@ -13,7 +19,7 @@ const mobileScreenshot = '/landing/screenshots/mobile-app.png';
                             <img
                                 class="hero-device__screenshot hero-device__screenshot--macbook"
                                 :src="desktopScreenshot"
-                                alt=""
+                                :alt="props.alt"
                                 width="3680"
                                 height="2387"
                                 decoding="async"

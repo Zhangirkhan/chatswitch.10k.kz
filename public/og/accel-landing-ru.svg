@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Accel  WhatsApp 4;O :><0=4K">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#04140c"/>
+      <stop offset="55%" stop-color="#062318"/>
+      <stop offset="100%" stop-color="#010806"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="72%" cy="38%" r="45%">
+      <stop offset="0%" stop-color="#01b964" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#01b964" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <circle cx="1040" cy="120" r="180" fill="#01b964" opacity="0.08"/>
+  <rect x="72" y="72" width="88" height="88" rx="22" fill="#048B4F"/>
+  <path d="M108 96h16v56h-16zM92 112h48v16H92z" fill="#fff"/>
+  <text x="184" y="132" fill="#ffffff" font-family="Figtree, ui-sans-serif, system-ui, sans-serif" font-size="56" font-weight="700" letter-spacing="-1">Accel</text>
+  <text x="72" y="260" fill="#ffffff" font-family="Figtree, ui-sans-serif, system-ui, sans-serif" font-size="54" font-weight="700" letter-spacing="-1.5">WhatsApp 4;O :><0=4K</text>
+  <text x="72" y="330" fill="#94a3b8" font-family="Figtree, ui-sans-serif, system-ui, sans-serif" font-size="30" font-weight="500">'0BK, AI-02B>?8;>B, 2>@>=:8  2 >4=>< >:=5</text>
+  <rect x="72" y="400" width="320" height="56" rx="28" fill="#01b964"/>
+  <text x="232" y="437" fill="#ffffff" font-family="Figtree, ui-sans-serif, system-ui, sans-serif" font-size="24" font-weight="600" text-anchor="middle">accel.kz</text>
+</svg>

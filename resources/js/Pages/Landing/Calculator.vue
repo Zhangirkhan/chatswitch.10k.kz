@@ -263,7 +263,7 @@ const visibleScenarios = computed(() =>
 
 <template>
     <div class="landing">
-        <LandingHead :title="t('landing.calculatorTitle')" />
+        <LandingHead page="calculator" />
 
         <LandingHeader mode="minimal" />
 
