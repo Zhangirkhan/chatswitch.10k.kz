@@ -33,17 +33,38 @@ final class ConversationMemoryExtractor
      */
     public function extractAndPersist(Chat $chat): void
     {
+        $facts = $this->extractFacts($chat);
+        $this->persistFacts($chat, $facts);
+    }
+
+    /**
+     * Extract facts from recent chat messages.
+     * Returns an empty array when nothing meaningful was found or on error.
+     *
+     * @return array<string, mixed>
+     */
+    public function extractFacts(Chat $chat): array
+    {
         if ($chat->contact_id === null) {
-            return;
+            return [];
         }
 
         $messages = $this->loadRecentMessages($chat);
         if ($messages->isEmpty()) {
-            return;
+            return [];
         }
 
-        $facts = $this->callLlm($chat, $messages);
-        if ($facts === null || $facts === []) {
+        return $this->callLlm($chat, $messages) ?? [];
+    }
+
+    /**
+     * Persist extracted facts to the contact's EntityMemory.
+     *
+     * @param  array<string, mixed>  $facts
+     */
+    public function persistFacts(Chat $chat, array $facts): void
+    {
+        if ($facts === [] || $chat->contact_id === null) {
             return;
         }
 

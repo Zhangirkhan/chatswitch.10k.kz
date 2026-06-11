@@ -25,6 +25,8 @@ final class Contact extends Model
         'is_business',
         'is_sandbox',
         'messages_cleared_at',
+        'ai_funnel_stage_id',
+        'ai_enriched_at',
     ];
 
     protected function casts(): array
@@ -33,7 +35,18 @@ final class Contact extends Model
             'is_business' => 'boolean',
             'is_sandbox' => 'boolean',
             'messages_cleared_at' => 'datetime',
+            'ai_enriched_at' => 'datetime',
         ];
+    }
+
+    public function tags(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ContactTag::class);
+    }
+
+    public function aiFunnelStage(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(FunnelStage::class, 'ai_funnel_stage_id');
     }
 
     public function setPhoneNumberAttribute(?string $value): void

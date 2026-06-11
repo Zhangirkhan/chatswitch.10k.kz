@@ -20,6 +20,7 @@ use App\Services\Calendar\ChatAssignmentCalendarSyncService;
 use App\Services\ChatService;
 use App\Services\Funnel\ChatFunnelStateService;
 use App\Services\Funnel\FunnelStageTransitionGuard;
+use App\Services\AI\AiCrmWritebackService;
 use App\Services\AI\AiResponderResolver;
 use App\Services\OutboundChatMessageDispatcher;
 use App\Services\TeamChatService;
@@ -40,6 +41,7 @@ final class AiFunnelActionExecutor
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
         private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
         private readonly AiResponderResolver $responderResolver,
+        private readonly AiCrmWritebackService $crmWriteback,
     ) {}
 
     /**
@@ -411,6 +413,9 @@ final class AiFunnelActionExecutor
             new ChatFunnelClassification($funnelId, $stageId, $plan->confidence, $plan->reason),
             $trigger->id,
         );
+
+        // CRM write-back: sync the contact-level funnel stage (flag: ai.crm_writeback).
+        $this->crmWriteback->syncContactFunnelStage($chat, $stageId);
 
         return [
             'funnel_id' => $funnelId,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\Chat;
+use App\Services\AI\AiCrmWritebackService;
 use App\Services\AI\ConversationMemoryExtractor;
 use App\Support\AiFeatureFlags;
 use Illuminate\Bus\Queueable;
@@ -36,10 +37,10 @@ final class ExtractConversationMemoryJob implements ShouldQueue
         public readonly ?int $tenantCompanyId = null,
     ) {}
 
-    public function handle(ConversationMemoryExtractor $extractor): void
+    public function handle(ConversationMemoryExtractor $extractor, AiCrmWritebackService $crm): void
     {
         $chat = Chat::query()
-            ->with(['contact:id,name,push_name,phone_number'])
+            ->with(['contact:id,name,push_name,phone_number,company_id'])
             ->whereKey($this->chatId)
             ->first();
 
@@ -60,7 +61,11 @@ final class ExtractConversationMemoryJob implements ShouldQueue
             'contact_id' => $chat->contact_id,
         ]);
 
-        $extractor->extractAndPersist($chat);
+        $facts = $extractor->extractFacts($chat);
+        $extractor->persistFacts($chat, $facts);
+
+        // CRM writeback: persist extracted facts as contact tags and enrichment.
+        $crm->writeContactEnrichment($chat, $facts);
     }
 
     public function viaQueue(): string
