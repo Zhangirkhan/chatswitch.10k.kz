@@ -192,6 +192,28 @@ final class GenerateAiReplyJob implements ShouldQueue
                     'latest_inbound_id' => $freshLatestInboundId,
                 ]);
 
+                // Re-dispatch for the latest inbound so the AI still replies.
+                // Only dispatch if no active log already exists for that message.
+                if ($freshLatestInboundId !== null) {
+                    $alreadyActive = \App\Models\AiResponseLog::query()
+                        ->where('trigger_message_id', (int) $freshLatestInboundId)
+                        ->whereIn('status', ['pending', 'generating', 'sent', 'drafted'])
+                        ->exists();
+
+                    if (! $alreadyActive) {
+                        static::dispatch(
+                            $chat->id,
+                            (int) $freshLatestInboundId,
+                            $chat->company_id,
+                        );
+
+                        Log::info('[ai-reply] re-dispatched for latest inbound after stale cancel', [
+                            'chat_id' => $chat->id,
+                            'new_trigger_message_id' => $freshLatestInboundId,
+                        ]);
+                    }
+                }
+
                 return;
             }
 

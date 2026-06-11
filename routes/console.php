@@ -68,6 +68,12 @@ Schedule::command('chats:sla-reminders')
     ->withoutOverlapping()
     ->runInBackground();
 
+// AI: recover logs stuck in 'generating' (worker killed mid-job) every 5 minutes.
+Schedule::command('ai:recover-stuck-logs')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // После полуночи (по timezone приложения): в архив — диалоги, где последнее
 // сообщение — ответ сотрудника (исходящее с sent_by_user_id). Закреплённые не трогаем.
 Schedule::command('chats:auto-archive-answered')
