@@ -41,6 +41,7 @@ final class LandingLocale
 
         return match ($routeName) {
             'landing.calculator' => 'calculator',
+            'landing.faq' => 'faq',
             'landing.not-found' => 'not_found',
             default => 'home',
         };
@@ -146,7 +147,7 @@ final class LandingLocale
             $locale = (string) config('landing.default_locale', 'kk');
         }
 
-        if (! in_array($page, ['home', 'calculator', 'not_found'], true)) {
+        if (! in_array($page, ['home', 'calculator', 'faq', 'not_found'], true)) {
             $page = 'home';
         }
 

@@ -11,35 +11,132 @@ export const landingEn = {
             title: 'AI calculator — Accel',
             description: 'Estimate monthly OpenAI token spend: AI autopilot, Whisper, translations and scenarios on the Accel platform.',
         },
+        faq: {
+            title: 'FAQ — Accel',
+            description: 'Answers about Accel: pricing, AI, data storage in Kazakhstan, onboarding and team support.',
+        },
     },
     navFaq: 'FAQ',
     faqTitle: 'Frequently asked questions',
+    faqTeaserTitle: 'Still have questions?',
+    faqTeaserLead: 'We collected answers about pricing, AI, data in Kazakhstan and onboarding in one place.',
+    faqTeaserLink: 'Go to FAQ',
     pricingCalcLink: 'Estimate AI cost',
     heroMockupAlt: 'Accel interface mockup: WhatsApp chats, AI autopilot, and team dashboard',
-    faqItems: [
+    faqCategories: [
         {
-            question: 'What is Accel?',
-            answer: 'Accel is a platform for team WhatsApp: chats, AI autopilot, funnels and tasks in one workspace.',
+            id: 'platform',
+            title: 'Platform',
+            items: [
+                {
+                    question: 'What is Accel?',
+                    answer: 'Accel is a platform for team WhatsApp: chats, AI autopilot, funnels and tasks in one workspace.',
+                },
+                {
+                    question: 'Can we connect multiple WhatsApp numbers?',
+                    answer: 'Yes, all numbers and team chats work in a single Accel interface.',
+                },
+                {
+                    question: 'How is Accel different from personal WhatsApp?',
+                    answer: 'Chats, history and attachments live in your company system, not on a manager\'s phone. Leaders see queue, SLA and workload; the team works with roles.',
+                },
+                {
+                    question: 'Is there a mobile app?',
+                    answer: 'Yes, Accel is available for Android. Download link is in the site header.',
+                },
+                {
+                    question: 'Is there internal chat and tasks?',
+                    answer: 'Yes — team chat, client tasks and analytics without switching between tools.',
+                },
+            ],
         },
         {
-            question: 'How much does AI cost?',
-            answer: 'AI tokens are billed separately by usage. Estimate monthly spend with the AI calculator on this site.',
+            id: 'pricing',
+            title: 'Pricing',
+            items: [
+                {
+                    question: 'How much does the Standard plan cost?',
+                    answer: 'The current Standard price is on the home page in the Pricing section. AI tokens are billed separately by usage.',
+                },
+                {
+                    question: 'What is boxed installation?',
+                    answer: 'A one-time 1,000,000 ₸ platform setup with no monthly subscription fee. AI tokens are billed separately.',
+                },
+                {
+                    question: 'Is there a free trial?',
+                    answer: 'The Standard plan includes a 14-day trial after activation. Boxed installation has no trial.',
+                },
+                {
+                    question: 'What is included in the subscription?',
+                    answer: 'Team WhatsApp, AI tools, funnels, tasks, analytics and platform support. AI token spend is separate.',
+                },
+            ],
         },
         {
-            question: 'What is boxed installation?',
-            answer: 'A one-time 1,000,000 ₸ platform setup with no monthly subscription fee. AI tokens are billed separately.',
+            id: 'ai',
+            title: 'AI',
+            items: [
+                {
+                    question: 'How much does AI cost?',
+                    answer: 'AI tokens are billed separately by usage. Estimate monthly spend with the AI calculator on this site.',
+                },
+                {
+                    question: 'How does AI autopilot work?',
+                    answer: 'Autopilot replies using scenarios and knowledge base, assigns owners and can handle chats without a manager.',
+                },
+                {
+                    question: 'Can AI be turned off?',
+                    answer: 'Yes — AI features are configurable by role and scenario. Use suggestions only or disable autopilot entirely.',
+                },
+                {
+                    question: 'How do I estimate AI spend?',
+                    answer: 'Open the AI calculator, pick a preset or set dialog volume — it shows an approximate amount in tenge.',
+                },
+            ],
         },
         {
-            question: 'Is there a free trial?',
-            answer: 'The Standard plan includes a 14-day trial after activation. Boxed installation has no trial.',
+            id: 'data',
+            title: 'Data and security',
+            items: [
+                {
+                    question: 'Where is data stored?',
+                    answer: 'On the Standard plan, data is stored on servers in Kazakhstan. Boxed installation is also available — the platform runs on your company infrastructure.',
+                },
+                {
+                    question: 'How is Accel different from foreign services?',
+                    answer: 'Wazzup, wahelp, i2crm, umnico and similar tools store data abroad. Accel is a Kazakhstan product with data in KZ data centers.',
+                },
+                {
+                    question: 'Does Accel comply with Kazakhstan personal data law?',
+                    answer: 'On the Standard plan, data is stored in Kazakhstan in line with localization requirements.',
+                },
+                {
+                    question: 'Who can see client chats?',
+                    answer: 'Access is role-based: staff see their dialogs, managers see the team and analytics. Action history is kept in the system.',
+                },
+            ],
         },
         {
-            question: 'Can we connect multiple WhatsApp numbers?',
-            answer: 'Yes, all numbers and team chats work in a single Accel interface.',
-        },
-        {
-            question: 'Where is data stored?',
-            answer: 'On the Standard plan, data is stored on servers in Kazakhstan. Boxed installation is also available — the platform runs on your company infrastructure.',
+            id: 'setup',
+            title: 'Getting started',
+            items: [
+                {
+                    question: 'How do I start using Accel?',
+                    answer: 'Submit a request on the site — we will contact you, agree on a subdomain and help connect WhatsApp and your team.',
+                },
+                {
+                    question: 'How long does onboarding take?',
+                    answer: 'Basic setup usually takes one to several business days depending on numbers and configuration.',
+                },
+                {
+                    question: 'Do we need our own IT team?',
+                    answer: 'For Standard, connect WhatsApp and invite staff. Boxed installation requires your administrators.',
+                },
+                {
+                    question: 'What languages is support available in?',
+                    answer: 'Support in Kazakh and Russian.',
+                },
+            ],
         },
     ],
     navProblem: 'Problem',

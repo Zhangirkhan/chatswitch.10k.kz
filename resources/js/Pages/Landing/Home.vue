@@ -1,25 +1,17 @@
 <script setup lang="ts">
-import InputError from '@/Components/InputError.vue';
 import LandingBeforeAfter from '@/Components/Landing/LandingBeforeAfter.vue';
 import LandingBorderGlow from '@/Components/Landing/LandingBorderGlow.vue';
 import LandingDataKz from '@/Components/Landing/LandingDataKz.vue';
-import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
-import LandingParticles from '@/Components/Landing/LandingParticles.vue';
-import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
-import UiModal from '@/Components/Ui/UiModal.vue';
-import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput } from '@/utils/inputMasks';
 import LandingHead from '@/Components/Landing/LandingHead.vue';
 import LandingHeader from '@/Components/Landing/LandingHeader.vue';
+import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
+import LandingParticles from '@/Components/Landing/LandingParticles.vue';
+import LandingSignupRequestModal from '@/Components/Landing/LandingSignupRequestModal.vue';
 import { useLandingLocale } from '@/composables/useLandingLocale';
 import { messagesForLocale } from '@/i18n/messages';
 import type { MessageKey } from '@/i18n/types';
-import { useForm, Link, usePage } from '@inertiajs/vue3';
-import axios from 'axios';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-
-type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'reserved' | 'invalid' | 'error';
-
-const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 type PricingPlanCode = 'standard' | 'boxed';
 
@@ -82,8 +74,6 @@ const visiblePricingPlans = computed(() =>
     ),
 );
 
-const faqItems = computed(() => messagesForLocale(locale.value).landing.faqItems ?? []);
-
 const beforeAfterRows = computed(() => messagesForLocale(locale.value).landing.beforeAfterRows ?? []);
 
 const dataPoints = computed(() => messagesForLocale(locale.value).landing.dataPoints ?? []);
@@ -102,183 +92,21 @@ function syncViewport(): void {
     isMobileViewport.value = window.matchMedia('(max-width: 768px)').matches;
 }
 
-const form = useForm({
-    company_name: '',
-    bin: '',
-    desired_slug: '',
-    contact_name: '',
-    email: '',
-    phone: '',
-    message: '',
-    terms_accepted: false,
-});
-
-const canSubmit = computed(() => (
-    form.terms_accepted
-    && !form.processing
-    && form.desired_slug.length > 0
-    && slugStatus.value === 'available'
-));
-
-const slugStatus = ref<SlugStatus>('idle');
-let slugCheckTimer: ReturnType<typeof setTimeout> | null = null;
-let slugCheckAbort: AbortController | null = null;
-
-const slugStatusMessage = computed(() => {
-    switch (slugStatus.value) {
-        case 'checking':
-            return t('landing.slugChecking');
-        case 'available':
-            return t('landing.slugAvailable', { slug: form.desired_slug, domain: rootDomain.value });
-        case 'taken':
-            return t('landing.slugTaken');
-        case 'reserved':
-            return t('landing.slugReserved');
-        case 'invalid':
-            return t('landing.slugInvalid');
-        case 'error':
-            return t('landing.slugError');
-        default:
-            return '';
-    }
-});
-
-const slugFieldClass = computed(() => {
-    if (slugStatus.value === 'available') {
-        return 'landing-modal-form__slug--available';
-    }
-    if (['taken', 'reserved', 'invalid', 'error'].includes(slugStatus.value)) {
-        return 'landing-modal-form__slug--unavailable';
-    }
-    return '';
-});
-
-function resetSlugCheck(): void {
-    if (slugCheckTimer) {
-        clearTimeout(slugCheckTimer);
-        slugCheckTimer = null;
-    }
-    slugCheckAbort?.abort();
-    slugCheckAbort = null;
-    slugStatus.value = 'idle';
-}
-
-function scheduleSlugCheck(slug: string): void {
-    resetSlugCheck();
-
-    if (!slug) {
-        return;
-    }
-
-    if (!SLUG_PATTERN.test(slug)) {
-        slugStatus.value = 'invalid';
-        return;
-    }
-
-    slugStatus.value = 'checking';
-    slugCheckTimer = setTimeout(() => {
-        void checkSlugAvailability(slug);
-    }, 400);
-}
-
-async function checkSlugAvailability(slug: string): Promise<void> {
-    slugCheckAbort = new AbortController();
-
-    try {
-        const { data } = await axios.get('/check-tenant-slug', {
-            params: { slug },
-            signal: slugCheckAbort.signal,
-        });
-
-        if (form.desired_slug !== slug) {
-            return;
-        }
-
-        if (data.available) {
-            slugStatus.value = 'available';
-            return;
-        }
-
-        if (data.reason === 'reserved') {
-            slugStatus.value = 'reserved';
-            return;
-        }
-
-        if (data.reason === 'taken') {
-            slugStatus.value = 'taken';
-            return;
-        }
-
-        slugStatus.value = 'invalid';
-    } catch (error: unknown) {
-        if (axios.isCancel(error)) {
-            return;
-        }
-        if (form.desired_slug !== slug) {
-            return;
-        }
-        slugStatus.value = 'error';
-    }
-}
-
-function openRequestModal() {
+function openRequestModal(): void {
     requestModalOpen.value = true;
 }
 
-function closeRequestModal() {
+function closeRequestModal(): void {
     requestModalOpen.value = false;
-    resetSlugCheck();
 }
-
-function onPhoneInput(event: Event) {
-    const el = event.target as HTMLInputElement;
-    const masked = maskKzPhoneInput(el.value);
-    form.phone = masked;
-    el.value = masked;
-}
-
-function onBinInput(event: Event) {
-    const el = event.target as HTMLInputElement;
-    const masked = maskBinInput(el.value);
-    form.bin = masked;
-    el.value = masked;
-}
-
-function onSlugInput(event: Event) {
-    const el = event.target as HTMLInputElement;
-    const slug = sanitizeTenantSlugInput(el.value);
-    form.desired_slug = slug;
-    el.value = slug;
-    scheduleSlugCheck(slug);
-}
-
-function submit() {
-    form
-        .transform((data) => ({
-            ...data,
-            bin: binDigitsOnly(data.bin),
-        }))
-        .post('/signup-request', {
-            preserveScroll: true,
-            onSuccess: () => {
-                form.reset();
-                resetSlugCheck();
-                closeRequestModal();
-            },
-        });
-}
-
-watch(flashSuccess, (msg) => {
-    if (msg) {
-        closeRequestModal();
-    }
-});
 
 onMounted(() => {
     syncViewport();
     window.addEventListener('resize', syncViewport, { passive: true });
 
-    if (window.location.hash === '#request' || Object.keys(form.errors).length > 0) {
+    const errors = page.props.errors as Record<string, string> | undefined;
+
+    if (window.location.hash === '#request' || Object.keys(errors ?? {}).length > 0) {
         openRequestModal();
         if (window.location.hash === '#request') {
             history.replaceState(null, '', window.location.pathname);
@@ -471,203 +299,26 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <section id="faq" class="landing__faq landing__section-block">
-                <header class="landing__section-header landing__section-header--center">
-                    <p class="landing__section-eyebrow">{{ t('landing.faqEyebrow') }}</p>
-                    <h2 class="landing__section-heading">{{ t('landing.faqTitle') }}</h2>
-                    <p class="landing__section-lead">{{ t('landing.faqSectionLead') }}</p>
-                </header>
-                <dl class="landing__faq-list">
-                    <div
-                        v-for="(item, index) in faqItems"
-                        :key="index"
-                        class="landing__faq-item"
-                    >
-                        <dt class="landing__faq-question">{{ item.question }}</dt>
-                        <dd class="landing__faq-answer">{{ item.answer }}</dd>
-                    </div>
-                </dl>
+            <section class="landing__faq-teaser landing__section-block">
+                <h2 class="landing__faq-teaser-title">{{ t('landing.faqTeaserTitle') }}</h2>
+                <p class="landing__faq-teaser-lead">{{ t('landing.faqTeaserLead') }}</p>
+                <Link href="/faq" class="landing__cta-btn">{{ t('landing.faqTeaserLink') }}</Link>
             </section>
         </main>
 
         <p v-if="flashSuccess" class="landing__toast" role="status">{{ flashSuccess }}</p>
 
-        <UiModal
+        <LandingSignupRequestModal
             :open="requestModalOpen"
-            :title="t('landing.requestTitle')"
-            :subtitle="t('landing.requestSubtitle')"
-            max-width="md"
-            body-class="px-5 py-4"
+            :root-domain="rootDomain"
             @close="closeRequestModal"
-        >
-            <form id="landing-request-form" class="landing-modal-form" @submit.prevent="submit">
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="company_name">{{ t('landing.company') }}</label>
-                    <input
-                        id="company_name"
-                        v-model="form.company_name"
-                        type="text"
-                        required
-                        maxlength="160"
-                        class="landing-modal-form__input"
-                        autocomplete="organization"
-                    />
-                    <InputError :message="form.errors.company_name" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="bin">{{ t('landing.bin') }}</label>
-                    <input
-                        id="bin"
-                        :value="form.bin"
-                        type="text"
-                        required
-                        class="landing-modal-form__input"
-                        placeholder="1234 5678 9012"
-                        inputmode="numeric"
-                        autocomplete="off"
-                        maxlength="14"
-                        @input="onBinInput"
-                    />
-                    <p class="landing-modal-form__hint">{{ t('landing.binHint') }}</p>
-                    <InputError :message="form.errors.bin" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="desired_slug">{{ t('landing.subdomain') }}</label>
-                    <div class="landing-modal-form__slug" :class="slugFieldClass">
-                        <input
-                            id="desired_slug"
-                            :value="form.desired_slug"
-                            type="text"
-                            required
-                            maxlength="32"
-                            class="landing-modal-form__input landing-modal-form__input--slug"
-                            placeholder="my-company"
-                            autocomplete="off"
-                            spellcheck="false"
-                            :aria-invalid="['taken', 'reserved', 'invalid', 'error'].includes(slugStatus)"
-                            @input="onSlugInput"
-                        />
-                        <span class="landing-modal-form__slug-suffix">.{{ rootDomain }}</span>
-                    </div>
-                    <p class="landing-modal-form__hint">{{ t('landing.subdomainHint', { domain: rootDomain }) }}</p>
-                    <p
-                        v-if="slugStatusMessage"
-                        class="landing-modal-form__slug-status"
-                        :class="{
-                            'landing-modal-form__slug-status--ok': slugStatus === 'available',
-                            'landing-modal-form__slug-status--bad': ['taken', 'reserved', 'invalid', 'error'].includes(slugStatus),
-                            'landing-modal-form__slug-status--pending': slugStatus === 'checking',
-                        }"
-                        role="status"
-                    >
-                        {{ slugStatusMessage }}
-                    </p>
-                    <InputError :message="form.errors.desired_slug" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="contact_name">{{ t('landing.contactName') }}</label>
-                    <input
-                        id="contact_name"
-                        v-model="form.contact_name"
-                        type="text"
-                        required
-                        maxlength="120"
-                        class="landing-modal-form__input"
-                        autocomplete="name"
-                    />
-                    <InputError :message="form.errors.contact_name" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="email">Email</label>
-                    <input
-                        id="email"
-                        v-model="form.email"
-                        type="email"
-                        required
-                        maxlength="160"
-                        class="landing-modal-form__input"
-                        autocomplete="email"
-                    />
-                    <InputError :message="form.errors.email" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="phone">{{ t('landing.phone') }}</label>
-                    <input
-                        id="phone"
-                        :value="form.phone"
-                        type="tel"
-                        required
-                        class="landing-modal-form__input"
-                        :placeholder="t('landing.phonePlaceholder')"
-                        autocomplete="tel"
-                        inputmode="tel"
-                        @input="onPhoneInput"
-                    />
-                    <InputError :message="form.errors.phone" />
-                </div>
-
-                <div class="landing-modal-form__field">
-                    <label class="landing-modal-form__label" for="message">
-                        {{ t('landing.comment') }} <span class="landing-modal-form__optional">{{ t('landing.optional') }}</span>
-                    </label>
-                    <textarea
-                        id="message"
-                        v-model="form.message"
-                        rows="3"
-                        maxlength="2000"
-                        class="landing-modal-form__input landing-modal-form__textarea"
-                        :placeholder="t('landing.commentPlaceholder')"
-                    />
-                    <InputError :message="form.errors.message" />
-                </div>
-
-                <div class="landing-modal-form__legal">
-                    <div class="landing-modal-form__notice" role="note">
-                        <p class="landing-modal-form__notice-title">{{ t('landing.afterApprovalTitle') }}</p>
-                        <p class="landing-modal-form__notice-text">
-                            {{ t('landing.afterApprovalText', { trialDays: t('landing.trialDaysBold') }) }}
-                        </p>
-                    </div>
-
-                    <div class="landing-modal-form__terms-wrap">
-                        <label class="landing-modal-form__terms">
-                            <UiCheckbox v-model="form.terms_accepted" size="sm" />
-                            <span class="landing-modal-form__terms-text">
-                                {{ t('landing.termsText') }}
-                            </span>
-                        </label>
-                        <InputError
-                            class="landing-modal-form__terms-error"
-                            :message="form.errors.terms_accepted"
-                        />
-                    </div>
-                </div>
-            </form>
-
-            <template #footer>
-                <button type="button" class="landing-modal-form__btn landing-modal-form__btn--ghost" @click="closeRequestModal">
-                    {{ t('landing.cancel') }}
-                </button>
-                <button
-                    type="submit"
-                    form="landing-request-form"
-                    class="landing-modal-form__btn landing-modal-form__btn--primary"
-                    :disabled="!canSubmit"
-                >
-                    {{ form.processing ? t('landing.submitting') : t('landing.submit') }}
-                </button>
-            </template>
-        </UiModal>
+        />
 
         <footer class="landing__footer">
             <span>© {{ new Date().getFullYear() }} Accel</span>
             <nav class="landing__footer-links">
                 <a href="mailto:hello@accel.kz">hello@accel.kz</a>
+                <Link href="/faq">{{ t('landing.navFaq') }}</Link>
                 <Link href="/calculator">{{ t('landing.calculatorLink') }}</Link>
             </nav>
         </footer>
@@ -832,8 +483,6 @@ onUnmounted(() => {
     .landing__features-item:hover,
     .landing__pricing-card,
     .landing__pricing-card:hover,
-    .landing__faq-item,
-    .landing__faq-item:hover,
     .landing__cta-btn,
     .landing__cta-btn:hover {
         transform: none;
@@ -1096,53 +745,6 @@ onUnmounted(() => {
     text-decoration: underline;
 }
 
-.landing__faq {
-    max-width: 48rem;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.landing__faq-list {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.landing__faq-item {
-    padding: 1.35rem 1.5rem;
-    background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
-    border: 1px solid var(--landing-border-bright);
-    border-radius: var(--landing-radius);
-    box-shadow: var(--landing-elevation);
-    transition:
-        transform 0.22s ease,
-        border-color 0.22s ease,
-        box-shadow 0.22s ease;
-}
-
-.landing__faq-item:hover {
-    transform: translateY(-2px);
-    border-color: rgba(1, 185, 100, 0.24);
-    box-shadow:
-        var(--landing-elevation),
-        0 0 0 1px rgba(1, 185, 100, 0.06);
-}
-
-.landing__faq-question {
-    margin: 0 0 0.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--landing-text);
-}
-
-.landing__faq-answer {
-    margin: 0;
-    font-size: 0.9375rem;
-    line-height: 1.55;
-    color: var(--landing-muted);
-}
-
 .landing__pricing-btn {
     width: 100%;
     margin-top: auto;
@@ -1203,260 +805,5 @@ onUnmounted(() => {
     font-size: 0.8125rem;
     line-height: 1.5;
     color: var(--landing-muted);
-}
-
-.landing__toast {
-    position: fixed;
-    bottom: 1.25rem;
-    left: 50%;
-    z-index: 1300;
-    max-width: min(24rem, calc(100vw - 2rem));
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    text-align: center;
-    color: var(--landing-accent);
-    background: var(--landing-surface);
-    border: 1px solid rgba(1, 185, 100, 0.35);
-    border-radius: 0.5rem;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-    transform: translateX(-50%);
-}
-
-.landing-modal-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.landing-modal-form__field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.landing-modal-form__label {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--wa-text-secondary, #8696a0);
-}
-
-.landing-modal-form__optional {
-    font-weight: 400;
-    opacity: 0.8;
-}
-
-.landing-modal-form__hint {
-    margin: 0;
-    font-size: 0.75rem;
-    line-height: 1.45;
-    color: var(--wa-text-secondary, #8696a0);
-}
-
-.landing-modal-form__hint strong {
-    font-weight: 600;
-    color: var(--wa-text, #e9edef);
-}
-
-.landing-modal-form__slug {
-    display: flex;
-    align-items: stretch;
-    border-radius: 0.5rem;
-    border: 1px solid var(--wa-border-strong, rgba(134, 150, 160, 0.22));
-    overflow: hidden;
-    background: var(--wa-panel-input, #1a1f1f);
-}
-
-.landing-modal-form__slug:focus-within {
-    border-color: rgba(1, 185, 100, 0.55);
-    box-shadow: 0 0 0 2px rgba(1, 185, 100, 0.12);
-}
-
-.landing-modal-form__input--slug {
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    flex: 1;
-    min-width: 0;
-}
-
-.landing-modal-form__slug--available {
-    border-color: rgba(1, 185, 100, 0.55);
-}
-
-.landing-modal-form__slug--unavailable {
-    border-color: rgba(234, 112, 112, 0.55);
-}
-
-.landing-modal-form__slug-status {
-    margin: 0.35rem 0 0;
-    font-size: 0.8125rem;
-    line-height: 1.4;
-}
-
-.landing-modal-form__slug-status--ok {
-    color: #01b964;
-}
-
-.landing-modal-form__slug-status--bad {
-    color: #ea7070;
-}
-
-.landing-modal-form__slug-status--pending {
-    color: var(--wa-text-secondary, #8696a0);
-}
-
-.landing-modal-form__slug-suffix {
-    display: flex;
-    align-items: center;
-    padding: 0 0.75rem;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    color: var(--wa-text-secondary, #8696a0);
-    background: color-mix(in srgb, #ffffff 4%, var(--wa-panel-header, #1d1f1f));
-    border-left: 1px solid var(--wa-border, rgba(134, 150, 160, 0.13));
-}
-
-.landing-modal-form__input {
-    width: 100%;
-    padding: 0.7rem 0.8rem;
-    font-size: 0.9375rem;
-    font-family: inherit;
-    color: var(--wa-text, #e9edef);
-    background: var(--wa-panel-input, #1a1f1f);
-    border: 1px solid var(--wa-border-strong, rgba(134, 150, 160, 0.22));
-    border-radius: 0.5rem;
-    outline: none;
-}
-
-.landing-modal-form__input:focus {
-    border-color: rgba(1, 185, 100, 0.55);
-}
-
-.landing-modal-form__textarea {
-    resize: vertical;
-    min-height: 4rem;
-}
-
-.landing-modal-form__field :deep(p) {
-    margin: 0;
-    font-size: 0.75rem;
-    color: #ea7070;
-}
-
-.landing-modal-form__btn {
-    padding: 0.6rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    border: none;
-    transition: opacity 0.15s ease;
-}
-
-.landing-modal-form__btn--ghost {
-    color: var(--wa-text-secondary, #8696a0);
-    background: transparent;
-    border: 1px solid var(--wa-border-strong, rgba(134, 150, 160, 0.22));
-}
-
-.landing-modal-form__btn--primary {
-    color: #fff;
-    background: var(--landing-accent, #01b964);
-}
-
-.landing-modal-form__btn--primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.landing-modal-form__legal {
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
-    margin-top: 0.125rem;
-}
-
-.landing-modal-form__notice {
-    padding: 1rem 1.125rem;
-    border-radius: 0.625rem;
-    background: rgba(1, 185, 100, 0.07);
-    border: 1px solid rgba(1, 185, 100, 0.2);
-    border-left: 3px solid rgba(1, 185, 100, 0.55);
-}
-
-.landing-modal-form__notice-title {
-    margin: 0 0 0.5rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.35;
-    color: var(--wa-text, #e9edef);
-}
-
-.landing-modal-form__notice-text {
-    margin: 0;
-    font-size: 0.75rem;
-    line-height: 1.6;
-    color: var(--wa-text-secondary, #8696a0);
-}
-
-.landing-modal-form__notice-text strong {
-    color: var(--wa-text, #e9edef);
-    font-weight: 600;
-}
-
-.landing-modal-form__terms-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-}
-
-.landing-modal-form__terms {
-    display: grid;
-    grid-template-columns: 0.9375rem minmax(0, 1fr);
-    column-gap: 0.625rem;
-    align-items: start;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    color: var(--wa-text-secondary, #8696a0);
-    cursor: pointer;
-}
-
-.landing-modal-form__terms :deep(.ui-checkbox) {
-    margin-top: 0.125rem;
-}
-
-.landing-modal-form__terms-text {
-    min-width: 0;
-}
-
-.landing-modal-form__terms-error {
-    margin: 0;
-    padding-left: calc(0.9375rem + 0.625rem);
-}
-
-.landing__footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    padding: 1.25rem clamp(1.5rem, 5vw, 3rem);
-    font-size: 0.8125rem;
-    color: #667781;
-}
-
-.landing__footer-links {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-}
-
-.landing__footer a {
-    color: var(--landing-muted);
-    text-decoration: none;
-}
-
-.landing__footer a:hover {
-    color: var(--landing-accent);
 }
 </style>

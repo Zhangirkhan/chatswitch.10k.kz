@@ -29,6 +29,7 @@ final class LandingSitemapTest extends TestCase
             ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
             ->assertSee('<loc>https://'.$host.'/</loc>', false)
             ->assertSee('<loc>https://'.$host.'/calculator</loc>', false)
+            ->assertSee('<loc>https://'.$host.'/faq</loc>', false)
             ->assertSee('hreflang="kk"', false)
             ->assertSee('hreflang="x-default"', false);
     }

@@ -53,6 +53,18 @@ final class LandingController extends Controller
         ]);
     }
 
+    public function faq(MobileAppReleaseService $mobileReleases): Response
+    {
+        $androidRelease = $mobileReleases->latestPublished('android');
+
+        return Inertia::render('Landing/Faq', [
+            'rootDomain' => (string) config('tenancy.root_domain', 'accel.kz'),
+            'androidApkUrl' => $androidRelease !== null
+                ? $mobileReleases->absoluteDownloadUrl($androidRelease->download_url)
+                : url('/apk/app-release.apk'),
+        ]);
+    }
+
     public function notFound(Request $request): SymfonyResponse
     {
         $reason = $request->query('reason');

@@ -14,12 +14,18 @@ final class LandingStructuredData
      */
     public static function graphs(array $landingMeta): array
     {
-        if (($landingMeta['page'] ?? 'home') !== 'home') {
+        $page = (string) ($landingMeta['page'] ?? 'home');
+        $locale = (string) ($landingMeta['locale'] ?? 'kk');
+        $baseUrl = LandingLocale::baseUrl();
+
+        if ($page === 'faq') {
+            return self::faqGraph($locale);
+        }
+
+        if ($page !== 'home') {
             return [];
         }
 
-        $locale = (string) ($landingMeta['locale'] ?? 'kk');
-        $baseUrl = LandingLocale::baseUrl();
         $graphs = [
             self::organizationGraph($baseUrl),
             self::softwareApplicationGraph($landingMeta, $baseUrl),
@@ -27,10 +33,6 @@ final class LandingStructuredData
 
         foreach (self::offerGraphs($locale, $baseUrl) as $offer) {
             $graphs[] = $offer;
-        }
-
-        foreach (self::faqGraph($locale) as $faq) {
-            $graphs[] = $faq;
         }
 
         return $graphs;

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LandingController::class, 'home'])->name('landing.home');
 Route::get('/calculator', [LandingController::class, 'calculator'])->name('landing.calculator');
+Route::get('/faq', [LandingController::class, 'faq'])->name('landing.faq');
 Route::get('/sitemap.xml', LandingSitemapController::class)->name('landing.sitemap');
 Route::get('/check-tenant-slug', [LandingController::class, 'checkTenantSlug'])
     ->middleware('throttle:60,1')

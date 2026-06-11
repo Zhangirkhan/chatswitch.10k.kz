@@ -109,6 +109,34 @@ final class LandingMetaTest extends TestCase
             ->assertSee('<link rel="canonical" href="https://'.$host.'/calculator"', false);
     }
 
+    public function test_faq_page_has_page_specific_meta(): void
+    {
+        $host = $this->landingHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $meta = config('landing.pages.faq.kk');
+
+        $this->withoutVite()
+            ->withServerVariables(['HTTP_HOST' => $host])
+            ->get("https://{$host}/faq")
+            ->assertOk()
+            ->assertSee('<meta name="description" content="'.$meta['description'].'"', false)
+            ->assertSee('<link rel="canonical" href="https://'.$host.'/faq"', false);
+    }
+
+    public function test_home_page_does_not_include_faq_structured_data(): void
+    {
+        $host = $this->landingHost();
+        URL::forceRootUrl('https://'.$host);
+
+        $this->withoutVite()
+            ->withServerVariables(['HTTP_HOST' => $host])
+            ->get("https://{$host}/")
+            ->assertOk()
+            ->assertSee('"@type":"Organization"', false)
+            ->assertDontSee('"@type":"FAQPage"', false);
+    }
+
     public function test_not_found_page_has_noindex_robots(): void
     {
         $host = $this->landingHost();

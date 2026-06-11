@@ -11,7 +11,7 @@ final class LandingSitemapController extends Controller
 {
     public function __invoke(): Response
     {
-        $pages = ['home', 'calculator'];
+        $pages = ['home', 'calculator', 'faq'];
         $lastmod = now()->toAtomString();
         $lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
