@@ -118,6 +118,14 @@ final class ChatFunnelStateService
 
         if ($fromStageId !== $classification->funnelStageId) {
             app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat->fresh() ?? $chat);
+
+            $targetStage = \App\Models\FunnelStage::query()->find($classification->funnelStageId);
+            if ($targetStage !== null) {
+                app(\App\Services\AI\DealOutcomeRecorder::class)->recordFromStageTransition(
+                    $chat->fresh() ?? $chat,
+                    $targetStage,
+                );
+            }
         }
 
         $this->broadcastFresh($chat->id, 'ai', $classification->reason);

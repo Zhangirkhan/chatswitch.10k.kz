@@ -26,6 +26,8 @@ final class ScheduledMessage extends Model
 
     public const PURPOSE_FUNNEL_FOLLOW_UP = 'funnel_follow_up';
 
+    public const PURPOSE_NURTURE_FOLLOW_UP = 'nurture_follow_up';
+
     protected $fillable = [
         'chat_id',
         'whatsapp_session_id',
@@ -39,6 +41,7 @@ final class ScheduledMessage extends Model
         'status',
         'sent_message_id',
         'error',
+        'metadata',
     ];
 
     protected function casts(): array
@@ -46,6 +49,7 @@ final class ScheduledMessage extends Model
         return [
             'scheduled_at' => 'datetime',
             'funnel_stage_id' => 'integer',
+            'metadata' => 'array',
         ];
     }
 

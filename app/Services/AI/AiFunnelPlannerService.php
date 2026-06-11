@@ -85,6 +85,10 @@ final class AiFunnelPlannerService
         $triggerText = trim(MessageInboundText::forMessage($trigger));
         $locale = $this->localeAugmenter->augment($triggerText, $chat, $chat->company_id, $trigger);
 
+        $salesState = AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
+            ? $this->salesStateService->freshState($chat)
+            : null;
+
         return [
             'chat_id' => $chat->id,
             'trigger_message_id' => $trigger->id,
@@ -118,8 +122,12 @@ final class AiFunnelPlannerService
             ] : null,
             'candidate_assignees' => $candidateAssignees,
             'available_slots' => $availableSlots,
-            'sales_state' => AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
-                ? $this->salesStateService->freshState($chat)
+            'sales_state' => $salesState,
+            'lead_score' => AiFeatureFlags::enabled(AiFeatureFlags::LEAD_SCORING, $chat->company_id)
+                ? ($salesState['score'] ?? null)
+                : null,
+            'lead_grade' => AiFeatureFlags::enabled(AiFeatureFlags::LEAD_SCORING, $chat->company_id)
+                ? ($salesState['grade'] ?? null)
                 : null,
             'existing_appointments' => CalendarEvent::query()
                 ->where('chat_id', $chat->id)
@@ -207,6 +215,7 @@ final class AiFunnelPlannerService
 31. Не зеркаль мат и CAPS. Не обещай возврат денег или юридическое решение — только процесс и передачу менеджеру.
 32. Если в контексте есть sales_state.next_action — обязательно выполни это действие в customer_reply: ask_budget → задай вопрос о бюджете; ask_requirements → уточни потребность; present_offer → предложи конкретный вариант; handle_objection → отработай возражение из sales_state.objections_open; book_appointment → предложи записаться; confirm_deal → предложи перейти к оформлению; follow_up → уточни, когда удобно продолжить разговор. Исключение: если клиент написал «спасибо»/«ок»/«понятно» — добавь шаг к ответу, а не заменяй его.
 33. Если клиент написал «подумаем», «позже», «не сейчас» или аналог — НЕ давай продажное давление. Коротко прими к сведению («Понял, не тороплю»), назови одну ключевую ценность или якорь, и мягко предложи дату или повод вернуться: «Когда будет удобно?». Не повторяй цену и не уговаривай в том же сообщении.
+34. Если в контексте lead_grade = C — не делай оффер и не называй цены; только квалификация (один вопрос из missing_fields). Если lead_grade = A и sales_state.qualified = true — можно активнее предлагать present_offer или book_appointment.
 
 Контекст оркестратора:
 {$json}

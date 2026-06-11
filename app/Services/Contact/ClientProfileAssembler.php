@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Contact;
 
 use App\Enums\EntityMemorySubjectType;
+use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\EntityMemory;
 use App\Models\User;
@@ -52,7 +53,10 @@ final class ClientProfileAssembler
         // Structured AI-facts for the contact panel (budget, requirements, etc.)
         // Exposed separately so the UI can render them as labelled fields rather
         // than a raw markdown blob.
-        $aiFacts = $this->resolveAiFacts($contact->id);
+        $aiFacts = array_merge(
+            $this->resolveLeadScoreFacts($contact, $preferredChatId),
+            $this->resolveAiFacts($contact->id),
+        );
 
         return $this->fieldFilter->apply($contact, [
             'contact_id' => $contact->id,
@@ -465,14 +469,17 @@ final class ClientProfileAssembler
         }
 
         $labels = [
-            'budget'       => 'Бюджет',
-            'requirements' => 'Требования',
-            'objections'   => 'Возражения',
-            'agreements'   => 'Договорённости',
-            'preferences'  => 'Предпочтения',
-            'source'       => 'Источник лида',
-            'contact_info' => 'Контактные данные',
-            'other'        => 'Прочее',
+            'budget'             => 'Бюджет',
+            'requirements'       => 'Требования',
+            'timeline'           => 'Срок покупки',
+            'decision_maker'     => 'Кто решает',
+            'reason_for_contact' => 'Причина обращения',
+            'objections'         => 'Возражения',
+            'agreements'         => 'Договорённости',
+            'preferences'        => 'Предпочтения',
+            'source'             => 'Источник лида',
+            'contact_info'       => 'Контактные данные',
+            'other'              => 'Прочее',
         ];
 
         $result = [];
@@ -486,6 +493,48 @@ final class ClientProfileAssembler
                 'label'      => $label,
                 'value'      => (string) $value,
                 'updated_at' => $facts[$key.'_at'] ?? null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array{key: string, label: string, value: string, updated_at: string|null}>
+     */
+    private function resolveLeadScoreFacts(Contact $contact, ?int $preferredChatId): array
+    {
+        $query = Chat::query()
+            ->where('contact_id', $contact->id)
+            ->whereNotNull('sales_state');
+
+        if ($preferredChatId !== null) {
+            $chat = (clone $query)->where('id', $preferredChatId)->first();
+            if ($chat === null) {
+                $chat = $query->orderByDesc('sales_state_updated_at')->first();
+            }
+        } else {
+            $chat = $query->orderByDesc('sales_state_updated_at')->first();
+        }
+
+        if ($chat === null) {
+            return [];
+        }
+
+        $state = $chat->sales_state;
+        if (! is_array($state)) {
+            return [];
+        }
+
+        $result = [];
+        $grade = $state['grade'] ?? null;
+        $score = $state['score'] ?? null;
+        if ($grade !== null && $score !== null) {
+            $result[] = [
+                'key'        => 'lead_grade',
+                'label'      => 'Качество лида',
+                'value'      => "{$grade} ({$score}/100)",
+                'updated_at' => $chat->sales_state_updated_at?->format('d.m H:i'),
             ];
         }
 

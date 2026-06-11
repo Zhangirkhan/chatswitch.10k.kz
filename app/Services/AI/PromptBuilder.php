@@ -64,6 +64,7 @@ final class PromptBuilder
         private readonly CompanyPromotionCatalog $promotionCatalog,
         private readonly RetrievalQueryBuilder $retrievalQueryBuilder,
         private readonly ChatSalesStateService $salesStateService,
+        private readonly DealOutcomeStatsService $dealOutcomeStats,
     ) {}
 
     /**
@@ -506,6 +507,10 @@ final class PromptBuilder
             : '';
 
         $priceGuardBlock = $this->priceGuardRule($chat);
+        $dealInsightsBlock = $companyId !== null
+            && AiFeatureFlags::enabled(AiFeatureFlags::WIN_LOSS_LEARNING, $companyId)
+            ? $this->dealOutcomeStats->promptBlock($companyId)
+            : '';
 
         return <<<PROMPT
 {$personaLine}
@@ -569,6 +574,8 @@ final class PromptBuilder
 {$styleExamplesBlock}
 
 {$memoryBlock}
+
+{$dealInsightsBlock}
 
 {$promotionsBlock}
 PROMPT;

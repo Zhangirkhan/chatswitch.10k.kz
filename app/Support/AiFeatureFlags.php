@@ -46,6 +46,15 @@ final class AiFeatureFlags
     /** Persist and inject structured sales state (qualified, budget_known, next_action, …). */
     public const SALES_STATE = 'ai.sales_state';
 
+    /** Deterministic lead score (0–100) and grade (A/B/C) in sales_state. */
+    public const LEAD_SCORING = 'ai.lead_scoring';
+
+    /** D+2/D+7/D+14 nurture sequence after client defers («подумаем»). */
+    public const NURTURE_FOLLOW_UP = 'ai.nurture_follow_up';
+
+    /** Record deal outcomes on close and inject tenant win/loss insights into prompts. */
+    public const WIN_LOSS_LEARNING = 'ai.win_loss_learning';
+
     /** All known flag keys — used for validation and documentation. */
     public const ALL_KEYS = [
         self::MEMORY_EXTRACTION,
@@ -57,6 +66,9 @@ final class AiFeatureFlags
         self::RETRIEVAL_CONTEXT_AWARE,
         self::RETRIEVAL_DOMAIN_FILTER,
         self::SALES_STATE,
+        self::LEAD_SCORING,
+        self::NURTURE_FOLLOW_UP,
+        self::WIN_LOSS_LEARNING,
     ];
 
     /**

@@ -8,6 +8,7 @@ use App\Events\NewMessageReceived;
 use App\Jobs\SendOutboundMessageJob;
 use App\Models\ScheduledMessage;
 use App\Services\ChatService;
+use App\Services\AI\ChatNurtureSequenceService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\OperatorSignature;
 use Illuminate\Console\Command;
@@ -19,8 +20,11 @@ final class SendScheduledMessages extends Command
 
     protected $description = 'Send due scheduled chat messages.';
 
-    public function handle(ChatService $chatService, FunnelStageFollowUpService $followUpService): int
-    {
+    public function handle(
+        ChatService $chatService,
+        FunnelStageFollowUpService $followUpService,
+        ChatNurtureSequenceService $nurtureSequence,
+    ): int {
         $limit = max(1, min(200, (int) $this->option('limit')));
 
         $ids = ScheduledMessage::query()
@@ -33,7 +37,7 @@ final class SendScheduledMessages extends Command
 
         $sent = 0;
         foreach ($ids as $id) {
-            if ($this->sendOne((int) $id, $chatService, $followUpService)) {
+            if ($this->sendOne((int) $id, $chatService, $followUpService, $nurtureSequence)) {
                 $sent++;
             }
         }
@@ -43,8 +47,12 @@ final class SendScheduledMessages extends Command
         return self::SUCCESS;
     }
 
-    private function sendOne(int $id, ChatService $chatService, FunnelStageFollowUpService $followUpService): bool
-    {
+    private function sendOne(
+        int $id,
+        ChatService $chatService,
+        FunnelStageFollowUpService $followUpService,
+        ChatNurtureSequenceService $nurtureSequence,
+    ): bool {
         $scheduled = ScheduledMessage::query()->whereKey($id)->first();
         if ($scheduled === null || $scheduled->status !== ScheduledMessage::STATUS_PENDING) {
             return false;
@@ -117,6 +125,10 @@ final class SendScheduledMessages extends Command
                     (int) $scheduled->funnel_stage_id,
                     (int) $message->id,
                 );
+            }
+
+            if ($scheduled->purpose === ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP) {
+                $nurtureSequence->onStepSent($scheduled->fresh() ?? $scheduled);
             }
 
             return true;

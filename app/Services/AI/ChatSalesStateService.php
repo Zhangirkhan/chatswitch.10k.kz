@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\Memory\EntityMemoryService;
+use App\Support\AiFeatureFlags;
 use App\Support\MessageInboundText;
 use Illuminate\Support\Facades\Log;
 
@@ -42,6 +43,8 @@ final class ChatSalesStateService
     public function __construct(
         private readonly ClientMessageIntentDetector $intentDetector,
         private readonly EntityMemoryService $entityMemory,
+        private readonly ChatLeadScoreService $leadScoreService,
+        private readonly ChatNurtureSequenceService $nurtureSequence,
     ) {}
 
     /**
@@ -163,6 +166,8 @@ final class ChatSalesStateService
             'chat_id' => $chat->id,
             'body'    => mb_substr($body, 0, 80),
         ]);
+
+        $this->nurtureSequence->startFromDeferral($chat->fresh() ?? $chat, $message);
     }
 
     /**
@@ -189,6 +194,8 @@ final class ChatSalesStateService
             'sales_state'            => $state !== [] ? $state : null,
             'sales_state_updated_at' => now(),
         ])->save();
+
+        $this->nurtureSequence->cancelForChat($chat, 're_engaged');
     }
 
     /**
@@ -230,6 +237,12 @@ final class ChatSalesStateService
         $objections = $state['objections_open'] ?? [];
         if ($objections !== []) {
             $lines[] = 'Открытые возражения: '.implode('; ', array_slice($objections, 0, 3)).'.';
+        }
+
+        $grade = $state['grade'] ?? null;
+        $score = $state['score'] ?? null;
+        if ($grade !== null && $score !== null) {
+            $lines[] = "Качество лида: {$grade} ({$score}/100).";
         }
 
         $nextAction = $state['next_action'] ?? null;
@@ -303,6 +316,9 @@ final class ChatSalesStateService
         }
 
         // Determine next action.
+        $existingState = is_array($chat->sales_state) ? $chat->sales_state : [];
+        $deferralDetected = ($existingState['deferral_detected'] ?? false) === true;
+
         $nextAction = $this->deriveNextAction(
             $chat,
             $budgetKnown,
@@ -314,17 +330,27 @@ final class ChatSalesStateService
             $decisionMakerKnown,
         );
 
-        return [
-            'qualified'           => $qualified,
-            'budget_known'        => $budgetKnown,
-            'requirements_known'  => $requirementsKnown,
-            'timeline_known'      => $timelineKnown,
+        $partial = [
+            'qualified'            => $qualified,
+            'budget_known'         => $budgetKnown,
+            'requirements_known'   => $requirementsKnown,
+            'timeline_known'       => $timelineKnown,
             'decision_maker_known' => $decisionMakerKnown,
-            'objections_open'     => $objectionsOpen,
-            'agreements'          => $agreements !== '' ? $agreements : null,
-            'missing_fields'      => $missingFields,
-            'next_action'         => $nextAction,
+            'objections_open'      => $objectionsOpen,
+            'agreements'           => $agreements !== '' ? $agreements : null,
+            'missing_fields'       => $missingFields,
+            'next_action'          => $nextAction,
+            'deferral_detected'    => $deferralDetected,
         ];
+
+        if (AiFeatureFlags::enabled(AiFeatureFlags::LEAD_SCORING, $chat->company_id)) {
+            $scored = $this->leadScoreService->score($chat, $partial, $facts);
+            $partial['score'] = $scored['score'];
+            $partial['grade'] = $scored['grade'];
+            $partial['score_factors'] = $scored['score_factors'];
+        }
+
+        return $partial;
     }
 
     /**

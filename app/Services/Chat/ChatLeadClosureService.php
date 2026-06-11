@@ -6,6 +6,9 @@ namespace App\Services\Chat;
 
 use App\Events\ChatsListNotify;
 use App\Models\Chat;
+use App\Services\AI\ChatNurtureSequenceService;
+use App\Services\AI\DealOutcomeRecorder;
+use App\Support\AiFeatureFlags;
 use App\Support\ChatBroadcastAudience;
 use App\Services\Push\MobilePushService;
 use App\Support\SafeBroadcast;
@@ -13,7 +16,11 @@ use Illuminate\Support\Carbon;
 
 final class ChatLeadClosureService
 {
-    public function close(Chat $chat): Chat
+    public function __construct(
+        private readonly ChatNurtureSequenceService $nurtureSequence,
+    ) {}
+
+    public function close(Chat $chat, ?bool $won = null, ?string $reason = null): Chat
     {
         if ($chat->is_lead_closed) {
             return $chat;
@@ -23,6 +30,12 @@ final class ChatLeadClosureService
             'is_lead_closed' => true,
             'lead_closed_at' => now(),
         ])->save();
+
+        $this->nurtureSequence->cancelForChat($chat, 'lead_closed');
+
+        if ($won !== null && AiFeatureFlags::enabled(AiFeatureFlags::WIN_LOSS_LEARNING, $chat->company_id)) {
+            app(DealOutcomeRecorder::class)->recordManualClose($chat, $won, $reason);
+        }
 
         $this->broadcastListUpdate($chat, 'lead_closed');
 
