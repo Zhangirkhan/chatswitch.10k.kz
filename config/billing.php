@@ -16,6 +16,12 @@ return [
      */
     'standard_price_cents' => (int) env('BILLING_STANDARD_PRICE_CENTS', 4_000_000),
 
+    /**
+     * Цена коробочного тарифа в тиынах (разовая оплата).
+     * 1 000 000 ₸ = 100 000 000 тиын.
+     */
+    'boxed_price_cents' => (int) env('BILLING_BOXED_PRICE_CENTS', 100_000_000),
+
     'currency' => env('BILLING_CURRENCY', 'KZT'),
 
     /** Реквизиты для счетов и писем. */

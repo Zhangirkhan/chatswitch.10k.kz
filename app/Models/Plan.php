@@ -30,6 +30,11 @@ final class Plan extends Model
         ];
     }
 
+    public function isOneTime(): bool
+    {
+        return $this->interval === 'once';
+    }
+
     public function formattedPrice(): string
     {
         $amount = (int) round($this->price_cents / 100);
@@ -37,8 +42,24 @@ final class Plan extends Model
         return number_format($amount, 0, ',', ' ').' ₸';
     }
 
+    public function priceLabel(): string
+    {
+        if ($this->isOneTime()) {
+            return $this->formattedPrice().' разово';
+        }
+
+        return match ($this->interval) {
+            'year' => $this->formattedPrice().' / год',
+            default => $this->formattedPrice().' / мес.',
+        };
+    }
+
     public function pricePerMonthLabel(): string
     {
+        if ($this->isOneTime()) {
+            return $this->priceLabel();
+        }
+
         return $this->formattedPrice().' / мес.';
     }
 

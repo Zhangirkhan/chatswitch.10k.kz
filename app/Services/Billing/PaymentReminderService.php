@@ -117,6 +117,7 @@ final class PaymentReminderService
             ->where('subscription_status', 'active')
             ->whereNotNull('current_period_ends_at')
             ->where('current_period_ends_at', '>', now())
+            ->whereHas('plan', static fn ($query) => $query->where('interval', '!=', 'once'))
             ->with(['plan', 'owner'])
             ->orderBy('id')
             ->each(function (Company $company) use ($today, $daysBefore, &$sent, &$skipped, &$failed): void {

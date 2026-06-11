@@ -45,7 +45,7 @@ final class PlanController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'price_cents' => ['required', 'integer', 'min:0'],
             'currency' => ['required', 'string', 'size:3'],
-            'interval' => ['required', 'string', Rule::in(['month', 'year'])],
+            'interval' => ['required', 'string', Rule::in(['month', 'year', 'once'])],
             'trial_days' => ['required', 'integer', 'min:0', 'max:90'],
             'is_active' => ['boolean'],
         ]);

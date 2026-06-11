@@ -29,6 +29,9 @@ final class LandingHomePageTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Landing/Home')
-                ->has('rootDomain'));
+                ->has('rootDomain')
+                ->has('pricingPlans', 2)
+                ->where('pricingPlans.0.code', 'standard')
+                ->where('pricingPlans.1.code', 'boxed'));
     }
 }

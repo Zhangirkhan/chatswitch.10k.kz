@@ -9,6 +9,7 @@ import { binDigitsOnly, maskBinInput, maskKzPhoneInput, sanitizeTenantSlugInput 
 import LandingHead from '@/Components/Landing/LandingHead.vue';
 import LandingHeader from '@/Components/Landing/LandingHeader.vue';
 import { useLandingLocale } from '@/composables/useLandingLocale';
+import type { MessageKey } from '@/i18n/types';
 import { useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -17,9 +18,18 @@ type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'reserved' | 'in
 
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
+type PricingPlanCode = 'standard' | 'boxed';
+
+interface PricingPlanProp {
+    code: string;
+    price: string;
+    interval: string;
+}
+
 const props = defineProps<{
     rootDomain?: string;
     androidApkUrl?: string;
+    pricingPlans?: PricingPlanProp[];
 }>();
 
 const rootDomain = computed(() => props.rootDomain ?? 'accel.kz');
@@ -49,13 +59,25 @@ const features = computed(() => [
 
 const featureGlowColors = ['#01b964', '#06d670', '#2dd4bf'] as const;
 
-const pricingBullets = computed(() => [
-    t('landing.pricingBullet1'),
-    t('landing.pricingBullet2'),
-    t('landing.pricingBullet3'),
-    t('landing.pricingBullet4'),
-    t('landing.pricingBullet5'),
-]);
+function isPricingPlanCode(code: string): code is PricingPlanCode {
+    return code === 'standard' || code === 'boxed';
+}
+
+function planField(code: PricingPlanCode, field: 'name' | 'period' | 'trial' | 'badge'): string {
+    return t(`landing.pricingPlans.${code}.${field}` as MessageKey);
+}
+
+function planBullets(code: PricingPlanCode): string[] {
+    return [1, 2, 3, 4, 5].map((index) =>
+        t(`landing.pricingPlans.${code}.bullet${index}` as MessageKey),
+    );
+}
+
+const visiblePricingPlans = computed(() =>
+    (props.pricingPlans ?? []).filter((plan): plan is PricingPlanProp & { code: PricingPlanCode } =>
+        isPricingPlanCode(plan.code),
+    ),
+);
 
 const isMobileViewport = ref(
     typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
@@ -354,19 +376,29 @@ onUnmounted(() => {
 
             <section id="pricing" class="landing__pricing">
                 <h2 class="landing__section-title">{{ t('landing.pricingTitle') }}</h2>
-                <div class="landing__pricing-card">
-                    <p class="landing__pricing-plan">{{ t('landing.pricingPlanName') }}</p>
-                    <p class="landing__pricing-amount">
-                        {{ t('landing.pricingAmount') }}
-                        <span class="landing__pricing-period">{{ t('landing.pricingPeriod') }}</span>
-                    </p>
-                    <p class="landing__pricing-trial">{{ t('landing.pricingTrial') }}</p>
-                    <ul class="landing__pricing-list">
-                        <li v-for="bullet in pricingBullets" :key="bullet">{{ bullet }}</li>
-                    </ul>
-                    <button type="button" class="landing__cta-btn landing__pricing-btn" @click="openRequestModal">
-                        {{ t('landing.ctaButton') }}
-                    </button>
+                <div class="landing__pricing-grid">
+                    <article
+                        v-for="plan in visiblePricingPlans"
+                        :key="plan.code"
+                        class="landing__pricing-card"
+                        :class="{ 'landing__pricing-card--boxed': plan.code === 'boxed' }"
+                    >
+                        <p v-if="plan.code === 'boxed'" class="landing__pricing-badge">
+                            {{ planField('boxed', 'badge') }}
+                        </p>
+                        <p class="landing__pricing-plan">{{ planField(plan.code, 'name') }}</p>
+                        <p class="landing__pricing-amount">
+                            {{ plan.price }}
+                            <span class="landing__pricing-period">{{ planField(plan.code, 'period') }}</span>
+                        </p>
+                        <p class="landing__pricing-trial">{{ planField(plan.code, 'trial') }}</p>
+                        <ul class="landing__pricing-list">
+                            <li v-for="bullet in planBullets(plan.code)" :key="bullet">{{ bullet }}</li>
+                        </ul>
+                        <button type="button" class="landing__cta-btn landing__pricing-btn" @click="openRequestModal">
+                            {{ t('landing.ctaButton') }}
+                        </button>
+                    </article>
                 </div>
             </section>
         </main>
@@ -811,14 +843,45 @@ onUnmounted(() => {
     margin-bottom: 3rem;
 }
 
-.landing__pricing-card {
-    max-width: 28rem;
+.landing__pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    max-width: 56rem;
     margin: 0 auto;
+}
+
+.landing__pricing-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
     padding: 2rem;
     border-radius: 1.25rem;
     background: var(--landing-surface);
     border: 1px solid rgba(1, 185, 100, 0.28);
     box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
+}
+
+.landing__pricing-card--boxed {
+    border-color: rgba(45, 212, 191, 0.42);
+    box-shadow:
+        0 24px 48px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(45, 212, 191, 0.08);
+}
+
+.landing__pricing-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    margin: 0;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #04111d;
+    background: linear-gradient(135deg, #2dd4bf, #01b964);
+    border-radius: 999px;
 }
 
 .landing__pricing-plan {
@@ -883,6 +946,13 @@ onUnmounted(() => {
 
 .landing__pricing-btn {
     width: 100%;
+    margin-top: auto;
+}
+
+@media (max-width: 768px) {
+    .landing__pricing-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .landing__card {

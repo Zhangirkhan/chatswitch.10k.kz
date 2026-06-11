@@ -31,7 +31,7 @@ const defaultForm = () => ({
     name: '',
     price_cents: 4_000_000,
     currency: 'KZT',
-    interval: 'month' as 'month' | 'year',
+    interval: 'month' as 'month' | 'year' | 'once',
     trial_days: 14,
     is_active: true,
 });
@@ -45,6 +45,18 @@ const pricePreview = computed(() => {
     const tenge = Math.max(0, Number(priceTenge.value) || 0);
     return new Intl.NumberFormat('ru-RU').format(tenge) + ' ₸';
 });
+
+function formatInterval(interval: string): string {
+    if (interval === 'once') {
+        return t('superAdmin.plans.intervalOnce');
+    }
+
+    if (interval === 'year') {
+        return t('superAdmin.plans.intervalYear');
+    }
+
+    return t('superAdmin.plans.intervalMonth');
+}
 
 function formatPrice(cents: number): string {
     const tenge = Math.round(cents / 100);
@@ -91,7 +103,7 @@ function openEditModal(plan: PlanRow): void {
     editForm.name = plan.name;
     editForm.price_cents = plan.price_cents;
     editForm.currency = plan.currency;
-    editForm.interval = plan.interval as 'month' | 'year';
+    editForm.interval = plan.interval as 'month' | 'year' | 'once';
     editForm.trial_days = plan.trial_days;
     editForm.is_active = plan.is_active;
     editPriceTenge.value = Math.round(plan.price_cents / 100);
@@ -162,7 +174,7 @@ function submitEdit(): void {
                 <div class="mt-2 text-lg font-semibold text-ui-accent">
                     {{ formatPrice(p.price_cents) }}
                     <span class="text-sm font-normal text-ui-text-secondary">
-                        / {{ p.interval === 'month' ? t('superAdmin.plans.intervalMonth') : t('superAdmin.plans.intervalYear') }}
+                        / {{ formatInterval(p.interval) }}
                     </span>
                 </div>
                 <div class="mt-1 text-xs text-ui-text-muted">
@@ -204,6 +216,7 @@ function submitEdit(): void {
                     <select v-model="editForm.interval" class="ui-select mt-1 w-full">
                         <option value="month">{{ t('superAdmin.plans.intervalMonthly') }}</option>
                         <option value="year">{{ t('superAdmin.plans.intervalYearly') }}</option>
+                        <option value="once">{{ t('superAdmin.plans.intervalOneTime') }}</option>
                     </select>
                 </label>
                 <label class="flex items-center gap-2 text-sm">
@@ -286,6 +299,7 @@ function submitEdit(): void {
                         <select v-model="form.interval" class="ui-select mt-1 w-full">
                             <option value="month">{{ t('superAdmin.plans.intervalMonthly') }}</option>
                             <option value="year">{{ t('superAdmin.plans.intervalYearly') }}</option>
+                            <option value="once">{{ t('superAdmin.plans.intervalOneTime') }}</option>
                         </select>
                     </label>
                 </div>

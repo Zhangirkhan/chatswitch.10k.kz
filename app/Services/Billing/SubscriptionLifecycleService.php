@@ -37,6 +37,10 @@ final class SubscriptionLifecycleService
 
     public function trialDaysFor(Plan $plan): int
     {
+        if ($plan->isOneTime()) {
+            return 0;
+        }
+
         return max(1, (int) ($plan->trial_days ?: config('billing.trial_days', 14)));
     }
 
@@ -78,7 +82,12 @@ final class SubscriptionLifecycleService
     public function activatePaid(Company $company, ?Plan $plan = null, ?CarbonInterface $periodEnds = null): Subscription
     {
         $plan ??= $company->plan ?? $this->defaultPlan();
-        $periodEnds ??= now()->addMonth();
+
+        if ($plan->isOneTime()) {
+            $periodEnds = null;
+        } else {
+            $periodEnds ??= now()->addMonth();
+        }
 
         return DB::transaction(function () use ($company, $plan, $periodEnds): Subscription {
             $this->closeOpenSubscriptions($company, 'activated');
@@ -172,6 +181,11 @@ final class SubscriptionLifecycleService
 
         $plan = $company->plan ?? $this->defaultPlan();
         $months = $this->monthsForPaymentAmount($plan, $amountCents);
+
+        if ($months < 1) {
+            return null;
+        }
+
         $periodEnds = $this->periodEndsAfterPayment($company, $months);
         $subscription = $this->activatePaid($company->fresh(), $plan, $periodEnds);
 
@@ -195,6 +209,7 @@ final class SubscriptionLifecycleService
             ->where('subscription_status', 'trial')
             ->whereNotNull('trial_ends_at')
             ->where('trial_ends_at', '<', now())
+            ->whereHas('plan', static fn ($query) => $query->where('interval', '!=', 'once'))
             ->each(function (Company $company) use (&$count): void {
                 DB::transaction(function () use ($company, &$count): void {
                     $open = $this->findOpenSubscription($company);
@@ -242,6 +257,10 @@ final class SubscriptionLifecycleService
 
     private function monthsForPaymentAmount(Plan $plan, int $amountCents): int
     {
+        if ($plan->isOneTime()) {
+            return $amountCents >= $plan->price_cents ? 1 : 0;
+        }
+
         if ($plan->price_cents < 1) {
             return 1;
         }
@@ -249,8 +268,18 @@ final class SubscriptionLifecycleService
         return max(1, (int) round($amountCents / $plan->price_cents));
     }
 
-    private function periodEndsAfterPayment(Company $company, int $months): CarbonInterface
+    private function periodEndsAfterPayment(Company $company, int $months): ?CarbonInterface
     {
+        $plan = $company->plan;
+
+        if ($plan !== null && $plan->isOneTime()) {
+            return null;
+        }
+
+        if ($months < 1) {
+            return null;
+        }
+
         $base = $company->current_period_ends_at !== null
             && Carbon::parse($company->current_period_ends_at)->isFuture()
             ? Carbon::parse($company->current_period_ends_at)

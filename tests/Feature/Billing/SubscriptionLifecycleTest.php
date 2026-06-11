@@ -165,4 +165,38 @@ final class SubscriptionLifecycleTest extends TestCase
         $this->assertSame(1, Subscription::query()->where('company_id', $company->id)->count());
         $this->assertNotNull(Subscription::query()->first()?->canceled_at);
     }
+
+    public function test_apply_payment_on_once_plan_activates_without_period_end(): void
+    {
+        $plan = Plan::query()->firstOrCreate(
+            ['code' => 'boxed'],
+            [
+                'name' => 'Коробочный',
+                'price_cents' => 100_000_000,
+                'currency' => 'KZT',
+                'interval' => 'once',
+                'trial_days' => 0,
+                'is_active' => true,
+            ],
+        );
+
+        $company = Company::query()->create([
+            'name' => 'Box Co',
+            'slug' => 'box-co',
+            'is_active' => true,
+            'plan_id' => $plan->id,
+            'subscription_status' => 'past_due',
+        ]);
+
+        $service = app(SubscriptionLifecycleService::class);
+        $result = $service->applyPaymentToSubscription($company, $plan->price_cents);
+
+        $this->assertNotNull($result);
+        $company->refresh();
+
+        $this->assertSame('active', $company->subscription_status);
+        $this->assertNull($company->current_period_ends_at);
+        $this->assertSame('activated', $result['subscription']->event);
+        $this->assertNull($result['subscription']->ends_at);
+    }
 }

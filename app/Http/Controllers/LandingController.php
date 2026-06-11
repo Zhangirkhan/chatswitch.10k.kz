@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Models\Plan;
 use App\Models\TenantSignupRequest;
 use App\Services\Marketing\AiTokenCalculatorService;
 use App\Services\Mobile\MobileAppReleaseService;
@@ -29,6 +30,18 @@ final class LandingController extends Controller
             'androidApkUrl' => $androidRelease !== null
                 ? $mobileReleases->absoluteDownloadUrl($androidRelease->download_url)
                 : url('/apk/app-release.apk'),
+            'pricingPlans' => Plan::query()
+                ->where('is_active', true)
+                ->whereIn('code', ['standard', 'boxed'])
+                ->orderBy('price_cents')
+                ->get(['code', 'price_cents', 'currency', 'interval'])
+                ->map(static fn (Plan $plan): array => [
+                    'code' => $plan->code,
+                    'price' => $plan->formattedPrice(),
+                    'interval' => $plan->interval,
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 
