@@ -80,7 +80,8 @@ final class OpenAiChatService
         $apiKey = (string) config('services.openai.api_key');
         $baseUrl = rtrim((string) config('services.openai.base_url', 'https://api.openai.com/v1'), '/');
         $companyId = $usage?->companyId;
-        $model = $this->modelResolver->chatModel($companyId);
+        $scenario = $usage?->scenario;
+        $model = $this->modelResolver->chatModel($companyId, $scenario);
         $timeout = $this->modelResolver->requestTimeout($companyId);
         $effectiveMaxTokens = $this->modelResolver->maxTokens($companyId, $maxTokens);
 

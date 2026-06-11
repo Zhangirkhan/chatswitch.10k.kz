@@ -9,11 +9,31 @@ use App\Tenancy\TenantContext;
 
 /**
  * Параметры OpenAI-запросов: модель из OPENAI_MODEL, для demo — повышенные лимиты.
+ *
+ * Per-task model overrides: add keys like services.openai.models.funnel_orchestrator
+ * (or env OPENAI_MODEL_FUNNEL_ORCHESTRATOR) to use a different model for a specific
+ * scenario without changing the global default.
+ *
+ * Supported scenarios: ai_reply, funnel_orchestrator, funnel_classify, memory_extraction,
+ * history_compress, dept_routing, background, appointment_intent, operator_assistant,
+ * workspace_query, workspace_client_summary, translation.
  */
 final class OpenAiModelResolver
 {
-    public function chatModel(?int $companyId = null): string
+    /**
+     * Return the best model for a given usage scenario.
+     * Falls back to the global default when no per-task override is configured.
+     */
+    public function chatModel(?int $companyId = null, ?string $scenario = null): string
     {
+        if ($scenario !== null) {
+            $key = 'services.openai.models.'.str_replace(['-', ' '], '_', $scenario);
+            $taskModel = (string) config($key, '');
+            if ($taskModel !== '') {
+                return $taskModel;
+            }
+        }
+
         return (string) config('services.openai.model', 'gpt-5.5');
     }
 

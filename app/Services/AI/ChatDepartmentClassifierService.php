@@ -177,6 +177,10 @@ final class ChatDepartmentClassifierService
             ? 'Клиент, скорее всего, только поздоровался — выбери отдел первичного приёма (продажи, консультации).'
             : 'Учти тему: бухгалтерия/оплата/счета → отдел бухгалтерии; HR/кадры → HR; замер/монтаж → замерщики; покупка/цены → продажи.';
 
+        // Include a short history window so the classifier can make a more
+        // informed routing decision (e.g., topic mentioned two messages ago).
+        $historyBlock = $this->buildHistoryBlock($chat, $triggerMessage);
+
         $schema = <<<'TXT'
 Верни только JSON без Markdown:
 {
@@ -206,9 +210,62 @@ TXT;
 {$schema}
 PROMPT;
 
+        $userContent = "Чат: {$chat->chat_name}";
+        if ($historyBlock !== '') {
+            $userContent .= "\n\nПоследние сообщения чата (для контекста):\n{$historyBlock}";
+        }
+        $userContent .= "\n\nПоследнее сообщение клиента (главное):\n{$triggerBody}";
+
         return [
             ['role' => 'system', 'content' => $system],
-            ['role' => 'user', 'content' => "Чат: {$chat->chat_name}\nПоследнее сообщение клиента:\n{$triggerBody}"],
+            ['role' => 'user', 'content' => $userContent],
         ];
+    }
+
+    /**
+     * Build a short chat history snippet for department routing context.
+     * Capped at 5 messages and 1500 chars total to keep the prompt lean.
+     */
+    private function buildHistoryBlock(Chat $chat, Message $triggerMessage): string
+    {
+        $messages = Message::query()
+            ->where('chat_id', $chat->id)
+            ->whereIn('direction', ['inbound', 'outbound'])
+            ->where('id', '<', $triggerMessage->id)
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get(['direction', 'body', 'metadata', 'message_timestamp', 'sender_name'])
+            ->reverse()
+            ->values();
+
+        if ($messages->isEmpty()) {
+            return '';
+        }
+
+        $lines = [];
+        $totalChars = 0;
+
+        foreach ($messages as $msg) {
+            if ($msg->direction === 'inbound') {
+                $body = Str::limit(trim(MessageInboundText::forMessage($msg)), 300, '…');
+                $name = $msg->sender_name ?: 'Клиент';
+                $line = "[{$msg->message_timestamp?->format('H:i')}] {$name}: {$body}";
+            } else {
+                $body = Str::limit(OperatorSignature::strip(trim((string) $msg->body)), 300, '…');
+                $isAi = data_get($msg->metadata, 'ai.generated') === true;
+                $author = $isAi ? 'AI' : 'Сотрудник';
+                $line = "[{$msg->message_timestamp?->format('H:i')}] {$author}: {$body}";
+            }
+
+            $totalChars += mb_strlen($line);
+            if ($totalChars > 1500) {
+                break;
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
     }
 }

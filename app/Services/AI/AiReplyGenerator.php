@@ -89,10 +89,11 @@ final class AiReplyGenerator
 
         $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id, $triggerMessage);
         $localeProfile = $this->chatLocaleResolver->resolve($chat, $triggerMessage);
+        $maxReplyTokens = max(300, (int) config('services.openai.max_reply_tokens', 700));
         $reply = trim($this->openAi->chat(
             $built['messages'],
             0.35,
-            700,
+            $maxReplyTokens,
             new AiUsageOptions('ai_reply', $chat->company_id ?? $responder->company_id),
         ));
         $reply = $this->sanitizeReply($reply);
