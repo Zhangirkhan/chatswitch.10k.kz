@@ -48,15 +48,14 @@ function leave(): void {
 
 <style scoped>
 .impersonation-banner {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 1rem;
+    min-height: 2.25rem;
     padding: 0.5rem 2.75rem 0.5rem 1rem;
     background: linear-gradient(
         90deg,
@@ -65,7 +64,9 @@ function leave(): void {
     );
     color: #fffbeb;
     font-size: 0.8125rem;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    font-weight: 500;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
 .impersonation-banner__text {

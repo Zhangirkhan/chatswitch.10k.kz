@@ -1,26 +1,21 @@
 <script setup lang="ts">
-import { usePlatformBannerVisibility } from '@/composables/usePlatformBannerVisibility';
-import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { usePlatformBannerRealtime, usePlatformBannerVisibility } from '@/composables/usePlatformBannerVisibility';
 
-const page = usePage();
 const { visibleBanners, dismiss } = usePlatformBannerVisibility();
 
-const impersonationOffsetRem = computed(() => (page.props.impersonation ? 2.25 : 0));
+usePlatformBannerRealtime();
 </script>
 
 <template>
     <div v-if="visibleBanners.length > 0" class="platform-banner-stack" aria-live="polite">
         <div
-            v-for="(banner, index) in visibleBanners"
+            v-for="banner in visibleBanners"
             :key="banner.id"
             class="platform-banner"
             role="status"
             :style="{
-                top: `${impersonationOffsetRem + index * 2.25}rem`,
                 background: banner.background_color,
                 color: banner.text_color,
-                zIndex: 190 - index,
             }"
         >
             <p class="platform-banner__text">{{ banner.message }}</p>
@@ -40,13 +35,11 @@ const impersonationOffsetRem = computed(() => (page.props.impersonation ? 2.25 :
 
 <style scoped>
 .platform-banner-stack {
-    pointer-events: none;
+    flex-shrink: 0;
 }
 
 .platform-banner {
-    position: fixed;
-    left: 0;
-    right: 0;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -54,14 +47,16 @@ const impersonationOffsetRem = computed(() => (page.props.impersonation ? 2.25 :
     min-height: 2.25rem;
     padding: 0.5rem 2.75rem 0.5rem 1rem;
     font-size: 0.8125rem;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-    pointer-events: auto;
+    font-weight: 500;
+    line-height: 1.4;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
 .platform-banner__text {
     margin: 0;
+    max-width: 48rem;
     text-align: center;
-    line-height: 1.4;
 }
 
 .platform-banner__close {
@@ -76,12 +71,13 @@ const impersonationOffsetRem = computed(() => (page.props.impersonation ? 2.25 :
     height: 2rem;
     border: none;
     border-radius: 0.375rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.18);
     color: inherit;
     cursor: pointer;
+    transition: background-color 0.12s ease;
 }
 
 .platform-banner__close:hover {
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.32);
 }
 </style>

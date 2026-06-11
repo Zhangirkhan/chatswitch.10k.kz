@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
 import { useI18n } from '@/composables/useI18n';
-import { usePlatformBannerVisibility } from '@/composables/usePlatformBannerVisibility';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { useTheme } from '@/composables/useTheme';
@@ -44,8 +43,6 @@ const validationBanner = computed(() => {
     return first ?? '';
 });
 
-const { visibleCount: platformBannerCount } = usePlatformBannerVisibility();
-const topBannerPaddingRem = computed(() => platformBannerCount.value * 2.25);
 const { theme, toggle: toggleTheme } = useTheme();
 
 const navOpen = ref(false);
@@ -104,12 +101,9 @@ watch(
 </script>
 
 <template>
-    <PlatformBannerStack />
-    <div
-        class="super-admin-shell flex min-h-dvh max-h-dvh flex-col bg-ui-bg text-ui-text"
-        :style="topBannerPaddingRem > 0 ? { paddingTop: `${topBannerPaddingRem}rem` } : undefined"
-    >
-        <header class="sticky top-0 z-40 shrink-0 border-b border-ui-border bg-ui-surface/95 backdrop-blur supports-[backdrop-filter]:bg-ui-surface/80" :style="topBannerPaddingRem > 0 ? { top: `${topBannerPaddingRem}rem` } : undefined">
+    <div class="super-admin-shell flex min-h-dvh max-h-dvh flex-col bg-ui-bg text-ui-text">
+        <PlatformBannerStack />
+        <header class="z-40 shrink-0 border-b border-ui-border bg-ui-surface/95 backdrop-blur supports-[backdrop-filter]:bg-ui-surface/80">
             <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
                 <div class="flex min-w-0 items-center gap-3">
                     <button

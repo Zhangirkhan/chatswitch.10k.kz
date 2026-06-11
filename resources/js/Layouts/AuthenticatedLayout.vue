@@ -9,7 +9,6 @@ import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import ImpersonationBanner from '@/Components/ImpersonationBanner.vue';
 import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
 import PwaInstallBanner from '@/Components/PwaInstallBanner.vue';
-import { usePlatformBannerVisibility } from '@/composables/usePlatformBannerVisibility';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
@@ -66,17 +65,6 @@ let whatsappStatusChannel: any = null;
 const canSubscribeToWhatsappStatus = computed(() => {
     const roles = user.value?.roles;
     return Array.isArray(roles) && (roles.includes('administrator') || roles.includes('manager'));
-});
-
-const { visibleCount: platformBannerCount } = usePlatformBannerVisibility();
-
-const topBannerOffsetRem = computed(() => {
-    let count = platformBannerCount.value;
-    if (page.props.impersonation) {
-        count += 1;
-    }
-
-    return count * 2.25;
 });
 
 watch(
@@ -224,13 +212,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <ImpersonationBanner />
-    <PlatformBannerStack />
-    <div
-        class="h-screen w-screen flex bg-[var(--wa-page-bg)] text-[var(--wa-text)] overflow-hidden"
-        :class="{ 'has-top-banners': topBannerOffsetRem > 0 }"
-        :style="topBannerOffsetRem > 0 ? { paddingTop: `${topBannerOffsetRem}rem` } : undefined"
-    >
+    <div class="flex h-screen w-screen flex-col overflow-hidden bg-[var(--wa-page-bg)] text-[var(--wa-text)]">
+        <ImpersonationBanner />
+        <PlatformBannerStack />
+        <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <aside
             class="flex h-full w-[60px] shrink-0 flex-col items-center border-r py-3"
             :style="{ background: 'var(--wa-rail-bg)', borderColor: 'var(--wa-sidebar-divider)' }"
@@ -313,6 +298,7 @@ onUnmounted(() => {
         <ToastContainer />
         <ConnectionLostOverlay />
         <PwaInstallBanner />
+        </div>
     </div>
 </template>
 
@@ -361,9 +347,5 @@ onUnmounted(() => {
 }
 .wa-session-chip-dot.is-offline {
     background: #ef4444;
-}
-
-.has-top-banners {
-    box-sizing: border-box;
 }
 </style>
