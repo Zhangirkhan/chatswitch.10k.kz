@@ -16,7 +16,7 @@ final class EnsureSuperAdmin
         $user = $request->user();
 
         if ($user === null) {
-            return redirect()->guest(route('super.login', absolute: true));
+            return redirect()->guest(route('super.login'));
         }
 
         if (! $user->is_super_admin) {
@@ -25,7 +25,7 @@ final class EnsureSuperAdmin
             $request->session()->regenerateToken();
 
             return redirect()
-                ->route('super.login', absolute: true)
+                ->route('super.login')
                 ->with('error', 'Вход в супер-админку только для super@accel.kz (или другого супер-админа).');
         }
 

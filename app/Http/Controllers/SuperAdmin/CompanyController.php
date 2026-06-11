@@ -25,6 +25,7 @@ use App\Services\Tenancy\TenantDoctorService;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionLimitService;
 use App\Support\PhoneFormatter;
+use App\Support\Bin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -286,9 +287,18 @@ final class CompanyController extends Controller
     {
         $this->superAdminScope->ensureCanManage($request->user(), $company);
 
+        if ($request->has('bin')) {
+            $request->merge([
+                'bin' => Bin::normalize($request->input('bin')),
+            ]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
             'phone' => ['nullable', 'string', 'max:32', 'regex:/^[\d\s+\-()]+$/'],
+            'bin' => ['nullable', 'string', 'regex:/^\d{12}$/'],
+            'legal_address' => ['nullable', 'string', 'max:2000'],
+            'business_activity' => ['nullable', 'string', 'max:255'],
             'is_active' => ['boolean'],
             'subscription_status' => ['required', 'string', Rule::in(['trial', 'active', 'past_due', 'suspended', 'canceled'])],
             'plan_id' => ['nullable', 'integer', 'exists:plans,id'],
@@ -296,12 +306,20 @@ final class CompanyController extends Controller
             'current_period_ends_at' => ['nullable', 'date'],
         ]);
 
+        if (array_key_exists('legal_address', $data)) {
+            $data['legal_address'] = filled($data['legal_address']) ? trim((string) $data['legal_address']) : null;
+        }
+
+        if (array_key_exists('business_activity', $data)) {
+            $data['business_activity'] = filled($data['business_activity']) ? trim((string) $data['business_activity']) : null;
+        }
+
         if (array_key_exists('phone', $data)) {
             $normalized = PhoneFormatter::normalize($data['phone'] ?? null);
             $data['phone'] = $normalized;
         }
 
-        $trackedFields = ['name', 'phone', 'is_active', 'subscription_status', 'plan_id', 'trial_ends_at', 'current_period_ends_at'];
+        $trackedFields = ['name', 'phone', 'bin', 'legal_address', 'business_activity', 'is_active', 'subscription_status', 'plan_id', 'trial_ends_at', 'current_period_ends_at'];
         $before = $company->only($trackedFields);
 
         $previousPlanId = $company->plan_id;

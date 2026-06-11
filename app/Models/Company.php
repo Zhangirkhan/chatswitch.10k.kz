@@ -16,6 +16,9 @@ final class Company extends Model
     protected $fillable = [
         'name',
         'slug',
+        'bin',
+        'legal_address',
+        'business_activity',
         'phone',
         'email',
         'website',

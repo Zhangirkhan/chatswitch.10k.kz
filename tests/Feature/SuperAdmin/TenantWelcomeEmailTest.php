@@ -37,6 +37,7 @@ final class TenantWelcomeEmailTest extends TestCase
 
         $signup = TenantSignupRequest::query()->create([
             'company_name' => 'Welcome Co',
+            'bin' => '123456789012',
             'desired_slug' => 'welcome-co',
             'contact_name' => 'Алия',
             'email' => 'owner@welcome-co.test',
@@ -60,6 +61,11 @@ final class TenantWelcomeEmailTest extends TestCase
                 && $mail->company->slug === 'welcome-co'
                 && str_contains($mail->loginUrl, 'welcome-co.');
         });
+
+        $this->assertDatabaseHas('companies', [
+            'slug' => 'welcome-co',
+            'bin' => '123456789012',
+        ]);
 
         $this->assertDatabaseHas('super_admin_audit_logs', [
             'action' => 'tenant.welcome_email_sent',

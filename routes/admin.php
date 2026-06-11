@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyDoctorController;
 use App\Http\Controllers\SuperAdmin\ContactMessageController;
+use App\Http\Controllers\SuperAdmin\CompanyExportController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CompanyMaintenanceController;
 use App\Http\Controllers\SuperAdmin\CompanyModuleController;
@@ -43,6 +44,7 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::get('/invoices', [GlobalInvoiceController::class, 'index'])->name('super.invoices.global');
 
     Route::get('/companies', [CompanyController::class, 'index'])->name('super.companies.index');
+    Route::get('/companies/export', CompanyExportController::class)->name('super.companies.export');
     Route::get('/companies/create', [CompanyController::class, 'create'])->name('super.companies.create');
     Route::post('/companies', [CompanyController::class, 'store'])->name('super.companies.store');
     Route::post('/companies/{company}/populate-sandbox', [CompanyController::class, 'populateSandbox'])

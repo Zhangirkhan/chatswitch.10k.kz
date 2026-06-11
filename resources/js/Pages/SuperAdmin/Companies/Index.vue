@@ -49,6 +49,18 @@ function applyFilters(): void {
     filterForm.get('/companies', { preserveState: true, preserveScroll: true });
 }
 
+const exportExcelUrl = computed(() => {
+    const params = new URLSearchParams();
+    if (filterForm.q) params.set('q', filterForm.q);
+    if (filterForm.is_active) params.set('is_active', filterForm.is_active);
+    if (filterForm.subscription_status) params.set('subscription_status', filterForm.subscription_status);
+    if (filterForm.plan_id) params.set('plan_id', filterForm.plan_id);
+    if (filterForm.sort) params.set('sort', filterForm.sort);
+    const query = params.toString();
+
+    return query ? `/companies/export?${query}` : '/companies/export';
+});
+
 const toggleTarget = ref<CompanyIndexRow | null>(null);
 const deleteTarget = ref<CompanyIndexRow | null>(null);
 const showToggleConfirm = ref(false);
@@ -262,6 +274,13 @@ function confirmDelete(): void {
                     <span v-if="companies.total > 0" class="text-ui-text-muted">({{ companies.total }})</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <a
+                        :href="exportExcelUrl"
+                        class="ui-btn ui-btn--secondary ui-btn--sm"
+                        :title="t('superAdmin.companies.index.exportExcelHint')"
+                    >
+                        {{ t('superAdmin.companies.index.exportExcel') }}
+                    </a>
                     <button
                         v-if="!isSandboxSuperAdmin"
                         type="button"

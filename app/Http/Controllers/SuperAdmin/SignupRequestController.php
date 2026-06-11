@@ -11,6 +11,7 @@ use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use App\Services\SuperAdmin\TenantSignupRejectionEmailService;
 use App\Services\SuperAdmin\TenantWelcomeEmailService;
 use App\Services\Tenancy\CompanyProvisioningService;
+use App\Support\Bin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -103,6 +104,12 @@ final class SignupRequestController extends Controller
         ]);
 
         $company = $result['company'];
+
+        $bin = Bin::normalize($signupRequest->bin);
+        if ($bin !== null) {
+            $company->update(['bin' => $bin]);
+        }
+
         $actor = $request->user();
 
         $this->audit->log($company, $actor, 'company.created', $company, [

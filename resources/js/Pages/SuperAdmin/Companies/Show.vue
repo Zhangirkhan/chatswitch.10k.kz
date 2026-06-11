@@ -80,6 +80,9 @@ const props = defineProps<{
         id: number;
         name: string;
         slug: string;
+        bin: string | null;
+        legal_address: string | null;
+        business_activity: string | null;
         email: string | null;
         website: string | null;
         description: string | null;
@@ -337,6 +340,9 @@ const trialInfo = computed(() => {
 const form = useForm({
     name: props.company.name,
     phone: props.company.phone ?? '',
+    bin: props.company.bin ?? '',
+    legal_address: props.company.legal_address ?? '',
+    business_activity: props.company.business_activity ?? '',
     is_active: props.company.is_active,
     subscription_status: props.company.subscription_status,
     plan_id: props.company.plan_id,
@@ -463,6 +469,18 @@ function assignPlan(): void {
                             </p>
                         </dd>
                     </div>
+                    <div v-if="company.bin">
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.field.bin') }}</dt>
+                        <dd class="mt-0.5 font-mono text-sm text-ui-text">{{ company.bin }}</dd>
+                    </div>
+                    <div v-if="company.legal_address">
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.field.legalAddress') }}</dt>
+                        <dd class="mt-0.5 text-sm text-ui-text">{{ company.legal_address }}</dd>
+                    </div>
+                    <div v-if="company.business_activity">
+                        <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.field.businessActivity') }}</dt>
+                        <dd class="mt-0.5 text-sm text-ui-text">{{ company.business_activity }}</dd>
+                    </div>
                     <div v-if="company.email">
                         <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldCompanyEmail') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">{{ company.email }}</dd>
@@ -494,6 +512,28 @@ function assignPlan(): void {
                         <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.phone') }}</span>
                         <input v-model="form.phone" type="tel" class="ui-input mt-1" placeholder="+7 747 123 45 67" />
                         <p v-if="form.errors.phone" class="mt-1 text-xs text-ui-danger">{{ form.errors.phone }}</p>
+                    </label>
+                    <label class="block text-sm">
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.bin') }}</span>
+                        <input
+                            v-model="form.bin"
+                            type="text"
+                            class="ui-input mt-1 font-mono"
+                            inputmode="numeric"
+                            maxlength="12"
+                            placeholder="123456789012"
+                        />
+                        <p v-if="form.errors.bin" class="mt-1 text-xs text-ui-danger">{{ form.errors.bin }}</p>
+                    </label>
+                    <label class="block text-sm">
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.legalAddress') }}</span>
+                        <textarea v-model="form.legal_address" rows="2" class="ui-input mt-1" />
+                        <p v-if="form.errors.legal_address" class="mt-1 text-xs text-ui-danger">{{ form.errors.legal_address }}</p>
+                    </label>
+                    <label class="block text-sm">
+                        <span class="text-ui-text-secondary">{{ t('superAdmin.companies.field.businessActivity') }}</span>
+                        <input v-model="form.business_activity" type="text" class="ui-input mt-1" maxlength="255" />
+                        <p v-if="form.errors.business_activity" class="mt-1 text-xs text-ui-danger">{{ form.errors.business_activity }}</p>
                     </label>
                     <label class="block text-sm">
                         <span class="text-ui-text-secondary">{{ t('superAdmin.companies.show.fieldTrialEnds') }}</span>
