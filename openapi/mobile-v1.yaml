@@ -408,6 +408,92 @@ paths:
         "429":
           description: Слишком много запросов
 
+  /api/v1/feedback/popular:
+    get:
+      tags: [Feedback]
+      summary: Популярные обращения (рейтинг)
+      operationId: feedbackPopularIndex
+      description: |
+        Platform-wide рейтинг жалоб и пожеланий по лайкам.
+        Без PII (user_id, email, tenant). Diagnostic-записи исключены.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [complaint, suggestion]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [likes_desc]
+            default: likes_desc
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackPopularListResponse"
+        "401":
+          description: Не авторизован
+
+  /api/v1/feedback/{feedback}/like:
+    post:
+      tags: [Feedback]
+      summary: Лайкнуть обращение
+      operationId: feedbackLikeStore
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FeedbackId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackLikeResponse"
+        "401":
+          description: Не авторизован
+        "422":
+          description: Diagnostic или повторный like
+        "429":
+          description: Rate limit (30/min)
+    delete:
+      tags: [Feedback]
+      summary: Убрать лайк
+      operationId: feedbackLikeDestroy
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FeedbackId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackLikeResponse"
+        "401":
+          description: Не авторизован
+        "404":
+          description: Лайк не найден
+        "429":
+          description: Rate limit (30/min)
+
   /api/v1/users:
     get:
       tags: [Users]
@@ -1685,6 +1771,14 @@ components:
       schema:
         type: integer
 
+    FeedbackId:
+      name: feedback
+      in: path
+      required: true
+      description: ID обращения (user_feedback)
+      schema:
+        type: integer
+
     AttachmentId:
       name: attachment
       in: path
@@ -2668,6 +2762,40 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FeedbackResource"
+
+    FeedbackPopularEntry:
+      type: object
+      required: [id, type, message, likes_count, liked_by_me]
+      properties:
+        id: { type: integer }
+        type:
+          type: string
+          enum: [complaint, suggestion]
+        message: { type: string }
+        likes_count: { type: integer, minimum: 0 }
+        liked_by_me: { type: boolean }
+        created_at: { type: string, format: date-time, nullable: true }
+
+    FeedbackPopularListResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/FeedbackPopularEntry"
+
+    FeedbackLikeResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [likes_count, liked_by_me]
+          properties:
+            likes_count: { type: integer, minimum: 0 }
+            liked_by_me: { type: boolean }
 
     PlatformChangelogEntry:
       type: object

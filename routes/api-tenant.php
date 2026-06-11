@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\DepartmentController;
 use App\Http\Controllers\Api\V1\DepartmentPostController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
+use App\Http\Controllers\Api\V1\FeedbackPopularController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MobileChangelogController;
 use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
@@ -57,6 +58,11 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('feedback', [ApiFeedbackController::class, 'index']);
         Route::post('feedback', [ApiFeedbackController::class, 'store'])
             ->middleware('throttle:6,1');
+        Route::get('feedback/popular', [FeedbackPopularController::class, 'index']);
+        Route::post('feedback/{feedback}/like', [FeedbackPopularController::class, 'like'])
+            ->middleware('throttle:feedback-like');
+        Route::delete('feedback/{feedback}/like', [FeedbackPopularController::class, 'unlike'])
+            ->middleware('throttle:feedback-like');
 
         Route::post('devices', [DeviceController::class, 'store'])
             ->middleware('throttle:device-register');

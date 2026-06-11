@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Invoice;
 use App\Models\TenantSignupRequest;
+use App\Services\Feedback\UserFeedbackPopularService;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,6 +18,7 @@ final class DashboardController extends Controller
 {
     public function __construct(
         private readonly SuperAdminCompanyScope $superAdminScope,
+        private readonly UserFeedbackPopularService $feedbackPopularService,
     ) {}
 
     public function index(Request $request): Response
@@ -59,6 +61,18 @@ final class DashboardController extends Controller
                 ->latest()
                 ->limit(8)
                 ->get(['id', 'name', 'slug', 'subscription_status', 'plan_id', 'created_at']),
+            'topFeedback' => $isSandbox
+                ? []
+                : $this->feedbackPopularService->topForDashboard(10)
+                    ->map(static fn ($row): array => [
+                        'id' => $row->id,
+                        'type' => $row->type->value,
+                        'message' => $row->message,
+                        'likes_count' => (int) $row->likes_count,
+                        'created_at' => $row->created_at?->toIso8601String(),
+                    ])
+                    ->values()
+                    ->all(),
             'isSandboxSuperAdmin' => $isSandbox,
         ]);
     }

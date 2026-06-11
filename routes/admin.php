@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyDoctorController;
 use App\Http\Controllers\SuperAdmin\ContactMessageController;
+use App\Http\Controllers\SuperAdmin\ContactMessageRankingController;
 use App\Http\Controllers\SuperAdmin\CompanyExportController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CompanyMaintenanceController;
@@ -108,10 +109,15 @@ Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function
         ->name('super.signup-requests.reject');
 
     Route::get('/contact-messages', [ContactMessageController::class, 'index'])->name('super.contact-messages.index');
+    Route::get('/contact-messages/ranking', [ContactMessageRankingController::class, 'index'])->name('super.contact-messages.ranking');
     Route::patch('/contact-messages/{contactMessage}/read', [ContactMessageController::class, 'markRead'])
         ->name('super.contact-messages.read');
     Route::patch('/contact-messages/{contactMessage}/resolve', [ContactMessageController::class, 'resolve'])
         ->name('super.contact-messages.resolve');
+    Route::patch('/contact-messages/ranking/{contactMessage}/read', [ContactMessageRankingController::class, 'markRead'])
+        ->name('super.contact-messages.ranking.read');
+    Route::patch('/contact-messages/ranking/{contactMessage}/resolve', [ContactMessageRankingController::class, 'resolve'])
+        ->name('super.contact-messages.ranking.resolve');
 
     Route::get('/mobile-releases', [MobileAppReleaseController::class, 'index'])->name('super.mobile-releases.index');
     Route::post('/mobile-releases', [MobileAppReleaseController::class, 'store'])->name('super.mobile-releases.store');

@@ -145,7 +145,16 @@ const deviceInfo = computed(() => {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessages.pageTitle')" />
-        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.contactMessages.heading') }}</h1>
+        <h1 class="mb-4 text-2xl font-bold">{{ t('superAdmin.contactMessages.heading') }}</h1>
+
+        <div class="mb-6 flex flex-wrap gap-2">
+            <span class="ui-btn ui-btn--secondary ui-btn--sm pointer-events-none">
+                {{ t('superAdmin.contactMessagesRanking.tabAll') }}
+            </span>
+            <Link href="/contact-messages/ranking" class="ui-btn ui-btn--ghost ui-btn--sm">
+                {{ t('superAdmin.contactMessagesRanking.tabRanking') }}
+            </Link>
+        </div>
 
         <UiFilterPanel class="mb-4" @submit="applyFilters">
             <UiFilterField :label="t('superAdmin.contactMessages.filterSearch')" wide>

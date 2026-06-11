@@ -149,6 +149,7 @@ final class FeedbackApiTest extends TestCase
             'locale' => 'ru_RU',
             'app_version' => '1.0.4+12',
             'client_ip' => '203.0.113.99',
+            'is_diagnostic' => true,
         ]);
     }
 

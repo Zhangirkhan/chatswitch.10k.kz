@@ -9,6 +9,7 @@ use App\Enums\UserFeedbackStatus;
 use App\Enums\UserFeedbackType;
 use App\Models\User;
 use App\Models\UserFeedback;
+use App\Support\FeedbackDiagnosticDetector;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
@@ -36,6 +37,7 @@ final class UserFeedbackService
             'source' => $source,
             'type' => UserFeedbackType::from($data['type']),
             'message' => $data['message'],
+            'is_diagnostic' => FeedbackDiagnosticDetector::isDiagnostic($data['message']),
             'app_version' => Arr::get($data, 'app_version'),
             'device_platform' => Arr::get($data, 'device_platform'),
             'device_model' => Arr::get($data, 'device_model'),

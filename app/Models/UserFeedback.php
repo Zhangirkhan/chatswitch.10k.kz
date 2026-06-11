@@ -9,6 +9,7 @@ use App\Enums\UserFeedbackStatus;
 use App\Enums\UserFeedbackType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class UserFeedback extends Model
 {
@@ -28,6 +29,8 @@ final class UserFeedback extends Model
         'locale',
         'client_ip',
         'status',
+        'likes_count',
+        'is_diagnostic',
         'admin_note',
         'resolved_by_user_id',
         'resolved_at',
@@ -41,6 +44,8 @@ final class UserFeedback extends Model
             'status' => UserFeedbackStatus::class,
             'message' => 'encrypted',
             'admin_note' => 'encrypted',
+            'is_diagnostic' => 'boolean',
+            'likes_count' => 'integer',
             'resolved_at' => 'datetime',
         ];
     }
@@ -58,5 +63,10 @@ final class UserFeedback extends Model
     public function resolvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by_user_id');
+    }
+
+    public function likes(): HasMany
+    {
+        return $this->hasMany(UserFeedbackLike::class, 'user_feedback_id');
     }
 }

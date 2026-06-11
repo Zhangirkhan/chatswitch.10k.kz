@@ -23,6 +23,13 @@ const props = defineProps<{
         plan?: { name: string } | null;
         created_at: string;
     }>;
+    topFeedback?: Array<{
+        id: number;
+        type: 'complaint' | 'suggestion';
+        message: string;
+        likes_count: number;
+        created_at: string | null;
+    }>;
 }>();
 
 const page = usePage();
@@ -121,6 +128,28 @@ const attentionItems = computed(() => {
                     </div>
                     <div class="text-sm text-ui-text-secondary">{{ c.subscription_status }}</div>
                 </Link>
+            </div>
+        </div>
+
+        <div v-if="props.topFeedback && props.topFeedback.length > 0" class="ui-panel mt-6 overflow-hidden p-0">
+            <div class="flex items-center justify-between border-b border-ui-border px-4 py-3">
+                <div class="font-medium">{{ t('superAdmin.dashboard.topFeedbackTitle') }}</div>
+                <Link href="/contact-messages/ranking" class="text-sm text-ui-accent hover:underline">
+                    {{ t('superAdmin.dashboard.topFeedbackLink') }}
+                </Link>
+            </div>
+            <div class="divide-y divide-ui-border">
+                <div
+                    v-for="item in props.topFeedback"
+                    :key="item.id"
+                    class="flex items-start justify-between gap-4 px-4 py-3"
+                >
+                    <div class="min-w-0">
+                        <div class="text-sm font-medium truncate">{{ item.message }}</div>
+                        <div class="mt-1 text-xs text-ui-text-muted">{{ item.type }}</div>
+                    </div>
+                    <div class="shrink-0 text-sm font-semibold">{{ item.likes_count }}</div>
+                </div>
             </div>
         </div>
     </SuperAdminLayout>
