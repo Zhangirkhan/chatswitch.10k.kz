@@ -50,6 +50,18 @@ final class InboundAiDispatchService
             RunAiFunnelOrchestratorJob::dispatch($chat->id, $message->id, $chat->company_id)
                 ->delay(now()->addSeconds($delaySeconds));
 
+            // F5: run the standalone funnel classifier as a second opinion alongside the
+            // orchestrator when the funnel sequence guard flag is enabled.  The classifier
+            // result is recorded in the chat's funnel transition log so divergences can be
+            // detected; it does NOT override the orchestrator's decision.
+            if ($shouldAnalyzeFunnel
+                && AiFeatureFlags::enabled(AiFeatureFlags::FUNNEL_SEQUENCE_GUARD, $chat->company_id)
+            ) {
+                $classifierDelay = max(1, (int) config('funnel.ai.debounce_seconds', 5));
+                AnalyzeChatFunnelJob::dispatch($chat->id, $message->id, $chat->company_id)
+                    ->delay(now()->addSeconds($classifierDelay));
+            }
+
             return;
         }
 

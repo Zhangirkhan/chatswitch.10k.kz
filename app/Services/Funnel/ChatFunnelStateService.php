@@ -34,6 +34,25 @@ final class ChatFunnelStateService
             return;
         }
 
+        // Apply WIP guard for AI-initiated transitions (mirrors applyManual behaviour).
+        $stageChanged = (int) $chat->funnel_stage_id !== $classification->funnelStageId;
+        if ($stageChanged && $classification->funnelStageId > 0) {
+            try {
+                app(FunnelStageWipGuard::class)->assertCanAccept(
+                    $classification->funnelStageId,
+                    (int) $chat->id,
+                );
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+                Log::info('[funnel-ai] WIP guard blocked AI transition', [
+                    'chat_id' => $chat->id,
+                    'funnel_stage_id' => $classification->funnelStageId,
+                    'wip_message' => $e->getMessage(),
+                ]);
+
+                return;
+            }
+        }
+
         $fromFunnelId = $chat->funnel_id;
         $fromStageId = $chat->funnel_stage_id;
 
