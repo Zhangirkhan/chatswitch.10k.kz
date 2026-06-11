@@ -12,12 +12,14 @@ use App\Models\User;
 use App\Services\AI\ChatFunnelClassification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\Funnel\FunnelStageTransitionGuard;
 
 final class ChatFunnelStateService
 {
     public function __construct(
         private readonly ChatFunnelCatalogBuilder $catalogBuilder,
         private readonly FunnelProgressCalculator $progressCalculator,
+        private readonly FunnelStageTransitionGuard $transitionGuard,
     ) {}
 
     public function applyFromAi(Chat $chat, ChatFunnelClassification $classification, int $triggerMessageId): void
@@ -29,6 +31,26 @@ final class ChatFunnelStateService
                 'company_id' => $chat->company_id,
                 'funnel_id' => $classification->funnelId,
                 'funnel_stage_id' => $classification->funnelStageId,
+            ]);
+
+            return;
+        }
+
+        // Apply forward-skip and rollback transition guard (same guard used by orchestrator).
+        $rejectReason = $this->transitionGuard->rejectReason(
+            $chat,
+            $classification->funnelId,
+            $classification->funnelStageId,
+            $classification->confidence,
+        );
+
+        if ($rejectReason !== null && $rejectReason !== 'already_on_stage') {
+            Log::info('[funnel-ai] transition guard blocked applyFromAi', [
+                'chat_id' => $chat->id,
+                'funnel_id' => $classification->funnelId,
+                'funnel_stage_id' => $classification->funnelStageId,
+                'confidence' => $classification->confidence,
+                'reason' => $rejectReason,
             ]);
 
             return;
