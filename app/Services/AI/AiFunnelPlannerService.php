@@ -119,7 +119,7 @@ final class AiFunnelPlannerService
             'candidate_assignees' => $candidateAssignees,
             'available_slots' => $availableSlots,
             'sales_state' => AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
-                ? ($chat->sales_state ?? null)
+                ? $this->salesStateService->freshState($chat)
                 : null,
             'existing_appointments' => CalendarEvent::query()
                 ->where('chat_id', $chat->id)
@@ -205,6 +205,8 @@ final class AiFunnelPlannerService
 29. Если клиент недоволен, жалуется, угрожает, требует возврат или использует грубость — сначала признай эмоцию коротко, без спора и без обещания компенсации без правил из базы знаний.
 30. При серьёзном конфликте (возврат, обман, агрессия, юридическая угроза) после 1–2 успокаивающих ответов ставь requires_manager_attention=true, создай task и не продолжай давить на клиента.
 31. Не зеркаль мат и CAPS. Не обещай возврат денег или юридическое решение — только процесс и передачу менеджеру.
+32. Если в контексте есть sales_state.next_action — обязательно выполни это действие в customer_reply: ask_budget → задай вопрос о бюджете; ask_requirements → уточни потребность; present_offer → предложи конкретный вариант; handle_objection → отработай возражение из sales_state.objections_open; book_appointment → предложи записаться; confirm_deal → предложи перейти к оформлению; follow_up → уточни, когда удобно продолжить разговор. Исключение: если клиент написал «спасибо»/«ок»/«понятно» — добавь шаг к ответу, а не заменяй его.
+33. Если клиент написал «подумаем», «позже», «не сейчас» или аналог — НЕ давай продажное давление. Коротко прими к сведению («Понял, не тороплю»), назови одну ключевую ценность или якорь, и мягко предложи дату или повод вернуться: «Когда будет удобно?». Не повторяй цену и не уговаривай в том же сообщении.
 
 Контекст оркестратора:
 {$json}

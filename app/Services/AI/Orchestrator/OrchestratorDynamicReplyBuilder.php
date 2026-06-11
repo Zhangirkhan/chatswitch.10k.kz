@@ -8,6 +8,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Models\Product;
 use App\Models\Service;
+use App\Services\AI\ChatSalesStateService;
 use App\Services\AI\KnowledgeContextRepository;
 use App\Services\AI\Locale\ChatInboundLocaleResolver;
 use App\Services\AI\Locale\KazakhstanLocaleDetector;
@@ -20,6 +21,7 @@ final class OrchestratorDynamicReplyBuilder
         private readonly KazakhstanLocaleDetector $localeDetector,
         private readonly ChatInboundLocaleResolver $chatLocaleResolver,
         private readonly KnowledgeContextRepository $knowledge,
+        private readonly ChatSalesStateService $salesStateService,
     ) {}
 
     /**
@@ -42,6 +44,7 @@ final class OrchestratorDynamicReplyBuilder
             ClientMessageIntentDetector::INTENT_PAYMENT => $this->paymentReply($body, $chat, $trigger),
             ClientMessageIntentDetector::INTENT_PURCHASE => $this->purchaseReply($body, $chat, $trigger),
             ClientMessageIntentDetector::INTENT_ACKNOWLEDGEMENT => $this->acknowledgementReply($body, $chat, $trigger),
+            ClientMessageIntentDetector::INTENT_DEFERRAL => $this->deferralReply($body, $chat, $trigger),
             default => null,
         };
     }
@@ -313,17 +316,101 @@ final class OrchestratorDynamicReplyBuilder
      */
     private function acknowledgementReply(string $body, ?Chat $chat, ?Message $trigger): array
     {
-        return [
-            'reply' => $this->pickLocalized(
+        // If we have a sales state with a meaningful next step, append a proactive CTA
+        // instead of ending the conversation with a dead-end polite close.
+        $cta = $chat !== null ? $this->buildSalesCta($body, $chat, $trigger) : '';
+
+        $baseReply = $this->pickLocalized(
+            $body,
+            'Пожалуйста!',
+            'Оқылды!',
+            null,
+            $chat,
+            $trigger,
+        );
+
+        $reply = $cta !== ''
+            ? $baseReply.' '.$cta
+            : $this->pickLocalized(
                 $body,
                 'Пожалуйста! Если появятся ещё вопросы — пишите.',
                 'Оқылды! Тағы сұрақ болса — жазыңыз.',
                 null,
                 $chat,
                 $trigger,
-            ),
-            'reason' => 'Клиент поблагодарил — AI ответил коротко и по делу.',
+            );
+
+        return [
+            'reply' => $reply,
+            'reason' => $cta !== ''
+                ? 'Клиент поблагодарил — AI ответил и предложил следующий шаг по статусу продажи.'
+                : 'Клиент поблагодарил — AI ответил коротко и по делу.',
             'task' => null,
         ];
+    }
+
+    /**
+     * @return array{reply: string, reason: string, task: array{title: string, body: string}|null}
+     */
+    private function deferralReply(string $body, ?Chat $chat, ?Message $trigger): array
+    {
+        // Acknowledge the deferral, anchor value, and propose a concrete follow-up.
+        $reply = $this->pickLocalized(
+            $body,
+            'Понял, не тороплю. Когда будете готовы — напишите, подберём лучший вариант.',
+            'Жарайды, асықпайды. Дайын болғанда жазыңыз — ең жақсы нұсқаны ұсынамыз.',
+            null,
+            $chat,
+            $trigger,
+        );
+
+        return [
+            'reply' => $reply,
+            'reason' => 'Клиент отложил решение — AI подтвердил и оставил «дверь открытой».',
+            'task' => null,
+        ];
+    }
+
+    /**
+     * Build a proactive sales CTA based on the current sales_state.next_action.
+     * Returns empty string when no meaningful CTA can be derived.
+     */
+    private function buildSalesCta(string $body, Chat $chat, ?Message $trigger): string
+    {
+        $state = $chat->sales_state;
+        if (! is_array($state) || $state === []) {
+            return '';
+        }
+
+        $nextAction = $state['next_action'] ?? null;
+        $missingFields = $state['missing_fields'] ?? [];
+
+        $isRu = $trigger === null || $this->chatLocaleResolver->resolve($chat, $trigger)->dominant !== KazakhstanLocaleProfile::DOMINANT_KK;
+
+        return match ($nextAction) {
+            ChatSalesStateService::NA_ASK_BUDGET => $isRu
+                ? 'Кстати, какой бюджет вы рассматриваете?'
+                : 'Айтпақшы, қандай бюджетті қарастырасыз?',
+            ChatSalesStateService::NA_ASK_REQUIREMENTS => $isRu
+                ? 'Расскажите подробнее, что именно вас интересует?'
+                : 'Не қызықтыратынын толығырақ айтыңызшы?',
+            ChatSalesStateService::NA_QUALIFY => $isRu
+                ? (count($missingFields) > 0
+                    ? 'Кстати, ещё не уточнили: '.implode(' и ', $missingFields).'. Подскажете?'
+                    : 'Что-то ещё хотели уточнить?')
+                : 'Тағы бір сұрақ: '.implode(' және ', $missingFields ?: ['мәліметтер']).' туралы айтыңызшы?',
+            ChatSalesStateService::NA_PRESENT_OFFER => $isRu
+                ? 'Хотите, подберу подходящий вариант и пришлю предложение?'
+                : 'Қалауыңызша нұсқа ұсынайын — жіберейін бе?',
+            ChatSalesStateService::NA_HANDLE_OBJECTION => '',  // Don't force in acknowledgement context
+            ChatSalesStateService::NA_BOOK_APPOINTMENT => $isRu
+                ? 'Когда вам удобно записаться?'
+                : 'Қашан жазылу ыңғайлы болады?',
+            ChatSalesStateService::NA_CONFIRM_DEAL => $isRu
+                ? 'Готовы перейти к оформлению?'
+                : 'Рәсімдеуге дайынсыз ба?',
+            ChatSalesStateService::NA_FOLLOW_UP => '',  // Handled separately by follow-up jobs
+            default => '',
+        };
     }
 }

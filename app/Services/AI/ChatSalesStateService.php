@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
+use App\Models\Message;
+use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
+use App\Services\Memory\EntityMemoryService;
+use App\Support\MessageInboundText;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -34,6 +39,11 @@ use Illuminate\Support\Facades\Log;
  */
 final class ChatSalesStateService
 {
+    public function __construct(
+        private readonly ClientMessageIntentDetector $intentDetector,
+        private readonly EntityMemoryService $entityMemory,
+    ) {}
+
     /**
      * Next action constants — used in planner prompt context.
      */
@@ -45,6 +55,52 @@ final class ChatSalesStateService
     public const NA_BOOK_APPOINTMENT = 'book_appointment';
     public const NA_CONFIRM_DEAL     = 'confirm_deal';
     public const NA_FOLLOW_UP        = 'follow_up';
+
+    /**
+     * Return the current sales state for the chat, guaranteed fresh.
+     *
+     * If sales_state on the chat is null or was last updated more than
+     * $maxAgeSeconds ago (default 60s), this method reads current EntityMemory
+     * facts synchronously and computes the state inline — no DB write.
+     *
+     * This solves the race condition between the 30-second ExtractConversationMemoryJob
+     * debounce and the 3-second orchestrator trigger: the planner always gets a
+     * meaningful sales_state even before the extraction job has run.
+     *
+     * @return array<string, mixed>
+     */
+    public function freshState(Chat $chat, int $maxAgeSeconds = 60): array
+    {
+        $stored = $chat->sales_state;
+        $updatedAt = $chat->sales_state_updated_at;
+
+        $isStale = $stored === null
+            || $stored === []
+            || $updatedAt === null
+            || $updatedAt->diffInSeconds(now()) > $maxAgeSeconds;
+
+        if (! $isStale) {
+            return (array) $stored;
+        }
+
+        // Read current EntityMemory facts (contact-scoped for best coverage).
+        $contactId = $chat->contact_id;
+        $facts = $contactId !== null
+            ? $this->entityMemory->readAiFacts(EntityMemorySubjectType::Contact, $contactId)
+            : [];
+
+        // Preserve any deferral flag set by ProcessWhatsappInboundJob this turn.
+        $preserveDeferral = is_array($stored) && ($stored['deferral_detected'] ?? false) === true;
+
+        $computed = $this->compute($chat, $facts);
+
+        if ($preserveDeferral) {
+            $computed['deferral_detected'] = true;
+            $computed['next_action'] = self::NA_FOLLOW_UP;
+        }
+
+        return $computed;
+    }
 
     /**
      * Compute and persist the sales state from the given AI-facts.
@@ -74,13 +130,84 @@ final class ChatSalesStateService
     }
 
     /**
+     * Mark the chat as deferred when the client sends «подумаем», «позже», etc.
+     * Sets next_action = follow_up and records deferral_detected = true in sales_state.
+     * Safe to call on every inbound message; no-ops when not a deferral.
+     */
+    public function applyDeferralFromMessage(Chat $chat, Message $message): void
+    {
+        $body = trim(MessageInboundText::forMessage($message));
+        if ($body === '' || ! $this->intentDetector->isDeferral($body)) {
+            return;
+        }
+
+        $state = is_array($chat->sales_state) ? $chat->sales_state : [];
+
+        // Already marked as deferred and next_action is follow_up — nothing to do.
+        if (($state['deferral_detected'] ?? false) === true
+            && ($state['next_action'] ?? '') === self::NA_FOLLOW_UP
+        ) {
+            return;
+        }
+
+        $state['next_action']       = self::NA_FOLLOW_UP;
+        $state['deferral_detected'] = true;
+        $state['deferral_at']       = now()->format('Y-m-d H:i');
+
+        $chat->forceFill([
+            'sales_state'            => $state,
+            'sales_state_updated_at' => now(),
+        ])->save();
+
+        Log::info('[sales-state] deferral detected', [
+            'chat_id' => $chat->id,
+            'body'    => mb_substr($body, 0, 80),
+        ]);
+    }
+
+    /**
+     * Clear the deferral flag once the client re-engages with a substantive message.
+     */
+    public function clearDeferralFromMessage(Chat $chat, Message $message): void
+    {
+        $state = $chat->sales_state;
+        if (! is_array($state) || ($state['deferral_detected'] ?? false) !== true) {
+            return;
+        }
+
+        $body = trim(MessageInboundText::forMessage($message));
+        if ($body === '' || $this->intentDetector->isDeferral($body)) {
+            return;
+        }
+
+        // Client sent something substantive — clear the deferral so next_action can be re-derived.
+        unset($state['deferral_detected'], $state['deferral_at']);
+        // Reset next_action so it gets re-derived on next updateFromFacts.
+        unset($state['next_action']);
+
+        $chat->forceFill([
+            'sales_state'            => $state !== [] ? $state : null,
+            'sales_state_updated_at' => now(),
+        ])->save();
+    }
+
+    /**
      * Return a human-readable summary of the current sales state for prompt injection.
      * Returns empty string when no meaningful state exists yet.
      */
     public function promptSummary(Chat $chat): string
     {
-        $state = $chat->sales_state;
-        if (! is_array($state) || $state === []) {
+        return $this->promptSummaryFromState($chat, $chat->sales_state ?? []);
+    }
+
+    /**
+     * Same as promptSummary but works from a pre-computed state array (e.g. freshState).
+     *
+     * @param  array<string, mixed>  $state
+     */
+    public function promptSummaryFromState(Chat $chat, array $state): string
+    {
+        if ($state === []) {
             return '';
         }
 
@@ -136,14 +263,20 @@ final class ChatSalesStateService
      */
     public function compute(Chat $chat, array $facts): array
     {
-        $budget       = trim($facts['budget'] ?? '');
-        $requirements = trim($facts['requirements'] ?? '');
-        $objectionsFact = trim($facts['objections'] ?? '');
-        $agreements   = trim($facts['agreements'] ?? '');
+        $budget           = trim($facts['budget'] ?? '');
+        $requirements     = trim($facts['requirements'] ?? '');
+        $timeline         = trim($facts['timeline'] ?? '');
+        $decisionMaker    = trim($facts['decision_maker'] ?? '');
+        $objectionsFact   = trim($facts['objections'] ?? '');
+        $agreements       = trim($facts['agreements'] ?? '');
 
-        $budgetKnown       = $budget !== '';
-        $requirementsKnown = $requirements !== '';
-        $qualified         = $budgetKnown && $requirementsKnown;
+        $budgetKnown          = $budget !== '';
+        $requirementsKnown    = $requirements !== '';
+        $timelineKnown        = $timeline !== '';
+        $decisionMakerKnown   = $decisionMaker !== '';
+        // Qualified = at minimum budget AND requirements are known.
+        // timeline and decision_maker are tracked in missing_fields but don't gate qualification.
+        $qualified            = $budgetKnown && $requirementsKnown;
 
         // Parse comma/semicolon separated objections into a list.
         $objectionsOpen = [];
@@ -154,13 +287,19 @@ final class ChatSalesStateService
             ));
         }
 
-        // Derive missing fields for qualification.
+        // Derive missing fields for qualification (shown in prompts and sales_state).
         $missingFields = [];
         if (! $budgetKnown) {
             $missingFields[] = 'бюджет';
         }
         if (! $requirementsKnown) {
             $missingFields[] = 'требования';
+        }
+        if (! $timelineKnown) {
+            $missingFields[] = 'срок';
+        }
+        if (! $decisionMakerKnown) {
+            $missingFields[] = 'кто решает';
         }
 
         // Determine next action.
@@ -171,16 +310,20 @@ final class ChatSalesStateService
             $qualified,
             $objectionsOpen,
             $agreements,
+            $timelineKnown,
+            $decisionMakerKnown,
         );
 
         return [
-            'qualified'          => $qualified,
-            'budget_known'       => $budgetKnown,
-            'requirements_known' => $requirementsKnown,
-            'objections_open'    => $objectionsOpen,
-            'agreements'         => $agreements !== '' ? $agreements : null,
-            'missing_fields'     => $missingFields,
-            'next_action'        => $nextAction,
+            'qualified'           => $qualified,
+            'budget_known'        => $budgetKnown,
+            'requirements_known'  => $requirementsKnown,
+            'timeline_known'      => $timelineKnown,
+            'decision_maker_known' => $decisionMakerKnown,
+            'objections_open'     => $objectionsOpen,
+            'agreements'          => $agreements !== '' ? $agreements : null,
+            'missing_fields'      => $missingFields,
+            'next_action'         => $nextAction,
         ];
     }
 
@@ -194,7 +337,15 @@ final class ChatSalesStateService
         bool $qualified,
         array $objectionsOpen,
         string $agreements,
+        bool $timelineKnown = false,
+        bool $decisionMakerKnown = false,
     ): string {
+        // If the current state already has deferral_detected, keep follow_up until re-engagement.
+        $existingState = $chat->sales_state;
+        if (is_array($existingState) && ($existingState['deferral_detected'] ?? false) === true) {
+            return self::NA_FOLLOW_UP;
+        }
+
         // Open objections take priority — address them first.
         if ($objectionsOpen !== []) {
             return self::NA_HANDLE_OBJECTION;
@@ -215,7 +366,7 @@ final class ChatSalesStateService
             return self::NA_PRESENT_OFFER;
         }
 
-        // Fall back to qualification gaps.
+        // Fall back to qualification gaps in BANT priority order.
         if (! $budgetKnown) {
             return self::NA_ASK_BUDGET;
         }
@@ -228,7 +379,12 @@ final class ChatSalesStateService
             return self::NA_QUALIFY;
         }
 
-        // Qualified with no open objections and no concrete stage signal.
+        // Qualified but still missing BANT completeness fields (timeline, DM).
+        if (! $timelineKnown || ! $decisionMakerKnown) {
+            return self::NA_QUALIFY;
+        }
+
+        // Fully qualified with no open objections and no concrete stage signal.
         if ($agreements !== '') {
             return self::NA_CONFIRM_DEAL;
         }

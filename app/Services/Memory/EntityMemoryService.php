@@ -220,7 +220,7 @@ final class EntityMemoryService
      * Facts that get a per-fact timestamp displayed for budget/timeline progression auditing.
      * The LLM can see "Бюджет: 1 000 000 тг (обн. 12.06 14:30)" and reason about recency.
      */
-    private const TIMESTAMPED_KEYS = ['budget', 'requirements', 'agreements', 'objections'];
+    private const TIMESTAMPED_KEYS = ['budget', 'requirements', 'agreements', 'objections', 'timeline', 'decision_maker', 'reason_for_contact'];
 
     /**
      * Render the managed AI-facts section from structured facts.
@@ -237,14 +237,17 @@ final class EntityMemoryService
         $lines[] = '';
 
         $labels = [
-            'budget'       => 'Бюджет',
-            'requirements' => 'Требования',
-            'objections'   => 'Возражения',
-            'agreements'   => 'Договорённости',
-            'preferences'  => 'Предпочтения',
-            'source'       => 'Источник лида',
-            'contact_info' => 'Контактные данные',
-            'other'        => 'Прочее',
+            'budget'             => 'Бюджет',
+            'requirements'       => 'Требования',
+            'timeline'           => 'Срок покупки',
+            'decision_maker'     => 'Кто принимает решение',
+            'reason_for_contact' => 'Причина обращения',
+            'objections'         => 'Возражения',
+            'agreements'         => 'Договорённости',
+            'preferences'        => 'Предпочтения',
+            'source'             => 'Источник лида',
+            'contact_info'       => 'Контактные данные',
+            'other'              => 'Прочее',
         ];
 
         foreach ($labels as $key => $label) {
@@ -291,14 +294,17 @@ final class EntityMemoryService
         }
 
         $labels = [
-            'Бюджет'             => 'budget',
-            'Требования'         => 'requirements',
-            'Возражения'         => 'objections',
-            'Договорённости'     => 'agreements',
-            'Предпочтения'       => 'preferences',
-            'Источник лида'      => 'source',
-            'Контактные данные'  => 'contact_info',
-            'Прочее'             => 'other',
+            'Бюджет'                    => 'budget',
+            'Требования'                => 'requirements',
+            'Срок покупки'              => 'timeline',
+            'Кто принимает решение'     => 'decision_maker',
+            'Причина обращения'         => 'reason_for_contact',
+            'Возражения'                => 'objections',
+            'Договорённости'            => 'agreements',
+            'Предпочтения'              => 'preferences',
+            'Источник лида'             => 'source',
+            'Контактные данные'         => 'contact_info',
+            'Прочее'                    => 'other',
         ];
 
         $result = [];

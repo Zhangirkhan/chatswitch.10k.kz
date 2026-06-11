@@ -238,6 +238,22 @@ final class AiCrmWritebackService
             }
         }
 
+        // Timeline — single-value; replace any existing "срок: …" tag.
+        if (! empty($facts['timeline'])) {
+            $timeline = mb_strtolower(trim((string) $facts['timeline']));
+            if ($timeline !== '' && mb_strlen($timeline) <= 50) {
+                $replace['срок: '] = mb_substr('срок: '.$timeline, 0, 64);
+            }
+        }
+
+        // Decision maker — single-value; replace any existing "решает: …" tag.
+        if (! empty($facts['decision_maker'])) {
+            $dm = mb_strtolower(trim((string) $facts['decision_maker']));
+            if ($dm !== '' && mb_strlen($dm) <= 50) {
+                $replace['решает: '] = mb_substr('решает: '.$dm, 0, 64);
+            }
+        }
+
         // Requirements — multi-value keyword list; upsert without replacement.
         if (! empty($facts['requirements'])) {
             $req = mb_strtolower(trim((string) $facts['requirements']));
@@ -247,6 +263,28 @@ final class AiCrmWritebackService
                 if ($part !== '') {
                     $append[] = $part;
                 }
+            }
+        }
+
+        // Objections — multi-value; append unique objection tags for manager visibility.
+        if (! empty($facts['objections'])) {
+            $obj = mb_strtolower(trim((string) $facts['objections']));
+            $parts = preg_split('/[,;]+/', $obj) ?: [];
+            foreach (array_slice($parts, 0, 3) as $part) {
+                $part = mb_substr(trim($part), 0, 64);
+                if ($part !== '') {
+                    $append[] = 'возражение: '.$part;
+                }
+            }
+        }
+
+        // Agreements — single-value; replace "договор: …" tag so manager sees latest.
+        if (! empty($facts['agreements'])) {
+            $agr = mb_strtolower(trim((string) $facts['agreements']));
+            // Truncate longer agreements to 60 chars for the tag.
+            $agr = mb_substr($agr, 0, 60);
+            if ($agr !== '') {
+                $replace['договор: '] = mb_substr('договор: '.$agr, 0, 64);
             }
         }
 
@@ -270,26 +308,38 @@ final class AiCrmWritebackService
                 return;
             }
 
-            // Sync budget tag from memory (most authoritative source).
-            if (! empty($existing['budget'])) {
-                $budget = mb_strtolower(mb_substr(trim((string) $existing['budget']), 0, 50));
-                if ($budget !== '') {
-                    ContactTag::query()
-                        ->where('company_id', $contact->company_id)
-                        ->where('contact_id', $contact->id)
-                        ->where('source', ContactTag::SOURCE_AI)
-                        ->where('name', 'like', 'бюджет: %')
-                        ->delete();
+            // Reconcile single-value tags from the full EntityMemory (authoritative source).
+            $singleValueTags = [
+                'budget'       => 'бюджет: ',
+                'timeline'     => 'срок: ',
+                'decision_maker' => 'решает: ',
+                'agreements'   => 'договор: ',
+            ];
 
-                    ContactTag::query()->firstOrCreate(
-                        [
-                            'company_id' => $contact->company_id,
-                            'contact_id' => $contact->id,
-                            'name' => mb_substr('бюджет: '.$budget, 0, 64),
-                        ],
-                        ['source' => ContactTag::SOURCE_AI],
-                    );
+            foreach ($singleValueTags as $factKey => $tagPrefix) {
+                if (empty($existing[$factKey])) {
+                    continue;
                 }
+                $val = mb_strtolower(mb_substr(trim((string) $existing[$factKey]), 0, 55));
+                if ($val === '') {
+                    continue;
+                }
+
+                ContactTag::query()
+                    ->where('company_id', $contact->company_id)
+                    ->where('contact_id', $contact->id)
+                    ->where('source', ContactTag::SOURCE_AI)
+                    ->where('name', 'like', $tagPrefix.'%')
+                    ->delete();
+
+                ContactTag::query()->firstOrCreate(
+                    [
+                        'company_id' => $contact->company_id,
+                        'contact_id' => $contact->id,
+                        'name' => mb_substr($tagPrefix.$val, 0, 64),
+                    ],
+                    ['source' => ContactTag::SOURCE_AI],
+                );
             }
         } catch (Throwable $e) {
             Log::debug('[ai-crm-writeback] entity-memory reconcile skipped', [

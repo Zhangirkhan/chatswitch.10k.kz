@@ -8,6 +8,7 @@ use App\Events\NewMessageReceived;
 use App\Models\Message;
 use App\Models\WhatsappSession;
 use App\Services\AI\ActiveTopicDetector;
+use App\Services\AI\ChatSalesStateService;
 use App\Services\AI\AutomatedPeerReplyGuard;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
@@ -59,6 +60,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         TenantContext $tenantContext,
         InboundAiDispatchService $aiDispatch,
         ActiveTopicDetector $topicDetector,
+        ChatSalesStateService $salesState,
     ): void {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $companyId = isset($this->data['companyId']) ? (int) $this->data['companyId'] : null;
@@ -170,6 +172,10 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         // (orchestrator, classifier, simple reply) can use it for retrieval.
         if ($message->chat !== null && $message->direction === 'inbound') {
             $topicDetector->updateFromMessage($message->chat, $message);
+            // Detect deferral intent («подумаем», «позже») and update sales_state accordingly.
+            // Clear any prior deferral flag if the client re-engaged substantively.
+            $salesState->clearDeferralFromMessage($message->chat, $message);
+            $salesState->applyDeferralFromMessage($message->chat, $message);
             $message->chat->refresh();
         }
 

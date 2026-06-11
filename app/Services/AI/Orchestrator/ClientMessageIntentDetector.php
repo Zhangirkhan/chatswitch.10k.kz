@@ -26,6 +26,9 @@ final class ClientMessageIntentDetector
 
     public const INTENT_ACKNOWLEDGEMENT = 'acknowledgement';
 
+    /** Client is deferring: «подумаем», «позже», «не сейчас» etc. */
+    public const INTENT_DEFERRAL = 'deferral';
+
     public const INTENT_GENERAL = 'general';
 
     /**
@@ -68,6 +71,10 @@ final class ClientMessageIntentDetector
 
         if ($this->isPurchaseIntent($body)) {
             return self::INTENT_PURCHASE;
+        }
+
+        if ($this->isDeferral($body)) {
+            return self::INTENT_DEFERRAL;
         }
 
         if ($this->isAcknowledgement($body)) {
@@ -317,7 +324,67 @@ final class ClientMessageIntentDetector
             return false;
         }
 
-        return preg_match('/^(?:спасибо|благодарю|thanks|thank you|thank u|мерси|иә рахмет|рахмет|рақмет|ракмет|жарайды|ок|ok|okay|хорошо|понятно|ясно|иә|иа)(?:[!.…,\s]|$)/u', $body) === 1
+        // Exclude deferral phrases from being treated as simple acknowledgements.
+        if ($this->isDeferral($body)) {
+            return false;
+        }
+
+        return preg_match('/^(?:спасибо|благодарю|thanks|thank you|thank u|мерси|иә рахмет|рахмет|рақмет|ракмет|жарайды|ок|ok|okay|хорошо|понятно|ясно|понял|поняла|понял[аоеи]|иә|иа)(?:[!.…,\s]|$)/u', $body) === 1
             || (mb_strlen($body) <= 16 && preg_match('/^(?:да|нет)$/u', $body) === 1);
+    }
+
+    /**
+     * Returns true when the client is deferring: «подумаем», «позже», «не сейчас», «нет бюджета» etc.
+     * These require a nurture/follow-up response, not a polite dead-end close.
+     */
+    public function isDeferral(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '') {
+            return false;
+        }
+
+        // Short single-word deferral phrases.
+        if (preg_match('/^(?:позже|потом|позжe|после|попозже|позе|постепенно)(?:[!.…,\s]|$)/u', $body) === 1) {
+            return true;
+        }
+
+        // Multi-word deferral patterns.
+        $patterns = [
+            '/подума[еёюя]/u',
+            '/\bне сейчас\b/u',
+            '/\bне готов\b/u',
+            '/\bне готова\b/u',
+            '/не торопл/u',
+            '/посмотр[иею]/u',
+            '/\bпока нет\b/u',
+            '/\bпока не\b/u',
+            '/нет бюджет/u',
+            '/бюджет.{0,20}нет/u',
+            '/уточн[иею]/u',
+            '/\bещё не решил\b/u',
+            '/\bне решил\b/u',
+            '/\bне решила\b/u',
+            '/ой потом/u',
+            '/позже напишу/u',
+            '/напишу позже/u',
+            '/свяжусь позже/u',
+            '/позже свяжусь/u',
+            '/\bне актуально\b/u',
+            '/\bне нужно\b/u',
+            '/\bне надо\b/u',
+            // Kazakh
+            '/кейін/u',
+            '/ойланайын/u',
+            '/\bәзірге жоқ\b/u',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $body) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
