@@ -1,5 +1,6 @@
-import { usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
+import { useEchoChannel } from '@/composables/useEchoChannel';
 
 export type PlatformBannerItem = {
     id: number;
@@ -25,6 +26,10 @@ function readDismissed(): number[] {
     } catch {
         return [];
     }
+}
+
+export function reloadPlatformBanners(): void {
+    router.reload({ only: ['platformBanners'] });
 }
 
 export function usePlatformBannerVisibility() {
@@ -68,4 +73,27 @@ export function usePlatformBannerVisibility() {
         visibleCount,
         dismiss,
     };
+}
+
+/** Subscribe once from PlatformBannerStack — reload top bar when banners change in Super Admin. */
+export function usePlatformBannerRealtime(): void {
+    const page = usePage();
+
+    const tenantChannel = computed(() => {
+        const tenantId = Number(page.props.tenantCompanyId || 0);
+
+        return tenantId > 0 ? `t.${tenantId}.platform-banners` : null;
+    });
+
+    const adminChannel = computed(() => (
+        (page.props.isSuperAdminHost as boolean | undefined) === true ? 'platform.admin-banners' : null
+    ));
+
+    useEchoChannel(() => tenantChannel.value, () => ({
+        '.platform-banners.changed': () => reloadPlatformBanners(),
+    }));
+
+    useEchoChannel(() => adminChannel.value, () => ({
+        '.platform-banners.changed': () => reloadPlatformBanners(),
+    }));
 }
