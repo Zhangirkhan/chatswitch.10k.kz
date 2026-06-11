@@ -96,6 +96,7 @@ return [
                 ['question' => 'Қораптық орнату деген не?', 'answer' => 'Бұл платформаны 1 000 000 ₸ бір рет төлеп орнату. Ай сайынғы абоненттік төлем жоқ, бірақ AI токендері бөлек.'],
                 ['question' => 'Триал бар ма?', 'answer' => 'Стандарт тарифте қосылғаннан кейін 14 күн тегін. Коробочная установка триалсыз — төлемнен кейін толық қолжетімділік.'],
                 ['question' => 'Бірнеше WhatsApp нөмірін қосуға бола ма?', 'answer' => 'Иә, барлық нөмірлер мен чаттар Accel интерфейсінде бір терезеде.'],
+                ['question' => 'Деректер қайда сақталады?', 'answer' => 'Стандарт тарифте деректер Қазақстан серверлерінде сақталады. Сондай-ақ қораптық орнату бар — платформа сіздің инфрақұрылымыңызда.'],
             ],
             'ru' => [
                 ['question' => 'Что такое Accel?', 'answer' => 'Accel — платформа для командной работы в WhatsApp: чаты, AI-автопилот, воронки и задачи в одном окне.'],
@@ -103,6 +104,7 @@ return [
                 ['question' => 'Что такое коробочная установка?', 'answer' => 'Разовая установка платформы за 1 000 000 ₸ без ежемесячной абонплаты. AI-токены оплачиваются отдельно.'],
                 ['question' => 'Есть ли пробный период?', 'answer' => 'На тарифе Стандарт — 14 дней бесплатно после подключения. Коробочная установка без триала.'],
                 ['question' => 'Можно подключить несколько WhatsApp-номеров?', 'answer' => 'Да, все номера и чаты команды работают в одном интерфейсе Accel.'],
+                ['question' => 'Где хранятся данные?', 'answer' => 'На тарифе Стандарт данные хранятся на серверах в Казахстане. Также доступна коробочная установка — платформа на инфраструктуре вашей компании.'],
             ],
             'en' => [
                 ['question' => 'What is Accel?', 'answer' => 'Accel is a platform for team WhatsApp: chats, AI autopilot, funnels and tasks in one workspace.'],
@@ -110,6 +112,7 @@ return [
                 ['question' => 'What is boxed installation?', 'answer' => 'A one-time 1,000,000 ₸ platform setup with no monthly subscription fee. AI tokens are billed separately.'],
                 ['question' => 'Is there a free trial?', 'answer' => 'The Standard plan includes a 14-day trial after activation. Boxed installation has no trial.'],
                 ['question' => 'Can we connect multiple WhatsApp numbers?', 'answer' => 'Yes, all numbers and team chats work in a single Accel interface.'],
+                ['question' => 'Where is data stored?', 'answer' => 'On the Standard plan, data is stored on servers in Kazakhstan. Boxed installation is also available — the platform runs on your company infrastructure.'],
             ],
         ],
     ],

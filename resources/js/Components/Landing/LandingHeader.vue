@@ -58,7 +58,9 @@ function openRequest(): void {
                 :class="{ 'landing__nav--open': mobileNavOpen }"
             >
                 <div v-if="mode === 'marketing'" class="landing__nav-links">
+                    <a href="#problem" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navProblem') }}</a>
                     <a href="#features" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFeatures') }}</a>
+                    <a href="#data-kz" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navDataKz') }}</a>
                     <a href="#faq" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFaq') }}</a>
                     <a href="#pricing" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navPricing') }}</a>
                     <div class="landing__download-menu">

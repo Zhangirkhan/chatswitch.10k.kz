@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import InputError from '@/Components/InputError.vue';
+import LandingBeforeAfter from '@/Components/Landing/LandingBeforeAfter.vue';
 import LandingBorderGlow from '@/Components/Landing/LandingBorderGlow.vue';
+import LandingDataKz from '@/Components/Landing/LandingDataKz.vue';
 import LandingHeroMockup from '@/Components/Landing/LandingHeroMockup.vue';
 import LandingParticles from '@/Components/Landing/LandingParticles.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
@@ -81,6 +83,14 @@ const visiblePricingPlans = computed(() =>
 );
 
 const faqItems = computed(() => messagesForLocale(locale.value).landing.faqItems ?? []);
+
+const beforeAfterRows = computed(() => messagesForLocale(locale.value).landing.beforeAfterRows ?? []);
+
+const dataPoints = computed(() => messagesForLocale(locale.value).landing.dataPoints ?? []);
+
+const dataKzSecurityList = computed(() => messagesForLocale(locale.value).landing.dataKzSecurityList ?? []);
+
+const problemAsidePoints = computed(() => messagesForLocale(locale.value).landing.problemAsidePoints ?? []);
 
 const isMobileViewport = ref(
     typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
@@ -319,6 +329,27 @@ onUnmounted(() => {
                 </div>
             </section>
 
+            <LandingBeforeAfter
+                :title="t('landing.problemTitle')"
+                :lead="t('landing.problemLead')"
+                :rows="beforeAfterRows"
+                :ba-pain0-unread="t('landing.baPain0Unread')"
+                :ba-pain0-wait="t('landing.baPain0Wait')"
+                :ba-pain2-muted="t('landing.baPain2Muted')"
+                :ba-pain3-label="t('landing.baPain3Label')"
+                :ba-label-before="t('landing.baLabelBefore')"
+                :ba-label-after="t('landing.baLabelAfter')"
+                :ba-after0a="t('landing.baAfter0a')"
+                :ba-after0b="t('landing.baAfter0b')"
+                :ba-after1-dialogs="t('landing.baAfter1Dialogs')"
+                :ba-after1-min="t('landing.baAfter1Min')"
+                :ba-after1-window="t('landing.baAfter1Window')"
+                :aside-aria="t('landing.problemAsideAria')"
+                :aside-title="t('landing.problemAsideTitle')"
+                :aside-lead="t('landing.problemAsideLead')"
+                :aside-points="problemAsidePoints"
+            />
+
             <section id="features" class="landing__features-section">
                 <h2 class="landing__section-title">{{ t('landing.featuresSectionTitle') }}</h2>
                 <ul class="landing__features">
@@ -376,6 +407,25 @@ onUnmounted(() => {
                 </li>
                 </ul>
             </section>
+
+            <LandingDataKz
+                :map-caption="t('landing.dataKzMapCaption')"
+                :title="t('landing.dataKzTitle')"
+                :lead="t('landing.dataKzLead')"
+                :note="t('landing.dataKzNote')"
+                :law-badge="t('landing.dataLawBadge')"
+                :law-quote="t('landing.dataLawQuote')"
+                :law-fine="t('landing.dataLawFine')"
+                :law-link-pd="t('landing.dataLawLinkPd')"
+                :law-link-coap="t('landing.dataLawLinkCoap')"
+                :data-points="dataPoints"
+                :pill-made="t('landing.dataPillMade')"
+                :pill-data="t('landing.dataPillData')"
+                :pill-support="t('landing.dataPillSupport')"
+                :fit-lead="t('landing.dataKzFitLead')"
+                :security-heading="t('landing.dataKzSecurityHeading')"
+                :security-list="dataKzSecurityList"
+            />
 
             <section id="pricing" class="landing__pricing">
                 <h2 class="landing__section-title">{{ t('landing.pricingTitle') }}</h2>
