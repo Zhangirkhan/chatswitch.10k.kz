@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AI\ChatFunnelClassification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\Funnel\EvidenceTransitionGate;
 use App\Services\Funnel\FunnelStageTransitionGuard;
 
 final class ChatFunnelStateService
@@ -20,6 +21,7 @@ final class ChatFunnelStateService
         private readonly ChatFunnelCatalogBuilder $catalogBuilder,
         private readonly FunnelProgressCalculator $progressCalculator,
         private readonly FunnelStageTransitionGuard $transitionGuard,
+        private readonly EvidenceTransitionGate $evidenceGate,
     ) {}
 
     public function applyFromAi(Chat $chat, ChatFunnelClassification $classification, int $triggerMessageId): void
@@ -51,6 +53,19 @@ final class ChatFunnelStateService
                 'funnel_stage_id' => $classification->funnelStageId,
                 'confidence' => $classification->confidence,
                 'reason' => $rejectReason,
+            ]);
+
+            return;
+        }
+
+        // Evidence gate: block advancement into qualification/negotiation/closing stages
+        // when the required evidence (budget, qualification, agreements) is not recorded.
+        $evidenceReject = $this->evidenceGate->rejectReason($chat, $classification->funnelStageId);
+        if ($evidenceReject !== null) {
+            Log::info('[funnel-ai] evidence gate blocked applyFromAi', [
+                'chat_id'           => $chat->id,
+                'funnel_stage_id'   => $classification->funnelStageId,
+                'evidence_reason'   => $evidenceReject,
             ]);
 
             return;

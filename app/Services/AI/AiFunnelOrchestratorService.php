@@ -16,6 +16,7 @@ use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\AI\Orchestrator\OrchestratorDynamicReplyBuilder;
 use App\Services\AI\Locale\ChatInboundLocaleResolver;
 use App\Services\Calendar\CalendarAvailabilityService;
+use App\Services\Funnel\EvidenceTransitionGate;
 use App\Services\Funnel\FunnelStageTransitionGuard;
 use App\Services\Memory\ContactAiContextResetService;
 use App\Support\AiSafeErrorMessage;
@@ -34,6 +35,7 @@ final class AiFunnelOrchestratorService
         private readonly CalendarAvailabilityService $availability,
         private readonly KnowledgeContextRepository $knowledge,
         private readonly FunnelStageTransitionGuard $stageTransitionGuard,
+        private readonly EvidenceTransitionGate $evidenceGate,
         private readonly AiResponderResolver $responderResolver,
         private readonly ClientMessageIntentDetector $clientIntents,
         private readonly OrchestratorDynamicReplyBuilder $dynamicReplies,
@@ -673,23 +675,46 @@ final class AiFunnelOrchestratorService
         }
 
         $funnelId = (int) $chat->funnel_id;
-        $stageId = (int) $plan->targetFunnelStageId;
+        $stageId  = (int) $plan->targetFunnelStageId;
+
         $reject = $this->stageTransitionGuard->rejectReason($chat, $funnelId, $stageId, $plan->confidence);
-        if ($reject === null) {
-            return $plan;
+        if ($reject !== null) {
+            return new AiFunnelOrchestratorPlan(
+                customerReply: $plan->customerReply,
+                targetFunnelStageId: null,
+                appointment: $plan->appointment,
+                assigneeUserId: $plan->assigneeUserId,
+                managerNote: $plan->managerNote,
+                task: $plan->task,
+                requiresManagerAttention: $plan->requiresManagerAttention,
+                confidence: $plan->confidence,
+                reason: $plan->reason.' (смена этапа отклонена: '.$reject.')',
+            );
         }
 
-        return new AiFunnelOrchestratorPlan(
-            customerReply: $plan->customerReply,
-            targetFunnelStageId: null,
-            appointment: $plan->appointment,
-            assigneeUserId: $plan->assigneeUserId,
-            managerNote: $plan->managerNote,
-            task: $plan->task,
-            requiresManagerAttention: $plan->requiresManagerAttention,
-            confidence: $plan->confidence,
-            reason: $plan->reason.' (смена этапа отклонена: '.$reject.')',
-        );
+        // Evidence gate: block advancement without required qualification/agreement evidence.
+        $evidenceReject = $this->evidenceGate->rejectReason($chat, $stageId);
+        if ($evidenceReject !== null) {
+            Log::info('[ai-orchestrator] evidence gate blocked sanitizeStageTransition', [
+                'chat_id'         => $chat->id,
+                'target_stage_id' => $stageId,
+                'evidence_reason' => $evidenceReject,
+            ]);
+
+            return new AiFunnelOrchestratorPlan(
+                customerReply: $plan->customerReply,
+                targetFunnelStageId: null,
+                appointment: $plan->appointment,
+                assigneeUserId: $plan->assigneeUserId,
+                managerNote: $plan->managerNote,
+                task: $plan->task,
+                requiresManagerAttention: $plan->requiresManagerAttention,
+                confidence: $plan->confidence,
+                reason: $plan->reason.' (смена этапа отклонена: нет подтверждённых данных — '.$evidenceReject.')',
+            );
+        }
+
+        return $plan;
     }
 
     /**
