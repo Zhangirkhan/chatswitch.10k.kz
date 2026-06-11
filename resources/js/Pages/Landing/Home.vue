@@ -585,39 +585,6 @@ onUnmounted(() => {
 }
 
 .landing__main {
-        padding-bottom: 2rem;
-    }
-
-    .landing__section-title {
-        font-size: 1.125rem;
-    }
-
-    .landing__pricing-card {
-        padding: 1.25rem 1rem;
-        border-radius: 1rem;
-    }
-
-    .landing__pricing-amount {
-        font-size: clamp(1.75rem, 8vw, 2.25rem);
-    }
-}
-
-.landing__brand-mark {
-    flex-shrink: 0;
-}
-
-.landing__brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.625rem;
-    font-size: 1.0625rem;
-    font-weight: 600;
-    color: var(--landing-text);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-}
-
-.landing__main {
     flex: 1;
     width: 100%;
     max-width: 80rem;
@@ -715,6 +682,23 @@ onUnmounted(() => {
     .landing__cta-btn {
         width: 100%;
         text-align: center;
+    }
+
+    .landing__main {
+        padding-bottom: 2rem;
+    }
+
+    .landing__section-title {
+        font-size: 1.125rem;
+    }
+
+    .landing__pricing-card {
+        padding: 1.25rem 1rem;
+        border-radius: 1rem;
+    }
+
+    .landing__pricing-amount {
+        font-size: clamp(1.75rem, 8vw, 2.25rem);
     }
 }
 
