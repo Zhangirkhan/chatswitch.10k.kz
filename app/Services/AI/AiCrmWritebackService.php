@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\AI;
 
+use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\ContactTag;
+use App\Models\FunnelStage;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\AiFeatureFlags;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -48,6 +51,7 @@ final class AiCrmWritebackService
 
         try {
             $this->persistTags($contact, $facts);
+            $this->reconcileWithEntityMemory($contact);
             $this->updateEnrichedTimestamp($contact);
         } catch (Throwable $e) {
             Log::warning('[ai-crm-writeback] failed to write contact enrichment', [
@@ -60,7 +64,11 @@ final class AiCrmWritebackService
 
     /**
      * Sync the contact-level funnel stage when a chat's stage changes via AI.
-     * Records which funnel stage the contact has "reached" globally.
+     *
+     * Max-stage-aware: only advances contact.ai_funnel_stage_id when the new
+     * stage's position is greater than the current contact stage position.
+     * This prevents a new chat from rolling back a contact who already reached
+     * a later stage in another chat.
      */
     public function syncContactFunnelStage(Chat $chat, int $newStageId): void
     {
@@ -74,12 +82,48 @@ final class AiCrmWritebackService
         }
 
         try {
-            $contact->forceFill(['ai_funnel_stage_id' => $newStageId])->save();
+            $newStage = FunnelStage::query()->find($newStageId);
+            if ($newStage === null) {
+                return;
+            }
 
-            Log::debug('[ai-crm-writeback] contact funnel stage synced', [
-                'contact_id' => $contact->id,
-                'ai_funnel_stage_id' => $newStageId,
-            ]);
+            // Determine the highest funnel stage position across all contact chats.
+            $maxPositionAcrossChats = DB::table('chats')
+                ->join('funnel_stages', 'chats.funnel_stage_id', '=', 'funnel_stages.id')
+                ->where('chats.contact_id', $contact->id)
+                ->max('funnel_stages.position');
+
+            // Only write if the new stage is at least as advanced as any chat stage.
+            // Also respect the contact's own existing ai_funnel_stage_id.
+            $currentContactStagePosition = null;
+            if ($contact->ai_funnel_stage_id !== null) {
+                $currentContactStagePosition = FunnelStage::query()
+                    ->where('id', $contact->ai_funnel_stage_id)
+                    ->value('position');
+            }
+
+            $maxPosition = max(
+                (int) ($maxPositionAcrossChats ?? 0),
+                (int) ($currentContactStagePosition ?? 0),
+            );
+
+            if ((int) $newStage->position >= $maxPosition) {
+                $contact->forceFill(['ai_funnel_stage_id' => $newStageId])->save();
+
+                Log::debug('[ai-crm-writeback] contact funnel stage synced (max-stage-aware)', [
+                    'contact_id'            => $contact->id,
+                    'ai_funnel_stage_id'    => $newStageId,
+                    'new_stage_position'    => $newStage->position,
+                    'max_existing_position' => $maxPosition,
+                ]);
+            } else {
+                Log::debug('[ai-crm-writeback] contact funnel stage NOT updated (rollback prevented)', [
+                    'contact_id'            => $contact->id,
+                    'new_stage_id'          => $newStageId,
+                    'new_stage_position'    => $newStage->position,
+                    'max_existing_position' => $maxPosition,
+                ]);
+            }
         } catch (Throwable $e) {
             Log::warning('[ai-crm-writeback] failed to sync contact funnel stage', [
                 'contact_id' => $contact->id,
@@ -89,23 +133,44 @@ final class AiCrmWritebackService
     }
 
     /**
-     * Parse fact keywords into short tag names and upsert them on the contact.
-     * Tags remain under MAX_TAGS_PER_CONTACT to prevent bloat.
+     * Persist tags on the contact from extracted facts.
+     *
+     * Single-value facts (budget, source) are treated as "replace" — stale
+     * tags with the same prefix are deleted before the new one is inserted.
+     * This prevents accumulating outdated "бюджет: …" tags over time.
+     *
+     * Multi-value facts (requirements) are upserted without replacement.
      *
      * @param  array<string, mixed>  $facts
      */
     private function persistTags(Contact $contact, array $facts): void
     {
-        $tags = $this->extractTagsFromFacts($facts);
+        ['replace' => $replaceTags, 'append' => $appendTags] = $this->extractTagsFromFacts($facts);
 
-        if ($tags === []) {
-            return;
+        // --- Replace stale single-value tags (budget, source) ---
+        foreach ($replaceTags as $prefix => $newValue) {
+            ContactTag::query()
+                ->where('company_id', $contact->company_id)
+                ->where('contact_id', $contact->id)
+                ->where('source', ContactTag::SOURCE_AI)
+                ->where('name', 'like', $prefix.'%')
+                ->delete();
+
+            ContactTag::query()->firstOrCreate(
+                [
+                    'company_id' => $contact->company_id,
+                    'contact_id' => $contact->id,
+                    'name' => $newValue,
+                ],
+                ['source' => ContactTag::SOURCE_AI],
+            );
         }
 
+        // --- Upsert multi-value tags (requirements keywords) ---
         $maxTags = 20;
         $existingCount = $contact->tags()->where('source', ContactTag::SOURCE_AI)->count();
 
-        foreach ($tags as $tag) {
+        foreach ($appendTags as $tag) {
             if ($existingCount >= $maxTags) {
                 break;
             }
@@ -131,53 +196,94 @@ final class AiCrmWritebackService
     }
 
     /**
-     * Derive short, normalised tag names from extracted facts.
-     * Tags are lowercase, max 64 chars, no special chars beyond hyphens.
+     * Derive tag sets from extracted facts, split by replacement strategy.
+     *
+     * Returns:
+     *  'replace' => [prefix => full_tag_name]  (budget, source — single-value, replace stale)
+     *  'append'  => [tag_name, …]              (requirements keywords — multi-value, upsert)
      *
      * @param  array<string, mixed>  $facts
-     * @return list<string>
+     * @return array{replace: array<string, string>, append: list<string>}
      */
     private function extractTagsFromFacts(array $facts): array
     {
-        $candidates = [];
+        $replace = [];
+        $append  = [];
 
-        // Budget tier tag
+        // Budget — single-value; replace any existing "бюджет: …" tag.
         if (! empty($facts['budget'])) {
             $budget = mb_strtolower(trim((string) $facts['budget']));
-            if (mb_strlen($budget) <= 64 && $budget !== '') {
-                $candidates[] = 'бюджет: '.$budget;
+            if ($budget !== '' && mb_strlen($budget) <= 50) {
+                $replace['бюджет: '] = mb_substr('бюджет: '.$budget, 0, 64);
             }
         }
 
-        // Requirements — extract short noun phrases
+        // Source — single-value; replace any existing "источник: …" tag.
+        if (! empty($facts['source'])) {
+            $src = mb_strtolower(trim((string) $facts['source']));
+            if ($src !== '' && mb_strlen($src) <= 50) {
+                $replace['источник: '] = mb_substr('источник: '.$src, 0, 64);
+            }
+        }
+
+        // Requirements — multi-value keyword list; upsert without replacement.
         if (! empty($facts['requirements'])) {
             $req = mb_strtolower(trim((string) $facts['requirements']));
             $parts = preg_split('/[,;]+/', $req) ?: [];
             foreach (array_slice($parts, 0, 3) as $part) {
-                $part = trim($part);
-                if ($part !== '' && mb_strlen($part) <= 64) {
-                    $candidates[] = $part;
+                $part = mb_substr(trim($part), 0, 64);
+                if ($part !== '') {
+                    $append[] = $part;
                 }
             }
         }
 
-        // Source tag
-        if (! empty($facts['source'])) {
-            $src = mb_strtolower(trim((string) $facts['source']));
-            if (mb_strlen($src) <= 64 && $src !== '') {
-                $candidates[] = 'источник: '.$src;
-            }
-        }
+        return ['replace' => $replace, 'append' => array_unique($append)];
+    }
 
-        // Normalize: slug-style cleanup, max 64 chars
-        $tags = [];
-        foreach ($candidates as $tag) {
-            $normalised = mb_substr(trim($tag), 0, 64);
-            if ($normalised !== '') {
-                $tags[] = $normalised;
-            }
-        }
+    /**
+     * Reconcile EntityMemory AI-facts with the contact record.
+     * Called after tags are persisted to ensure the CRM reflects the full
+     * accumulated memory picture (not just the most recent extraction batch).
+     */
+    private function reconcileWithEntityMemory(Contact $contact): void
+    {
+        try {
+            $existing = $this->entityMemories->readAiFacts(
+                EntityMemorySubjectType::Contact,
+                $contact->id,
+            );
 
-        return array_unique($tags);
+            if ($existing === []) {
+                return;
+            }
+
+            // Sync budget tag from memory (most authoritative source).
+            if (! empty($existing['budget'])) {
+                $budget = mb_strtolower(mb_substr(trim((string) $existing['budget']), 0, 50));
+                if ($budget !== '') {
+                    ContactTag::query()
+                        ->where('company_id', $contact->company_id)
+                        ->where('contact_id', $contact->id)
+                        ->where('source', ContactTag::SOURCE_AI)
+                        ->where('name', 'like', 'бюджет: %')
+                        ->delete();
+
+                    ContactTag::query()->firstOrCreate(
+                        [
+                            'company_id' => $contact->company_id,
+                            'contact_id' => $contact->id,
+                            'name' => mb_substr('бюджет: '.$budget, 0, 64),
+                        ],
+                        ['source' => ContactTag::SOURCE_AI],
+                    );
+                }
+            }
+        } catch (Throwable $e) {
+            Log::debug('[ai-crm-writeback] entity-memory reconcile skipped', [
+                'contact_id' => $contact->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
