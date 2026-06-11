@@ -95,6 +95,7 @@ final class PlatformChangelogGitSyncService
                 'title' => $processed['title'],
                 'body' => $processed['body'],
                 'is_published' => (bool) config('changelog.git_sync.auto_publish', true),
+                'is_user_visible' => ($processed['audience'] ?? 'user') === 'user',
             ]);
 
             $stats['created']++;

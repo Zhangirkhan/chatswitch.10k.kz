@@ -11,6 +11,7 @@ interface ChangelogEntry {
     title: Record<string, string>;
     body: Record<string, string>;
     is_published: boolean;
+    is_user_visible: boolean;
     git_commit_hash: string | null;
     source_commit_subject: string | null;
     created_at: string;
@@ -35,6 +36,7 @@ const form = useForm({
     body_kk: '',
     body_en: '',
     is_published: true,
+    is_user_visible: true,
 });
 
 const editForm = useForm({
@@ -46,6 +48,7 @@ const editForm = useForm({
     body_kk: '',
     body_en: '',
     is_published: true,
+    is_user_visible: true,
 });
 
 function formatDate(iso: string): string {
@@ -56,6 +59,7 @@ function openCreate(): void {
     form.reset();
     form.published_at = new Date().toISOString().slice(0, 10);
     form.is_published = true;
+    form.is_user_visible = true;
     showCreate.value = true;
 }
 
@@ -79,6 +83,7 @@ function openEdit(entry: ChangelogEntry): void {
     editForm.body_kk = entry.body.kk ?? '';
     editForm.body_en = entry.body.en ?? '';
     editForm.is_published = entry.is_published;
+    editForm.is_user_visible = entry.is_user_visible;
 }
 
 function submitEdit(): void {
@@ -169,12 +174,22 @@ const showEditModal = computed({
                             <div class="mt-0.5 line-clamp-2 text-sm text-ui-text-secondary">{{ entry.body.ru }}</div>
                         </td>
                         <td>
-                            <span
-                                class="ui-badge"
-                                :class="entry.is_published ? 'ui-badge--success' : 'ui-badge--neutral'"
-                            >
-                                {{ entry.is_published ? t('superAdmin.platformChangelog.published') : t('superAdmin.platformChangelog.draft') }}
-                            </span>
+                            <div class="flex flex-col items-start gap-1">
+                                <span
+                                    class="ui-badge"
+                                    :class="entry.is_published ? 'ui-badge--success' : 'ui-badge--neutral'"
+                                >
+                                    {{ entry.is_published ? t('superAdmin.platformChangelog.published') : t('superAdmin.platformChangelog.draft') }}
+                                </span>
+                                <span
+                                    class="ui-badge text-xs"
+                                    :class="entry.is_user_visible ? 'ui-badge--neutral' : 'ui-badge--warning'"
+                                >
+                                    {{ entry.is_user_visible
+                                        ? t('superAdmin.platformChangelog.audienceUser')
+                                        : t('superAdmin.platformChangelog.audienceInternal') }}
+                                </span>
+                            </div>
                         </td>
                         <td class="text-right">
                             <div class="flex justify-end gap-2">
@@ -230,6 +245,10 @@ const showEditModal = computed({
                     <input v-model="form.is_published" type="checkbox" class="rounded border-ui-border" />
                     {{ t('superAdmin.platformChangelog.fieldPublished') }}
                 </label>
+                <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
+                    <input v-model="form.is_user_visible" type="checkbox" class="rounded border-ui-border" />
+                    {{ t('superAdmin.platformChangelog.fieldUserVisible') }}
+                </label>
             </form>
             <template #footer>
                 <button type="button" class="ui-btn ui-btn--ghost" @click="showCreate = false">{{ t('superAdmin.common.cancel') }}</button>
@@ -277,6 +296,10 @@ const showEditModal = computed({
                 <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
                     <input v-model="editForm.is_published" type="checkbox" class="rounded border-ui-border" />
                     {{ t('superAdmin.platformChangelog.fieldPublished') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm text-ui-text-secondary">
+                    <input v-model="editForm.is_user_visible" type="checkbox" class="rounded border-ui-border" />
+                    {{ t('superAdmin.platformChangelog.fieldUserVisible') }}
                 </label>
             </form>
             <template #footer>

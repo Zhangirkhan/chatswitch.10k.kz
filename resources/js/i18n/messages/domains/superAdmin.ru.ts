@@ -557,7 +557,7 @@ export const superAdminRu = {
     platformChangelog: {
         pageTitle: 'Changelog платформы',
         heading: 'Changelog',
-        lead: 'Записи создаются из git-коммитов (с переводом RU/KK/EN) и вручную. Опубликованные записи видны пользователям в настройках тенанта.',
+        lead: 'Записи создаются из git-коммитов (с переводом RU/KK/EN) и вручную. Пользователи tenant и mobile видят только записи с меткой «Для пользователей».',
         syncGit: 'Синхронизировать из git',
         syncingGit: 'Синхронизация…',
         fromGit: 'Git',
@@ -573,6 +573,8 @@ export const superAdminRu = {
         colStatus: 'Статус',
         published: 'Опубликовано',
         draft: 'Черновик',
+        audienceUser: 'Для пользователей',
+        audienceInternal: 'Только Super Admin',
         fieldDate: 'Дата публикации',
         fieldTitleRu: 'Заголовок (RU)',
         fieldTitleKk: 'Заголовок (KK)',
@@ -580,7 +582,8 @@ export const superAdminRu = {
         fieldBodyRu: 'Описание (RU)',
         fieldBodyKk: 'Описание (KK)',
         fieldBodyEn: 'Описание (EN)',
-        fieldPublished: 'Показывать пользователям',
+        fieldPublished: 'Опубликовано',
+        fieldUserVisible: 'Показывать пользователям (web + mobile)',
     },
     platformBanners: {
         pageTitle: 'Баннеры платформы',

@@ -84,6 +84,7 @@ final class PlatformChangelogController extends Controller
             'body_kk' => ['nullable', 'string', 'max:10000'],
             'body_en' => ['nullable', 'string', 'max:10000'],
             'is_published' => ['sometimes', 'boolean'],
+            'is_user_visible' => ['sometimes', 'boolean'],
         ]);
 
         return [
@@ -99,6 +100,7 @@ final class PlatformChangelogController extends Controller
                 'en' => filled($data['body_en'] ?? null) ? trim((string) $data['body_en']) : trim($data['body_ru']),
             ],
             'is_published' => (bool) ($data['is_published'] ?? true),
+            'is_user_visible' => (bool) ($data['is_user_visible'] ?? true),
         ];
     }
 }

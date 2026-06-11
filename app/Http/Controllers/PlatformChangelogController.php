@@ -13,7 +13,7 @@ final class PlatformChangelogController extends Controller
     public function index(): Response
     {
         $entries = PlatformChangelogEntry::query()
-            ->where('is_published', true)
+            ->visibleToUsers()
             ->orderByDesc('published_at')
             ->orderByDesc('id')
             ->get(['id', 'published_at', 'title', 'body']);

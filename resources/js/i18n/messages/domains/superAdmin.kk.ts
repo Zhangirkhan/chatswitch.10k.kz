@@ -557,7 +557,7 @@ export const superAdminKk = {
     platformChangelog: {
         pageTitle: 'Платформа changelog',
         heading: 'Changelog',
-        lead: 'Жазбалар git commit-терден (RU/KK/EN аудармасы) және қолмен құрылады. Жарияланған жазбалар тенант баптауларында көрінеді.',
+        lead: 'Жазбалар git commit-терден (RU/KK/EN аудармасы) және қолмен құрылады. Tenant және mobile пайдаланушылары тек «Пайдаланушыларға» белгісі бар жазбаларды көреді.',
         syncGit: 'Git-тен синхрондау',
         syncingGit: 'Синхрондау…',
         fromGit: 'Git',
@@ -573,6 +573,8 @@ export const superAdminKk = {
         colStatus: 'Күйі',
         published: 'Жарияланған',
         draft: 'Жоба',
+        audienceUser: 'Пайдаланушыларға',
+        audienceInternal: 'Тек Super Admin',
         fieldDate: 'Жариялау күні',
         fieldTitleRu: 'Тақырып (RU)',
         fieldTitleKk: 'Тақырып (KK)',
@@ -580,7 +582,8 @@ export const superAdminKk = {
         fieldBodyRu: 'Сипаттама (RU)',
         fieldBodyKk: 'Сипаттама (KK)',
         fieldBodyEn: 'Сипаттама (EN)',
-        fieldPublished: 'Пайдаланушыларға көрсету',
+        fieldPublished: 'Жарияланған',
+        fieldUserVisible: 'Пайдаланушыларға көрсету (web + mobile)',
     },
     platformBanners: {
         pageTitle: 'Платформа баннерлері',

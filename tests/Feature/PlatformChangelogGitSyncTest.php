@@ -78,6 +78,7 @@ final class PlatformChangelogGitSyncTest extends TestCase
         $this->assertDatabaseHas('platform_changelog_entries', [
             'git_commit_hash' => strtolower($hash),
             'is_published' => true,
+            'is_user_visible' => true,
         ]);
 
         $entry = PlatformChangelogEntry::query()->where('git_commit_hash', strtolower($hash))->firstOrFail();
@@ -135,6 +136,81 @@ final class PlatformChangelogGitSyncTest extends TestCase
         $this->assertSame(1, PlatformChangelogEntry::query()->count());
     }
 
+    public function test_sync_creates_internal_entry_when_openai_marks_internal_audience(): void
+    {
+        $hash = $this->gitCommit('Polish Super Admin platform banners admin UI');
+
+        Http::fake([
+            'https://api.openai.com/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'include' => true,
+                            'audience' => 'internal',
+                            'title' => [
+                                'ru' => 'Улучшено управление баннерами',
+                                'kk' => 'Баннерлер',
+                                'en' => 'Banner admin UI',
+                            ],
+                            'body' => [
+                                'ru' => 'Super Admin UI для баннеров.',
+                                'kk' => 'Super Admin UI.',
+                                'en' => 'Super Admin banner UI.',
+                            ],
+                        ], JSON_UNESCAPED_UNICODE),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        Artisan::call('platform-changelog:sync-git');
+
+        $this->assertDatabaseHas('platform_changelog_entries', [
+            'git_commit_hash' => strtolower($hash),
+            'is_published' => true,
+            'is_user_visible' => false,
+        ]);
+    }
+
+    public function test_sync_creates_internal_entry_for_super_admin_only_paths_without_openai(): void
+    {
+        $dir = $this->repoPath.'/resources/js/Pages/SuperAdmin/PlatformBanners';
+        mkdir($dir, 0777, true);
+        $file = $dir.'/Index.vue';
+        file_put_contents($file, '<template>admin</template>');
+        $hash = $this->gitCommitFiles([$file], 'Polish Super Admin platform banners admin UI');
+
+        Http::fake();
+
+        Artisan::call('platform-changelog:sync-git');
+
+        Http::assertNothingSent();
+
+        $this->assertDatabaseHas('platform_changelog_entries', [
+            'git_commit_hash' => strtolower($hash),
+            'is_user_visible' => false,
+        ]);
+    }
+
+    public function test_reclassify_internal_command_marks_existing_entries(): void
+    {
+        PlatformChangelogEntry::query()->create([
+            'published_at' => '2026-06-11',
+            'source_commit_subject' => 'Apply ui-table-panel styling to platform changelog list',
+            'title' => ['ru' => 'Обновлён вид списка изменений в админ-панели', 'kk' => 'x', 'en' => 'x'],
+            'body' => ['ru' => 'Super Admin changelog UI', 'kk' => 'x', 'en' => 'x'],
+            'is_published' => true,
+            'is_user_visible' => true,
+        ]);
+
+        $this->artisan('platform-changelog:reclassify-internal')
+            ->assertSuccessful();
+
+        $this->assertDatabaseHas('platform_changelog_entries', [
+            'is_user_visible' => false,
+        ]);
+    }
+
     private function initGitRepo(): void
     {
         Process::path($this->repoPath)->run(['git', 'init', '-b', 'main']);
@@ -145,7 +221,18 @@ final class PlatformChangelogGitSyncTest extends TestCase
     private function gitCommit(string $message): string
     {
         file_put_contents($this->repoPath.'/README.md', $message.' '.uniqid('', true));
-        Process::path($this->repoPath)->run(['git', 'add', '.']);
+
+        return $this->gitCommitFiles([$this->repoPath.'/README.md'], $message);
+    }
+
+    /**
+     * @param  list<string>  $files
+     */
+    private function gitCommitFiles(array $files, string $message): string
+    {
+        foreach ($files as $file) {
+            Process::path($this->repoPath)->run(['git', 'add', $file]);
+        }
         Process::path($this->repoPath)->run(['git', 'commit', '-m', $message]);
 
         $result = Process::path($this->repoPath)->run(['git', 'rev-parse', 'HEAD']);

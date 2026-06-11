@@ -557,7 +557,7 @@ export const superAdminEn = {
     platformChangelog: {
         pageTitle: 'Platform changelog',
         heading: 'Changelog',
-        lead: 'Entries are created from git commits (translated RU/KK/EN) and manually. Published entries appear in tenant settings.',
+        lead: 'Entries are created from git commits (translated RU/KK/EN) and manually. Tenant and mobile users only see entries marked “For users”.',
         syncGit: 'Sync from git',
         syncingGit: 'Syncing…',
         fromGit: 'Git',
@@ -573,6 +573,8 @@ export const superAdminEn = {
         colStatus: 'Status',
         published: 'Published',
         draft: 'Draft',
+        audienceUser: 'For users',
+        audienceInternal: 'Super Admin only',
         fieldDate: 'Publication date',
         fieldTitleRu: 'Title (RU)',
         fieldTitleKk: 'Title (KK)',
@@ -580,7 +582,8 @@ export const superAdminEn = {
         fieldBodyRu: 'Description (RU)',
         fieldBodyKk: 'Description (KK)',
         fieldBodyEn: 'Description (EN)',
-        fieldPublished: 'Visible to users',
+        fieldPublished: 'Published',
+        fieldUserVisible: 'Visible to users (web + mobile)',
     },
     platformBanners: {
         pageTitle: 'Platform banners',

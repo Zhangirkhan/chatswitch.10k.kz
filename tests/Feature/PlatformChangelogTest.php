@@ -76,13 +76,23 @@ final class PlatformChangelogTest extends TestCase
             'title' => ['ru' => 'Публичная запись', 'kk' => 'Публичная запись', 'en' => 'Public entry'],
             'body' => ['ru' => 'Текст обновления', 'kk' => 'Текст', 'en' => 'Text'],
             'is_published' => true,
+            'is_user_visible' => true,
         ]);
 
         PlatformChangelogEntry::query()->create([
             'published_at' => '2026-06-10',
+            'title' => ['ru' => 'Внутренняя запись', 'kk' => 'Внутренняя запись', 'en' => 'Internal entry'],
+            'body' => ['ru' => 'Только Super Admin', 'kk' => 'Скрыто', 'en' => 'Hidden'],
+            'is_published' => true,
+            'is_user_visible' => false,
+        ]);
+
+        PlatformChangelogEntry::query()->create([
+            'published_at' => '2026-06-09',
             'title' => ['ru' => 'Черновик', 'kk' => 'Черновик', 'en' => 'Draft'],
             'body' => ['ru' => 'Скрыто', 'kk' => 'Скрыто', 'en' => 'Hidden'],
             'is_published' => false,
+            'is_user_visible' => true,
         ]);
 
         $host = $this->tenantHost($company);

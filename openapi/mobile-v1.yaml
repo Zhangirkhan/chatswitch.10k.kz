@@ -116,8 +116,8 @@ paths:
         Публичный эндпоинт без Bearer (как `GET /api/v1/mobile/update-check`).
 
         Записи создаются на backend (`platform-changelog:sync-git` + OpenAI) и
-        переводятся на RU / KK / EN. В ответе только опубликованные записи
-        (`CHANGELOG_GIT_AUTO_PUBLISH` или publish в Super Admin).
+        переводятся на RU / KK / EN. В ответе только опубликованные user-facing
+        записи (`is_user_visible=true`; внутренние изменения Super Admin скрыты).
 
         Mobile: экран «Что нового» в настройках (`ChangelogService`).
         Offline / 404 — fallback на bundled `CHANGELOG.md`.

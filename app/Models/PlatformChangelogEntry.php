@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,6 +17,7 @@ final class PlatformChangelogEntry extends Model
         'title',
         'body',
         'is_published',
+        'is_user_visible',
         'created_by_user_id',
     ];
 
@@ -26,7 +28,28 @@ final class PlatformChangelogEntry extends Model
             'title' => 'array',
             'body' => 'array',
             'is_published' => 'boolean',
+            'is_user_visible' => 'boolean',
         ];
+    }
+
+    /**
+     * @param  Builder<PlatformChangelogEntry>  $query
+     * @return Builder<PlatformChangelogEntry>
+     */
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('is_published', true);
+    }
+
+    /**
+     * @param  Builder<PlatformChangelogEntry>  $query
+     * @return Builder<PlatformChangelogEntry>
+     */
+    public function scopeVisibleToUsers(Builder $query): Builder
+    {
+        return $query
+            ->where('is_published', true)
+            ->where('is_user_visible', true);
     }
 
     public function createdBy(): BelongsTo

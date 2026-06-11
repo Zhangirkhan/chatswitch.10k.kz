@@ -88,7 +88,13 @@ final class GitCommitReader
                 $committedAt = CarbonImmutable::today();
             }
 
-            $commits[] = new GitCommitSnapshot($hash, $subject, $body, $committedAt);
+            $commits[] = new GitCommitSnapshot(
+                $hash,
+                $subject,
+                $body,
+                $committedAt,
+                $this->changedPathsForCommit($path, $hash),
+            );
 
             if (count($commits) >= $limit) {
                 break;
@@ -128,5 +134,36 @@ final class GitCommitReader
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function changedPathsForCommit(string $repositoryPath, string $hash): array
+    {
+        $result = Process::timeout(15)->run([
+            'git',
+            '-C',
+            $repositoryPath,
+            'show',
+            '--pretty=format:',
+            '--name-only',
+            '--no-renames',
+            $hash,
+        ]);
+
+        if (! $result->successful()) {
+            return [];
+        }
+
+        $paths = [];
+        foreach (preg_split('/\R+/', trim($result->output())) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                $paths[] = $line;
+            }
+        }
+
+        return $paths;
     }
 }

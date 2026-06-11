@@ -52,6 +52,15 @@ final class MobileChangelogApiTest extends TestCase
             'title' => ['ru' => 'Кликабельные ссылки', 'kk' => 'Сілтемелер', 'en' => 'Clickable links'],
             'body' => ['ru' => 'Телефоны и email в сообщениях', 'kk' => 'Телефондар', 'en' => 'Phones and email'],
             'is_published' => true,
+            'is_user_visible' => true,
+        ]);
+
+        PlatformChangelogEntry::query()->create([
+            'published_at' => '2026-06-10',
+            'title' => ['ru' => 'Super Admin UI', 'kk' => 'x', 'en' => 'x'],
+            'body' => ['ru' => 'Только админка', 'kk' => 'x', 'en' => 'x'],
+            'is_published' => true,
+            'is_user_visible' => false,
         ]);
 
         $response = $this->getJson('https://'.$this->tenantHost($company).'/api/v1/mobile/changelog?locale=ru');

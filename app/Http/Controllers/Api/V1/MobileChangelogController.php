@@ -24,7 +24,7 @@ final class MobileChangelogController extends Controller
         $limit = (int) ($data['limit'] ?? 50);
 
         $entries = PlatformChangelogEntry::query()
-            ->where('is_published', true)
+            ->visibleToUsers()
             ->orderByDesc('published_at')
             ->orderByDesc('id')
             ->limit($limit)
