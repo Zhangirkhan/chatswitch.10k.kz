@@ -3,9 +3,14 @@
     --landing-bg: #000;
     --landing-surface: #1d1f1f;
     --landing-surface-raised: #232626;
+    --landing-card: #20242a;
+    --landing-card-top: #262b32;
     --landing-border: rgba(134, 150, 160, 0.18);
+    --landing-border-bright: rgba(134, 150, 160, 0.14);
     --landing-text: #e9edef;
     --landing-muted: #8696a0;
     --landing-accent: #01b964;
     --landing-accent-hover: #06d670;
+    --landing-elevation: 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+    --landing-glow: 0 0 0 1px rgba(1, 185, 100, 0.18), 0 22px 60px -30px rgba(1, 185, 100, 0.35);
 }

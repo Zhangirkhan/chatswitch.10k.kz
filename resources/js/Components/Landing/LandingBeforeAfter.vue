@@ -29,7 +29,8 @@ defineProps<{
 <template>
     <section id="problem" class="landing-before-after">
         <div class="landing-before-after__intro">
-            <h2 class="landing__section-title landing-before-after__title">{{ title }}</h2>
+            <p class="landing-before-after__eyebrow">{{ baLabelBefore }} / {{ baLabelAfter }}</p>
+            <h2 class="landing-before-after__title">{{ title }}</h2>
             <p class="landing-before-after__lead">{{ lead }}</p>
         </div>
 
@@ -107,49 +108,75 @@ defineProps<{
 <style scoped>
 .landing-before-after {
     scroll-margin-top: 5rem;
-    margin-bottom: 3.5rem;
+    margin-block: 3.5rem;
+}
+
+@media (min-width: 768px) {
+    .landing-before-after {
+        margin-block: 5.5rem;
+    }
 }
 
 .landing-before-after__intro {
-    max-width: 42rem;
-    margin: 0 auto 2rem;
+    max-width: 44rem;
+    margin: 0 0 2.5rem;
     text-align: center;
 }
 
+@media (min-width: 768px) {
+    .landing-before-after__intro {
+        text-align: left;
+    }
+}
+
+.landing-before-after__eyebrow {
+    margin: 0 0 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--landing-accent);
+}
+
 .landing-before-after__title {
-    margin-bottom: 0.75rem;
+    margin: 0 0 0.85rem;
+    font-size: clamp(1.35rem, 3vw, 1.75rem);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    color: var(--landing-text);
 }
 
 .landing-before-after__lead {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1.0625rem;
     line-height: 1.6;
     color: var(--landing-muted);
 }
 
 .landing-before-after__layout {
     display: grid;
-    gap: 2rem;
+    gap: 2.5rem;
 }
 
 @media (min-width: 1024px) {
     .landing-before-after__layout {
         grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
         align-items: start;
-        gap: 2.5rem;
+        gap: 3rem;
     }
 }
 
 .landing-before-after__grid {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 
 .landing-before-after__row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 0.75rem;
 }
 
 @media (max-width: 640px) {
@@ -159,24 +186,46 @@ defineProps<{
 }
 
 .landing-before-after__cell {
-    padding: 1rem 1.1rem;
-    border-radius: 12px;
-    border: 1px solid var(--landing-border);
+    padding: 1.35rem 1.45rem;
+    border-radius: 16px;
+    border: 1px solid var(--landing-border-bright);
     min-height: 7.5rem;
+    box-shadow: var(--landing-elevation);
+    transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+.landing-before-after__cell:hover {
+    transform: translateY(-2px);
 }
 
 .landing-before-after__cell--before {
-    background: rgba(239, 68, 68, 0.06);
-    border-color: rgba(239, 68, 68, 0.22);
+    background:
+        linear-gradient(180deg, rgba(239, 68, 68, 0.14) 0%, transparent 28%),
+        linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
+    border-color: rgba(239, 68, 68, 0.28);
 }
 
 .landing-before-after__cell--after {
-    background: rgba(1, 185, 100, 0.07);
-    border-color: rgba(1, 185, 100, 0.28);
+    background:
+        linear-gradient(180deg, rgba(1, 185, 100, 0.16) 0%, transparent 32%),
+        linear-gradient(160deg, rgba(38, 43, 50, 1), rgba(32, 36, 42, 1));
+    border-color: rgba(1, 185, 100, 0.32);
+    box-shadow:
+        var(--landing-elevation),
+        0 0 0 1px rgba(1, 185, 100, 0.08),
+        0 12px 32px -18px rgba(1, 185, 100, 0.35);
+}
+
+.landing-before-after__cell--after:hover {
+    box-shadow:
+        var(--landing-elevation),
+        var(--landing-glow);
 }
 
 .landing-before-after__label {
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.55rem;
     font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -193,29 +242,40 @@ defineProps<{
 
 .landing-before-after__heading {
     margin: 0;
-    font-size: 0.9375rem;
+    font-size: 0.96875rem;
     font-weight: 500;
-    line-height: 1.45;
+    line-height: 1.5;
     color: var(--landing-text);
 }
 
 .landing-before-after__aside {
-    padding: 1.25rem 1.35rem;
-    border-radius: 12px;
-    border: 1px solid var(--landing-border);
-    background: var(--landing-surface);
+    padding: 1.5rem 1.6rem;
+    border-radius: 16px;
+    border: 1px solid var(--landing-border-bright);
+    background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
+    box-shadow: var(--landing-elevation);
+    transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+.landing-before-after__aside:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        var(--landing-elevation),
+        0 0 0 1px rgba(1, 185, 100, 0.1);
 }
 
 .landing-before-after__aside-title {
-    margin: 0 0 0.65rem;
-    font-size: 1.0625rem;
+    margin: 0 0 0.75rem;
+    font-size: 1.125rem;
     font-weight: 600;
     line-height: 1.35;
     color: var(--landing-text);
 }
 
 .landing-before-after__aside-lead {
-    margin: 0 0 1rem;
+    margin: 0 0 1.15rem;
     font-size: 0.9375rem;
     line-height: 1.55;
     color: var(--landing-muted);
@@ -227,14 +287,14 @@ defineProps<{
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 0.75rem;
 }
 
 .landing-before-after__aside-list li {
     position: relative;
-    padding-left: 1.1rem;
+    padding-left: 1.15rem;
     font-size: 0.875rem;
-    line-height: 1.5;
+    line-height: 1.55;
     color: var(--landing-muted);
 }
 
@@ -243,31 +303,34 @@ defineProps<{
     position: absolute;
     left: 0;
     top: 0.55em;
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: var(--landing-accent);
+    box-shadow: 0 0 8px rgba(1, 185, 100, 0.55);
 }
 
 /* Mini chat decorations */
 .ba-mini {
-    margin-bottom: 0.75rem;
-    padding: 0.5rem 0.6rem;
-    border-radius: 8px;
+    margin-bottom: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
     font-size: 0.6875rem;
 }
 
 .ba-mini--pain0,
 .ba-mini--pain2,
 .ba-mini--pain3 {
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(239, 68, 68, 0.12);
     color: var(--landing-muted);
 }
 
 .ba-mini--ok0,
 .ba-mini--ok2,
 .ba-mini--ok3 {
-    background: rgba(1, 185, 100, 0.12);
+    background: rgba(1, 185, 100, 0.1);
+    border: 1px solid rgba(1, 185, 100, 0.18);
     color: var(--landing-accent);
 }
 
@@ -330,9 +393,10 @@ defineProps<{
     display: block;
     height: 0.35rem;
     border-radius: 999px;
-    background: var(--landing-accent);
+    background: linear-gradient(90deg, var(--landing-accent), var(--landing-accent-hover));
     width: 75%;
     margin-bottom: 0.35rem;
+    box-shadow: 0 0 12px rgba(1, 185, 100, 0.45);
 }
 
 .ba-ok0-meta {
@@ -388,9 +452,22 @@ defineProps<{
 .ba-ok3-av--new {
     background: var(--landing-accent);
     color: #000;
+    box-shadow: 0 0 14px rgba(1, 185, 100, 0.5);
 }
 
 .ba-ok3-arrow {
     color: var(--landing-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-before-after__cell,
+    .landing-before-after__aside {
+        transition: none;
+    }
+
+    .landing-before-after__cell:hover,
+    .landing-before-after__aside:hover {
+        transform: none;
+    }
 }
 </style>
