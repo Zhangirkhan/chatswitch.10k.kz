@@ -45,6 +45,15 @@ final class InboundAiDispatchService
                 ->where('enabled', true)
                 ->exists();
 
+        // Debounced memory extraction — must run on ALL paths including orchestrator.
+        // Previously this block was after the orchestrator early-return, making it
+        // unreachable for funnel-orchestrator tenants (EntityMemory never updated).
+        if (AiFeatureFlags::enabled(AiFeatureFlags::MEMORY_EXTRACTION, $chat->company_id)
+            && $chat->contact_id !== null
+        ) {
+            ExtractConversationMemoryJob::dispatchDebounced($chat->id, $chat->company_id);
+        }
+
         if ($orchestratorEnabled && $chat->ai_enabled) {
             $delaySeconds = max(1, (int) config('funnel.orchestrator.debounce_seconds', 3));
             RunAiFunnelOrchestratorJob::dispatch($chat->id, $message->id, $chat->company_id)
@@ -73,13 +82,6 @@ final class InboundAiDispatchService
 
         if ($chat->ai_enabled && ! $shouldAnalyzeFunnel) {
             $this->idleAiReply->dispatchGenerateReply($chat, $message->id);
-        }
-
-        // Debounced memory extraction — runs independently of the AI reply path.
-        if (AiFeatureFlags::enabled(AiFeatureFlags::MEMORY_EXTRACTION, $chat->company_id)
-            && $chat->contact_id !== null
-        ) {
-            ExtractConversationMemoryJob::dispatchDebounced($chat->id, $chat->company_id);
         }
     }
 }
