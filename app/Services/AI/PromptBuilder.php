@@ -138,15 +138,68 @@ final class PromptBuilder
             $result[] = ['role' => $role, 'content' => $content];
         }
 
-        // Apply char budget: drop oldest messages until total fits.
+        // Apply char budget: instead of silently dropping old messages (which loses
+        // mid-conversation facts), summarise the oldest portion into a system block.
         $totalChars = array_sum(array_map(fn (array $m): int => mb_strlen($m['content']), $result));
 
-        while ($totalChars > $historyCharBudget && count($result) > 1) {
-            $dropped = array_shift($result);
-            $totalChars -= mb_strlen($dropped['content']);
+        if ($totalChars > $historyCharBudget && count($result) > 1) {
+            $result = $this->compressOldHistoryMessages($chat, $result, $historyCharBudget);
         }
 
         return $result;
+    }
+
+    /**
+     * When history exceeds the char budget: keep the most recent messages verbatim
+     * and compress the oldest portion into a single system summary block.
+     *
+     * This preserves mid-conversation facts (budget, agreements, preferences) that
+     * would otherwise be silently lost by array_shift discarding.
+     *
+     * @param  list<array{role: 'user'|'assistant', content: string}>  $messages
+     * @return list<array{role: 'system'|'user'|'assistant', content: string}>
+     */
+    private function compressOldHistoryMessages(Chat $chat, array $messages, int $budget): array
+    {
+        // Keep the most recent messages that fit inside the budget.
+        $kept = [];
+        $usedChars = 0;
+        $reserve = max(300, (int) ($budget * 0.15)); // 15% headroom for the summary block
+
+        foreach (array_reverse($messages) as $msg) {
+            $len = mb_strlen($msg['content']);
+            if (($usedChars + $len) > ($budget - $reserve)) {
+                break;
+            }
+            array_unshift($kept, $msg);
+            $usedChars += $len;
+        }
+
+        $oldCount = count($messages) - count($kept);
+        if ($oldCount <= 0) {
+            return $messages;
+        }
+
+        // Summarise the dropped portion.
+        $old = array_slice($messages, 0, $oldCount);
+        $lines = array_map(fn (array $m): string => ($m['role'] === 'assistant' ? 'Сотрудник: ' : 'Клиент: ').$m['content'], $old);
+
+        $summaryText = $this->compressionCache->remember(
+            'history_old',
+            hash('sha256', implode("\n", $lines)).":chat:{$chat->id}",
+            fn (): string => $this->summarizeLongHistorySafe($chat, $lines, 'ранней части диалога'),
+        );
+
+        if ($summaryText === '') {
+            return $kept;
+        }
+
+        $summaryBlock = [
+            'role' => 'system',
+            'content' => "Сводка ранней части диалога (факты, договорённости, бюджет):\n{$summaryText}",
+        ];
+
+        return [$summaryBlock, ...$kept];
     }
 
     /**
