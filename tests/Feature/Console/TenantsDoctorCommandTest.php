@@ -77,6 +77,39 @@ final class TenantsDoctorCommandTest extends TestCase
         );
     }
 
+    public function test_doctor_fix_assigns_owner_when_missing(): void
+    {
+        $company = Company::query()->create([
+            'name' => 'No Owner Doctor',
+            'slug' => 'no-owner-doctor',
+            'is_active' => true,
+            'subscription_status' => 'active',
+        ]);
+
+        TenantRoles::ensureDefaultRolesForCompany($company);
+
+        $admin = User::factory()->create([
+            'company_id' => $company->id,
+            'is_active' => true,
+            'email' => 'admin@no-owner-doctor.kz',
+        ]);
+        TenantRoles::assign($admin, 'administrator');
+
+        $doctor = app(TenantDoctorService::class);
+        $report = $doctor->diagnose($company, includeInfra: false);
+
+        $ownerCheck = collect($report['groups']['data']['checks'] ?? [])->firstWhere('key', 'owner');
+        $this->assertFalse($ownerCheck['ok'] ?? true);
+
+        $doctor->fix($company, $report['groups']);
+
+        $company->refresh();
+        $this->assertSame($admin->id, $company->owner_user_id);
+
+        $report = $doctor->diagnose($company->fresh(['owner']), includeInfra: false);
+        $this->assertFalse($doctor->hasCriticalFailures($report));
+    }
+
     public function test_doctor_passes_for_healthy_provisioned_tenant(): void
     {
         Queue::fake();

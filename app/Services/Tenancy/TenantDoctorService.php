@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\WhatsappSession;
 use App\Services\AI\AiReadinessService;
 use App\Services\Company\CompanyOnboardingService;
+use App\Services\SuperAdmin\CompanyOwnerService;
 use App\Services\WhatsappService;
 use App\Services\WhatsappSessionHealService;
 use App\Support\TenantRoles;
@@ -36,6 +37,7 @@ final class TenantDoctorService
         private readonly WhatsappSessionHealService $healService,
         private readonly CompanyOnboardingService $onboarding,
         private readonly TenantNginxMapService $nginxMap,
+        private readonly CompanyOwnerService $companyOwners,
     ) {}
 
     /**
@@ -112,6 +114,10 @@ final class TenantDoctorService
             });
             app(PermissionRegistrar::class)->forgetCachedPermissions();
             $actions[] = 'migrate-roles';
+        }
+
+        if ($this->ownerChecksNeedFix($groups)) {
+            $this->fixOwner($company, $actions);
         }
 
         if ($this->groupNeedsFix($groups, 'dns_ssl')) {
@@ -309,7 +315,7 @@ final class TenantDoctorService
                 'ok' => $owner instanceof User,
                 'severity' => 'critical',
                 'message' => $owner instanceof User ? "Владелец: {$owner->email}" : 'Владелец не назначен',
-                'fixable' => false,
+                'fixable' => true,
             ],
             [
                 'key' => 'funnels',
@@ -557,6 +563,53 @@ final class TenantDoctorService
     private function groupNeedsFix(array $groups, string $key): bool
     {
         return ($groups[$key]['ok'] ?? true) === false;
+    }
+
+    /**
+     * @param  array<string, array{ok: bool, checks: list<array<string, mixed>>}>  $groups
+     */
+    private function ownerChecksNeedFix(array $groups): bool
+    {
+        foreach (['data', 'permissions'] as $groupKey) {
+            foreach ($groups[$groupKey]['checks'] ?? [] as $check) {
+                if (
+                    in_array($check['key'] ?? '', ['owner', 'owner_admin'], true)
+                    && ! ($check['ok'] ?? true)
+                    && ($check['fixable'] ?? false)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<string>  $actions
+     */
+    private function fixOwner(Company $company, array &$actions): void
+    {
+        $company = $company->fresh();
+
+        if ($company->owner_user_id === null) {
+            $result = $this->companyOwners->backfill($company);
+            if ($result === 'assigned') {
+                $actions[] = 'assign-owner';
+            }
+            $company = $company->fresh();
+        }
+
+        $owner = $this->resolveOwner($company);
+        if (! $owner instanceof User) {
+            return;
+        }
+
+        $this->withTenantContext($company, function () use ($company, $owner): void {
+            TenantRoles::syncForCompany($owner, $company->id, 'administrator');
+        });
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $actions[] = 'sync-owner-administrator';
     }
 
     private function tenantHost(Company $company): string
