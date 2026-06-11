@@ -14,12 +14,22 @@ import {
     type ScenarioConfig,
 } from '@/utils/aiTokenCalculator';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
-import AccelMark from '@/Components/AccelMark.vue';
-import { useI18n } from '@/composables/useI18n';
-import { Head, Link } from '@inertiajs/vue3';
+import LandingHead from '@/Components/Landing/LandingHead.vue';
+import LandingHeader from '@/Components/Landing/LandingHeader.vue';
+import { useLandingLocale } from '@/composables/useLandingLocale';
 import { computed, reactive, ref, watch } from 'vue';
 
-const { t } = useI18n();
+const { t } = useLandingLocale();
+
+function presetLabel(key: string, fallback: string): string {
+    const translated = t(`landing.calcPresets.${key}.label` as 'landing.calcPresets.start.label');
+    return translated === `landing.calcPresets.${key}.label` ? fallback : translated;
+}
+
+function scenarioLabel(id: string, fallback: string): string {
+    const translated = t(`landing.calcScenarios.${id}.label` as 'landing.calcScenarios.ai_reply.label');
+    return translated === `landing.calcScenarios.${id}.label` ? fallback : translated;
+}
 
 type Preset = Partial<CalculatorInputs> & { label: string; hint?: string };
 
@@ -132,7 +142,7 @@ const activePresetLabel = computed(() => {
         return t('landing.calcPresetCustom');
     }
 
-    return props.calculator.presets[activePreset.value]?.label ?? t('landing.calcPresetCustom');
+    return presetLabel(activePreset.value, props.calculator.presets[activePreset.value]?.label ?? t('landing.calcPresetCustom'));
 });
 
 const presetEntries = computed(() => Object.entries(props.calculator.presets));
@@ -242,23 +252,20 @@ function setBooleanInput(key: keyof CalculatorInputs, value: boolean): void {
 }
 
 const visibleScenarios = computed(() =>
-    result.value.scenarios.filter((s) => s.cost_usd > 0 || s.calls > 0),
+    result.value.scenarios
+        .filter((s) => s.cost_usd > 0 || s.calls > 0)
+        .map((row) => ({
+            ...row,
+            label: scenarioLabel(String(row.id), row.label),
+        })),
 );
 </script>
 
 <template>
     <div class="landing">
-        <Head :title="t('landing.calculatorTitle')" />
+        <LandingHead :title="t('landing.calculatorTitle')" />
 
-        <header class="landing__header landing__header--row">
-            <a href="/" class="landing__brand">
-                <AccelMark :size="28" variant="badge" />
-                <span>Accel</span>
-            </a>
-            <nav class="landing__nav">
-                <Link href="/" class="landing__nav-link">{{ t('landing.backHome') }}</Link>
-            </nav>
-        </header>
+        <LandingHeader mode="minimal" />
 
         <main class="landing__main landing__main--wide">
             <section class="calc-intro">
@@ -289,7 +296,7 @@ const visibleScenarios = computed(() =>
                         >
                             <span class="ui-section-tab__inner calc-segment__inner">
                                 <span class="calc-segment__emoji" aria-hidden="true">{{ presetIcon(key) }}</span>
-                                <span class="calc-segment__label">{{ preset.label }}</span>
+                                <span class="calc-segment__label">{{ presetLabel(key, preset.label) }}</span>
                             </span>
                         </button>
                     </div>

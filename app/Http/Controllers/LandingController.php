@@ -87,16 +87,16 @@ final class LandingController extends Controller
             'message' => ['nullable', 'string', 'max:2000'],
             'terms_accepted' => ['accepted'],
         ], [
-            'bin.regex' => 'Укажите БИН из 12 цифр.',
-            'terms_accepted.accepted' => 'Необходимо согласие с условиями подключения и оплаты.',
-            'desired_slug.regex' => 'Поддомен: только латиница, цифры и дефис (например my-company).',
-            'desired_slug.not_in' => 'Этот поддомен зарезервирован.',
-            'desired_slug.unique' => 'Такой поддомен уже занят — выберите другой.',
+            'bin.regex' => __('landing.bin_regex'),
+            'terms_accepted.accepted' => __('landing.terms_accepted'),
+            'desired_slug.regex' => __('landing.desired_slug_regex'),
+            'desired_slug.not_in' => __('landing.desired_slug_not_in'),
+            'desired_slug.unique' => __('landing.desired_slug_unique'),
         ]);
 
         $phone = PhoneFormatter::normalize($data['phone']);
         if ($phone === null || strlen($phone) < 11) {
-            return back()->withErrors(['phone' => 'Укажите полный номер телефона.'])->withInput();
+            return back()->withErrors(['phone' => __('landing.phone_invalid')])->withInput();
         }
 
         unset($data['terms_accepted']);
@@ -109,7 +109,7 @@ final class LandingController extends Controller
 
         return back()->with(
             'success',
-            'Заявка отправлена. После проверки мы создадим ваше рабочее пространство и пришлём данные для входа на email.',
+            __('landing.signup_success'),
         );
     }
 }

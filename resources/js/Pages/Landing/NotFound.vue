@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import AccelMark from '@/Components/AccelMark.vue';
-import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { useI18n } from '@/composables/useI18n';
+import LandingHead from '@/Components/Landing/LandingHead.vue';
+import LandingLocaleSwitcher from '@/Components/Landing/LandingLocaleSwitcher.vue';
+import { useLandingLocale } from '@/composables/useLandingLocale';
 
 const props = defineProps<{
     attemptedHost?: string | null;
     reason?: 'unknown_tenant' | 'not_found' | null;
 }>();
 
-const { t } = useI18n();
+const { t } = useLandingLocale();
 
 const isUnknownTenant = computed(() => props.reason === 'unknown_tenant');
 const heading = computed(() =>
@@ -25,7 +26,7 @@ const subheading = computed(() => {
 
 <template>
     <div class="not-found">
-        <Head :title="heading" />
+        <LandingHead :title="heading" />
 
         <div class="not-found__bg" aria-hidden="true">
             <span class="not-found__orb not-found__orb--a"></span>
@@ -40,7 +41,7 @@ const subheading = computed(() => {
                 <span>Accel</span>
             </a>
             <nav class="not-found__nav">
-                <a href="https://app.accel.kz/login" class="not-found__nav-link">{{ t('misc.login') }}</a>
+                <LandingLocaleSwitcher />
                 <a href="/#request" class="not-found__nav-cta">{{ t('landing.notFoundRequest') }}</a>
             </nav>
         </header>

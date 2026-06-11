@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ isset($landingMeta) ? $landingMeta['locale'] : str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+
+        @isset($landingMeta)
+            <meta name="description" content="{{ $landingMeta['description'] }}">
+            <meta property="og:type" content="website">
+            <meta property="og:site_name" content="Accel">
+            <meta property="og:title" content="{{ $landingMeta['title'] }}">
+            <meta property="og:description" content="{{ $landingMeta['description'] }}">
+            <meta property="og:image" content="{{ $landingMeta['og_image'] }}">
+            <meta property="og:url" content="{{ $landingMeta['og_url'] }}">
+            <meta name="twitter:card" content="summary_large_image">
+            <meta name="twitter:title" content="{{ $landingMeta['title'] }}">
+            <meta name="twitter:description" content="{{ $landingMeta['description'] }}">
+            <meta name="twitter:image" content="{{ $landingMeta['og_image'] }}">
+        @endisset
 
         <!-- PWA -->
         <meta name="mobile-web-app-capable" content="yes">

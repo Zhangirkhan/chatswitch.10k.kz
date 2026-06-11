@@ -12,7 +12,7 @@ use App\Http\Middleware\EnsureSuperAdminHost;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventAuthenticatedDocumentCache;
 use App\Http\Middleware\ResolveTenant;
-use App\Http\Middleware\SetPermissionsTeamId;
+use App\Http\Middleware\SetLandingLocale;
 use App\Http\Middleware\RestrictWhatsappServiceAccess;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\VerifyWhatsappWebhook;
@@ -52,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->prefix('api')
                 ->group(base_path('routes/api-global.php'));
 
-            Route::middleware('web')
+            Route::middleware(['web', SetLandingLocale::class])
                 ->domain($rootDomain)
                 ->group(base_path('routes/landing.php'));
 
