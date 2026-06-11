@@ -89,6 +89,8 @@ final class Chat extends Model
         'conflict_situation',
         'conflict_deescalation_count',
         'ai_paused_at',
+        'active_topic',
+        'active_topic_updated_at',
     ];
 
     protected function casts(): array
@@ -112,6 +114,7 @@ final class Chat extends Model
             'funnel_ai_last_analyzed_at' => 'datetime',
             'ai_orchestrator_last_action_at' => 'datetime',
             'ai_paused_at' => 'datetime',
+            'active_topic_updated_at' => 'datetime',
         ];
     }
 

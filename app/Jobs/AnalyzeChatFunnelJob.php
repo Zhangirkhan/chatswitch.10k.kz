@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
+use App\Services\AI\ActiveTopicDetector;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatFunnelClassifierService;
 use App\Services\AI\ChatIdleAiReplyService;
@@ -39,6 +40,7 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
         ChatIdleAiReplyService $idleAiReply,
+        ActiveTopicDetector $topicDetector,
     ): void
     {
         if (SystemSetting::getValue('module_funnels', 'on') !== 'on') {
@@ -60,6 +62,10 @@ final class AnalyzeChatFunnelJob implements ShouldQueue
         if ($latestInbound === null || $latestInbound->id !== $this->triggerMessageId) {
             return;
         }
+
+        // Keep the active topic up to date before routing/classification.
+        $topicDetector->updateFromMessage($chat, $latestInbound);
+        $chat->refresh();
 
         $department = $departmentRouting->resolveAndAssignDepartment($chat, $latestInbound);
         $chat->refresh();
