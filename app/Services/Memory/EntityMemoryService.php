@@ -114,6 +114,152 @@ final class EntityMemoryService
     }
 
     /**
+     * AI-safe merge: update only the managed "## AI-факты (авто)" section inside memory.md
+     * without touching any manually-written content.  No authorization check — this is a
+     * system-level write path.  Still creates a backup before overwriting.
+     *
+     * @param  array<string, mixed>  $facts  Structured facts extracted by ConversationMemoryExtractor
+     */
+    public function mergeAiFacts(EntityMemorySubjectType $type, int $subjectId, array $facts): EntityMemory
+    {
+        if ($facts === []) {
+            return $this->get($type, $subjectId, true);
+        }
+
+        $tenantId = TenantCompany::id();
+
+        return DB::transaction(function () use ($type, $subjectId, $facts, $tenantId): EntityMemory {
+            $memory = $this->get($type, $subjectId, true);
+            $previous = (string) $memory->content;
+
+            $newSection = $this->renderAiFactsSection($facts);
+            $newContent = $this->injectAiFactsSection($previous, $newSection);
+
+            if (trim($newContent) === trim($previous)) {
+                return $memory;
+            }
+
+            $max = max(1000, (int) config('entity-memory.max_content_chars', 50000));
+            if (mb_strlen($newContent) > $max) {
+                // Trim the AI section to fit, preserving manual content
+                $available = $max - mb_strlen($this->stripAiFactsSection($previous)) - 50;
+                if ($available > 200) {
+                    $newSection = mb_substr($newSection, 0, $available).'…';
+                    $newContent = $this->injectAiFactsSection($previous, $newSection);
+                } else {
+                    // Manual content already too long; skip AI write silently
+                    return $memory;
+                }
+            }
+
+            if (trim($previous) !== '') {
+                $this->storeBackupSystem($memory, $previous);
+            }
+
+            $memory->forceFill([
+                'content' => $newContent,
+                'content_hash' => $this->hash($newContent),
+            ])->save();
+
+            $this->syncFiles($memory);
+
+            return $memory->fresh() ?? $memory;
+        });
+    }
+
+    private const AI_FACTS_SECTION_START = '## AI-факты (авто)';
+
+    private const AI_FACTS_SECTION_END = '<!-- /ai-facts -->';
+
+    /**
+     * Render the managed AI-facts section from structured facts.
+     *
+     * @param  array<string, mixed>  $facts
+     */
+    private function renderAiFactsSection(array $facts): string
+    {
+        $lines = [self::AI_FACTS_SECTION_START];
+        $lines[] = '_Автоматически обновлено AI. Не редактируй эту секцию вручную._';
+        $lines[] = '';
+
+        $labels = [
+            'budget'       => 'Бюджет',
+            'requirements' => 'Требования',
+            'objections'   => 'Возражения',
+            'agreements'   => 'Договорённости',
+            'preferences'  => 'Предпочтения',
+            'source'       => 'Источник лида',
+            'contact_info' => 'Контактные данные',
+            'other'        => 'Прочее',
+        ];
+
+        foreach ($labels as $key => $label) {
+            $value = $facts[$key] ?? null;
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+            if (is_array($value)) {
+                $value = implode(', ', array_filter(array_map('strval', $value)));
+            }
+            $value = trim((string) $value);
+            if ($value === '') {
+                continue;
+            }
+            $lines[] = "**{$label}:** {$value}";
+        }
+
+        $lines[] = '';
+        $lines[] = '_Обновлено: '.now()->format('Y-m-d H:i').'_';
+        $lines[] = self::AI_FACTS_SECTION_END;
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Replace or append the AI-facts section in the full memory content.
+     */
+    private function injectAiFactsSection(string $content, string $section): string
+    {
+        $pattern = '/'.preg_quote(self::AI_FACTS_SECTION_START, '/').'.*?'.preg_quote(self::AI_FACTS_SECTION_END, '/').'/s';
+
+        if (preg_match($pattern, $content)) {
+            return (string) preg_replace($pattern, $section, $content);
+        }
+
+        $trimmed = rtrim($content);
+
+        return ($trimmed !== '' ? $trimmed."\n\n" : '').$section;
+    }
+
+    /**
+     * Remove the AI-facts section from content (to calculate remaining space).
+     */
+    private function stripAiFactsSection(string $content): string
+    {
+        $pattern = '/\n*'.preg_quote(self::AI_FACTS_SECTION_START, '/').'.*?'.preg_quote(self::AI_FACTS_SECTION_END, '/').'\n*/s';
+
+        return (string) preg_replace($pattern, '', $content);
+    }
+
+    /**
+     * Store a backup without requiring a User actor (system writes).
+     */
+    private function storeBackupSystem(EntityMemory $memory, string $content): void
+    {
+        try {
+            EntityMemoryBackup::query()->create([
+                'entity_memory_id' => $memory->id,
+                'content' => $content,
+                'content_hash' => $this->hash($content),
+                'created_by_user_id' => null,
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
      * @return Collection<int, EntityMemoryBackup>
      */
     public function backups(EntityMemorySubjectType $type, int $subjectId): Collection
