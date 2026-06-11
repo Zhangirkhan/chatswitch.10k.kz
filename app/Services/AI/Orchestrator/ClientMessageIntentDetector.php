@@ -282,6 +282,36 @@ final class ClientMessageIntentDetector
             || str_contains($body, 'тапсырыс');
     }
 
+    /**
+     * Client starts a new order cycle after a previous deal was closed or delivered.
+     */
+    public function isRepeatOrderIntent(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '' || $this->isOrderCompletionFeedback($body)) {
+            return false;
+        }
+
+        $hasReorderSignal = preg_match(
+            '/(?:ещ[её]|снова|опять|повтор|еще\s+раз).{0,24}(?:заказ|куп|оформ)/u',
+            $body,
+        ) === 1
+            || preg_match(
+                '/(?:заказ|куп|оформ).{0,24}(?:ещ[её]|снова|опять|повтор)/u',
+                $body,
+            ) === 1
+            || str_contains($body, 'новый заказ')
+            || str_contains($body, 'тағы заказ');
+
+        if (! $hasReorderSignal) {
+            return false;
+        }
+
+        return $this->isPurchaseIntent($body)
+            || $this->isCatalogInquiry($body)
+            || preg_match('/(?:помидор|товар|кг|штук|упаков)/u', $body) === 1;
+    }
+
     private function isTimeQuestion(string $body): bool
     {
         if (preg_match('/(?:қанша|канша|неше)\s+(?:уақыт|уакыт|күн|сағат|сагат|минут|час)/u', $body) === 1) {

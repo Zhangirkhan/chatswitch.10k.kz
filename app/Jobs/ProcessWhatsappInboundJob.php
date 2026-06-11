@@ -14,6 +14,7 @@ use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
+use App\Services\Funnel\RepeatOrderCycleService;
 use App\Services\Push\MobilePushService;
 use App\Support\SafeBroadcast;
 use App\Support\VoiceInboundHelper;
@@ -62,6 +63,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         InboundAiDispatchService $aiDispatch,
         ActiveTopicDetector $topicDetector,
         ChatSalesStateService $salesState,
+        RepeatOrderCycleService $repeatOrderCycle,
     ): void {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $companyId = isset($this->data['companyId']) ? (int) $this->data['companyId'] : null;
@@ -164,6 +166,9 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         // Detect and persist the active topic before AI dispatch so all paths
         // (orchestrator, classifier, simple reply) can use it for retrieval.
         if ($message->chat !== null && $message->direction === 'inbound') {
+            $repeatOrderCycle->restartIfNeeded($message->chat, $message);
+            $message->chat->refresh();
+
             $topicDetector->updateFromMessage($message->chat, $message);
             // Detect deferral intent («подумаем», «позже») and update sales_state accordingly.
             // Clear any prior deferral flag if the client re-engaged substantively.

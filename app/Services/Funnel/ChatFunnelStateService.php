@@ -132,6 +132,73 @@ final class ChatFunnelStateService
     }
 
     /**
+     * System-initiated transition (e.g. repeat order cycle) — bypasses AI transition guards.
+     */
+    public function applySystemTransition(
+        Chat $chat,
+        int $targetStageId,
+        int $triggerMessageId,
+        string $reason,
+    ): void {
+        $funnelId = (int) ($chat->funnel_id ?? 0);
+        if ($funnelId <= 0) {
+            return;
+        }
+
+        $catalog = $this->catalogBuilder->forChat($chat);
+        if (! $this->catalogBuilder->isPairInCatalog($catalog, $funnelId, $targetStageId)) {
+            Log::warning('[funnel-system] rejected invalid stage for repeat order restart', [
+                'chat_id' => $chat->id,
+                'funnel_id' => $funnelId,
+                'target_stage_id' => $targetStageId,
+            ]);
+
+            return;
+        }
+
+        $fromFunnelId = $chat->funnel_id;
+        $fromStageId = $chat->funnel_stage_id;
+
+        if ((int) $fromStageId === $targetStageId) {
+            return;
+        }
+
+        DB::transaction(function () use (
+            $chat,
+            $funnelId,
+            $targetStageId,
+            $triggerMessageId,
+            $reason,
+            $fromFunnelId,
+            $fromStageId,
+        ): void {
+            $chat->forceFill([
+                'funnel_id' => $funnelId,
+                'funnel_stage_id' => $targetStageId,
+                'funnel_ai_last_analyzed_at' => now(),
+                'funnel_ai_last_message_id' => $triggerMessageId,
+                'funnel_ai_last_reason' => $reason,
+            ])->save();
+
+            ChatFunnelTransition::query()->create([
+                'chat_id' => $chat->id,
+                'company_id' => $chat->company_id,
+                'from_funnel_id' => $fromFunnelId,
+                'from_stage_id' => $fromStageId,
+                'to_funnel_id' => $funnelId,
+                'to_stage_id' => $targetStageId,
+                'source' => ChatFunnelTransition::SOURCE_SYSTEM,
+                'confidence' => 1.0,
+                'reason' => $reason,
+                'trigger_message_id' => $triggerMessageId,
+            ]);
+        });
+
+        app(FunnelStageFollowUpService::class)->cancelPendingForChat($chat->fresh() ?? $chat);
+        $this->broadcastFresh($chat->id, 'system', $reason);
+    }
+
+    /**
      * @param  array{funnel_id?: int|null, funnel_stage_id?: int|null, funnel_tracking_enabled?: bool, funnel_stage_locked?: bool}  $data
      */
     public function applyManual(Chat $chat, array $data, User $actor): void

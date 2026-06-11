@@ -70,4 +70,20 @@ final class ClientMessageIntentDetectorTest extends TestCase
             $this->detector->detect($message),
         );
     }
+
+    public function test_repeat_order_intent_detected_after_closure_message(): void
+    {
+        $message = 'здравствуйте, хочу еще заказать помидоры';
+
+        $this->assertTrue($this->detector->isRepeatOrderIntent($message));
+        $this->assertFalse($this->detector->isOrderCompletionFeedback($message));
+    }
+
+    public function test_completion_feedback_is_not_repeat_order(): void
+    {
+        $message = 'спасибо, курьер быстро приехал';
+
+        $this->assertTrue($this->detector->isOrderCompletionFeedback($message));
+        $this->assertFalse($this->detector->isRepeatOrderIntent($message));
+    }
 }

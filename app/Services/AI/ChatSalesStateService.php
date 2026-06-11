@@ -199,6 +199,28 @@ final class ChatSalesStateService
     }
 
     /**
+     * Fresh sales cycle after a repeat order — drop stale qualification from the prior deal.
+     */
+    public function resetForNewOrderCycle(Chat $chat): void
+    {
+        $chat->forceFill([
+            'sales_state' => [
+                'qualified' => false,
+                'budget_known' => false,
+                'requirements_known' => false,
+                'objections_open' => [],
+                'agreements' => null,
+                'missing_fields' => ['requirements', 'quantity'],
+                'next_action' => self::NA_ASK_REQUIREMENTS,
+                'repeat_order_cycle' => true,
+            ],
+            'sales_state_updated_at' => now(),
+        ])->save();
+
+        $this->nurtureSequence->cancelForChat($chat, 'repeat_order');
+    }
+
+    /**
      * Return a human-readable summary of the current sales state for prompt injection.
      * Returns empty string when no meaningful state exists yet.
      */
