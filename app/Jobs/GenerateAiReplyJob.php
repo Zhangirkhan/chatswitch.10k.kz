@@ -23,6 +23,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
@@ -169,6 +170,31 @@ final class GenerateAiReplyJob implements ShouldQueue
 
         try {
             $generated = $typing->whileGenerating($chat, fn (): array => $generator->generate($chat, $responder, $trigger, $log));
+
+            // Post-LLM stale-reply guard: if a newer inbound message arrived while the
+            // LLM was processing, discard this response to avoid out-of-order replies.
+            $freshLatestInboundId = Message::query()
+                ->where('chat_id', $chat->id)
+                ->where('direction', 'inbound')
+                ->latest('message_timestamp')
+                ->latest('id')
+                ->value('id');
+
+            if ((int) $freshLatestInboundId !== (int) $trigger->id) {
+                $log->forceFill([
+                    'status' => 'cancelled',
+                    'error' => 'Stale reply discarded: newer inbound message arrived.',
+                ])->save();
+
+                Log::info('[ai-reply] stale reply discarded after LLM', [
+                    'chat_id' => $chat->id,
+                    'trigger_message_id' => $trigger->id,
+                    'latest_inbound_id' => $freshLatestInboundId,
+                ]);
+
+                return;
+            }
+
             if ($mode === 'draft') {
                 $log->forceFill([
                     'status' => 'drafted',
@@ -229,5 +255,16 @@ final class GenerateAiReplyJob implements ShouldQueue
                 throw $e;
             }
         }
+    }
+
+    /**
+     * Prevent concurrent auto-reply generation for the same chat.
+     * Release lock after 3 minutes (longer than any realistic LLM call).
+     *
+     * @return list<\Illuminate\Queue\Middleware\WithoutOverlapping>
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping('ai-reply:'.$this->chatId))->releaseAfter(180)];
     }
 }

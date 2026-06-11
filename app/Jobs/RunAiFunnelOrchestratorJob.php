@@ -15,6 +15,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
@@ -90,6 +91,20 @@ final class RunAiFunnelOrchestratorJob implements ShouldQueue
         }
 
         $typing->whileGenerating($chat, fn (): null => $orchestrator->run($this->chatId, $this->triggerMessageId));
+    }
+
+    /**
+     * Prevent concurrent orchestrator runs for the same chat.
+     * Release the lock after 5 minutes (lease timeout) so a crashed worker
+     * doesn't block the chat permanently.
+     *
+     * @return list<\Illuminate\Queue\Middleware\WithoutOverlapping>
+     */
+    public function middleware(): array
+    {
+        $leaseSeconds = max(60, (int) config('ai.orchestrator_lease_timeout_minutes', 5) * 60);
+
+        return [(new WithoutOverlapping('orchestrator:'.$this->chatId))->releaseAfter($leaseSeconds)];
     }
 
     public function viaQueue(): string
