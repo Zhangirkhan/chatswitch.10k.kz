@@ -15,6 +15,7 @@ use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
 use App\Services\Push\MobilePushService;
+use App\Support\SafeBroadcast;
 use App\Support\VoiceInboundHelper;
 use App\Support\WhatsappMessageType;
 use App\Support\WhatsappSessionResolver;
@@ -141,15 +142,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        try {
-            broadcast(new NewMessageReceived($message, $chatId));
-        } catch (\Throwable $e) {
-            Log::warning('[whatsapp-inbound] broadcast failed, message kept in DB', [
-                'chat_id' => $chatId,
-                'message_id' => $message->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        SafeBroadcast::dispatch(new NewMessageReceived($message, $chatId), 'whatsapp-inbound');
 
         $message->loadMissing('chat');
         if ($message->chat !== null) {

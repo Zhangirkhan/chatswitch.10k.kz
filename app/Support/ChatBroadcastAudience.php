@@ -10,6 +10,7 @@ use App\Models\Message;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 final class ChatBroadcastAudience
 {
@@ -27,7 +28,7 @@ final class ChatBroadcastAudience
      */
     public static function userIdsWithAccessToChat(Chat $chat): array
     {
-        $admins = User::role('administrator')->pluck('id')->all();
+        $admins = self::userIdsWithRole('administrator');
         $assigned = ChatAssignment::where('chat_id', $chat->id)->pluck('user_id')->all();
 
         if ($assigned !== []) {
@@ -43,7 +44,8 @@ final class ChatBroadcastAudience
 
             $managerIds = [];
             if ($assignedDeptIds !== []) {
-                $managerIds = User::role('manager')
+                $managerIds = User::query()
+                    ->whereIn('id', self::userIdsWithRole('manager'))
                     ->whereHas('departments', fn ($q) => $q->whereIn('departments.id', $assignedDeptIds))
                     ->pluck('id')
                     ->all();
@@ -60,6 +62,23 @@ final class ChatBroadcastAudience
         )->pluck('id')->all();
 
         return array_values(array_unique(array_merge($admins, $allEmployeeIds)));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function userIdsWithRole(string $roleName): array
+    {
+        $roleExists = Role::query()
+            ->where('name', $roleName)
+            ->where('guard_name', 'web')
+            ->exists();
+
+        if (! $roleExists) {
+            return [];
+        }
+
+        return User::role($roleName)->pluck('id')->all();
     }
 
     /**
