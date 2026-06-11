@@ -859,9 +859,9 @@ final class AiFunnelOrchestratorService
 
     private function normalizePlan(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
+        $plan = $this->normalizeCompletionSignal($chat, $trigger, $plan);
         $plan = $this->normalizeSupplementalBookingDetail($chat, $trigger, $plan);
         $plan = $this->normalizeConflictSituation($chat, $trigger, $plan);
-        $plan = $this->normalizeCompletionSignal($chat, $trigger, $plan);
         $plan = $this->normalizeDeliveryDestination($chat, $trigger, $plan);
         $plan = $this->normalizePriceNegotiation($chat, $trigger, $plan);
         $plan = $this->normalizeDeliveryScheduling($chat, $trigger, $plan);
@@ -1151,27 +1151,14 @@ final class AiFunnelOrchestratorService
 
     private function normalizeCompletionSignal(Chat $chat, Message $trigger, AiFunnelOrchestratorPlan $plan): AiFunnelOrchestratorPlan
     {
-        $stageName = trim((string) $chat->funnelStage?->name);
-        if (! in_array($stageName, ['Доставка/монтаж назначены', 'Готово к доставке/монтажу', 'Заказ выполнен'], true)) {
-            return $plan;
-        }
-
-        $body = mb_strtolower((string) $trigger->body);
-        $isPositiveCompletion = (str_contains($body, 'спасибо') || str_contains($body, 'благодар'))
-            && (
-                str_contains($body, 'выполн')
-                || str_contains($body, 'доволь')
-                || str_contains($body, 'отличн')
-                || str_contains($body, 'все хорошо')
-            );
-
-        if (! $isPositiveCompletion) {
+        $body = mb_strtolower(trim((string) $trigger->body));
+        if ($body === '' || ! $this->clientIntents->isOrderCompletionFeedback($body)) {
             return $plan;
         }
 
         return new AiFunnelOrchestratorPlan(
             customerReply: 'Спасибо за обратную связь! Рады, что вам всё понравилось. Будем благодарны за отзыв и всегда готовы помочь с новыми заказами.',
-            targetFunnelStageId: $this->stageIdByAnyName($chat, ['Закрыто успешно', 'Заказ выполнен']),
+            targetFunnelStageId: $this->stageIdByAnyName($chat, ['Закрыто успешно', 'Заказ выполнен']) ?? $plan->targetFunnelStageId,
             appointment: null,
             assigneeUserId: null,
             managerNote: null,

@@ -46,4 +46,28 @@ final class ClientMessageIntentDetectorTest extends TestCase
             $this->detector->detect('қанша тұрады'),
         );
     }
+
+    public function test_post_delivery_feedback_is_not_delivery_address(): void
+    {
+        $message = 'ого, курьер так быстро приехал, оплатил наличными спустбо за помидоры очень вкусно';
+
+        $this->assertTrue($this->detector->isOrderCompletionFeedback($message));
+        $this->assertFalse($this->detector->isProvidingAddressOrDeliveryDetail($message));
+        $this->assertSame(
+            ClientMessageIntentDetector::INTENT_ORDER_COMPLETION,
+            $this->detector->detect($message),
+        );
+    }
+
+    public function test_imperative_delivery_address_still_detected(): void
+    {
+        $message = 'привезите на абая 67';
+
+        $this->assertFalse($this->detector->isOrderCompletionFeedback($message));
+        $this->assertTrue($this->detector->isProvidingAddressOrDeliveryDetail($message));
+        $this->assertSame(
+            ClientMessageIntentDetector::INTENT_DELIVERY,
+            $this->detector->detect($message),
+        );
+    }
 }

@@ -29,6 +29,9 @@ final class ClientMessageIntentDetector
     /** Client is deferring: «подумаем», «позже», «не сейчас» etc. */
     public const INTENT_DEFERRAL = 'deferral';
 
+    /** Client confirms payment, delivery received, or positive post-order feedback. */
+    public const INTENT_ORDER_COMPLETION = 'order_completion';
+
     public const INTENT_GENERAL = 'general';
 
     /**
@@ -39,6 +42,10 @@ final class ClientMessageIntentDetector
         $body = mb_strtolower(trim($body));
         if ($body === '') {
             return self::INTENT_GENERAL;
+        }
+
+        if ($this->isOrderCompletionFeedback($body)) {
+            return self::INTENT_ORDER_COMPLETION;
         }
 
         if ($this->isProvidingAddressOrDeliveryDetail($body)) {
@@ -147,12 +154,54 @@ final class ClientMessageIntentDetector
     }
 
     /**
+     * Post-order feedback: payment confirmed, courier arrived, satisfaction thanks.
+     * Must not be treated as a new delivery address.
+     */
+    public function isOrderCompletionFeedback(string $body): bool
+    {
+        $body = mb_strtolower(trim($body));
+        if ($body === '') {
+            return false;
+        }
+
+        if (preg_match('/(?:оплатил|оплатила|оплачено|наличн|перев[её]л|т[өо]лед|толед)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:курьер|курьера).{0,40}(?:приехал|прив[её]з|доставил|быстро|уже)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:приехал|прив[её]з|доставил).{0,40}(?:курьер|курьера)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:спасибо|благодар|рахмет|рақмет|спустбо).{0,50}(?:вкусн|понрав|отличн|класс|супер)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:вкусн|понрав|отличн|класс|супер).{0,50}(?:спасибо|благодар|рахмет|рақмет|спустбо)/u', $body) === 1) {
+            return true;
+        }
+
+        if (preg_match('/(?:получил|получила|забрал|забрала).{0,30}(?:заказ|товар|доставк)/u', $body) === 1) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Клиент дополняет заказ адресом/доставкой, а не задаёт новый вопрос о записи.
      */
     public function isProvidingAddressOrDeliveryDetail(string $body): bool
     {
         $body = mb_strtolower(trim($body));
         if ($body === '' || str_contains($body, '?')) {
+            return false;
+        }
+
+        if ($this->isOrderCompletionFeedback($body)) {
             return false;
         }
 
@@ -164,7 +213,8 @@ final class ClientMessageIntentDetector
             return true;
         }
 
-        if (preg_match('/(?:привез|достав|оставьте|остав|курьер|жеткіз|жеткиз|орнат)/u', $body) === 1) {
+        // Imperative delivery instructions only — not past-tense «курьер приехал» feedback.
+        if (preg_match('/(?:привез(?:ите|и)?|достав(?:ьте|ить|ка)|оставьте|остав(?:ь)?|вызов(?:ите)?\s+курьер|жеткіз|жеткиз|орнат)/u', $body) === 1) {
             return true;
         }
 

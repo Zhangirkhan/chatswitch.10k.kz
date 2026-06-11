@@ -187,6 +187,27 @@ final class ConversationAppointmentResolverTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_post_delivery_feedback_is_not_supplemental_address(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-12 01:00:00', config('app.timezone')));
+
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create(['whatsapp_session_id' => $session->id]);
+
+        $this->createInbound($chat, $session->id, '5 кг помидоров, Сейфуллина 56', now()->subMinutes(3));
+        $this->createOutbound($chat, $session->id, 'Да, подтверждаем заказ! ожидайте курьера!', now()->subMinutes(2));
+        $trigger = $this->createInbound(
+            $chat,
+            $session->id,
+            'ого, курьер так быстро приехал, оплатил наличными спустбо за помидоры очень вкусно',
+            now(),
+        );
+
+        $this->assertFalse($this->resolver->isSupplementalDetailAfterBooking($chat, $trigger));
+
+        Carbon::setTestNow();
+    }
+
     private function createOutbound(Chat $chat, int $sessionId, string $body, Carbon $at): Message
     {
         return Message::query()->create([

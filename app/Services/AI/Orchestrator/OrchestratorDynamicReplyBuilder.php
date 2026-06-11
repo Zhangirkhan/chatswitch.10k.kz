@@ -45,6 +45,7 @@ final class OrchestratorDynamicReplyBuilder
             ClientMessageIntentDetector::INTENT_PURCHASE => $this->purchaseReply($body, $chat, $trigger),
             ClientMessageIntentDetector::INTENT_ACKNOWLEDGEMENT => $this->acknowledgementReply($body, $chat, $trigger),
             ClientMessageIntentDetector::INTENT_DEFERRAL => $this->deferralReply($body, $chat, $trigger),
+            ClientMessageIntentDetector::INTENT_ORDER_COMPLETION => $this->orderCompletionReply($body, $chat, $trigger),
             default => null,
         };
     }
@@ -345,6 +346,25 @@ final class OrchestratorDynamicReplyBuilder
             'reason' => $cta !== ''
                 ? 'Клиент поблагодарил — AI ответил и предложил следующий шаг по статусу продажи.'
                 : 'Клиент поблагодарил — AI ответил коротко и по делу.',
+            'task' => null,
+        ];
+    }
+
+    /**
+     * @return array{reply: string, reason: string, task: array{title: string, body: string}|null}
+     */
+    private function orderCompletionReply(string $body, ?Chat $chat, ?Message $trigger): array
+    {
+        return [
+            'reply' => $this->pickLocalized(
+                $body,
+                'Спасибо за обратную связь! Рады, что всё понравилось. Если понадобится что-то ещё — пишите.',
+                'Пікіріңіз үшін рахмет! Бәрі ұнағанына қуаныштымыз. Тағы керек болса — жазыңыз.',
+                null,
+                $chat,
+                $trigger,
+            ),
+            'reason' => 'Клиент подтвердил получение заказа и оплату — AI поблагодарил без повторного запроса адреса.',
             'task' => null,
         ];
     }

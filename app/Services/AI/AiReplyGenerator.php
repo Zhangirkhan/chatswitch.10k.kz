@@ -12,6 +12,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AI\Locale\ChatInboundLocaleResolver;
 use App\Services\AI\Locale\LocaleReplyGuard;
+use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
@@ -39,6 +40,7 @@ final class AiReplyGenerator
         private readonly LocaleReplyGuard $localeReplyGuard,
         private readonly ChatConflictService $conflictService,
         private readonly ConversationAppointmentResolver $conversationAppointments,
+        private readonly ClientMessageIntentDetector $clientIntents,
     ) {}
 
     /**
@@ -51,6 +53,11 @@ final class AiReplyGenerator
             : '';
 
         if ($triggerMessage !== null) {
+            $body = mb_strtolower(trim(MessageInboundText::forMessage($triggerMessage)));
+            if ($this->clientIntents->isOrderCompletionFeedback($body)) {
+                return $this->handleOrderCompletionFeedback($chat, $triggerMessage, $log);
+            }
+
             if ($this->conversationAppointments->isSupplementalDetailAfterBooking($chat, $triggerMessage)) {
                 return $this->handleSupplementalBookingDetail($chat, $triggerMessage, $log);
             }
@@ -144,6 +151,29 @@ final class AiReplyGenerator
             'prompt_hash' => $built['prompt_hash'],
             'metadata' => $metadata,
         ];
+    }
+
+    /**
+     * @return array{reply: string, prompt_hash: string, metadata?: array<string, mixed>}
+     */
+    private function handleOrderCompletionFeedback(
+        Chat $chat,
+        Message $triggerMessage,
+        ?AiResponseLog $log,
+    ): array {
+        $reply = 'Спасибо за обратную связь! Рады, что всё понравилось. Если понадобится что-то ещё — пишите.';
+        $promptHash = hash('sha256', 'order_completion:'.$chat->id.':'.$triggerMessage->id);
+
+        $log?->forceFill([
+            'metadata' => [
+                ...($log->metadata ?? []),
+                'order_completion_feedback' => true,
+            ],
+        ])->save();
+
+        return $this->appointmentReply($reply, $promptHash, $log, [
+            'status' => 'order_completion_feedback',
+        ]);
     }
 
     /**
