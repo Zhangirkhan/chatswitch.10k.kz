@@ -11,6 +11,7 @@ use App\Models\EmployeeToneProfile;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AI\Locale\LocalePromptAugmenter;
+use App\Services\AI\Retrieval\RetrievalQueryBuilder;
 use App\Services\Knowledge\ProductMessageAttachmentService;
 use App\Services\Memory\EntityMemoryService;
 use App\Services\Promotion\CompanyPromotionCatalog;
@@ -50,6 +51,7 @@ final class PromptBuilder
         private readonly WhatsappAiTypingService $whatsappTyping,
         private readonly LocalePromptAugmenter $localeAugmenter,
         private readonly CompanyPromotionCatalog $promotionCatalog,
+        private readonly RetrievalQueryBuilder $retrievalQueryBuilder,
     ) {}
 
     /**
@@ -490,7 +492,17 @@ PROMPT;
 
     private function knowledgeBlock(Chat $chat, int $companyId, string $clientQuestion): string
     {
-        $query = trim($clientQuestion) !== '' ? trim($clientQuestion) : null;
+        $rawQuery = trim($clientQuestion) !== '' ? trim($clientQuestion) : null;
+
+        // Context-aware query enrichment: for vague follow-ups inject the active topic
+        // and recent inbound context so retrieval stays semantically anchored.
+        if ($rawQuery !== null
+            && AiFeatureFlags::enabled(AiFeatureFlags::RETRIEVAL_CONTEXT_AWARE, $companyId)
+        ) {
+            $rawQuery = $this->retrievalQueryBuilder->build($rawQuery, $chat);
+        }
+
+        $query = $rawQuery;
         $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query);
         $historyCharBudget = (int) config('ai.history_char_budget', 24000);
         $fullContext = implode("\n", $lines);

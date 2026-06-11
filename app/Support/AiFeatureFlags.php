@@ -37,6 +37,12 @@ final class AiFeatureFlags
 
     public const CRM_WRITEBACK = 'ai.crm_writeback';
 
+    /** Enrich RAG query with active topic + recent inbound context for follow-up messages. */
+    public const RETRIEVAL_CONTEXT_AWARE = 'ai.retrieval_context_aware';
+
+    /** Filter RAG chunks by detected knowledge domain (delivery/pricing/…). */
+    public const RETRIEVAL_DOMAIN_FILTER = 'ai.retrieval_domain_filter';
+
     /** All known flag keys — used for validation and documentation. */
     public const ALL_KEYS = [
         self::MEMORY_EXTRACTION,
@@ -45,6 +51,8 @@ final class AiFeatureFlags
         self::ROLLING_SUMMARY,
         self::FUNNEL_SEQUENCE_GUARD,
         self::CRM_WRITEBACK,
+        self::RETRIEVAL_CONTEXT_AWARE,
+        self::RETRIEVAL_DOMAIN_FILTER,
     ];
 
     /**
