@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\V1\FeedbackPopularController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MobileBannerController;
 use App\Http\Controllers\Api\V1\MobileChangelogController;
 use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
@@ -54,6 +55,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
 
         Route::get('settings', [ApiSettingsController::class, 'show']);
+        Route::get('mobile/banners', MobileBannerController::class)
+            ->middleware('throttle:60,1');
 
         Route::get('feedback', [ApiFeedbackController::class, 'index']);
         Route::post('feedback', [ApiFeedbackController::class, 'store'])

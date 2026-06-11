@@ -23,6 +23,7 @@ use App\Http\Controllers\SuperAdmin\MobileAppReleaseController;
 use App\Http\Controllers\SuperAdmin\PaymentController;
 use App\Http\Controllers\SuperAdmin\PlanController;
 use App\Http\Controllers\SuperAdmin\PlatformChangelogController as SuperAdminPlatformChangelogController;
+use App\Http\Controllers\SuperAdmin\PlatformBannerController;
 use App\Http\Controllers\SuperAdmin\SignupRequestController;
 use App\Http\Controllers\SuperAdmin\SubscriptionController;
 use Illuminate\Support\Facades\Route;
@@ -131,4 +132,9 @@ Route::middleware(['auth', 'super.admin', 'super.admin.global'])->group(function
     Route::post('/platform-changelog', [SuperAdminPlatformChangelogController::class, 'store'])->name('super.platform-changelog.store');
     Route::put('/platform-changelog/{platformChangelog}', [SuperAdminPlatformChangelogController::class, 'update'])->name('super.platform-changelog.update');
     Route::delete('/platform-changelog/{platformChangelog}', [SuperAdminPlatformChangelogController::class, 'destroy'])->name('super.platform-changelog.destroy');
+
+    Route::get('/platform-banners', [PlatformBannerController::class, 'index'])->name('super.platform-banners.index');
+    Route::post('/platform-banners', [PlatformBannerController::class, 'store'])->name('super.platform-banners.store');
+    Route::put('/platform-banners/{platformBanner}', [PlatformBannerController::class, 'update'])->name('super.platform-banners.update');
+    Route::delete('/platform-banners/{platformBanner}', [PlatformBannerController::class, 'destroy'])->name('super.platform-banners.destroy');
 });

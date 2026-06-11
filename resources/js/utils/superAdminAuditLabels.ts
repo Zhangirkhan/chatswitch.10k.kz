@@ -22,6 +22,9 @@ const AUDIT_ACTION_KEYS: Record<string, MessageKey> = {
     'tenant.welcome_email_sent': 'superAdmin.audit.actions.tenantWelcomeEmailSent',
     'tenant.rejection_email_sent': 'superAdmin.audit.actions.tenantRejectionEmailSent',
     'impersonation.end': 'superAdmin.audit.actions.impersonationEnd',
+    'platform_banner.created': 'superAdmin.audit.actions.platformBannerCreated',
+    'platform_banner.updated': 'superAdmin.audit.actions.platformBannerUpdated',
+    'platform_banner.deleted': 'superAdmin.audit.actions.platformBannerDeleted',
 };
 
 export function auditActionLabel(

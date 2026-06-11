@@ -168,6 +168,49 @@ paths:
         "422":
           description: Ошибка валидации query-параметров
 
+  /api/v1/mobile/banners:
+    get:
+      tags: [Mobile]
+      summary: Активные top-баннеры платформы
+      operationId: mobileBannersIndex
+      description: |
+        Требует Bearer-токен (Sanctum). Возвращает до 3 активных баннеров для текущего
+        тенанта: platform-wide (`company_id = null`) и баннеры конкретной компании.
+
+        Баннеры создаются в Super Admin (`/platform-banners`). Показываются только
+        авторизованным пользователям с `targets` = `mobile` или `both`.
+
+        Rate limit: 60 запросов/мин.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          description: Язык текста баннера
+          schema:
+            type: string
+            enum: [ru, kk, en]
+            default: ru
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileBannerListResponse"
+              example:
+                data:
+                  banners:
+                    - id: 1
+                      message: "Плановые техработы 22:00–02:00"
+                      background_color: "#2563eb"
+                      text_color: "#ffffff"
+        "401":
+          description: Не авторизован
+        "422":
+          description: Ошибка валидации query-параметров
+
   /api/v1/auth/login:
     post:
       tags: [Auth]
@@ -2840,3 +2883,37 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PlatformChangelogListData"
+
+    MobileBanner:
+      type: object
+      required: [id, message, background_color, text_color]
+      properties:
+        id:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: "Плановые техработы 22:00–02:00"
+        background_color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#2563eb"
+        text_color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#ffffff"
+
+    MobileBannerListData:
+      type: object
+      properties:
+        banners:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/MobileBanner"
+
+    MobileBannerListResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/MobileBannerListData"

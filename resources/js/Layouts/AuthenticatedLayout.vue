@@ -7,7 +7,9 @@ import ToastContainer from '@/Components/ToastContainer.vue';
 import ConnectionLostOverlay from '@/Components/ConnectionLostOverlay.vue';
 import UiViewTransition from '@/Components/Ui/UiViewTransition.vue';
 import ImpersonationBanner from '@/Components/ImpersonationBanner.vue';
+import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
 import PwaInstallBanner from '@/Components/PwaInstallBanner.vue';
+import { usePlatformBannerVisibility } from '@/composables/usePlatformBannerVisibility';
 import type { WhatsappSession } from '@/types';
 import { formatPhone } from '@/utils/phone';
 import { useChatsListDesktopNotifications } from '@/composables/useChatsListDesktopNotifications';
@@ -22,6 +24,7 @@ const { show: showToast } = useToastStore();
 
 const page = usePage<any>();
 const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
+const isDemoTenant = computed(() => (page.props.tenantSlug as string | undefined) === 'demo');
 const user = computed(() => page.props.auth.user);
 const userId = computed(() => (typeof user.value?.id === 'number' ? user.value.id : null));
 
@@ -65,7 +68,16 @@ const canSubscribeToWhatsappStatus = computed(() => {
     return Array.isArray(roles) && (roles.includes('administrator') || roles.includes('manager'));
 });
 
-const isDemoTenant = computed(() => page.props.tenantSlug === 'demo');
+const { visibleCount: platformBannerCount } = usePlatformBannerVisibility();
+
+const topBannerOffsetRem = computed(() => {
+    let count = platformBannerCount.value;
+    if (page.props.impersonation) {
+        count += 1;
+    }
+
+    return count * 2.25;
+});
 
 watch(
     () => page.props.whatsappSessions as WhatsappSession[] | undefined,
@@ -213,9 +225,11 @@ onUnmounted(() => {
 
 <template>
     <ImpersonationBanner />
+    <PlatformBannerStack />
     <div
         class="h-screen w-screen flex bg-[var(--wa-page-bg)] text-[var(--wa-text)] overflow-hidden"
-        :class="{ 'has-impersonation-banner': Boolean(page.props.impersonation) }"
+        :class="{ 'has-top-banners': topBannerOffsetRem > 0 }"
+        :style="topBannerOffsetRem > 0 ? { paddingTop: `${topBannerOffsetRem}rem` } : undefined"
     >
         <aside
             class="flex h-full w-[60px] shrink-0 flex-col items-center border-r py-3"
@@ -349,8 +363,7 @@ onUnmounted(() => {
     background: #ef4444;
 }
 
-.has-impersonation-banner {
-    padding-top: 2.25rem;
+.has-top-banners {
     box-sizing: border-box;
 }
 </style>

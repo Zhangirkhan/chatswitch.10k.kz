@@ -15,6 +15,7 @@ use App\Models\WhatsappSession;
 use App\Services\Calendar\CalendarMenuBadgeService;
 use App\Services\DemoWhatsappSessionSimulator;
 use App\Services\Security\RecaptchaVerifier;
+use App\Services\PlatformBanner\PlatformBannerService;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\TeamDepartmentChatSyncService;
 use App\Support\CompanyModules;
@@ -75,6 +76,19 @@ final class HandleInertiaRequests extends Middleware
             'appVersion' => fn () => (string) config('app.version', '1.0.0'),
             'isSuperAdminHost' => fn () => $isSuperAdminHost,
             'impersonation' => fn () => $request->session()->get(TenantImpersonationService::SESSION_KEY),
+            'platformBanners' => function () use ($request, $user, $isSuperAdminHost) {
+                if ($user === null) {
+                    return [];
+                }
+
+                $tenantContext = app(TenantContext::class);
+                $companyId = $isSuperAdminHost ? null : $tenantContext->companyIdOrNull();
+
+                return app(PlatformBannerService::class)->activeForWeb(
+                    $companyId !== null ? (int) $companyId : null,
+                    (string) app()->getLocale(),
+                );
+            },
             'auth' => [
                 'user' => $user ? array_merge(
                     $user->toArray(),
