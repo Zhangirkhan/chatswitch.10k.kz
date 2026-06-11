@@ -105,20 +105,34 @@ final class OpenAiChatService
                 $payload['response_format'] = $responseFormat;
             }
 
+            $retryStatuses = array_map(
+                'intval',
+                explode(',', (string) config('ai.retry_on_http_statuses', '429,500,502,503,504')),
+            );
+            $baseBackoffMs = max(100, (int) config('ai.retry_base_backoff_ms', 1000));
+
             $response = Http::baseUrl($baseUrl)
                 ->withToken($apiKey)
                 ->acceptJson()
                 ->asJson()
                 ->timeout($timeout)
-                ->retry(3, 1000, function (\Throwable $exception): bool {
+                ->retry(3, $baseBackoffMs, function (\Throwable $exception, \Illuminate\Http\Client\PendingRequest $request) use ($retryStatuses): bool {
+                    // Always retry on connection errors (network timeout, DNS, etc.).
+                    if ($exception instanceof ConnectionException) {
+                        return true;
+                    }
+
                     if (! $exception instanceof RequestException) {
                         return false;
                     }
 
-                    return $exception->response?->status() === 429;
-                })
-                ->post('/chat/completions', $payload)
-                ->throw();
+                    return in_array($exception->response?->status(), $retryStatuses, true);
+                }, throw: false)
+                ->post('/chat/completions', $payload);
+
+            if ($response->failed()) {
+                $response->throw();
+            }
         } catch (ConnectionException $e) {
             throw new RuntimeException('Не удалось подключиться к OpenAI: '.$e->getMessage(), 0, $e);
         } catch (RequestException $e) {

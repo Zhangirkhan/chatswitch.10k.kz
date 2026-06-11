@@ -125,11 +125,40 @@ final class AiFunnelOrchestratorService
         }
 
         if ($run->status === AiOrchestratorRun::STATUS_FAILED) {
-            return;
+            // Allow one retry: reset to pending so the claim below can take over.
+            // Subsequent retries of the same job will short-circuit via the job's
+            // tries limit, so this never loops indefinitely.
+            $run->forceFill([
+                'status' => AiOrchestratorRun::STATUS_PENDING,
+                'error' => null,
+                'started_at' => null,
+                'completed_at' => null,
+            ])->save();
         }
 
         if ($run->status === AiOrchestratorRun::STATUS_RUNNING) {
-            return;
+            // Reclaim dead leases: if the run has been RUNNING for longer than the
+            // configured lease timeout the worker that started it likely crashed.
+            $leaseMinutes = max(1, (int) config('ai.orchestrator_lease_timeout_minutes', 5));
+            $startedAt = $run->started_at;
+
+            if ($startedAt !== null && $startedAt->diffInMinutes(now()) >= $leaseMinutes) {
+                Log::warning('[ai-orchestrator] reclaiming expired lease', [
+                    'run_id' => $run->id,
+                    'chat_id' => $chatId,
+                    'started_at' => $startedAt->toIso8601String(),
+                    'lease_minutes' => $leaseMinutes,
+                ]);
+
+                $run->forceFill([
+                    'status' => AiOrchestratorRun::STATUS_PENDING,
+                    'error' => 'Lease expired — reclaimed for retry.',
+                    'started_at' => null,
+                ])->save();
+            } else {
+                // Still within lease — another worker is handling it.
+                return;
+            }
         }
 
         $actor = $this->actor($chat, $scenario);

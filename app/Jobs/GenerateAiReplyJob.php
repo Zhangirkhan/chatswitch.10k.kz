@@ -30,13 +30,39 @@ final class GenerateAiReplyJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 2;
+    public int $tries = 3;
 
     public function __construct(
         public readonly int $chatId,
         public readonly int $triggerMessageId,
         public readonly ?int $tenantCompanyId = null,
     ) {}
+
+    /** Exponential backoff: 30 s, 90 s, 270 s. */
+    public function backoff(): array
+    {
+        return [30, 90, 270];
+    }
+
+    /**
+     * Handle permanent job failure: mark the AiResponseLog as failed.
+     */
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('[ai-reply] job permanently failed', [
+            'chat_id' => $this->chatId,
+            'trigger_message_id' => $this->triggerMessageId,
+            'error' => $exception->getMessage(),
+        ]);
+
+        \App\Models\AiResponseLog::query()
+            ->where('trigger_message_id', $this->triggerMessageId)
+            ->whereIn('status', ['pending', 'generating'])
+            ->update([
+                'status' => 'failed',
+                'error' => mb_substr('Job permanently failed: '.$exception->getMessage(), 0, 2000),
+            ]);
+    }
 
     public function handle(
         AiReplyGenerator $generator,
