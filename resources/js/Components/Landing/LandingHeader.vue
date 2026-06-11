@@ -497,8 +497,6 @@ function openRequest(): void {
     .landing__header-cta {
         width: 100%;
         justify-content: center;
-        padding: 0.75rem 1rem;
-        font-size: 0.9375rem;
     }
 }
 </style>

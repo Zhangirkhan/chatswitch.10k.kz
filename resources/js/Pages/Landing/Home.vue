@@ -359,7 +359,7 @@ onUnmounted(() => {
                 <li v-for="item in features" :key="item.title" class="landing__features-item">
                     <LandingBorderGlow
                         class="landing__card-glow"
-                        background-color="#262b32"
+                        background-color="transparent"
                         :border-radius="16"
                         :edge-sensitivity="11"
                         :glow-radius="52"
@@ -1203,30 +1203,6 @@ onUnmounted(() => {
     font-size: 0.8125rem;
     line-height: 1.5;
     color: var(--landing-muted);
-}
-
-.landing__cta-btn {
-    padding: 0.875rem 2rem;
-    font-size: 1rem;
-    font-weight: 600;
-    font-family: inherit;
-    color: #fff;
-    background: var(--landing-accent);
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 10px 28px -12px rgba(1, 185, 100, 0.55);
-    transition:
-        background 0.15s ease,
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-}
-
-.landing__cta-btn:hover {
-    background: var(--landing-accent-hover);
-    transform: translateY(-2px);
-    box-shadow:
-        0 14px 36px -10px rgba(1, 185, 100, 0.65),
-        0 0 0 1px rgba(1, 185, 100, 0.2);
 }
 
 .landing__toast {
