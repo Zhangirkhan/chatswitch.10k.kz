@@ -114,9 +114,29 @@ final class EntityMemoryService
     }
 
     /**
+     * Return the parsed AI-facts from the managed section, or [] if none exist yet.
+     *
+     * @return array<string, string>
+     */
+    public function readAiFacts(EntityMemorySubjectType $type, int $subjectId): array
+    {
+        try {
+            $memory = $this->get($type, $subjectId, false);
+
+            return $this->parseAiFactsSection((string) $memory->content);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
      * AI-safe merge: update only the managed "## AI-факты (авто)" section inside memory.md
      * without touching any manually-written content.  No authorization check — this is a
      * system-level write path.  Still creates a backup before overwriting.
+     *
+     * Field-level merge semantics: fields absent from $facts but present in the existing
+     * AI section are preserved.  This prevents a narrow extraction window (last 20 msgs)
+     * from silently wiping confirmed facts (e.g. budget stated a month ago).
      *
      * @param  array<string, mixed>  $facts  Structured facts extracted by ConversationMemoryExtractor
      */
@@ -132,7 +152,13 @@ final class EntityMemoryService
             $memory = $this->get($type, $subjectId, true);
             $previous = (string) $memory->content;
 
-            $newSection = $this->renderAiFactsSection($facts);
+            // Field-level merge: new extraction wins for present fields;
+            // fields absent from this run but existing in the AI section are kept.
+            $existingFacts = $this->parseAiFactsSection($previous);
+            $nonEmpty = array_filter($facts, static fn (mixed $v): bool => $v !== null && $v !== '' && $v !== []);
+            $merged = array_merge($existingFacts, $nonEmpty);
+
+            $newSection = $this->renderAiFactsSection($merged);
             $newContent = $this->injectAiFactsSection($previous, $newSection);
 
             if (trim($newContent) === trim($previous)) {
@@ -213,6 +239,43 @@ final class EntityMemoryService
         $lines[] = self::AI_FACTS_SECTION_END;
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Parse the structured key→value pairs from the managed AI-facts section.
+     * Returns an associative array suitable for re-passing to renderAiFactsSection.
+     *
+     * @return array<string, string>
+     */
+    private function parseAiFactsSection(string $content): array
+    {
+        $pattern = '/'.preg_quote(self::AI_FACTS_SECTION_START, '/').'(.*?)'.preg_quote(self::AI_FACTS_SECTION_END, '/').'/s';
+        if (! preg_match($pattern, $content, $m)) {
+            return [];
+        }
+
+        $labels = [
+            'Бюджет'             => 'budget',
+            'Требования'         => 'requirements',
+            'Возражения'         => 'objections',
+            'Договорённости'     => 'agreements',
+            'Предпочтения'       => 'preferences',
+            'Источник лида'      => 'source',
+            'Контактные данные'  => 'contact_info',
+            'Прочее'             => 'other',
+        ];
+
+        $result = [];
+        foreach ($labels as $label => $key) {
+            if (preg_match('/\*\*'.preg_quote($label, '/').'\*\*:\s*(.+)/u', $m[1], $lm)) {
+                $value = trim($lm[1]);
+                if ($value !== '') {
+                    $result[$key] = $value;
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**

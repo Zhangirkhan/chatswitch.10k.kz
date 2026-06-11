@@ -125,32 +125,41 @@ final class ConversationMemoryExtractor
             return "[{$msg->message_timestamp?->format('Y-m-d H:i')}] {$author}: {$body}";
         })->implode("\n");
 
-        $systemPrompt = <<<'PROMPT'
-Ты — аналитик CRM. Прочти фрагмент переписки с клиентом и извлеки только то, что клиент явно сказал или подтвердил.
+        // Load existing AI facts so the LLM can reconcile (update / keep / supersede).
+        $existingFactsBlock = $this->buildExistingFactsBlock($chat);
 
-Верни строго JSON-объект со следующими полями (пропусти поле, если клиент ничего об этом не говорил):
+        $systemPrompt = <<<'PROMPT'
+Ты — аналитик CRM. Прочти фрагмент переписки с клиентом и обнови CRM-запись клиента.
+
+Верни строго JSON-объект со следующими полями:
 {
-  "budget":       "бюджет или ценовой диапазон, который клиент назвал",
-  "requirements": "продукты, услуги или требования, которые клиент упомянул",
-  "objections":   "возражения, сомнения или причины отказа, которые клиент высказал",
-  "agreements":   "договорённости, обещания, подтверждённые шаги (что именно и когда)",
+  "budget":       "бюджет или ценовой диапазон (актуальный)",
+  "requirements": "продукты, услуги или требования клиента",
+  "objections":   "возражения, сомнения или причины отказа",
+  "agreements":   "договорённости, обещания, подтверждённые шаги",
   "preferences":  "предпочтения по каналу связи, времени, формату",
-  "source":       "источник: откуда клиент узнал (реклама, рекомендация и т.д.)",
-  "contact_info": "дополнительные контактные данные, которые клиент сообщил",
+  "source":       "источник: откуда клиент узнал",
+  "contact_info": "дополнительные контактные данные",
   "other":        "любая другая важная для продажи информация"
 }
 
 Правила:
-- Пиши только факты из переписки. Не домысливай и не обобщай.
-- Если поле нечем заполнить — НЕ включай его в ответ.
+- Пиши только факты из переписки или из существующей CRM-записи.
+- Если в переписке клиент явно назвал новое значение — используй его (оно актуальнее).
+- Если поле есть в существующей CRM-записи, но в переписке не упоминалось — сохрани старое значение.
+- Если поле нечем заполнить ни из переписки, ни из CRM — НЕ включай его в ответ.
 - Будь кратким: не более 2–3 предложений на поле.
 PROMPT;
+
+        $userContent = $existingFactsBlock !== ''
+            ? "Существующая CRM-запись клиента:\n{$existingFactsBlock}\n\nПереписка (фрагмент):\n{$historyLines}"
+            : "Переписка:\n{$historyLines}";
 
         try {
             $raw = $this->openAi->chatJson(
                 [
                     ['role' => 'system', 'content' => $systemPrompt],
-                    ['role' => 'user', 'content' => "Переписка:\n{$historyLines}"],
+                    ['role' => 'user', 'content' => $userContent],
                 ],
                 0.1,
                 (int) config('ai.memory_extraction_max_tokens', 800),
@@ -166,6 +175,51 @@ PROMPT;
         }
 
         return $this->sanitizeFacts($raw);
+    }
+
+    /**
+     * Build a short human-readable block of existing AI facts for the LLM context.
+     * Returns empty string when no prior facts exist.
+     */
+    private function buildExistingFactsBlock(Chat $chat): string
+    {
+        if ($chat->contact_id === null) {
+            return '';
+        }
+
+        try {
+            $existing = $this->entityMemories->readAiFacts(
+                \App\Enums\EntityMemorySubjectType::Contact,
+                (int) $chat->contact_id,
+            );
+        } catch (\Throwable) {
+            return '';
+        }
+
+        if ($existing === []) {
+            return '';
+        }
+
+        $labels = [
+            'budget'       => 'Бюджет',
+            'requirements' => 'Требования',
+            'objections'   => 'Возражения',
+            'agreements'   => 'Договорённости',
+            'preferences'  => 'Предпочтения',
+            'source'       => 'Источник лида',
+            'contact_info' => 'Контактные данные',
+            'other'        => 'Прочее',
+        ];
+
+        $lines = [];
+        foreach ($labels as $key => $label) {
+            $val = $existing[$key] ?? null;
+            if ($val !== null && $val !== '') {
+                $lines[] = "{$label}: {$val}";
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
