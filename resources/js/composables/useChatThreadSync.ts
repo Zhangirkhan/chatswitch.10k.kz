@@ -3,8 +3,7 @@ import axios from 'axios';
 import type { Message } from '@/types';
 import { onSocketReconnected, subscribeSocketState } from '@/composables/useConnectionStatus';
 
-const DISCONNECT_POLL_DELAY_MS = 5_000;
-const POLL_INTERVAL_MS = 9_000;
+const ACTIVE_POLL_INTERVAL_MS = 3_000;
 
 type Options = {
     chatId: () => number;
@@ -31,7 +30,6 @@ export function useChatThreadSync({ chatId, messages, mergeMessage, onSynced }: 
     syncNewMessages: () => Promise<void>;
 } {
     let pollTimer: number | null = null;
-    let disconnectSince: number | null = null;
     let syncing = false;
     let unsubscribeSocket: (() => void) | null = null;
     let unsubscribeReconnect: (() => void) | null = null;
@@ -79,19 +77,9 @@ export function useChatThreadSync({ chatId, messages, mergeMessage, onSynced }: 
             window.clearInterval(pollTimer);
             pollTimer = null;
         }
-        disconnectSince = null;
     }
 
-    function startPollIfNeeded(connected: boolean): void {
-        if (connected) {
-            stopPoll();
-            return;
-        }
-
-        if (disconnectSince === null) {
-            disconnectSince = Date.now();
-        }
-
+    function startPoll(): void {
         if (pollTimer !== null) {
             return;
         }
@@ -101,17 +89,17 @@ export function useChatThreadSync({ chatId, messages, mergeMessage, onSynced }: 
                 return;
             }
 
-            if (disconnectSince !== null && Date.now() - disconnectSince < DISCONNECT_POLL_DELAY_MS) {
-                return;
-            }
-
             void syncNewMessages();
-        }, POLL_INTERVAL_MS);
+        }, ACTIVE_POLL_INTERVAL_MS);
     }
 
     onMounted(() => {
+        startPoll();
+
         unsubscribeSocket = subscribeSocketState((connected) => {
-            startPollIfNeeded(connected);
+            if (!connected) {
+                void syncNewMessages();
+            }
         });
 
         unsubscribeReconnect = onSocketReconnected(() => {

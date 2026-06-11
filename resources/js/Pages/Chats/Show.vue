@@ -23,6 +23,7 @@ import { mergeSidebarChats } from '@/utils/sidebarChatList';
 import { useEchoChannel } from '@/composables/useEchoChannel';
 import { useChatThreadSync } from '@/composables/useChatThreadSync';
 import { chatChannel } from '@/utils/tenantChannels';
+import { onOpenChatMessage } from '@/utils/openChatMessageBridge';
 
 const props = defineProps<{
     chat: Chat;
@@ -526,7 +527,16 @@ watch(() => props.chats, (newVal) => {
 onMounted(() => {
     scrollToBottom();
     markAsRead();
+
+    unsubscribeOpenChatMessage = onOpenChatMessage(
+        () => props.chat.id,
+        (message) => {
+            handleIncomingMessage({ message });
+        },
+    );
 });
+
+let unsubscribeOpenChatMessage: (() => void) | null = null;
 
 function handleIncomingMessage(e: unknown): void {
     const payload = e as { message?: Message };
@@ -704,6 +714,7 @@ async function loadMoreMessages() {
 }
 
 onUnmounted(() => {
+    unsubscribeOpenChatMessage?.();
     statusSimTimers.forEach((timers) => timers.forEach((t) => window.clearTimeout(t)));
     statusSimTimers.clear();
 });

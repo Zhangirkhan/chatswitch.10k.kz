@@ -7,7 +7,7 @@ import NewChatPanel from './NewChatPanel.vue';
 import SidebarSectionTabs from '@/Components/SidebarSectionTabs.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import SkeletonBlock from '@/Components/SkeletonBlock.vue';
-import type { Chat, Paginated } from '@/types';
+import type { Chat, Message, Paginated } from '@/types';
 import { onShortcut } from '@/composables/useKeyboardShortcuts';
 import { useLiveUnreadCount } from '@/composables/useLiveUnreadCount';
 import { appendChatListOwnership } from '@/utils/chatListOwnershipUrl';
@@ -22,6 +22,7 @@ import {
 import { useEchoChannel } from '@/composables/useEchoChannel';
 import { onSocketReconnected } from '@/composables/useConnectionStatus';
 import { chatsListChannel } from '@/utils/tenantChannels';
+import { dispatchOpenChatMessage } from '@/utils/openChatMessageBridge';
 import axios from 'axios';
 
 const { show: showToast } = useToastStore();
@@ -302,15 +303,19 @@ useEchoChannel(
     },
     () => ({
         '.message.received': (e: unknown) => {
-            const payload = e as { message?: { chat_id?: number; body?: string; direction?: string; created_at?: string; message_timestamp?: string } };
+            const payload = e as { message?: Message };
             const msg = payload.message;
             if (!msg?.chat_id) return;
             applyIncomingMessage(msg.chat_id, {
                 body: msg.body,
-                direction: msg.direction as 'inbound' | 'outbound' | undefined,
+                direction: msg.direction === 'system' ? null : msg.direction,
                 created_at: msg.created_at,
                 message_timestamp: msg.message_timestamp,
+                metadata: msg.metadata as { ai?: { generated?: boolean } } | null | undefined,
             });
+            if (props.selectedChatId === msg.chat_id) {
+                dispatchOpenChatMessage(msg);
+            }
         },
         '.chats.notify': () => {
             scheduleChatListReload();
