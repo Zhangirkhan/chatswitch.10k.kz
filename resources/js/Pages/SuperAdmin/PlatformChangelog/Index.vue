@@ -138,8 +138,8 @@ const showEditModal = computed({
             </div>
         </div>
 
-        <div class="ui-panel overflow-hidden p-0">
-            <table class="ui-table">
+        <div class="ui-panel ui-table-panel overflow-hidden p-0">
+            <table class="ui-table w-full">
                 <thead>
                     <tr>
                         <th>{{ t('superAdmin.platformChangelog.colDate') }}</th>
