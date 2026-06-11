@@ -267,7 +267,8 @@ final class EntityMemoryService
 
         $result = [];
         foreach ($labels as $label => $key) {
-            if (preg_match('/\*\*'.preg_quote($label, '/').'\*\*:\s*(.+)/u', $m[1], $lm)) {
+            // renderAiFactsSection produces "**Label:** value" (colon inside bold markers).
+            if (preg_match('/\*\*'.preg_quote($label, '/').':\*\*\s*(.+)/u', $m[1], $lm)) {
                 $value = trim($lm[1]);
                 if ($value !== '') {
                     $result[$key] = $value;
