@@ -55,9 +55,19 @@ final class AiReplyGenerator
                 return $this->handleSupplementalBookingDetail($chat, $triggerMessage, $log);
             }
 
-            $appointment = $this->appointmentIntent->detect($chat, $responder, $triggerMessage);
-            if ($appointment !== null) {
-                return $this->handleAppointmentIntent($chat, $responder, $triggerMessage, $appointment, $log);
+            // Skip standalone appointment-intent detection when the orchestrator already
+            // handled this trigger message — prevents double-booking where the orchestrator
+            // creates an appointment and AiAppointmentIntentService creates a second one.
+            $orchestratorHandled = \App\Models\AiOrchestratorRun::query()
+                ->where('trigger_message_id', $triggerMessage->id)
+                ->whereIn('status', [\App\Models\AiOrchestratorRun::STATUS_COMPLETED, \App\Models\AiOrchestratorRun::STATUS_NEEDS_MANAGER])
+                ->exists();
+
+            if (! $orchestratorHandled) {
+                $appointment = $this->appointmentIntent->detect($chat, $responder, $triggerMessage);
+                if ($appointment !== null) {
+                    return $this->handleAppointmentIntent($chat, $responder, $triggerMessage, $appointment, $log);
+                }
             }
 
             $conflict = $this->conflictService->resolveForInbound($chat, $triggerMessage, $responder);

@@ -12,6 +12,7 @@ use App\Services\Memory\EntityMemoryService;
 use App\Support\ClientProfileFieldHelper;
 use App\Support\ContactFieldCatalog;
 use App\Support\TenantCompany;
+use Throwable;
 
 final class ClientProfileAssembler
 {
@@ -48,6 +49,11 @@ final class ClientProfileAssembler
         $contactIds = $this->buckets->bucketIds($contact);
         $memory = $this->resolveMemory($contactIds, $contact->id);
 
+        // Structured AI-facts for the contact panel (budget, requirements, etc.)
+        // Exposed separately so the UI can render them as labelled fields rather
+        // than a raw markdown blob.
+        $aiFacts = $this->resolveAiFacts($contact->id);
+
         return $this->fieldFilter->apply($contact, [
             'contact_id' => $contact->id,
             'display_name' => (string) ($identity['display_name'] ?? 'Без имени'),
@@ -60,6 +66,7 @@ final class ClientProfileAssembler
                 $this->tasksNotesSection($crm, $memory['content']),
             ],
             'memory' => $memory,
+            'ai_facts' => $aiFacts,
         ]);
     }
 
@@ -437,6 +444,52 @@ final class ClientProfileAssembler
             'updated_at' => null,
             'memory_contact_id' => null,
         ];
+    }
+
+    /**
+     * Read structured AI-facts for the contact and return them as a labelled array.
+     * Falls back to empty array if no facts have been extracted yet.
+     *
+     * @return list<array{key: string, label: string, value: string, updated_at: string|null}>
+     */
+    private function resolveAiFacts(int $contactId): array
+    {
+        try {
+            $facts = $this->entityMemory->readAiFacts(EntityMemorySubjectType::Contact, $contactId);
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($facts === []) {
+            return [];
+        }
+
+        $labels = [
+            'budget'       => 'Бюджет',
+            'requirements' => 'Требования',
+            'objections'   => 'Возражения',
+            'agreements'   => 'Договорённости',
+            'preferences'  => 'Предпочтения',
+            'source'       => 'Источник лида',
+            'contact_info' => 'Контактные данные',
+            'other'        => 'Прочее',
+        ];
+
+        $result = [];
+        foreach ($labels as $key => $label) {
+            $value = $facts[$key] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $result[] = [
+                'key'        => $key,
+                'label'      => $label,
+                'value'      => (string) $value,
+                'updated_at' => $facts[$key.'_at'] ?? null,
+            ];
+        }
+
+        return $result;
     }
 
     private function isDefaultTemplate(string $content): bool

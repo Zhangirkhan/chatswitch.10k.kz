@@ -87,43 +87,55 @@ final class AiCrmWritebackService
                 return;
             }
 
-            // Determine the highest funnel stage position across all contact chats.
-            $maxPositionAcrossChats = DB::table('chats')
-                ->join('funnel_stages', 'chats.funnel_stage_id', '=', 'funnel_stages.id')
-                ->where('chats.contact_id', $contact->id)
-                ->max('funnel_stages.position');
+            // Wrap in a transaction with a lock to prevent race conditions when
+            // multiple chats for the same contact complete orchestration concurrently.
+            DB::transaction(function () use ($contact, $newStageId, $newStage): void {
+                // Re-fetch the contact with a row-level lock.
+                $lockedContact = \App\Models\Contact::query()
+                    ->lockForUpdate()
+                    ->find($contact->id);
 
-            // Only write if the new stage is at least as advanced as any chat stage.
-            // Also respect the contact's own existing ai_funnel_stage_id.
-            $currentContactStagePosition = null;
-            if ($contact->ai_funnel_stage_id !== null) {
-                $currentContactStagePosition = FunnelStage::query()
-                    ->where('id', $contact->ai_funnel_stage_id)
-                    ->value('position');
-            }
+                if ($lockedContact === null) {
+                    return;
+                }
 
-            $maxPosition = max(
-                (int) ($maxPositionAcrossChats ?? 0),
-                (int) ($currentContactStagePosition ?? 0),
-            );
+                // Determine the highest funnel stage position across all contact chats.
+                $maxPositionAcrossChats = DB::table('chats')
+                    ->join('funnel_stages', 'chats.funnel_stage_id', '=', 'funnel_stages.id')
+                    ->where('chats.contact_id', $lockedContact->id)
+                    ->max('funnel_stages.position');
 
-            if ((int) $newStage->position >= $maxPosition) {
-                $contact->forceFill(['ai_funnel_stage_id' => $newStageId])->save();
+                // Also respect the contact's own existing ai_funnel_stage_id.
+                $currentContactStagePosition = null;
+                if ($lockedContact->ai_funnel_stage_id !== null) {
+                    $currentContactStagePosition = FunnelStage::query()
+                        ->where('id', $lockedContact->ai_funnel_stage_id)
+                        ->value('position');
+                }
 
-                Log::debug('[ai-crm-writeback] contact funnel stage synced (max-stage-aware)', [
-                    'contact_id'            => $contact->id,
-                    'ai_funnel_stage_id'    => $newStageId,
-                    'new_stage_position'    => $newStage->position,
-                    'max_existing_position' => $maxPosition,
-                ]);
-            } else {
-                Log::debug('[ai-crm-writeback] contact funnel stage NOT updated (rollback prevented)', [
-                    'contact_id'            => $contact->id,
-                    'new_stage_id'          => $newStageId,
-                    'new_stage_position'    => $newStage->position,
-                    'max_existing_position' => $maxPosition,
-                ]);
-            }
+                $maxPosition = max(
+                    (int) ($maxPositionAcrossChats ?? 0),
+                    (int) ($currentContactStagePosition ?? 0),
+                );
+
+                if ((int) $newStage->position >= $maxPosition) {
+                    $lockedContact->forceFill(['ai_funnel_stage_id' => $newStageId])->save();
+
+                    Log::debug('[ai-crm-writeback] contact funnel stage synced (idempotent max-stage)', [
+                        'contact_id'            => $lockedContact->id,
+                        'ai_funnel_stage_id'    => $newStageId,
+                        'new_stage_position'    => $newStage->position,
+                        'max_existing_position' => $maxPosition,
+                    ]);
+                } else {
+                    Log::debug('[ai-crm-writeback] contact funnel stage NOT updated (rollback prevented)', [
+                        'contact_id'            => $lockedContact->id,
+                        'new_stage_id'          => $newStageId,
+                        'new_stage_position'    => $newStage->position,
+                        'max_existing_position' => $maxPosition,
+                    ]);
+                }
+            });
         } catch (Throwable $e) {
             Log::warning('[ai-crm-writeback] failed to sync contact funnel stage', [
                 'contact_id' => $contact->id,
