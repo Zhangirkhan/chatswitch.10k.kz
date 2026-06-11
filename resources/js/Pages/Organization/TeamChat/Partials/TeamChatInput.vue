@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import WaComposerBar from '@/Components/Chat/WaComposerBar.vue';
+import SpeechDictationButton from '@/Components/AiChat/SpeechDictationButton.vue';
 import EmojiPicker from '@/Pages/Chats/Partials/EmojiPicker.vue';
+import { appendSpeechText } from '@/utils/appendSpeechText';
 import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import type { TeamMentionCandidate } from '@/utils/teamChatMentions';
@@ -64,6 +66,15 @@ const editorRef = ref<HTMLDivElement | null>(null);
 const mentionOpen = ref(false);
 const mentionQuery = ref('');
 const mentionActiveIndex = ref(0);
+
+function appendSpeechTranscript(text: string): void {
+    draft.value = appendSpeechText(draft.value, text);
+    nextTick(() => editorRef.value?.focus());
+}
+
+function onSpeechError(message: string): void {
+    showToast({ message, type: 'warning' });
+}
 
 const filteredMentionCandidates = computed(() => {
     const list = props.mentionCandidates.filter((p) => p.name.trim() !== '');
@@ -620,6 +631,13 @@ onBeforeUnmount(() => {
                 <EmojiPicker @select="insertEmoji" @close="showEmoji = false" />
             </div>
         </Teleport>
+
+        <SpeechDictationButton
+            :disabled="disabled"
+            size="sm"
+            @transcript="appendSpeechTranscript"
+            @error="onSpeechError"
+        />
 
         <button
             v-if="canSend"

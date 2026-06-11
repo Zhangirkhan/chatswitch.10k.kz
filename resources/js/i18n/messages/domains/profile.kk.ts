@@ -45,6 +45,9 @@ export const profileKk = {
         pickWallpaperTitle: 'Тусқағаз таңдау',
         pickWallpaperSubtitle: 'Тек осы құрылғыға қолданылады',
         messageStyleTitle: 'Хабарлама стилі',
+        speechAutoSendHint: 'AI көмекшісінде диктовкадан кейін хабарлама автоматты жіберіледі.',
+        speechLivePreview: 'Сөйлеу алдын ала көрінісі',
+        speechLivePreviewHint: 'Диктовка кезінде черновик мәтінін көрсету (Chrome). Соңғы мәтін — Whisper арқылы.',
     },
     messageStyles: {
         whatsapp: { label: 'Жасыл', description: 'Классикалық WhatsApp' },

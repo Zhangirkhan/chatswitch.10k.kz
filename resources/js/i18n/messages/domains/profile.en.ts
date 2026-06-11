@@ -45,6 +45,9 @@ export const profileEn = {
         pickWallpaperTitle: 'Choose wallpaper',
         pickWallpaperSubtitle: 'Applies on this device only',
         messageStyleTitle: 'Message style',
+        speechAutoSendHint: 'After dictation in the AI assistant, the message is sent automatically.',
+        speechLivePreview: 'Live speech preview',
+        speechLivePreviewHint: 'Show draft text while dictating (Chrome). Final text uses Whisper.',
     },
     messageStyles: {
         whatsapp: { label: 'Green', description: 'Classic WhatsApp' },

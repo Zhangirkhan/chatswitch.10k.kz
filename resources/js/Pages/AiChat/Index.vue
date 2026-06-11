@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AiWorkspaceRightPanel from '@/Components/AiChat/AiWorkspaceRightPanel.vue';
 import AiWorkspaceVisualization, { type AiVisualization } from '@/Components/AiChat/AiWorkspaceVisualization.vue';
+import SpeechDictationButton from '@/Components/AiChat/SpeechDictationButton.vue';
 import type {
     ClientSummary,
     ResultTabId,
@@ -11,6 +12,9 @@ import PanelResizeHandle from '@/Components/Ui/PanelResizeHandle.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useResizablePanelWidth } from '@/composables/useResizablePanelWidth';
+import { useLocalSetting } from '@/composables/useLocalSetting';
+import { useShortcut } from '@/composables/useKeyboardShortcuts';
+import { appendSpeechText, highlightSpeechInput } from '@/utils/appendSpeechText';
 import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
 import { Head, usePage } from '@inertiajs/vue3';
@@ -55,10 +59,14 @@ const threads = ref<AiThread[]>([]);
 const activeThreadId = ref<string | null>(null);
 const draft = ref('');
 const sending = ref(false);
+const speechDictationActive = ref(false);
+const speechPreviewText = ref('');
+const speechAutoSend = useLocalSetting('speechDictation.autoSend', false);
 const error = ref<string | null>(null);
 const resultsOpen = ref(true);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
+const speechDictationRef = ref<InstanceType<typeof SpeechDictationButton> | null>(null);
 const hoveredTurn = ref<number | null>(null);
 
 const threadsStorageKey = 'accel:ai-workspace:threads:v3';
@@ -487,6 +495,31 @@ async function copyTurn(content: string): Promise<void> {
     }
 }
 
+function appendDraft(text: string): void {
+    draft.value = appendSpeechText(draft.value, text);
+    speechPreviewText.value = '';
+    resizeTextarea();
+    highlightSpeechInput(textareaEl.value);
+    textareaEl.value?.focus();
+    if (speechAutoSend.value && draft.value.trim()) {
+        void send();
+    }
+}
+
+function onSpeechPreview(text: string): void {
+    speechPreviewText.value = text;
+}
+
+function onSpeechError(message: string): void {
+    showToast({ message, type: 'warning' });
+}
+
+useShortcut('toggle-dictation', () => {
+    if (document.activeElement === textareaEl.value) {
+        speechDictationRef.value?.toggleDictation();
+    }
+});
+
 async function send(): Promise<void> {
     const text = draft.value.trim();
     if (!text || sending.value) {
@@ -842,13 +875,23 @@ watch(resultsOpen, (open) => {
                     <p v-if="error" class="ai-workspace__error">{{ error }}</p>
                     <div class="ai-workspace__composer-shell">
                         <div class="ai-workspace__composer">
+                            <SpeechDictationButton
+                                ref="speechDictationRef"
+                                :disabled="sending"
+                                size="sm"
+                                live-preview
+                                @transcript="appendDraft"
+                                @preview="onSpeechPreview"
+                                @error="onSpeechError"
+                                @active-change="speechDictationActive = $event"
+                            />
                             <textarea
                                 ref="textareaEl"
                                 v-model="draft"
                                 rows="1"
                                 class="ai-workspace__composer-input"
-                                :placeholder="t('aiChat.inputPlaceholder')"
-                                :disabled="sending"
+                                :placeholder="speechPreviewText || t('aiChat.inputPlaceholder')"
+                                :disabled="sending || speechDictationActive"
                                 spellcheck="false"
                                 @keydown="onKeydown"
                                 @input="resizeTextarea"
@@ -856,7 +899,7 @@ watch(resultsOpen, (open) => {
                             <button
                                 type="button"
                                 class="ai-workspace__send-btn"
-                                :disabled="sending || !draft.trim()"
+                                :disabled="sending || speechDictationActive || !draft.trim()"
                                 :aria-label="t('aiChat.sendAria')"
                                 @click="send"
                             >
@@ -873,7 +916,7 @@ watch(resultsOpen, (open) => {
                             </button>
                         </div>
                         <p class="ai-workspace__composer-hint">
-                            {{ t('aiChat.inputHint') }}
+                            {{ t('aiChat.inputHint') }} · {{ t('misc.speechDictation.hotkeyHint') }}
                         </p>
                     </div>
                 </footer>

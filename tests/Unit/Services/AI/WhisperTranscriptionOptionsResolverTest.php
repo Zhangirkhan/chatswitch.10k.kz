@@ -243,4 +243,14 @@ final class WhisperTranscriptionOptionsResolverTest extends TestCase
 
         $this->assertSame('kk', $options['language']);
     }
+
+    public function test_resolve_for_dictation_uses_locale_and_prompt(): void
+    {
+        config()->set('accel.whisper_prompt_dictation', 'Operator dictation');
+
+        $options = app(WhisperTranscriptionOptionsResolver::class)->resolveForDictation(null, 'ru');
+
+        $this->assertSame('ru', $options['language']);
+        $this->assertStringContainsString('Operator dictation', $options['prompt']);
+    }
 }

@@ -4,7 +4,9 @@ import axios from 'axios';
 import { useToastStore } from '@/stores/toast';
 import type { Message, MessageProductAttachment } from '@/types';
 import EmojiPicker from './EmojiPicker.vue';
+import SpeechDictationButton from '@/Components/AiChat/SpeechDictationButton.vue';
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
+import { appendSpeechText } from '@/utils/appendSpeechText';
 import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { useI18n } from '@/composables/useI18n';
 import { useTranslationLang } from '@/composables/useTranslationLang';
@@ -1390,6 +1392,16 @@ watch(anyOverlayOpen, (open) => {
     else unlockBodyScroll();
 });
 
+function appendSpeechTranscript(text: string): void {
+    const merged = appendSpeechText(messageText.value, text);
+    setEditorPlainText(merged);
+    editorRef.value?.focus();
+}
+
+function onSpeechError(message: string): void {
+    showToast({ message, type: 'warning' });
+}
+
 function insertDraft(text: string): void {
     const trimmed = text.trim();
     if (trimmed === '') {
@@ -1653,6 +1665,14 @@ defineExpose({ insertDraft, insertDraftAndSend });
                     class="z-50"
                     @select="insertEmoji"
                     @close="showEmoji = false"
+                />
+
+                <SpeechDictationButton
+                    :chat-id="chatId"
+                    :disabled="isSending || aiActionBusy"
+                    size="sm"
+                    @transcript="appendSpeechTranscript"
+                    @error="onSpeechError"
                 />
 
                 <button

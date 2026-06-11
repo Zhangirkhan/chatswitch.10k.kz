@@ -3,7 +3,9 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
+import SpeechDictationButton from '@/Components/AiChat/SpeechDictationButton.vue';
 import OrganizationLayout from '@/Layouts/OrganizationLayout.vue';
+import { appendSpeechText, highlightSpeechInput } from '@/utils/appendSpeechText';
 import RichTextEditor from '@/Components/RichTextEditor.vue';
 import { useI18n } from '@/composables/useI18n';
 import { useToastStore } from '@/stores/toast';
@@ -38,6 +40,7 @@ const localPost = ref<OrgPost>({ ...props.post });
 const localComments = ref<OrgComment[]>([...props.comments]);
 
 const newComment = ref('');
+const commentTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const sendingComment = ref(false);
 const commentError = ref<string | null>(null);
 
@@ -248,6 +251,16 @@ async function saveEdit() {
     } finally {
         editSubmitting.value = false;
     }
+}
+
+function appendCommentSpeech(text: string): void {
+    newComment.value = appendSpeechText(newComment.value, text);
+    highlightSpeechInput(commentTextareaRef.value);
+    commentTextareaRef.value?.focus();
+}
+
+function onSpeechError(message: string): void {
+    showToast({ message, type: 'warning' });
 }
 
 async function submitComment() {
@@ -586,7 +599,14 @@ function canDeleteAttachment(a: OrgAttachment): boolean {
             <div class="ui-comment-composer">
                 <p v-if="commentError" class="text-sm m-0 mb-2" :style="{ color: 'var(--wa-danger)' }">{{ commentError }}</p>
                 <div class="flex items-end gap-2">
+                    <SpeechDictationButton
+                        :disabled="sendingComment"
+                        size="sm"
+                        @transcript="appendCommentSpeech"
+                        @error="onSpeechError"
+                    />
                     <textarea
+                        ref="commentTextareaRef"
                         v-model="newComment"
                         rows="2"
                         :placeholder="t('organization.commentPlaceholder')"

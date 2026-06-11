@@ -14,7 +14,8 @@ export type ShortcutAction =
     | 'toggle-mute'
     | 'toggle-unread'
     | 'archive-chat'
-    | 'toggle-emoji';
+    | 'toggle-emoji'
+    | 'toggle-dictation';
 
 const SHORTCUT_EVENT = 'accel:shortcut';
 
@@ -182,6 +183,13 @@ export function installKeyboardShortcuts(): void {
         if (mod && event.shiftKey && !event.altKey && key === 'E') {
             event.preventDefault();
             dispatchShortcut('archive-chat');
+            return;
+        }
+
+        // Ctrl+Shift+D  —  speech dictation (when AI input focused)
+        if (mod && event.shiftKey && !event.altKey && key === 'D') {
+            event.preventDefault();
+            dispatchShortcut('toggle-dictation');
             return;
         }
 

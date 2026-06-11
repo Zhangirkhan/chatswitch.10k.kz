@@ -48,6 +48,10 @@ return [
     'whisper_prompt_ru' => env('ACCEL_WHISPER_PROMPT_RU')
         ?: 'Русская речь. Транскрибируй дословно.',
 
+    /** Промпт Whisper для диктовки оператора в AI-ассистент. */
+    'whisper_prompt_dictation' => env('ACCEL_WHISPER_PROMPT_DICTATION')
+        ?: 'Оператор диктует запрос AI-ассистенту. Транскрибируй дословно: имена, CRM-термины, WhatsApp.',
+
     /** Не отправлять в Whisper короче N секунд (metadata.media.duration). */
     'transcribe_min_duration_seconds' => max(0, (int) env('ACCEL_TRANSCRIBE_MIN_DURATION_SECONDS', 1)),
 

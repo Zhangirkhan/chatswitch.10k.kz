@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\Controllers\AiInsightsController;
 use App\Http\Controllers\AiMessageFeedbackController;
+use App\Http\Controllers\AiSpeechTranscriptionController;
+use App\Http\Controllers\AiUsageController;
 use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\Analytics\DialogAnalyticsPageController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
@@ -86,6 +88,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/ai-chat/query', [AiWorkspaceController::class, 'query'])
             ->middleware('throttle:30,1')
             ->name('ai-chat.query');
+        Route::post('/ai-chat/transcribe', [AiSpeechTranscriptionController::class, 'store'])
+            ->middleware('throttle:chat-ai')
+            ->name('ai-chat.transcribe');
         Route::get('/ai-chat/clients/{contact}/summary', [AiWorkspaceController::class, 'clientSummary'])
             ->middleware('throttle:30,1')
             ->name('ai-chat.client-summary');
@@ -342,6 +347,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
+        Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('settings.ai-usage');
         Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
         Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');
         Route::post('/tone-profile/reanalyze', [ToneProfileController::class, 'reanalyze'])->name('settings.tone-profile.reanalyze');

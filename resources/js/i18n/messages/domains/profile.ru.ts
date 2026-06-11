@@ -45,6 +45,9 @@ export const profileRu = {
         pickWallpaperTitle: 'Выберите обои',
         pickWallpaperSubtitle: 'Применяется только для вашего устройства',
         messageStyleTitle: 'Стиль сообщений',
+        speechAutoSendHint: 'После диктовки в AI-ассистенте сообщение отправится автоматически.',
+        speechLivePreview: 'Предпросмотр речи',
+        speechLivePreviewHint: 'Показывать черновик текста во время диктовки (Chrome). Финальный текст — через Whisper.',
     },
     messageStyles: {
         whatsapp: { label: 'Зелёный', description: 'Классический WhatsApp' },

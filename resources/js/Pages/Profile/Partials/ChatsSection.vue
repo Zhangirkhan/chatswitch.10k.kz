@@ -5,6 +5,7 @@ import { useTheme } from '@/composables/useTheme';
 import { useChatBackground } from '@/composables/useChatBackground';
 import { useChatMessageStyle } from '@/composables/useChatBubbles';
 import { useTranslationLang } from '@/composables/useTranslationLang';
+import { useLocalSetting } from '@/composables/useLocalSetting';
 import SettingToggle from './SettingToggle.vue';
 import { useI18n } from '@/composables/useI18n';
 import type { AppLocale } from '@/i18n/types';
@@ -20,6 +21,8 @@ const { wallpapers, currentWallpaperId, setWallpaper, getCurrent } = useChatBack
 const { presets: messageStyles, currentMessageStyleId, setMessageStyle, getCurrent: getCurrentMessageStyle } = useChatMessageStyle();
 const { locale: uiLocale, locales: uiLocaleOptions, currentLocale, t, setLocale: setUiLocale } = useI18n();
 const { enabled: translateEnabled } = useTranslationLang(uiLocale);
+const speechAutoSend = useLocalSetting('speechDictation.autoSend', false);
+const speechLivePreview = useLocalSetting('speechDictation.livePreview', false);
 
 const wallpaperLabel = computed(() => localizedWallpaperLabel(currentWallpaperId.value));
 const messageStyleLabel = computed(() => localizedMessageStyleLabel(currentMessageStyleId.value));
@@ -174,6 +177,19 @@ const translationToggleDescription = computed(() =>
                     v-model="translateEnabled"
                     :title="t('profile.chatsSection.translation')"
                     :description="translationToggleDescription"
+                />
+            </section>
+
+            <section class="ui-settings-section chats-settings__section">
+                <SettingToggle
+                    v-model="speechAutoSend"
+                    :title="t('misc.speechDictation.autoSendLabel')"
+                    :description="t('profile.chatsSection.speechAutoSendHint')"
+                />
+                <SettingToggle
+                    v-model="speechLivePreview"
+                    :title="t('profile.chatsSection.speechLivePreview')"
+                    :description="t('profile.chatsSection.speechLivePreviewHint')"
                 />
             </section>
         </div>

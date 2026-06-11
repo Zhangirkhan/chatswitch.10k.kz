@@ -3,7 +3,7 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const { t, locale } = useI18n();
 
@@ -97,6 +97,15 @@ type SimulationResult = {
     missing_data: string[];
 };
 
+type AiUsageRow = {
+    scenario: string;
+    kind: string;
+    events_count: number;
+    tokens_input: number;
+    tokens_output: number;
+    audio_seconds: number;
+};
+
 const props = defineProps<{
     readiness: Readiness;
     configuration_audit: ConfigurationAuditItem[];
@@ -120,6 +129,35 @@ const simulationLoading = ref(false);
 const simulationError = ref<string | null>(null);
 const simulationResult = ref<SimulationResult | null>(null);
 const simulationConfidence = computed(() => Math.round((simulationResult.value?.confidence ?? 0) * 100));
+
+const usagePeriodDays = ref(30);
+const usageLoading = ref(false);
+const usageError = ref<string | null>(null);
+const usageRows = ref<AiUsageRow[]>([]);
+const dictationSeconds = ref(0);
+
+const dictationMinutes = computed(() => Math.max(0, Math.round(dictationSeconds.value / 60)));
+
+async function loadAiUsage(): Promise<void> {
+    usageLoading.value = true;
+    usageError.value = null;
+
+    try {
+        const { data } = await axios.get(route('settings.ai-usage'), {
+            params: { period: usagePeriodDays.value },
+        });
+        usageRows.value = (data.scenarios ?? []) as AiUsageRow[];
+        dictationSeconds.value = Number(data.operator_dictation_seconds ?? 0);
+    } catch {
+        usageError.value = t('settings.aiQuality.usageLoadError');
+    } finally {
+        usageLoading.value = false;
+    }
+}
+
+onMounted(() => {
+    void loadAiUsage();
+});
 
 const conflictSimulationPresets = computed(() => [
     { id: 'angry', label: t('settings.aiQuality.conflictPresetAngry'), message: t('settings.aiQuality.conflictPresetAngryMessage') },
@@ -539,6 +577,52 @@ async function runSimulation(): Promise<void> {
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section class="ui-settings-section">
+                <h2 class="text-sm font-semibold" :style="{ color: 'var(--ui-text)' }">{{ t('settings.aiQuality.usageTitle') }}</h2>
+                <p class="mt-1 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
+                    {{ t('settings.aiQuality.usageDesc') }}
+                </p>
+                <p class="mt-2 text-xs" :style="{ color: 'var(--ui-text-secondary)' }">
+                    {{ t('settings.aiQuality.usagePeriodDays', { days: usagePeriodDays }) }}
+                    · {{ t('settings.aiQuality.usageDictation', { minutes: dictationMinutes }) }}
+                </p>
+
+                <div v-if="usageLoading" class="mt-4 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
+                    {{ t('settings.aiQuality.aiThinking') }}
+                </div>
+                <div v-else-if="usageError" class="mt-4 text-sm text-red-600">
+                    {{ usageError }}
+                </div>
+                <div v-else-if="usageRows.length === 0" class="mt-4 text-sm" :style="{ color: 'var(--ui-text-secondary)' }">
+                    {{ t('settings.aiQuality.usageEmpty') }}
+                </div>
+                <div v-else class="mt-4 overflow-x-auto">
+                    <table class="min-w-full text-left text-xs">
+                        <thead>
+                            <tr :style="{ color: 'var(--ui-text-secondary)' }">
+                                <th class="px-2 py-1 font-medium">{{ t('settings.aiQuality.usageScenario') }}</th>
+                                <th class="px-2 py-1 font-medium">{{ t('settings.aiQuality.usageKind') }}</th>
+                                <th class="px-2 py-1 font-medium">{{ t('settings.aiQuality.usageEvents') }}</th>
+                                <th class="px-2 py-1 font-medium">{{ t('settings.aiQuality.usageAudioSeconds') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="row in usageRows"
+                                :key="`${row.scenario}-${row.kind}`"
+                                class="border-t"
+                                :style="{ borderColor: 'var(--ui-border)', color: 'var(--ui-text)' }"
+                            >
+                                <td class="px-2 py-2 font-medium">{{ row.scenario }}</td>
+                                <td class="px-2 py-2">{{ row.kind }}</td>
+                                <td class="px-2 py-2">{{ row.events_count }}</td>
+                                <td class="px-2 py-2">{{ row.audio_seconds }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 

@@ -238,6 +238,15 @@ return [
             'type' => 'whisper',
         ],
         [
+            'id' => 'operator_dictation',
+            'label' => 'Диктовка оператора',
+            'description' => 'Распознавание речи в AI-ассистенте и полях ввода',
+            'volume_key' => 'operator_dictation_minutes',
+            'input_tokens' => 0,
+            'output_tokens' => 0,
+            'type' => 'whisper',
+        ],
+        [
             'id' => 'background',
             'label' => 'Фоновая настройка',
             'description' => 'Обучение стилю общения и обновление базы знаний',

@@ -41,6 +41,90 @@ final class WhisperTranscriptionOptionsResolver
     /**
      * @return array{language: string|null, prompt: string}
      */
+    public function resolveForDictation(?int $chatId, ?string $userLocale): array
+    {
+        $language = $this->normalizeDictationLocale($userLocale);
+
+        if ($chatId !== null) {
+            $inferred = $this->inferLanguageFromChat($chatId);
+            if ($inferred !== null) {
+                $language = $inferred;
+            }
+        }
+
+        if ($language === null) {
+            $default = strtolower(trim((string) config('accel.whisper_default_language', 'auto')));
+            $language = in_array($default, ['ru', 'kk'], true) ? $default : null;
+        }
+
+        return [
+            'language' => $language,
+            'prompt' => $this->promptForDictation($language),
+        ];
+    }
+
+    private function normalizeDictationLocale(?string $locale): ?string
+    {
+        $locale = strtolower(trim((string) $locale));
+        if ($locale === '' || $locale === 'auto' || $locale === 'en') {
+            return null;
+        }
+
+        if (str_starts_with($locale, 'kk')) {
+            return 'kk';
+        }
+
+        if (str_starts_with($locale, 'ru')) {
+            return 'ru';
+        }
+
+        return null;
+    }
+
+    private function inferLanguageFromChat(int $chatId): ?string
+    {
+        if (! filter_var(config('accel.whisper_auto_detect_language', true), FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        $lines = Message::query()
+            ->where('chat_id', $chatId)
+            ->where('direction', 'inbound')
+            ->with('transcript:message_id,kind,status,text')
+            ->orderByDesc('message_timestamp')
+            ->orderByDesc('id')
+            ->limit(3)
+            ->get()
+            ->reverse()
+            ->map(static fn (Message $item): string => trim(MessageInboundText::forMessage($item)))
+            ->filter(fn (string $line): bool => $line !== '' && ! $this->isUnusableContextLine($line))
+            ->values();
+
+        foreach ($lines as $line) {
+            $inferred = $this->inferFromText($line);
+            if ($inferred !== null) {
+                return $inferred;
+            }
+        }
+
+        return null;
+    }
+
+    private function promptForDictation(?string $language): string
+    {
+        $base = trim((string) config('accel.whisper_prompt_dictation', ''));
+        $suffix = match ($this->normalizeLanguage($language)) {
+            'kk' => trim((string) config('accel.whisper_prompt_kk')),
+            'ru' => trim((string) config('accel.whisper_prompt_ru')),
+            default => trim((string) config('accel.whisper_prompt_auto')),
+        };
+
+        return \Illuminate\Support\Str::limit(trim($base.' '.$suffix), self::PROMPT_CHAR_LIMIT, '');
+    }
+
+    /**
+     * @return array{language: string|null, prompt: string}
+     */
     public function optionsForLanguage(?string $language): array
     {
         $language = $this->normalizeLanguage($language);

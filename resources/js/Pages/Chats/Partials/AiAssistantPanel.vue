@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import axios from 'axios';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import AiWorkspaceClientSummary from '@/Components/AiChat/AiWorkspaceClientSummary.vue';
+import SpeechDictationButton from '@/Components/AiChat/SpeechDictationButton.vue';
 import UserAvatar from '@/Components/UserAvatar.vue';
 import type { ClientSummary } from '@/Components/AiChat/aiWorkspaceTypes';
 import {
@@ -20,6 +21,9 @@ import {
     type ChatAiPanelMode,
     type ChatAiPanelTab,
 } from '@/composables/useChatAiPanelPrefs';
+import { useLocalSetting } from '@/composables/useLocalSetting';
+import { useShortcut } from '@/composables/useKeyboardShortcuts';
+import { appendSpeechText, highlightSpeechInput } from '@/utils/appendSpeechText';
 import type { Message } from '@/types';
 import { parseAssistantReplyVariants, parsedReplyFromApi, type ParsedAssistantReply } from '@/utils/parseAssistantReplyVariants';
 
@@ -99,12 +103,16 @@ const { show: showToast } = useToastStore();
 const turns = ref<AiTurn[]>([]);
 const draft = ref<string>('');
 const sending = ref<boolean>(false);
+const speechDictationActive = ref<boolean>(false);
+const speechPreviewText = ref<string>('');
+const speechAutoSend = useLocalSetting('speechDictation.autoSend', false);
 const autoDraft = ref<string>('');
 const autoDraftLoading = ref<boolean>(false);
 const autoDraftError = ref<string | null>(null);
 const autoDraftMessageId = ref<number | null>(null);
 const listEl = ref<HTMLDivElement | null>(null);
 const textareaEl = ref<HTMLTextAreaElement | null>(null);
+const speechDictationRef = ref<InstanceType<typeof SpeechDictationButton> | null>(null);
 const clearAiDialogOpen = ref(false);
 const activeTab = ref<PanelTab>('assistant');
 const panelMode = ref<PanelMode>('overview');
@@ -360,6 +368,33 @@ async function loadClientSummary(): Promise<void> {
         summaryLoading.value = false;
     }
 }
+
+function appendDraft(text: string): void {
+    draft.value = appendSpeechText(draft.value, text);
+    speechPreviewText.value = '';
+    enterChatMode();
+    void nextTick(() => {
+        highlightSpeechInput(textareaEl.value);
+        textareaEl.value?.focus();
+        if (speechAutoSend.value && draft.value.trim()) {
+            void send();
+        }
+    });
+}
+
+function onSpeechPreview(text: string): void {
+    speechPreviewText.value = text;
+}
+
+function onSpeechError(message: string): void {
+    showToast({ message, type: 'warning' });
+}
+
+useShortcut('toggle-dictation', () => {
+    if (document.activeElement === textareaEl.value) {
+        speechDictationRef.value?.toggleDictation();
+    }
+});
 
 async function send(prompt?: string): Promise<void> {
     const text = (prompt ?? draft.value).trim();
@@ -1070,11 +1105,22 @@ watch(() => [props.contactId, props.chatId] as const, () => {
             </div>
 
             <div class="flex items-end gap-2">
+                <SpeechDictationButton
+                    ref="speechDictationRef"
+                    :disabled="sending"
+                    :chat-id="chatId"
+                    size="sm"
+                    live-preview
+                    @transcript="appendDraft"
+                    @preview="onSpeechPreview"
+                    @error="onSpeechError"
+                    @active-change="speechDictationActive = $event"
+                />
                 <textarea
                     ref="textareaEl"
                     v-model="draft"
                     :rows="isOverviewMode ? 1 : 2"
-                    :placeholder="t('chats.aiAssistant.askPlaceholder')"
+                    :placeholder="speechPreviewText || t('chats.aiAssistant.askPlaceholder')"
                     class="flex-1 resize-none rounded-lg px-3 py-2 text-[13.5px] outline-none transition-[border-color,box-shadow] duration-200"
                     :style="{
                         background: 'var(--wa-panel)',
@@ -1082,7 +1128,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         border: '1px solid var(--wa-border)',
                         boxShadow: isChatMode ? '0 0 0 1px color-mix(in srgb, var(--wa-accent) 35%, transparent)' : 'none',
                     }"
-                    :disabled="sending"
+                    :disabled="sending || speechDictationActive"
                     @focus="enterChatMode"
                     @click="enterChatMode"
                     @keydown="onKeydown"
@@ -1094,7 +1140,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                         background: 'var(--wa-accent)',
                         color: 'white',
                     }"
-                    :disabled="!canSend"
+                    :disabled="!canSend || speechDictationActive"
                     :title="t('chats.aiAssistant.sendTitle')"
                     @click="send()"
                 >
@@ -1112,6 +1158,7 @@ watch(() => [props.contactId, props.chatId] as const, () => {
                 </template>
                 <template v-else>
                     {{ t('chats.aiAssistant.hintExpanded') }}
+                    · {{ t('misc.speechDictation.hotkeyHint') }}
                 </template>
             </p>
         </div>

@@ -1175,6 +1175,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
 
+  /ai-chat/transcribe:
+    post:
+      tags: [AI-ассистент]
+      summary: Распознавание речи (диктовка)
+      operationId: aiChatTranscribe
+      description: |
+        Принимает аудиофайл с микрофона, возвращает текст через OpenAI Whisper.
+        Лимит — 20 запросов в минуту (`throttle:chat-ai`).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                language:
+                  type: string
+                  enum: [auto, ru, kk, en]
+                chat_id:
+                  type: integer
+                  description: Контекст чата для определения языка Whisper
+      responses:
+        "200":
+          description: Транскрипт
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text:
+                    type: string
+        "422":
+          description: Пустой транскрипт или неверный файл
+        "503":
+          description: Whisper отключён
+
   # ──────────────────────────────────────────
   # Воронки продаж (веб, сессия, administrator)
   # ──────────────────────────────────────────

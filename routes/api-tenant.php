@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AiSpeechTranscriptionController;
 use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
@@ -156,6 +157,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
 
         Route::post('ai-chat/query', [AiWorkspaceController::class, 'query'])
             ->middleware('throttle:30,1');
+        Route::post('ai-chat/transcribe', [AiSpeechTranscriptionController::class, 'store'])
+            ->middleware('throttle:chat-ai');
         Route::get('ai-chat/clients/{contact}/summary', [AiWorkspaceController::class, 'clientSummary'])
             ->middleware('throttle:30,1');
 
