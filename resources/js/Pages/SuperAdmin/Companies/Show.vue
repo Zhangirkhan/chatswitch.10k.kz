@@ -152,6 +152,41 @@ const props = defineProps<{
 
 const defaultPlanPriceCents = computed(() => props.company.plan?.price_cents ?? 4_000_000);
 
+const administratorUsers = computed(() =>
+    props.companyUsers.filter(
+        (u) => u.is_active && u.roles.some((r) => r.name === 'administrator'),
+    ),
+);
+
+const ownerAssigning = ref(false);
+
+function onOwnerSelectChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    if (value === '') {
+        return;
+    }
+
+    assignOwner(Number(value));
+}
+
+function assignOwner(userId: number): void {
+    if (ownerAssigning.value || props.company.owner?.id === userId) {
+        return;
+    }
+
+    ownerAssigning.value = true;
+    router.patch(
+        `/companies/${props.company.id}/owner`,
+        { user_id: userId },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                ownerAssigning.value = false;
+            },
+        },
+    );
+}
+
 const page = usePage();
 const rootDomain = computed(() => (page.props.rootDomain as string | undefined) ?? 'accel.kz');
 const activeTab = ref<TabId>('info');
@@ -405,11 +440,27 @@ function assignPlan(): void {
                     <div>
                         <dt class="text-xs font-medium uppercase tracking-wide text-ui-text-muted">{{ t('superAdmin.companies.show.fieldOwner') }}</dt>
                         <dd class="mt-0.5 text-sm text-ui-text">
-                            <template v-if="company.owner">
-                                {{ company.owner.name }}
-                                <span class="text-ui-text-secondary">· {{ company.owner.email }}</span>
-                            </template>
-                            <span v-else class="text-ui-text-muted">{{ t('superAdmin.companies.show.ownerNotAssigned') }}</span>
+                            <select
+                                class="ui-select max-w-md"
+                                :value="company.owner?.id ?? ''"
+                                :disabled="ownerAssigning || administratorUsers.length === 0"
+                                @change="onOwnerSelectChange"
+                            >
+                                <option value="">{{ t('superAdmin.companies.show.ownerNotAssigned') }}</option>
+                                <option
+                                    v-for="u in administratorUsers"
+                                    :key="u.id"
+                                    :value="u.id"
+                                >
+                                    {{ u.name }}{{ u.email ? ` · ${u.email}` : '' }}
+                                </option>
+                            </select>
+                            <p v-if="administratorUsers.length === 0" class="mt-1 text-xs text-ui-text-muted">
+                                {{ t('superAdmin.companies.show.ownerNoAdministrators') }}
+                            </p>
+                            <p v-else class="mt-1 text-xs text-ui-text-muted">
+                                {{ t('superAdmin.companies.show.ownerSelectHint') }}
+                            </p>
                         </dd>
                     </div>
                     <div v-if="company.email">

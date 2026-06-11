@@ -9,6 +9,7 @@ use App\Http\Controllers\SuperAdmin\ContactMessageController;
 use App\Http\Controllers\SuperAdmin\CompanyController;
 use App\Http\Controllers\SuperAdmin\CompanyMaintenanceController;
 use App\Http\Controllers\SuperAdmin\CompanyModuleController;
+use App\Http\Controllers\SuperAdmin\CompanyOwnerController;
 use App\Http\Controllers\SuperAdmin\CompanyImpersonationController;
 use App\Http\Controllers\SuperAdmin\CompanyUserController;
 use App\Http\Controllers\SuperAdmin\CompanyWhatsappController;
@@ -57,6 +58,7 @@ Route::middleware(['auth', 'super.admin'])->group(function (): void {
         ->name('super.companies.destroy');
     Route::post('/companies/{company}/doctor-fix', [CompanyDoctorController::class, 'fix'])
         ->name('super.companies.doctor-fix');
+    Route::patch('/companies/{company}/owner', [CompanyOwnerController::class, 'update'])->name('super.companies.owner.update');
     Route::patch('/companies/{company}/toggle-active', [CompanyController::class, 'toggleActive'])->name('super.companies.toggle-active');
     Route::post('/companies/{company}/impersonate', [CompanyImpersonationController::class, 'store'])
         ->name('super.companies.impersonate');

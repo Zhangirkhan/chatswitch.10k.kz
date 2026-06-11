@@ -173,6 +173,30 @@ function deactivate(user: SuperAdminCompanyUser): void {
     }, { preserveScroll: true });
 }
 
+const assigningOwnerId = ref<number | null>(null);
+
+function isAdministrator(user: SuperAdminCompanyUser): boolean {
+    return user.roles.some((r) => r.name === 'administrator');
+}
+
+function assignOwner(user: SuperAdminCompanyUser): void {
+    if (user.is_owner || assigningOwnerId.value !== null) {
+        return;
+    }
+
+    assigningOwnerId.value = user.id;
+    router.patch(
+        `/companies/${props.companyId}/owner`,
+        { user_id: user.id },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                assigningOwnerId.value = null;
+            },
+        },
+    );
+}
+
 function formErrorMessage(form: typeof userForm | typeof editForm): string {
     const values = Object.values(form.errors);
     return values.find((v) => typeof v === 'string' && v.length > 0) ?? '';
@@ -289,6 +313,15 @@ function formErrorMessage(form: typeof userForm | typeof editForm): string {
                                         </button>
                                         <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="resetPassword(u)">
                                             {{ t('superAdmin.companies.users.password') }}
+                                        </button>
+                                        <button
+                                            v-if="u.is_active && isAdministrator(u) && !u.is_owner"
+                                            type="button"
+                                            class="ui-btn ui-btn--ghost ui-btn--sm"
+                                            :disabled="assigningOwnerId === u.id"
+                                            @click="assignOwner(u)"
+                                        >
+                                            {{ assigningOwnerId === u.id ? t('superAdmin.companies.users.assigningOwner') : t('superAdmin.companies.users.assignOwner') }}
                                         </button>
                                         <button
                                             v-if="u.is_active"
