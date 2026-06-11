@@ -17,6 +17,7 @@ const minorMarkers = [
 ] as const;
 
 defineProps<{
+    eyebrow: string;
     mapCaption: string;
     title: string;
     lead: string;
@@ -37,7 +38,7 @@ defineProps<{
 </script>
 
 <template>
-    <section id="data-kz" class="landing-data-kz">
+    <section id="data-kz" class="landing-data-kz landing__section-block">
         <div class="landing-data-kz__shell">
             <div class="landing-data-kz__highlight">
                 <div class="landing-data-kz__map-tile">
@@ -114,8 +115,11 @@ defineProps<{
             </div>
 
             <div class="landing-data-kz__narrative landing-data-kz__card">
-                <h2 class="landing-data-kz__title">{{ title }}</h2>
-                <p class="landing-data-kz__lead">{{ lead }}</p>
+                <header class="landing__section-header">
+                    <p class="landing__section-eyebrow">{{ eyebrow }}</p>
+                    <h2 class="landing__section-heading">{{ title }}</h2>
+                    <p class="landing__section-lead">{{ lead }}</p>
+                </header>
                 <p class="landing-data-kz__note">{{ note }}</p>
             </div>
 
@@ -158,13 +162,6 @@ defineProps<{
 <style scoped>
 .landing-data-kz {
     scroll-margin-top: 5rem;
-    margin-block: 3.5rem;
-}
-
-@media (min-width: 768px) {
-    .landing-data-kz {
-        margin-block: 5.5rem;
-    }
 }
 
 .landing-data-kz__shell {
@@ -392,19 +389,12 @@ defineProps<{
     text-decoration: underline;
 }
 
-.landing-data-kz__title {
-    margin: 0 0 0.85rem;
-    font-size: clamp(1.35rem, 3vw, 1.75rem);
-    font-weight: 600;
-    line-height: 1.25;
-    letter-spacing: -0.025em;
-    text-align: left;
-    color: var(--landing-text);
+.landing-data-kz__narrative .landing__section-header {
+    margin-bottom: 1rem;
 }
 
-.landing-data-kz__lead,
 .landing-data-kz__note {
-    margin: 0 0 0.75rem;
+    margin: 0;
     font-size: 0.96875rem;
     line-height: 1.6;
     color: var(--landing-muted);

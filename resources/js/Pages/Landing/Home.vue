@@ -350,14 +350,17 @@ onUnmounted(() => {
                 :aside-points="problemAsidePoints"
             />
 
-            <section id="features" class="landing__features-section">
-                <h2 class="landing__section-title">{{ t('landing.featuresSectionTitle') }}</h2>
+            <section id="features" class="landing__features-section landing__section-block">
+                <header class="landing__section-header">
+                    <p class="landing__section-eyebrow">{{ t('landing.featuresEyebrow') }}</p>
+                    <h2 class="landing__section-heading">{{ t('landing.featuresSectionTitle') }}</h2>
+                </header>
                 <ul class="landing__features">
                 <li v-for="item in features" :key="item.title" class="landing__features-item">
                     <LandingBorderGlow
                         class="landing__card-glow"
-                        background-color="#1d1f1f"
-                        :border-radius="12"
+                        background-color="#262b32"
+                        :border-radius="16"
                         :edge-sensitivity="11"
                         :glow-radius="52"
                         :glow-intensity="1.5"
@@ -367,6 +370,7 @@ onUnmounted(() => {
                     >
                     <div class="landing__card">
                     <div class="landing__card-icon" :data-icon="item.icon" aria-hidden="true">
+                        <span class="landing__card-icon-chip">
                         <svg v-if="item.icon === 'chat'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 20l1.8-5.4A7.77 7.77 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
@@ -397,6 +401,7 @@ onUnmounted(() => {
                         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
+                        </span>
                     </div>
                     <div class="landing__card-body">
                     <h3 class="landing__card-title">{{ item.title }}</h3>
@@ -409,6 +414,7 @@ onUnmounted(() => {
             </section>
 
             <LandingDataKz
+                :eyebrow="t('landing.navDataKz')"
                 :map-caption="t('landing.dataKzMapCaption')"
                 :title="t('landing.dataKzTitle')"
                 :lead="t('landing.dataKzLead')"
@@ -427,8 +433,12 @@ onUnmounted(() => {
                 :security-list="dataKzSecurityList"
             />
 
-            <section id="pricing" class="landing__pricing">
-                <h2 class="landing__section-title">{{ t('landing.pricingTitle') }}</h2>
+            <section id="pricing" class="landing__pricing landing__section-block">
+                <header class="landing__section-header landing__section-header--center">
+                    <p class="landing__section-eyebrow">{{ t('landing.pricingEyebrow') }}</p>
+                    <h2 class="landing__section-heading">{{ t('landing.pricingTitle') }}</h2>
+                    <p class="landing__section-lead">{{ t('landing.pricingSectionLead') }}</p>
+                </header>
                 <div class="landing__pricing-grid">
                     <article
                         v-for="plan in visiblePricingPlans"
@@ -461,8 +471,12 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <section id="faq" class="landing__faq">
-                <h2 class="landing__section-title">{{ t('landing.faqTitle') }}</h2>
+            <section id="faq" class="landing__faq landing__section-block">
+                <header class="landing__section-header landing__section-header--center">
+                    <p class="landing__section-eyebrow">{{ t('landing.faqEyebrow') }}</p>
+                    <h2 class="landing__section-heading">{{ t('landing.faqTitle') }}</h2>
+                    <p class="landing__section-lead">{{ t('landing.faqSectionLead') }}</p>
+                </header>
                 <dl class="landing__faq-list">
                     <div
                         v-for="(item, index) in faqItems"
@@ -696,7 +710,13 @@ onUnmounted(() => {
     display: grid;
     gap: 3rem;
     align-items: center;
-    margin: 0 0 7.5rem;
+    margin: 0 0 3.75rem;
+}
+
+@media (min-width: 768px) {
+    .landing__hero {
+        margin: 0 0 8rem;
+    }
 }
 
 .landing__hero-backdrop {
@@ -757,7 +777,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
     .landing__hero {
         padding: 1rem 0 0;
-        margin: 0 0 3.5rem;
+        margin: 0 0 3.75rem;
         gap: 1.5rem;
     }
 
@@ -787,8 +807,8 @@ onUnmounted(() => {
         padding-bottom: 2rem;
     }
 
-    .landing__section-title {
-        font-size: 1.125rem;
+    .landing__section-heading {
+        font-size: clamp(1.5rem, 6vw, 1.85rem);
     }
 
     .landing__pricing-card {
@@ -806,6 +826,18 @@ onUnmounted(() => {
         background:
             radial-gradient(ellipse 85% 70% at 58% 45%, rgba(1, 185, 100, 0.16) 0%, rgba(1, 185, 100, 0.05) 45%, transparent 75%),
             radial-gradient(ellipse 100% 100% at 50% 50%, rgba(17, 27, 33, 0.6) 0%, rgba(0, 0, 0, 0.95) 100%);
+    }
+
+    .landing__features-item,
+    .landing__features-item:hover,
+    .landing__pricing-card,
+    .landing__pricing-card:hover,
+    .landing__faq-item,
+    .landing__faq-item:hover,
+    .landing__cta-btn,
+    .landing__cta-btn:hover {
+        transform: none;
+        transition: none;
     }
 }
 
@@ -829,19 +861,7 @@ onUnmounted(() => {
     }
 }
 
-.landing__section-title {
-    margin: 0 0 1.25rem;
-    font-size: clamp(1.125rem, 2vw, 1.35rem);
-    font-weight: 600;
-    line-height: 1.3;
-    letter-spacing: -0.02em;
-    text-align: center;
-    color: var(--landing-text);
-}
-
 .landing__features-section {
-    scroll-margin-top: 1.5rem;
-    margin-bottom: 3rem;
     overflow: visible;
 }
 
@@ -867,7 +887,7 @@ onUnmounted(() => {
     list-style: none;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
+    gap: 1rem;
     overflow: visible;
 }
 
@@ -875,6 +895,11 @@ onUnmounted(() => {
     list-style: none;
     min-height: 0;
     overflow: visible;
+    transition: transform 0.22s ease;
+}
+
+.landing__features-item:hover {
+    transform: translateY(-2px);
 }
 
 .landing__card-glow {
@@ -915,14 +940,13 @@ onUnmounted(() => {
 }
 
 .landing__pricing {
-    scroll-margin-top: 1.5rem;
-    margin-bottom: 3rem;
+    scroll-margin-top: 5rem;
 }
 
 .landing__pricing-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.25rem;
+    gap: 1.5rem;
     max-width: 56rem;
     margin: 0 auto;
     align-items: stretch;
@@ -933,18 +957,34 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     min-height: 100%;
-    padding: 1.75rem;
+    padding: 1.85rem;
     border-radius: 1.25rem;
-    background: var(--landing-surface);
-    border: 1px solid rgba(1, 185, 100, 0.28);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
+    background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
+    border: 1px solid var(--landing-border-bright);
+    box-shadow: var(--landing-elevation);
+    transition:
+        transform 0.22s ease,
+        box-shadow 0.22s ease,
+        border-color 0.22s ease;
+}
+
+.landing__pricing-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(1, 185, 100, 0.28);
 }
 
 .landing__pricing-card--boxed {
     border-color: rgba(45, 212, 191, 0.42);
     box-shadow:
-        0 24px 48px rgba(0, 0, 0, 0.22),
-        0 0 0 1px rgba(45, 212, 191, 0.08);
+        var(--landing-elevation),
+        var(--landing-glow);
+}
+
+.landing__pricing-card--boxed:hover {
+    box-shadow:
+        var(--landing-elevation),
+        var(--landing-glow),
+        0 28px 56px -24px rgba(1, 185, 100, 0.4);
 }
 
 .landing__pricing-head {
@@ -1057,23 +1097,36 @@ onUnmounted(() => {
 }
 
 .landing__faq {
-    padding: 4rem clamp(1.5rem, 5vw, 3rem) 5rem;
     max-width: 48rem;
-    margin: 0 auto;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .landing__faq-list {
-    margin: 2rem 0 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
 
 .landing__faq-item {
-    padding: 1.25rem 1.5rem;
-    background: var(--landing-surface-raised, rgba(255, 255, 255, 0.03));
-    border: 1px solid var(--landing-border);
-    border-radius: 0.875rem;
+    padding: 1.35rem 1.5rem;
+    background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
+    border: 1px solid var(--landing-border-bright);
+    border-radius: 14px;
+    box-shadow: var(--landing-elevation);
+    transition:
+        transform 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+.landing__faq-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(1, 185, 100, 0.24);
+    box-shadow:
+        var(--landing-elevation),
+        0 0 0 1px rgba(1, 185, 100, 0.06);
 }
 
 .landing__faq-question {
@@ -1106,9 +1159,10 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.875rem 1rem;
+    gap: 0.75rem;
+    padding: 1.15rem 1.2rem;
     height: 100%;
+    background: linear-gradient(160deg, var(--landing-card-top), var(--landing-card));
 }
 
 .landing__card-icon {
@@ -1117,7 +1171,19 @@ onUnmounted(() => {
     color: var(--landing-accent);
 }
 
-.landing__card-icon svg {
+.landing__card-icon-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.65rem;
+    background: rgba(1, 185, 100, 0.14);
+    border: 1px solid rgba(1, 185, 100, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.landing__card-icon-chip svg {
     width: 1.25rem;
     height: 1.25rem;
 }
@@ -1147,12 +1213,19 @@ onUnmounted(() => {
     border: none;
     border-radius: 999px;
     cursor: pointer;
-    transition: background 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 10px 28px -12px rgba(1, 185, 100, 0.55);
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
 .landing__cta-btn:hover {
     background: var(--landing-accent-hover);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow:
+        0 14px 36px -10px rgba(1, 185, 100, 0.65),
+        0 0 0 1px rgba(1, 185, 100, 0.2);
 }
 
 .landing__toast {

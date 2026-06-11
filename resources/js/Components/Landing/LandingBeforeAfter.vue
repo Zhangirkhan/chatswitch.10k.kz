@@ -27,12 +27,12 @@ defineProps<{
 </script>
 
 <template>
-    <section id="problem" class="landing-before-after">
-        <div class="landing-before-after__intro">
-            <p class="landing-before-after__eyebrow">{{ baLabelBefore }} / {{ baLabelAfter }}</p>
-            <h2 class="landing-before-after__title">{{ title }}</h2>
-            <p class="landing-before-after__lead">{{ lead }}</p>
-        </div>
+    <section id="problem" class="landing-before-after landing__section-block">
+        <header class="landing__section-header">
+            <p class="landing__section-eyebrow">{{ baLabelBefore }} / {{ baLabelAfter }}</p>
+            <h2 class="landing__section-heading">{{ title }}</h2>
+            <p class="landing__section-lead">{{ lead }}</p>
+        </header>
 
         <div class="landing-before-after__layout">
             <div class="landing-before-after__grid">
@@ -108,50 +108,6 @@ defineProps<{
 <style scoped>
 .landing-before-after {
     scroll-margin-top: 5rem;
-    margin-block: 3.5rem;
-}
-
-@media (min-width: 768px) {
-    .landing-before-after {
-        margin-block: 5.5rem;
-    }
-}
-
-.landing-before-after__intro {
-    max-width: 44rem;
-    margin: 0 0 2.5rem;
-    text-align: center;
-}
-
-@media (min-width: 768px) {
-    .landing-before-after__intro {
-        text-align: left;
-    }
-}
-
-.landing-before-after__eyebrow {
-    margin: 0 0 0.65rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--landing-accent);
-}
-
-.landing-before-after__title {
-    margin: 0 0 0.85rem;
-    font-size: clamp(1.35rem, 3vw, 1.75rem);
-    font-weight: 600;
-    line-height: 1.25;
-    letter-spacing: -0.025em;
-    color: var(--landing-text);
-}
-
-.landing-before-after__lead {
-    margin: 0;
-    font-size: 1.0625rem;
-    line-height: 1.6;
-    color: var(--landing-muted);
 }
 
 .landing-before-after__layout {
