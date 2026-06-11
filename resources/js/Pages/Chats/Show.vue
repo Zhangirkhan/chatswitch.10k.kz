@@ -20,6 +20,9 @@ import { useToastStore } from '@/stores/toast';
 import { useI18n } from '@/composables/useI18n';
 import { detectClientLanguage } from '@/utils/messageLanguage';
 import { mergeSidebarChats } from '@/utils/sidebarChatList';
+import { useEchoChannel } from '@/composables/useEchoChannel';
+import { useChatThreadSync } from '@/composables/useChatThreadSync';
+import { chatChannel } from '@/utils/tenantChannels';
 
 const props = defineProps<{
     chat: Chat;
@@ -101,6 +104,8 @@ const props = defineProps<{
 
 const { show: showToast } = useToastStore();
 const { t } = useI18n();
+const page = usePage<any>();
+const tenantCompanyId = computed(() => Number(page.props.tenantCompanyId || 0));
 
 const readinessBannerDismissed = ref(false);
 const funnelRealtime = ref<Partial<Chat>>({});
@@ -521,13 +526,102 @@ watch(() => props.chats, (newVal) => {
 onMounted(() => {
     scrollToBottom();
     markAsRead();
-    setupEcho();
 });
 
-onUnmounted(() => {
-    cleanupEcho();
-    statusSimTimers.forEach((timers) => timers.forEach((t) => window.clearTimeout(t)));
-    statusSimTimers.clear();
+function handleIncomingMessage(e: unknown): void {
+    const payload = e as { message?: Message };
+    const msg = payload.message;
+    if (!msg?.id) return;
+    const idx = localMessageIndexById(msg.id);
+    if (idx >= 0) {
+        const cur = localMessages.value[idx]!;
+        localMessages.value[idx] = {
+            ...cur,
+            ...msg,
+            media: Array.isArray(msg.media) && msg.media.length > 0 ? msg.media : cur.media,
+        };
+        return;
+    }
+    mergeMessageIntoList(msg);
+    scrollToBottom();
+    markAsRead();
+}
+
+function handleMessageAck(e: unknown): void {
+    const payload = e as { id?: number; ack?: Message['ack'] };
+    if (!payload.id || !payload.ack) return;
+    const idx = localMessageIndexById(payload.id);
+    if (idx < 0) return;
+    const cur = localMessages.value[idx]!;
+    const nextStatus = statusFromAck(payload.ack) ?? cur.status;
+    localMessages.value[idx] = { ...cur, ack: payload.ack, status: nextStatus };
+}
+
+useEchoChannel(
+    () => (props.chat.id ? chatChannel(tenantCompanyId.value, props.chat.id) : null),
+    () => ({
+        '.message.received': handleIncomingMessage,
+        '.message.ack': handleMessageAck,
+        '.user.typing': (e: unknown) => {
+            const payload = e as { userId?: number; userName?: string };
+            if (payload.userId == null) return;
+            typingUsers.value.set(payload.userId, payload.userName ?? '');
+            setTimeout(() => typingUsers.value.delete(payload.userId!), 3000);
+        },
+        '.message.reactions': (e: unknown) => {
+            const payload = e as { id?: number; reactions?: MessageReaction[] };
+            const msg = localMessages.value.find((m) => m.id === payload.id);
+            if (msg) {
+                msg.reactions = (payload.reactions || []) as MessageReaction[];
+            }
+        },
+        '.funnel.updated': (e: unknown) => {
+            const payload = e as {
+                funnel?: Chat['funnel'];
+                stage?: Chat['funnel_stage'];
+                progress_percent?: number;
+                funnel_progress?: Chat['funnel_progress'];
+                reason?: string | null;
+                funnel_tracking_enabled?: boolean;
+                funnel_stage_locked?: boolean;
+            };
+            funnelRealtime.value = {
+                ...funnelRealtime.value,
+                funnel: payload.funnel ?? null,
+                funnel_stage: payload.stage ?? null,
+                funnel_progress_percent: typeof payload.progress_percent === 'number' ? payload.progress_percent : undefined,
+                funnel_progress: payload.funnel_progress ?? undefined,
+                funnel_ai_last_reason: payload.reason ?? null,
+                funnel_tracking_enabled: payload.funnel_tracking_enabled,
+                funnel_stage_locked: payload.funnel_stage_locked,
+            };
+        },
+        '.ai-orchestrator.updated': (e: unknown) => {
+            const payload = e as {
+                ai_orchestrator_status?: Chat['ai_orchestrator_status'];
+                ai_orchestrator_last_run_id?: number | null;
+                ai_orchestrator_last_action_at?: string | null;
+                ai_orchestrator_last_summary?: string | null;
+            };
+            funnelRealtime.value = {
+                ...funnelRealtime.value,
+                ai_orchestrator_status: payload.ai_orchestrator_status ?? null,
+                ai_orchestrator_last_run_id: payload.ai_orchestrator_last_run_id ?? null,
+                ai_orchestrator_last_action_at: payload.ai_orchestrator_last_action_at ?? null,
+                ai_orchestrator_last_summary: payload.ai_orchestrator_last_summary ?? null,
+            };
+        },
+    }),
+);
+
+useChatThreadSync({
+    chatId: () => props.chat.id,
+    messages: localMessages,
+    mergeMessage: mergeMessageIntoList,
+    onSynced: () => {
+        scrollToBottom();
+        markAsRead();
+    },
 });
 
 function scrollToBottom() {
@@ -609,74 +703,10 @@ async function loadMoreMessages() {
     }
 }
 
-let echoChannel: any = null;
-
-function setupEcho() {
-    if (!(window as any).Echo) return;
-
-    const tenantId = Number((usePage() as any).props.tenantCompanyId || 0);
-    echoChannel = (window as any).Echo.private(`t.${tenantId}.chat.${props.chat.id}`);
-
-    echoChannel.listen('.message.received', (e: any) => {
-        const msg = e.message as Message | undefined;
-        if (!msg?.id) return;
-        const idx = localMessageIndexById(msg.id);
-        if (idx >= 0) {
-            const cur = localMessages.value[idx]!;
-            localMessages.value[idx] = {
-                ...cur,
-                ...msg,
-                media: Array.isArray(msg.media) && msg.media.length > 0 ? msg.media : cur.media,
-            };
-            return;
-        }
-        mergeMessageIntoList(msg);
-        scrollToBottom();
-        markAsRead();
-    });
-
-    echoChannel.listen('.user.typing', (e: any) => {
-        typingUsers.value.set(e.userId, e.userName);
-        setTimeout(() => typingUsers.value.delete(e.userId), 3000);
-    });
-
-    echoChannel.listen('.message.reactions', (e: any) => {
-        const msg = localMessages.value.find((m) => m.id === e.id);
-        if (msg) {
-            msg.reactions = (e.reactions || []) as MessageReaction[];
-        }
-    });
-
-    echoChannel.listen('.funnel.updated', (e: any) => {
-        funnelRealtime.value = {
-            ...funnelRealtime.value,
-            funnel: e.funnel ?? null,
-            funnel_stage: e.stage ?? null,
-            funnel_progress_percent: typeof e.progress_percent === 'number' ? e.progress_percent : undefined,
-            funnel_progress: e.funnel_progress ?? undefined,
-            funnel_ai_last_reason: e.reason ?? null,
-            funnel_tracking_enabled: e.funnel_tracking_enabled,
-            funnel_stage_locked: e.funnel_stage_locked,
-        };
-    });
-
-    echoChannel.listen('.ai-orchestrator.updated', (e: any) => {
-        funnelRealtime.value = {
-            ...funnelRealtime.value,
-            ai_orchestrator_status: e.ai_orchestrator_status ?? null,
-            ai_orchestrator_last_run_id: e.ai_orchestrator_last_run_id ?? null,
-            ai_orchestrator_last_action_at: e.ai_orchestrator_last_action_at ?? null,
-            ai_orchestrator_last_summary: e.ai_orchestrator_last_summary ?? null,
-        };
-    });
-}
-
-function cleanupEcho() {
-    if ((window as any).Echo && echoChannel) {
-        const tenantId = Number((usePage() as any).props.tenantCompanyId || 0);
-        (window as any).Echo.leave(`t.${tenantId}.chat.${props.chat.id}`);
-    }
-}
+onUnmounted(() => {
+    statusSimTimers.forEach((timers) => timers.forEach((t) => window.clearTimeout(t)));
+    statusSimTimers.clear();
+});
 
 </script>
 

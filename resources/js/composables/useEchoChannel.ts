@@ -9,12 +9,36 @@ declare global {
     }
 }
 
+const ECHO_WAIT_MS = 15_000;
+const ECHO_POLL_MS = 300;
+
+function waitForEcho(timeoutMs = ECHO_WAIT_MS): Promise<boolean> {
+    if (window.Echo) {
+        return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+        let waited = 0;
+        const timer = window.setInterval(() => {
+            waited += ECHO_POLL_MS;
+            if (window.Echo) {
+                window.clearInterval(timer);
+                resolve(true);
+            } else if (waited >= timeoutMs) {
+                window.clearInterval(timer);
+                resolve(false);
+            }
+        }, ECHO_POLL_MS);
+    });
+}
+
 /**
  * Typed wrapper around Laravel Echo private channels.
  * Automatically leaves the channel on unmount/channel change.
  */
 export function useEchoChannel(channelName: () => string | null, listeners: () => Listeners) {
     let current: { name: string; channel: any } | null = null;
+    let setupGeneration = 0;
 
     function teardown() {
         if (!current || !window.Echo) return;
@@ -22,19 +46,32 @@ export function useEchoChannel(channelName: () => string | null, listeners: () =
         current = null;
     }
 
-    function setup() {
+    async function setup() {
+        const generation = ++setupGeneration;
         teardown();
 
         const name = channelName();
-        if (!name || !window.Echo) return;
+        if (!name) return;
 
-        const channel = window.Echo.private(name);
+        if (!window.Echo) {
+            await waitForEcho();
+        }
+
+        if (generation !== setupGeneration || !window.Echo) return;
+
+        const resolvedName = channelName();
+        if (!resolvedName) return;
+
+        const channel = window.Echo.private(resolvedName);
         for (const [event, handler] of Object.entries(listeners())) {
             channel.listen(event, handler);
         }
-        current = { name, channel };
+        current = { name: resolvedName, channel };
     }
 
-    watch(() => channelName(), setup, { immediate: true });
+    watch(() => channelName(), () => {
+        void setup();
+    }, { immediate: true });
+
     onBeforeUnmount(teardown);
 }

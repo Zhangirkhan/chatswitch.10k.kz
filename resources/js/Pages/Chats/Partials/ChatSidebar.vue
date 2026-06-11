@@ -19,6 +19,9 @@ import {
     isAiPanelOpenForChat,
     prefetchClientSummary,
 } from '@/composables/useAiPanelDataCache';
+import { useEchoChannel } from '@/composables/useEchoChannel';
+import { onSocketReconnected } from '@/composables/useConnectionStatus';
+import { chatsListChannel } from '@/utils/tenantChannels';
 import axios from 'axios';
 
 const { show: showToast } = useToastStore();
@@ -288,46 +291,38 @@ async function onChatListScroll(e: Event): Promise<void> {
 }
 
 // ─── Echo subscription ────────────────────────────────────────────────────────
-let listEchoChannel: any = null;
+let unsubscribeSocketReconnect: (() => void) | null = null;
 
-function setupListEcho(): void {
-    const Echo = (window as any).Echo;
-    const uid = user.value?.id;
-    if (!Echo || !uid) return;
-
-    try {
+useEchoChannel(
+    () => {
+        const uid = user.value?.id;
+        if (!uid) return null;
         const tenantId = Number(page.props.tenantCompanyId || 0);
-        listEchoChannel = Echo.private(`t.${tenantId}.chats.list.${uid}`);
-
-        listEchoChannel.listen('.message.received', (e: any) => {
-            const msg = e.message;
+        return chatsListChannel(tenantId, uid);
+    },
+    () => ({
+        '.message.received': (e: unknown) => {
+            const payload = e as { message?: { chat_id?: number; body?: string; direction?: string; created_at?: string; message_timestamp?: string } };
+            const msg = payload.message;
             if (!msg?.chat_id) return;
             applyIncomingMessage(msg.chat_id, {
                 body: msg.body,
-                direction: msg.direction,
+                direction: msg.direction as 'inbound' | 'outbound' | undefined,
                 created_at: msg.created_at,
                 message_timestamp: msg.message_timestamp,
             });
-        });
-
-        listEchoChannel.listen('.chats.notify', () => {
+        },
+        '.chats.notify': () => {
             scheduleChatListReload();
-        });
-    } catch {
-        listEchoChannel = null;
-    }
-}
+        },
+    }),
+);
 
-function teardownListEcho(): void {
-    if (listEchoChannel && (window as any).Echo) {
-        const uid = user.value?.id;
-        if (uid) {
-            const tenantId = Number(page.props.tenantCompanyId || 0);
-            try { (window as any).Echo.leave(`t.${tenantId}.chats.list.${uid}`); } catch { /* ignore */ }
-        }
-    }
-    listEchoChannel = null;
-}
+onMounted(() => {
+    unsubscribeSocketReconnect = onSocketReconnected(() => {
+        scheduleChatListReload();
+    });
+});
 const activeSegment = ref<SegmentKey>('all');
 const headerMenuOpen = ref(false);
 const showNewChat = ref(false);
@@ -394,22 +389,6 @@ onMounted(async () => {
         } finally {
             initialSidebarLoading.value = false;
         }
-    }
-
-    // Echo — подписываемся сразу или ждём инициализации
-    if ((window as any).Echo) {
-        setupListEcho();
-    } else {
-        let waited = 0;
-        const iv = setInterval(() => {
-            waited += 300;
-            if ((window as any).Echo) {
-                clearInterval(iv);
-                setupListEcho();
-            } else if (waited >= 15_000) {
-                clearInterval(iv);
-            }
-        }, 300);
     }
 
     let hiddenAt: number | null = null;
@@ -619,7 +598,7 @@ onBeforeUnmount(() => {
         clearTimeout(chatListReloadTimer);
         chatListReloadTimer = null;
     }
-    teardownListEcho();
+    unsubscribeSocketReconnect?.();
     offNextChat();
     offPrevChat();
     offNewChat();

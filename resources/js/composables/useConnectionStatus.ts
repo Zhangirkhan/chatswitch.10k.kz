@@ -16,6 +16,11 @@ export type ConnectionStatusState = {
     retry: () => Promise<void>;
 };
 
+type SocketStateListener = (connected: boolean) => void;
+
+const socketReconnectListeners = new Set<() => void>();
+const socketStateListeners = new Set<SocketStateListener>();
+
 const SHOW_DELAY_MS = 700;
 const HIDE_DELAY_MS = 500;
 const PROBE_INTERVAL_MS = 12_000;
@@ -150,6 +155,26 @@ function createConnectionStatus(): ConnectionStatusInternal {
         return 'disconnected';
     }
 
+    function notifySocketState(connected: boolean): void {
+        for (const listener of socketStateListeners) {
+            try {
+                listener(connected);
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+
+    function notifySocketReconnect(): void {
+        for (const listener of socketReconnectListeners) {
+            try {
+                listener();
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+
     function onStateChange(states: unknown): void {
         const payload = states as { current?: string };
         const current = typeof payload?.current === 'string' ? payload.current : 'disconnected';
@@ -160,18 +185,25 @@ function createConnectionStatus(): ConnectionStatusInternal {
         }
 
         socketState.value = mapped;
+        notifySocketState(mapped === 'connected');
         syncVisibility();
     }
 
     function onConnected(): void {
+        const wasDisconnected = socketState.value !== 'connected';
         wasSocketConnected.value = true;
         socketState.value = 'connected';
+        notifySocketState(true);
+        if (wasDisconnected) {
+            notifySocketReconnect();
+        }
         syncVisibility();
     }
 
     function onDisconnected(): void {
         if (wasSocketConnected.value) {
             socketState.value = 'disconnected';
+            notifySocketState(false);
             syncVisibility();
         }
     }
@@ -225,6 +257,7 @@ function createConnectionStatus(): ConnectionStatusInternal {
             wasSocketConnected.value = true;
         }
         socketState.value = mapped;
+        notifySocketState(mapped === 'connected');
         syncVisibility();
 
         return true;
@@ -408,7 +441,42 @@ export function notifyNetworkReachable(): void {
     shared?.markNetworkReachable();
 }
 
+export function onSocketReconnected(callback: () => void): () => void {
+    socketReconnectListeners.add(callback);
+
+    return () => {
+        socketReconnectListeners.delete(callback);
+    };
+}
+
+export function subscribeSocketState(callback: SocketStateListener): () => void {
+    socketStateListeners.add(callback);
+
+    if (shared) {
+        const Echo = (window as Window & { Echo?: { connector?: { pusher?: { connection?: PusherConnection } } } }).Echo;
+        const state = Echo?.connector?.pusher?.connection?.state ?? 'connected';
+        callback(mapPusherStateForExport(state) === 'connected');
+    }
+
+    return () => {
+        socketStateListeners.delete(callback);
+    };
+}
+
+function mapPusherStateForExport(state: string): 'connected' | 'connecting' | 'disconnected' {
+    if (state === 'connected') {
+        return 'connected';
+    }
+    if (state === 'connecting' || state === 'initialized') {
+        return 'connecting';
+    }
+
+    return 'disconnected';
+}
+
 export function __resetConnectionStatusForTests(): void {
     shared?.teardownGlobals();
     shared = null;
+    socketReconnectListeners.clear();
+    socketStateListeners.clear();
 }
