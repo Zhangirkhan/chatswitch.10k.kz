@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Jobs\AnalyzeChatFunnelJob;
+use App\Jobs\ExtractConversationMemoryJob;
 use App\Jobs\GenerateAiReplyJob;
 use App\Jobs\RunAiFunnelOrchestratorJob;
 use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
+use App\Support\AiFeatureFlags;
 
 final class InboundAiDispatchService
 {
@@ -59,6 +61,13 @@ final class InboundAiDispatchService
 
         if ($chat->ai_enabled && ! $shouldAnalyzeFunnel) {
             $this->idleAiReply->dispatchGenerateReply($chat, $message->id);
+        }
+
+        // Debounced memory extraction — runs independently of the AI reply path.
+        if (AiFeatureFlags::enabled(AiFeatureFlags::MEMORY_EXTRACTION, $chat->company_id)
+            && $chat->contact_id !== null
+        ) {
+            ExtractConversationMemoryJob::dispatchDebounced($chat->id, $chat->company_id);
         }
     }
 }

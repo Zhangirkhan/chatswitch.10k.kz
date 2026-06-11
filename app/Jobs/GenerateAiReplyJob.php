@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Jobs\ExtractConversationMemoryJob;
 use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\Message;
@@ -16,6 +17,7 @@ use App\Services\AI\ChatIdleAiReplyService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\WhatsappAiTypingService;
 use App\Services\OutboundChatMessageDispatcher;
+use App\Support\AiFeatureFlags;
 use App\Support\VoiceInboundHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -176,6 +178,14 @@ final class GenerateAiReplyJob implements ShouldQueue
                 'prompt_hash' => $generated['prompt_hash'],
                 'error' => null,
             ])->save();
+
+            // Trigger memory extraction after a reply is sent so the AI remembers
+            // what was discussed in this turn.
+            if (AiFeatureFlags::enabled(AiFeatureFlags::MEMORY_EXTRACTION, $chat->company_id)
+                && $chat->contact_id !== null
+            ) {
+                ExtractConversationMemoryJob::dispatchDebounced($chat->id, $chat->company_id);
+            }
         } catch (\Throwable $e) {
             $isBlocked = str_contains($e->getMessage(), 'AI safety check');
             $log->forceFill([
