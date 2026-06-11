@@ -50,6 +50,8 @@ servers:
 tags:
   - name: Workspace
     description: Проверка рабочего пространства (slug)
+  - name: Mobile
+    description: Платформенные эндпоинты мобильного клиента (публичные)
   - name: Settings
     description: Системные настройки и флаги модулей
   - name: TeamChat
@@ -104,6 +106,67 @@ paths:
           description: Тенант не найден
         "429":
           description: Слишком много запросов
+
+  /api/v1/mobile/changelog:
+    get:
+      tags: [Mobile]
+      summary: Опубликованный changelog «Что нового»
+      operationId: mobileChangelogIndex
+      description: |
+        Публичный эндпоинт без Bearer (как `GET /api/v1/mobile/update-check`).
+
+        Записи создаются на backend (`platform-changelog:sync-git` + OpenAI) и
+        переводятся на RU / KK / EN. В ответе только опубликованные записи
+        (`CHANGELOG_GIT_AUTO_PUBLISH` или publish в Super Admin).
+
+        Mobile: экран «Что нового» в настройках (`ChangelogService`).
+        Offline / 404 — fallback на bundled `CHANGELOG.md`.
+
+        Хост: `https://accel.kz` или `https://{tenant}.accel.kz`.
+      parameters:
+        - name: locale
+          in: query
+          required: false
+          description: Язык текста записи
+          schema:
+            type: string
+            enum: [ru, kk, en]
+            default: ru
+        - name: limit
+          in: query
+          required: false
+          description: Максимум записей за запрос
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: app_version
+          in: query
+          required: false
+          description: Фильтр по semver версии приложения (резерв; пока не используется)
+          schema:
+            type: string
+            example: "1.0.4"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformChangelogListResponse"
+              example:
+                data:
+                  entries:
+                    - id: 12
+                      app_version: "1.0.4"
+                      text: "Кликабельные ссылки, телефоны и email в сообщениях"
+                      published_at: "2026-06-11T10:15:00Z"
+                      git_commit_hash: a1b2c3d4
+                      git_commit_subject: "feat: linkify chat message text"
+                      source: git
+        "422":
+          description: Ошибка валидации query-параметров
 
   /api/v1/auth/login:
     post:
@@ -2564,3 +2627,47 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FeedbackResource"
+
+    PlatformChangelogEntry:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: integer
+        app_version:
+          type: string
+          nullable: true
+          description: Semver версии приложения; null → группа «Обновление» в mobile
+        text:
+          type: string
+          description: Локализованный пользовательский текст (OpenAI)
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        git_commit_hash:
+          type: string
+          nullable: true
+          description: SHA коммита; дедуп на backend
+        git_commit_subject:
+          type: string
+          nullable: true
+          description: Исходная тема git-коммита
+        source:
+          type: string
+          enum: [git, manual]
+          nullable: true
+
+    PlatformChangelogListData:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformChangelogEntry"
+
+    PlatformChangelogListResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PlatformChangelogListData"

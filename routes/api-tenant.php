@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\DepartmentPostController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MobileChangelogController;
 use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -42,6 +43,8 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::post('auth/login/pin', [AuthController::class, 'loginPin']);
     Route::get('mobile/update-check', MobileUpdateCheckController::class)
+        ->middleware('throttle:60,1');
+    Route::get('mobile/changelog', MobileChangelogController::class)
         ->middleware('throttle:60,1');
 
     Route::middleware(['auth:sanctum', 'api.active', 'tenant.user', 'role:administrator,manager,employee'])->group(function (): void {

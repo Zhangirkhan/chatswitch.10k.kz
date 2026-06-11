@@ -35,7 +35,7 @@ function variantForUrl(url: string): SkeletonVariant {
         || url.includes('/settings/system')
         || url.includes('/settings/changelog')
     ) {
-        return 'form';
+        return 'cards';
     }
     if (url.includes('/settings/users') || url.includes('/settings/departments')) {
         return 'table';
