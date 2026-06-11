@@ -5,16 +5,18 @@ use App\Http\Middleware\EnsureActiveCompany;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\EnsureApiUserActive;
 use App\Http\Middleware\EnsureDocsApiPassword;
+use App\Http\Middleware\EnsureGlobalSuperAdmin;
 use App\Http\Middleware\EnsureSettingsReadiness;
-use App\Http\Middleware\EnsureUserBelongsToTenant;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureSuperAdminHost;
+use App\Http\Middleware\EnsureUserBelongsToTenant;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventAuthenticatedDocumentCache;
 use App\Http\Middleware\ResolveTenant;
-use App\Http\Middleware\SetLandingLocale;
 use App\Http\Middleware\RestrictWhatsappServiceAccess;
 use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\SetLandingLocale;
+use App\Http\Middleware\SetPermissionsTeamId;
 use App\Http\Middleware\VerifyWhatsappWebhook;
 use App\Tenancy\TenantContext;
 use Illuminate\Auth\Middleware\Authorize;
@@ -103,7 +105,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permissions.team' => SetPermissionsTeamId::class,
             'super.admin.host' => EnsureSuperAdminHost::class,
             'super.admin' => EnsureSuperAdmin::class,
-            'super.admin.global' => \App\Http\Middleware\EnsureGlobalSuperAdmin::class,
+            'super.admin.global' => EnsureGlobalSuperAdmin::class,
             'docs.password' => EnsureDocsApiPassword::class,
         ]);
 

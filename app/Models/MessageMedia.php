@@ -14,6 +14,7 @@ final class MessageMedia extends Model
         'mime_type',
         'filename',
         'disk_path',
+        'thumb_disk_path',
         'file_size',
     ];
 

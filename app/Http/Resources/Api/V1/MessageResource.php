@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\Message;
+use App\Services\MessageMediaThumbnailService;
 use App\Support\OutboundSenderDisplayName;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Message */
+/** @mixin Message */
 final class MessageResource extends JsonResource
 {
     /**
@@ -36,12 +38,18 @@ final class MessageResource extends JsonResource
                 'id' => $this->sentByUser?->id,
                 'name' => $this->sentByUser?->name,
             ]),
-            'media' => $this->whenLoaded('media', fn () => $this->media->map(fn ($m) => [
-                'id' => $m->id,
-                'mime_type' => $m->mime_type,
-                'filename' => $m->filename,
-                'url' => url('/api/v1/media/'.$m->id),
-            ])->values()->all()),
+            'media' => $this->whenLoaded('media', function () {
+                $thumbnailService = app(MessageMediaThumbnailService::class);
+
+                return $this->media->map(fn ($m) => [
+                    'id' => $m->id,
+                    'mime_type' => $m->mime_type,
+                    'filename' => $m->filename,
+                    'file_name' => $m->filename,
+                    'url' => url('/api/v1/media/'.$m->id),
+                    'thumb_url' => $thumbnailService->thumbApiUrl($m),
+                ])->values()->all();
+            }),
             'reactions' => $this->whenLoaded('reactions', fn () => $this->reactions->map(fn ($r) => [
                 'emoji' => $r->emoji,
                 'user' => $r->relationLoaded('user') && $r->user ? [

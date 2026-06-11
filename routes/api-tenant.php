@@ -5,13 +5,13 @@ declare(strict_types=1);
 use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\Api\DialogAnalyticsController;
 use App\Http\Controllers\Api\FunnelAnalyticsController;
-use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\ContactController as ApiContactController;
-use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DepartmentController;
 use App\Http\Controllers\Api\V1\DepartmentPostController;
+use App\Http\Controllers\Api\V1\DeviceController;
+use App\Http\Controllers\Api\V1\FeedbackController as ApiFeedbackController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MobileUpdateCheckController;
 use App\Http\Controllers\Api\V1\SettingsController as ApiSettingsController;
@@ -22,8 +22,8 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChatAiAssistantController;
 use App\Http\Controllers\ChatAiSettingsController;
 use App\Http\Controllers\ChatAssignmentController;
-use App\Http\Controllers\ChatDraftTranslationController;
 use App\Http\Controllers\ChatController as WebChatController;
+use App\Http\Controllers\ChatDraftTranslationController;
 use App\Http\Controllers\ChatFunnelController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\ContactController;
@@ -130,6 +130,7 @@ Route::prefix('v1')->middleware(['throttle:api'])->group(function (): void {
         Route::delete('messages/{message}', [MessageController::class, 'destroy']);
         Route::post('messages/{message}/retry', [MessageController::class, 'retry']);
 
+        Route::get('media/{media}/thumb', [MediaController::class, 'thumb'])->name('api.v1.media.thumb');
         Route::get('media/{media}', [MediaController::class, 'show'])->name('api.v1.media.show');
 
         Route::prefix('team-chat')->group(function (): void {

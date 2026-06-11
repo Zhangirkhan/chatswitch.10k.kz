@@ -812,12 +812,20 @@ paths:
           name: before_id
           schema: { type: integer }
           description: Уточнение при равном before_timestamp
+        - in: query
+          name: after_id
+          schema: { type: integer }
+          description: |
+            Сообщения с id > after_id (ASC). Для poll fallback при offline WebSocket.
+            Нельзя комбинировать с before_id / before_timestamp (400).
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessagesCursorResponse"
+        "400":
+          description: after_id вместе с before_id / before_timestamp
         "403":
           description: Нет view на чат
     post:
@@ -999,6 +1007,58 @@ paths:
                 $ref: "#/components/schemas/PaginatedBroadcastCampaigns"
         "403":
           description: Нет роли или модуль отключён
+
+  /api/v1/media/{media}:
+    get:
+      tags: [Media]
+      summary: Полный файл медиа-вложения
+      operationId: mediaShow
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: media
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: download
+          schema: { type: boolean, default: false }
+          description: attachment вместо inline
+      responses:
+        "200":
+          description: Бинарное содержимое файла
+        "403":
+          description: Нет view на чат сообщения
+        "404":
+          description: Медиа не найдено
+
+  /api/v1/media/{media}/thumb:
+    get:
+      tags: [Media]
+      summary: Thumbnail изображения (~512px WebP)
+      operationId: mediaThumb
+      description: |
+        Превью для ленты чата. Только image/* (не SVG). PDF/voice/video без poster → 404.
+        Тот же Bearer + tenant, что и полный файл.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: media
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: image/webp
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Нет view на чат сообщения
+        "404":
+          description: Не изображение или thumb недоступен
 
   # ──────────────────────────────────────────
   # AI-ассистент оператора (веб, сессия)
@@ -1905,6 +1965,30 @@ components:
         ack: { type: string }
         message_timestamp: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time, nullable: true }
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageMediaAttachment"
+
+    MessageMediaAttachment:
+      type: object
+      properties:
+        id: { type: integer }
+        mime_type: { type: string }
+        filename: { type: string, nullable: true }
+        file_name:
+          type: string
+          nullable: true
+          description: Алиас filename для mobile-клиента
+        url:
+          type: string
+          format: uri
+          description: Полный файл (GET /api/v1/media/{id})
+        thumb_url:
+          type: string
+          format: uri
+          nullable: true
+          description: WebP превью для image/*; null для PDF/voice/video
 
     MessagesCursorResponse:
       type: object

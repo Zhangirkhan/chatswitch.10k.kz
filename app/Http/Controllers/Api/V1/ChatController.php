@@ -175,9 +175,34 @@ final class ChatController extends Controller
 
         $beforeTs = $request->input('before_timestamp');
         $beforeId = (int) $request->input('before_id', 0);
+        $usesBefore = (is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '')
+            || $beforeId > 0;
+        $usesAfterId = $request->has('after_id')
+            && $request->input('after_id') !== null
+            && $request->input('after_id') !== '';
 
-        $messages = $chat->messages()
-            ->with(OutboundChatMessageDispatcher::messageWithRelations())
+        if ($usesAfterId && $usesBefore) {
+            return response()->json([
+                'message' => 'Параметры after_id и before_id/before_timestamp нельзя комбинировать.',
+            ], 400);
+        }
+
+        $query = $chat->messages()->with(OutboundChatMessageDispatcher::messageWithRelations());
+
+        if ($usesAfterId) {
+            $afterId = (int) $request->input('after_id');
+            $messages = $query
+                ->where('id', '>', $afterId)
+                ->orderBy('id')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'messages' => MessageResource::collection($messages),
+            ]);
+        }
+
+        $messages = $query
             ->when(
                 is_string($beforeTs) ? trim($beforeTs) !== '' : $beforeTs !== null && $beforeTs !== '',
                 function ($q) use ($beforeTs, $beforeId): void {

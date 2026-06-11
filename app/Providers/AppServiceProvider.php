@@ -8,9 +8,11 @@ use App\Http\Middleware\ApplyTenantToQueue;
 use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\Department;
+use App\Models\MessageMedia;
 use App\Models\TeamConversation;
 use App\Models\WhatsappSession;
 use App\Observers\DepartmentObserver;
+use App\Observers\MessageMediaObserver;
 use App\Policies\ChatPolicy;
 use App\Policies\ContactPolicy;
 use App\Policies\TeamConversationPolicy;
@@ -76,6 +78,7 @@ final class AppServiceProvider extends ServiceProvider
         Gate::policy(WhatsappSession::class, WhatsappSessionPolicy::class);
 
         Department::observe(DepartmentObserver::class);
+        MessageMedia::observe(MessageMediaObserver::class);
 
         Queue::before(function (JobProcessing $event): void {
             app(ApplyTenantToQueue::class)->handle($event);
