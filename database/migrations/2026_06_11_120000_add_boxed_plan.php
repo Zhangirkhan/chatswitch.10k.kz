@@ -18,17 +18,18 @@ return new class extends Migration
         if ($existing === null) {
             DB::table('plans')->insert([
                 'code' => 'boxed',
-                'name' => 'Коробочный',
+                'name' => 'Коробочная установка',
                 'price_cents' => $priceCents,
                 'currency' => $currency,
                 'interval' => 'once',
                 'trial_days' => 0,
                 'features' => json_encode([
+                    'platform' => 'unlimited',
                     'whatsapp' => 'unlimited',
                     'users' => 'unlimited',
-                    'ai' => 'unlimited',
                     'modules' => 'all',
-                    'description' => '1 000 000 ₸ разово, всё безлимит',
+                    'ai' => 'usage_billed',
+                    'description' => '1 000 000 ₸ разово за установку платформы; AI-токены отдельно',
                 ]),
                 'is_active' => true,
                 'created_at' => $now,
@@ -36,17 +37,18 @@ return new class extends Migration
             ]);
         } else {
             DB::table('plans')->where('code', 'boxed')->update([
-                'name' => 'Коробочный',
+                'name' => 'Коробочная установка',
                 'price_cents' => $priceCents,
                 'currency' => $currency,
                 'interval' => 'once',
                 'trial_days' => 0,
                 'features' => json_encode([
+                    'platform' => 'unlimited',
                     'whatsapp' => 'unlimited',
                     'users' => 'unlimited',
-                    'ai' => 'unlimited',
                     'modules' => 'all',
-                    'description' => '1 000 000 ₸ разово, всё безлимит',
+                    'ai' => 'usage_billed',
+                    'description' => '1 000 000 ₸ разово за установку платформы; AI-токены отдельно',
                 ]),
                 'is_active' => true,
                 'updated_at' => $now,

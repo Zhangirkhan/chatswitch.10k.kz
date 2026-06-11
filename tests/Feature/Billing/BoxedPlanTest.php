@@ -17,7 +17,7 @@ final class BoxedPlanTest extends TestCase
         $plan = Plan::query()->where('code', 'boxed')->first();
 
         $this->assertNotNull($plan);
-        $this->assertSame('Коробочный', $plan->name);
+        $this->assertSame('Коробочная установка', $plan->name);
         $this->assertSame(100_000_000, $plan->price_cents);
         $this->assertSame('KZT', $plan->currency);
         $this->assertSame('once', $plan->interval);

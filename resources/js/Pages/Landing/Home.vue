@@ -63,7 +63,7 @@ function isPricingPlanCode(code: string): code is PricingPlanCode {
     return code === 'standard' || code === 'boxed';
 }
 
-function planField(code: PricingPlanCode, field: 'name' | 'period' | 'trial' | 'badge'): string {
+function planField(code: PricingPlanCode, field: 'name' | 'period' | 'trial' | 'badge' | 'aiNote'): string {
     return t(`landing.pricingPlans.${code}.${field}` as MessageKey);
 }
 
@@ -395,6 +395,7 @@ onUnmounted(() => {
                         <ul class="landing__pricing-list">
                             <li v-for="bullet in planBullets(plan.code)" :key="bullet">{{ bullet }}</li>
                         </ul>
+                        <p class="landing__pricing-ai-note">{{ planField(plan.code, 'aiNote') }}</p>
                         <button type="button" class="landing__cta-btn landing__pricing-btn" @click="openRequestModal">
                             {{ t('landing.ctaButton') }}
                         </button>
@@ -942,6 +943,17 @@ onUnmounted(() => {
     height: 0.5rem;
     border-radius: 50%;
     background: var(--landing-accent);
+}
+
+.landing__pricing-ai-note {
+    margin: -0.5rem 0 0;
+    padding: 0.75rem 0.875rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--landing-muted);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--landing-border);
+    border-radius: 0.625rem;
 }
 
 .landing__pricing-btn {
