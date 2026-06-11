@@ -455,7 +455,7 @@ onUnmounted(() => {
     }
 
     .landing__main {
-        padding-bottom: 2rem;
+        padding: 0 1rem 2rem;
     }
 
     .landing__section-heading {

@@ -587,6 +587,13 @@ const visibleScenarios = computed(() =>
     --calc-receipt-w: 22rem;
 }
 
+@media (max-width: 767px) {
+    .landing__main {
+        padding: 0.75rem 1rem 2rem;
+        --calc-page-pad: 1rem;
+    }
+}
+
 @media (min-width: 961px) {
     .landing__main {
         display: flex;

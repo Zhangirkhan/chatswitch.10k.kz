@@ -471,6 +471,23 @@ defineProps<{
     color: var(--landing-text);
 }
 
+@media (max-width: 767px) {
+    .landing-data-kz__card {
+        padding: 1.15rem 1.2rem;
+    }
+
+    .landing-data-kz__map-tile {
+        padding: 1.25rem 1rem 1rem;
+    }
+}
+
+@media (hover: none) {
+    .landing-data-kz__card:hover {
+        transform: none;
+        box-shadow: var(--landing-elevation);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .kz-marker--pulse .kz-marker__halo {
         animation: none;

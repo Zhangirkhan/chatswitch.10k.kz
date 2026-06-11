@@ -123,8 +123,7 @@
 }
 
 .landing__faq-page {
-    max-width: 48rem;
-    margin: 0 auto;
+    width: 100%;
 }
 
 .landing__faq-category {
@@ -145,9 +144,16 @@
 
 .landing__faq-list {
     margin: 0;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .landing__faq-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem 1.25rem;
+    }
 }
 
 .landing__faq-item {
@@ -461,5 +467,50 @@
     .landing__faq-item:hover {
         transform: none;
         transition: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .landing {
+        --landing-section-gap: 2.5rem;
+    }
+
+    .landing__section-header {
+        margin-bottom: 2rem;
+    }
+
+    .landing__faq-item {
+        padding: 1.1rem 1.15rem;
+    }
+
+    .landing__faq-teaser .landing__cta-btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .landing__footer {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.75rem;
+        padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .landing__footer-links {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.625rem;
+    }
+
+    .landing__toast {
+        bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (hover: none) {
+    .landing__faq-item:hover {
+        transform: none;
+        border-color: var(--landing-border-bright);
+        box-shadow: var(--landing-elevation);
     }
 }

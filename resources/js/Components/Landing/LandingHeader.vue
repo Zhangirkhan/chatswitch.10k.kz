@@ -8,9 +8,11 @@ import { computed, ref } from 'vue';
 const props = withDefaults(defineProps<{
     androidApkUrl?: string;
     mode?: 'marketing' | 'minimal';
+    anchorBase?: string;
 }>(), {
     androidApkUrl: '/apk/app-release.apk',
     mode: 'marketing',
+    anchorBase: '',
 });
 
 const emit = defineEmits<{
@@ -21,6 +23,10 @@ const { t } = useLandingLocale();
 const mobileNavOpen = ref(false);
 
 const localeVariant = computed(() => (mobileNavOpen.value ? 'full' : 'auto'));
+
+function sectionHref(id: string): string {
+    return `${props.anchorBase}#${id}`;
+}
 
 function closeMobileNav(): void {
     mobileNavOpen.value = false;
@@ -58,11 +64,11 @@ function openRequest(): void {
                 :class="{ 'landing__nav--open': mobileNavOpen }"
             >
                 <div v-if="mode === 'marketing'" class="landing__nav-links">
-                    <a href="#problem" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navProblem') }}</a>
-                    <a href="#features" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFeatures') }}</a>
-                    <a href="#data-kz" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navDataKz') }}</a>
+                    <a :href="sectionHref('problem')" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navProblem') }}</a>
+                    <a :href="sectionHref('features')" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFeatures') }}</a>
+                    <a :href="sectionHref('data-kz')" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navDataKz') }}</a>
                     <Link href="/faq" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navFaq') }}</Link>
-                    <a href="#pricing" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navPricing') }}</a>
+                    <a :href="sectionHref('pricing')" class="landing__nav-link" @click="closeMobileNav">{{ t('landing.navPricing') }}</a>
                     <div class="landing__download-menu">
                         <button
                             type="button"
@@ -149,7 +155,7 @@ function openRequest(): void {
 .landing__header {
     position: relative;
     z-index: 2;
-    padding: 0.875rem clamp(1.5rem, 5vw, 3rem);
+    padding: calc(0.875rem + env(safe-area-inset-top, 0px)) clamp(1.5rem, 5vw, 3rem) 0.875rem;
     background: color-mix(in srgb, var(--landing-bg, #000) 82%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -497,6 +503,13 @@ function openRequest(): void {
     .landing__header-cta {
         width: 100%;
         justify-content: center;
+    }
+}
+
+@media (max-width: 767px) {
+    .landing__header {
+        padding-left: 1rem;
+        padding-right: 1rem;
     }
 }
 </style>

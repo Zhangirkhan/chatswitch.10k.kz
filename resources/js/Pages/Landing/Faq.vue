@@ -39,7 +39,11 @@ function closeRequestModal(): void {
     <div class="landing">
         <LandingHead page="faq" />
 
-        <LandingHeader :android-apk-url="apkDownloadUrl" @request="openRequestModal" />
+        <LandingHeader
+            anchor-base="/"
+            :android-apk-url="apkDownloadUrl"
+            @request="openRequestModal"
+        />
 
         <main class="landing__main">
             <section class="landing__faq-page landing__section-block">
@@ -110,5 +114,11 @@ function closeRequestModal(): void {
     max-width: 80rem;
     margin: 0 auto;
     padding: 0 clamp(1.5rem, 5vw, 3rem) 3rem;
+}
+
+@media (max-width: 767px) {
+    .landing__main {
+        padding: 0 1rem 2rem;
+    }
 }
 </style>

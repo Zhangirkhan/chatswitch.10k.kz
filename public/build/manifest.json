@@ -400,8 +400,8 @@
       "_vendor-charts-3J-NsSsg.js"
     ]
   },
-  "_LandingHeader-Clo9vFPT.js": {
-    "file": "assets/LandingHeader-Clo9vFPT.js",
+  "_LandingHeader-D61SZsJY.js": {
+    "file": "assets/LandingHeader-D61SZsJY.js",
     "name": "LandingHeader",
     "imports": [
       "_AccelMark--vagWp1i.js",
@@ -412,12 +412,12 @@
       "__plugin-vue_export-helper-DlAUqK2U.js"
     ],
     "css": [
-      "assets/LandingHeader-N6pw4KGE.css"
+      "assets/LandingHeader-DLOxjJwa.css"
     ]
   },
-  "_LandingHeader-N6pw4KGE.css": {
-    "file": "assets/LandingHeader-N6pw4KGE.css",
-    "src": "_LandingHeader-N6pw4KGE.css"
+  "_LandingHeader-DLOxjJwa.css": {
+    "file": "assets/LandingHeader-DLOxjJwa.css",
+    "src": "_LandingHeader-DLOxjJwa.css"
   },
   "_LandingLocaleSwitcher-BvN_XtDm.css": {
     "file": "assets/LandingLocaleSwitcher-BvN_XtDm.css",
@@ -2423,14 +2423,14 @@
     ]
   },
   "resources/js/Pages/Landing/Calculator.vue": {
-    "file": "assets/Calculator--CJID5pR.js",
+    "file": "assets/Calculator-DxOkMdFB.js",
     "name": "Calculator",
     "src": "resources/js/Pages/Landing/Calculator.vue",
     "isDynamicEntry": true,
     "imports": [
       "_UiCheckbox.vue_vue_type_script_setup_true_lang-DUUExMwa.js",
       "_LandingLocaleSwitcher-CoRA03Rr.js",
-      "_LandingHeader-Clo9vFPT.js",
+      "_LandingHeader-D61SZsJY.js",
       "_useLandingLocale-BeXCABDt.js",
       "_vendor-charts-3J-NsSsg.js",
       "__plugin-vue_export-helper-DlAUqK2U.js",
@@ -2438,17 +2438,17 @@
       "_AccelMark--vagWp1i.js"
     ],
     "css": [
-      "assets/Calculator-BiIRnbuR.css"
+      "assets/Calculator-BSA_FT01.css"
     ]
   },
   "resources/js/Pages/Landing/Faq.vue": {
-    "file": "assets/Faq-B2urncWl.js",
+    "file": "assets/Faq-C2Nj1dfr.js",
     "name": "Faq",
     "src": "resources/js/Pages/Landing/Faq.vue",
     "isDynamicEntry": true,
     "imports": [
       "_LandingLocaleSwitcher-CoRA03Rr.js",
-      "_LandingHeader-Clo9vFPT.js",
+      "_LandingHeader-D61SZsJY.js",
       "_LandingSignupRequestModal.vue_vue_type_script_setup_true_lang-D9U3pM6V.js",
       "_useLandingLocale-BeXCABDt.js",
       "_index.esm-B7coAaML.js",
@@ -2460,11 +2460,11 @@
       "_UiModal.vue_vue_type_script_setup_true_lang-DaZmN_FR.js"
     ],
     "css": [
-      "assets/Faq-rVFiRFJ5.css"
+      "assets/Faq-D9WmX1LA.css"
     ]
   },
   "resources/js/Pages/Landing/Home.vue": {
-    "file": "assets/Home-Db-DGT3H.js",
+    "file": "assets/Home-DYKf01B2.js",
     "name": "Home",
     "src": "resources/js/Pages/Landing/Home.vue",
     "isEntry": true,
@@ -2473,7 +2473,7 @@
       "_vendor-charts-3J-NsSsg.js",
       "__plugin-vue_export-helper-DlAUqK2U.js",
       "_LandingLocaleSwitcher-CoRA03Rr.js",
-      "_LandingHeader-Clo9vFPT.js",
+      "_LandingHeader-D61SZsJY.js",
       "_LandingSignupRequestModal.vue_vue_type_script_setup_true_lang-D9U3pM6V.js",
       "_useLandingLocale-BeXCABDt.js",
       "_index.esm-B7coAaML.js",
@@ -2483,7 +2483,7 @@
       "_UiModal.vue_vue_type_script_setup_true_lang-DaZmN_FR.js"
     ],
     "css": [
-      "assets/Home-BKApYOg2.css"
+      "assets/Home-BmenUzG7.css"
     ]
   },
   "resources/js/Pages/Landing/NotFound.vue": {
@@ -2755,7 +2755,7 @@
     ]
   },
   "resources/js/Pages/Profile/Edit.vue": {
-    "file": "assets/Edit-CDPjinnR.js",
+    "file": "assets/Edit-v3UsqJt_.js",
     "name": "Edit",
     "src": "resources/js/Pages/Profile/Edit.vue",
     "isDynamicEntry": true,
@@ -2808,7 +2808,7 @@
     ]
   },
   "resources/js/Pages/Profile/Partials/ChatsSection.vue": {
-    "file": "assets/ChatsSection-Dhoc7hQe.js",
+    "file": "assets/ChatsSection-CG4B57R8.js",
     "name": "ChatsSection",
     "src": "resources/js/Pages/Profile/Partials/ChatsSection.vue",
     "isDynamicEntry": true,
@@ -3793,7 +3793,7 @@
     ]
   },
   "resources/js/app.ts": {
-    "file": "assets/app-CcsZwu6z.js",
+    "file": "assets/app-BCBmv_VV.js",
     "name": "app",
     "src": "resources/js/app.ts",
     "isEntry": true,
@@ -3924,7 +3924,7 @@
       "resources/js/Pages/Welcome.vue"
     ],
     "css": [
-      "assets/app-DGre-Xgh.css"
+      "assets/app-DNfTxCyl.css"
     ]
   }
 }

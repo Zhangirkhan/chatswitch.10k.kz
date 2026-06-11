@@ -138,6 +138,27 @@ defineProps<{
 @media (max-width: 640px) {
     .landing-before-after__row {
         grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .landing-before-after__cell {
+        padding: 1rem 1.1rem;
+        min-height: 6rem;
+    }
+}
+
+@media (hover: none) {
+    .landing-before-after__cell:hover,
+    .landing-before-after__cell--after:hover {
+        transform: none;
+        box-shadow: var(--landing-elevation);
+    }
+
+    .landing-before-after__cell--after:hover {
+        box-shadow:
+            var(--landing-elevation),
+            0 0 0 1px rgba(1, 185, 100, 0.08),
+            0 12px 32px -18px rgba(1, 185, 100, 0.35);
     }
 }
 
