@@ -67,6 +67,7 @@ export const kk: MessageCatalog = {
             notifications: { label: 'Хабарландырулар', description: 'Хабарламалар, топтар, дыбыстар' },
             shortcuts: { label: 'Пернелер', description: 'Жылдам әрекеттер' },
             contact: { label: 'Байланыс', description: 'Accel үшін шағымдар мен ұсыныстар' },
+            changelog: { label: 'Не жаңалық', description: 'Accel жаңартулары мен өзгерістері' },
         },
         departments: {
             title: 'Бөлімдер',
@@ -207,6 +208,11 @@ export const kk: MessageCatalog = {
             modulesToggleOff: 'Бөлімді өшіру',
             modulesToggleOn: 'Бөлімді қосу',
             modulesErrorSave: 'Бөлімдерді сақтау сәтсіз',
+        },
+        changelog: {
+            title: 'Не жаңалық',
+            subtitle: 'Accel жаңартулары тарихы',
+            empty: 'Жарияланған жазбалар әлі жоқ.',
         },
         funnels: {
             title: 'Сату шұңқырлары',

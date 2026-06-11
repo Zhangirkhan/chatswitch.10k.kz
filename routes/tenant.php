@@ -34,6 +34,7 @@ use App\Http\Controllers\MessageTranslationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationTeamChatController;
+use App\Http\Controllers\PlatformChangelogController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProfileFeedbackController;
 use App\Http\Controllers\PromotionController;
@@ -356,6 +357,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     });
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/settings/changelog', [PlatformChangelogController::class, 'index'])->name('settings.changelog');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/profile/feedback', [ProfileFeedbackController::class, 'store'])

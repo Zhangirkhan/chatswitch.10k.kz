@@ -98,6 +98,7 @@ export interface MessageCatalog {
             notifications: SidebarNavItemCopy;
             shortcuts: SidebarNavItemCopy;
             contact: SidebarNavItemCopy;
+            changelog: SidebarNavItemCopy;
         };
         departments: {
             title: string;
@@ -236,6 +237,11 @@ export interface MessageCatalog {
             modulesToggleOff: string;
             modulesToggleOn: string;
             modulesErrorSave: string;
+        };
+        changelog: {
+            title: string;
+            subtitle: string;
+            empty: string;
         };
         funnels: {
             title: string;

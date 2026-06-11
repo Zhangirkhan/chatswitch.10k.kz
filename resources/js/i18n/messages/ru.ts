@@ -67,6 +67,7 @@ export const ru: MessageCatalog = {
             notifications: { label: 'Уведомления', description: 'Сообщения, группы, звуки' },
             shortcuts: { label: 'Сочетания клавиш', description: 'Быстрые действия' },
             contact: { label: 'Связь', description: 'Жалобы и пожелания для Accel' },
+            changelog: { label: 'Что нового', description: 'Обновления и изменения Accel' },
         },
         departments: {
             title: 'Отделы',
@@ -207,6 +208,11 @@ export const ru: MessageCatalog = {
             modulesToggleOff: 'Выключить раздел',
             modulesToggleOn: 'Включить раздел',
             modulesErrorSave: 'Не удалось сохранить разделы',
+        },
+        changelog: {
+            title: 'Что нового',
+            subtitle: 'История обновлений Accel',
+            empty: 'Пока нет опубликованных записей.',
         },
         funnels: {
             title: 'Воронки продаж',

@@ -33,6 +33,7 @@ function variantForUrl(url: string): SkeletonVariant {
         || url.includes('/settings/ai-quality')
         || url.includes('/settings/tone-profile')
         || url.includes('/settings/system')
+        || url.includes('/settings/changelog')
     ) {
         return 'form';
     }

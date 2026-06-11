@@ -67,6 +67,7 @@ export const en: MessageCatalog = {
             notifications: { label: 'Notifications', description: 'Messages, groups, sounds' },
             shortcuts: { label: 'Keyboard shortcuts', description: 'Quick actions' },
             contact: { label: 'Contact', description: 'Complaints and suggestions for Accel' },
+            changelog: { label: 'What\'s new', description: 'Accel updates and changes' },
         },
         departments: {
             title: 'Departments',
@@ -207,6 +208,11 @@ export const en: MessageCatalog = {
             modulesToggleOff: 'Disable section',
             modulesToggleOn: 'Enable section',
             modulesErrorSave: 'Could not save sections',
+        },
+        changelog: {
+            title: 'What\'s new',
+            subtitle: 'Accel update history',
+            empty: 'No published entries yet.',
         },
         funnels: {
             title: 'Sales funnels',

@@ -74,6 +74,7 @@ const navItems = computed((): NavItem[] => {
                 badge: superAdminNav.value?.unread_feedback,
             },
             { href: '/mobile-releases', label: t('superAdmin.layout.nav.mobileReleases'), match: '/mobile-releases' },
+            { href: '/platform-changelog', label: t('superAdmin.layout.nav.platformChangelog'), match: '/platform-changelog' },
             { href: '/audit-logs', label: t('superAdmin.layout.nav.auditLogs'), match: '/audit-logs' },
         );
     }
