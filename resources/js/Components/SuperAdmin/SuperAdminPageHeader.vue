@@ -3,7 +3,6 @@ import {
     type SuperAdminAccentGroup,
     useRegisterSuperAdminPageChrome,
 } from '@/composables/useSuperAdminPageChrome';
-import { useSlots } from 'vue';
 
 export type { SuperAdminAccentGroup };
 
@@ -14,18 +13,21 @@ const props = defineProps<{
     accentGroup?: SuperAdminAccentGroup;
 }>();
 
-const slots = useSlots();
-
 useRegisterSuperAdminPageChrome(() => ({
     eyebrow: props.eyebrow,
     title: props.title,
     subtitle: props.subtitle,
     accentGroup: props.accentGroup,
-    slots,
 }));
 </script>
 
 <template>
+    <Teleport to="#sa-topbar-actions">
+        <div v-if="$slots.actions" class="ui-super-admin-topbar-chrome__actions">
+            <slot name="actions" />
+        </div>
+    </Teleport>
+
     <header
         class="ui-super-admin-page-header ui-super-admin-page-header--mobile lg:hidden"
         :class="accentGroup ? `ui-super-admin-page-header--${accentGroup}` : undefined"

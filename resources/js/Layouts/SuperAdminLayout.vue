@@ -89,17 +89,16 @@ watch(
                         :class="pageChrome.accentGroup ? `ui-super-admin-topbar-chrome--${pageChrome.accentGroup}` : undefined"
                     >
                         <p v-if="pageChrome.eyebrow" class="ui-super-admin-topbar-chrome__eyebrow">{{ pageChrome.eyebrow }}</p>
-                        <component :is="pageChrome.titleRow" v-if="pageChrome.titleRow" />
-                        <template v-else>
+                        <div v-if="pageChrome.titleBadge" class="ui-super-admin-topbar-chrome__title-row">
                             <h1 class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
-                        </template>
+                            <span :class="pageChrome.titleBadge.className">{{ pageChrome.titleBadge.text }}</span>
+                        </div>
+                        <h1 v-else class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
                         <p v-if="pageChrome.subtitle" class="ui-super-admin-topbar-chrome__subtitle">{{ pageChrome.subtitle }}</p>
                     </div>
                 </div>
                 <div class="ui-super-admin-topbar__actions">
-                    <div v-if="pageChrome?.actionsVnode" class="ui-super-admin-topbar__page-actions hidden lg:flex">
-                        <component :is="pageChrome.actionsVnode" />
-                    </div>
+                    <div id="sa-topbar-actions" class="ui-super-admin-topbar__page-actions hidden lg:flex" />
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost ui-btn--sm ui-super-admin-topbar__theme"

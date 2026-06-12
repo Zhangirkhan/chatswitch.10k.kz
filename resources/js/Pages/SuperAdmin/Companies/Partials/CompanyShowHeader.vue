@@ -5,7 +5,7 @@ import { useI18n } from '@/composables/useI18n';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { router } from '@inertiajs/vue3';
-import { computed, h, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     company: {
@@ -51,61 +51,17 @@ const statusLabel = computed(
     () => props.statusLabels[props.company.subscription_status] ?? props.company.subscription_status,
 );
 
-function toggleLabel(): string {
-    return props.company.is_active
-        ? t('superAdmin.companies.header.tenantEnabled')
-        : t('superAdmin.companies.header.tenantDisabled');
-}
-
-function buildToggleButton(extraClass = ''): ReturnType<typeof h> {
-    return h(
-        'button',
-        {
-            type: 'button',
-            class: `ui-btn ui-btn--secondary inline-flex items-center gap-3 ${extraClass}`.trim(),
-            onClick: () => emit('toggle'),
-        },
-        [
-            h(
-                'span',
-                {
-                    class: [
-                        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full',
-                        props.company.is_active ? 'bg-ui-accent' : 'bg-ui-surface-muted',
-                    ],
-                },
-                [
-                    h('span', {
-                        class: [
-                            'inline-block h-4 w-4 transform rounded-full bg-white shadow',
-                            props.company.is_active ? 'translate-x-4' : 'translate-x-1',
-                        ],
-                    }),
-                ],
-            ),
-            toggleLabel(),
-        ],
-    );
-}
-
-const topbarTitleRow = computed(() =>
-    h('div', { class: 'ui-super-admin-topbar-chrome__title-row' }, [
-        h('h1', { class: 'ui-super-admin-topbar-chrome__title' }, props.company.name),
-        h('span', { class: subscriptionStatusBadgeClass(props.company.subscription_status) }, statusLabel.value),
-    ]),
-);
-
-const topbarActions = computed(() =>
-    h('div', { class: 'ui-super-admin-topbar-chrome__actions' }, [buildToggleButton()]),
-);
+const titleBadge = computed(() => ({
+    text: statusLabel.value,
+    className: subscriptionStatusBadgeClass(props.company.subscription_status),
+}));
 
 useRegisterSuperAdminPageChrome(() => ({
     eyebrow: t('superAdmin.layout.nav.companies'),
     title: props.company.name,
     subtitle: topbarSubtitle.value,
     accentGroup: 'operations',
-    titleRow: topbarTitleRow.value,
-    actionsVnode: topbarActions.value,
+    titleBadge: titleBadge.value,
 }));
 
 const maxSpark = computed(() =>
@@ -209,6 +165,27 @@ function impersonate(): void {
 </script>
 
 <template>
+    <Teleport to="#sa-topbar-actions">
+        <div class="ui-super-admin-topbar-chrome__actions">
+            <button
+                type="button"
+                class="ui-btn ui-btn--secondary inline-flex items-center gap-3"
+                @click="emit('toggle')"
+            >
+                <span
+                    class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full"
+                    :class="company.is_active ? 'bg-ui-accent' : 'bg-ui-surface-muted'"
+                >
+                    <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow"
+                        :class="company.is_active ? 'translate-x-4' : 'translate-x-1'"
+                    ></span>
+                </span>
+                {{ company.is_active ? t('superAdmin.companies.header.tenantEnabled') : t('superAdmin.companies.header.tenantDisabled') }}
+            </button>
+        </div>
+    </Teleport>
+
     <header
         class="ui-super-admin-page-header ui-super-admin-page-header--mobile ui-super-admin-page-header--operations ui-super-admin-company-header lg:hidden"
     >

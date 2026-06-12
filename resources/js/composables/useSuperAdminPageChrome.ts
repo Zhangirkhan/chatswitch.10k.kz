@@ -1,6 +1,5 @@
 import {
     computed,
-    h,
     inject,
     onUnmounted,
     provide,
@@ -8,19 +7,21 @@ import {
     watchEffect,
     type ComputedRef,
     type ShallowRef,
-    type Slots,
-    type VNode,
 } from 'vue';
 
 export type SuperAdminAccentGroup = 'overview' | 'operations' | 'billing' | 'platform';
+
+export type SuperAdminPageChromeBadge = {
+    text: string;
+    className: string;
+};
 
 export type SuperAdminPageChromeState = {
     eyebrow?: string;
     title: string;
     subtitle?: string;
     accentGroup?: SuperAdminAccentGroup;
-    titleRow?: VNode | null;
-    actionsVnode: VNode | null;
+    titleBadge?: SuperAdminPageChromeBadge;
 };
 
 type SuperAdminPageChromeContext = {
@@ -59,26 +60,12 @@ export function useSuperAdminPageChrome(): ComputedRef<SuperAdminPageChromeState
     return computed(() => context.chrome.value);
 }
 
-function buildActionsVnode(slots: Slots): VNode | null {
-    if (!slots.actions) {
-        return null;
-    }
-
-    return h(
-        'div',
-        { class: 'ui-super-admin-topbar-chrome__actions' },
-        slots.actions(),
-    );
-}
-
 type RegisterSuperAdminPageChromeInput = {
     eyebrow?: string;
     title: string;
     subtitle?: string;
     accentGroup?: SuperAdminAccentGroup;
-    titleRow?: VNode | null;
-    slots?: Slots;
-    actionsVnode?: VNode | null;
+    titleBadge?: SuperAdminPageChromeBadge;
 };
 
 export function useRegisterSuperAdminPageChrome(input: () => RegisterSuperAdminPageChromeInput): void {
@@ -90,15 +77,13 @@ export function useRegisterSuperAdminPageChrome(input: () => RegisterSuperAdminP
 
     watchEffect(() => {
         const value = input();
-        const actionsFromSlots = value.slots ? buildActionsVnode(value.slots) : null;
 
         context.register({
             eyebrow: value.eyebrow,
             title: value.title,
             subtitle: value.subtitle,
             accentGroup: value.accentGroup,
-            titleRow: value.titleRow ?? null,
-            actionsVnode: value.actionsVnode ?? actionsFromSlots,
+            titleBadge: value.titleBadge,
         });
     });
 
