@@ -50,9 +50,9 @@ export function funnelChartOption(
         series: [
             {
                 type: 'funnel',
-                left: '8%',
-                top: 24,
-                bottom: 12,
+                left: '10%',
+                top: 28,
+                bottom: 28,
                 width: '84%',
                 min: 0,
                 max: Math.max(data.cohort_size, 1),

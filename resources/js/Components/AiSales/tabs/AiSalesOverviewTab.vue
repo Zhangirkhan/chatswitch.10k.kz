@@ -35,7 +35,7 @@ const bestGrade = computed(() => {
     <div class="ui-ai-sales-tab">
         <AiSalesKpiHero :metrics="metrics" :i18n-prefix="i18nPrefix" />
 
-        <div class="ui-ai-sales-insights mb-6" v-if="topLostReason || bestGrade">
+        <div class="ui-ai-sales-insights" v-if="topLostReason || bestGrade">
             <article v-if="topLostReason" class="ui-ai-sales-insight">
                 <span class="ui-ai-sales-insight__label">{{ t(`${i18nPrefix}.topLostReason`) }}</span>
                 <strong>{{ topLostReason.reason }}</strong>
@@ -48,7 +48,7 @@ const bestGrade = computed(() => {
             </article>
         </div>
 
-        <div class="ui-ai-sales-charts-grid mb-6">
+        <div class="ui-ai-sales-charts-grid">
             <AiSalesChartCard
                 :title="t(`${i18nPrefix}.chartFunnelTitle`)"
                 :hint="t(`${i18nPrefix}.chartFunnelHint`)"

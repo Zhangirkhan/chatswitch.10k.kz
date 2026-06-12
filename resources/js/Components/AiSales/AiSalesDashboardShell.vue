@@ -90,15 +90,15 @@ function onFilterCompany(id: number): void {
 
 <template>
     <div class="ui-ai-sales-page">
-        <header class="ui-ai-sales-page__header mb-6">
-            <div>
+        <header class="ui-ai-sales-page__header">
+            <div class="ui-analytics-page__intro">
                 <p class="ui-analytics-page__eyebrow">{{ t(`${i18nPrefix}.pageTitle`) }}</p>
                 <h1 class="ui-analytics-page__title">{{ t(`${i18nPrefix}.title`) }}</h1>
                 <p class="ui-analytics-page__subtitle">{{ t(`${i18nPrefix}.subtitle`) }}</p>
                 <p v-if="periodLabel" class="mt-1 text-xs text-ui-text-muted">{{ periodLabel }}</p>
             </div>
 
-            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center lg:mt-0">
+            <div class="ui-ai-sales-page__filters">
                 <UiPillNav class="shrink-0">
                     <button
                         v-for="option in periodOptions"
@@ -127,11 +127,11 @@ function onFilterCompany(id: number): void {
             </div>
         </header>
 
-        <p class="ui-alert mb-4 border-ui-border bg-ui-surface-soft text-sm text-ui-text-secondary">
+        <p class="ui-alert ui-ai-sales-page__disclaimer border-ui-border bg-ui-surface-soft text-sm text-ui-text-secondary">
             {{ t(`${i18nPrefix}.disclaimer`) }}
         </p>
 
-        <UiPillNav class="mb-6 ui-ai-sales-tabs">
+        <UiPillNav class="ui-ai-sales-tabs">
             <button
                 v-for="tab in tabOptions"
                 :key="tab.id"

@@ -52,7 +52,7 @@ export function useAiSalesChartTheme(): ComputedRef<AiSalesChartTheme> {
 export function baseChartOptions(theme: AiSalesChartTheme): Record<string, unknown> {
     return {
         textStyle: { color: theme.text, fontFamily: 'inherit' },
-        grid: { left: 12, right: 16, top: 48, bottom: 12, containLabel: true },
+        grid: { left: 16, right: 20, top: 52, bottom: 24, containLabel: true },
         tooltip: {
             trigger: 'axis',
             backgroundColor: theme.panel,

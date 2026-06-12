@@ -18,12 +18,14 @@ const { t } = useI18n();
     <SettingsLayout>
         <Head :title="t('settings.aiSales.pageTitle')" />
 
-        <AiSalesMetricsPanel
-            :metrics="metrics"
-            :filters="filters"
-            base-url="/settings/ai-sales"
-            i18n-prefix="settings.aiSales"
-            class="ui-ai-sales-page"
-        />
+        <div class="w-full px-6 py-6">
+            <AiSalesMetricsPanel
+                :metrics="metrics"
+                :filters="filters"
+                base-url="/settings/ai-sales"
+                i18n-prefix="settings.aiSales"
+                class="ui-ai-sales-page"
+            />
+        </div>
     </SettingsLayout>
 </template>

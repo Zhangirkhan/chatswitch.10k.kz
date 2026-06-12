@@ -22,7 +22,7 @@ const closeRateDisplay = computed(() => {
 </script>
 
 <template>
-    <div class="ui-ai-sales-hero mb-6">
+    <div class="ui-ai-sales-hero">
         <div class="ui-ai-sales-hero__grid">
             <article class="ui-ai-sales-hero__card ui-ai-sales-hero__card--accent">
                 <span class="ui-ai-sales-hero__label">{{ t(`${i18nPrefix}.summaryCohort`) }}</span>
@@ -41,10 +41,12 @@ const closeRateDisplay = computed(() => {
                 <strong class="ui-ai-sales-hero__value">{{ closeRateDisplay }}</strong>
             </article>
         </div>
-        <div v-if="metrics.win_prob_model" class="ui-ai-sales-hero__badge">
+        <div v-if="metrics.win_prob_model" class="ui-ai-sales-hero__footer">
+            <span class="ui-ai-sales-hero__badge">
             {{ metrics.win_prob_model.type === 'ml'
                 ? t(`${i18nPrefix}.winProbModelMl`, { version: metrics.win_prob_model.version ?? 1 })
                 : t(`${i18nPrefix}.winProbModelHeuristic`) }}
+            </span>
         </div>
     </div>
 </template>

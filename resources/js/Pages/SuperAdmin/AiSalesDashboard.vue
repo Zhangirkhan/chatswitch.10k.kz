@@ -27,6 +27,7 @@ const { t } = useI18n();
             base-url="/ai-sales"
             i18n-prefix="superAdmin.aiSales"
             show-company-filter
+            class="ui-ai-sales-page"
         />
     </SuperAdminLayout>
 </template>
