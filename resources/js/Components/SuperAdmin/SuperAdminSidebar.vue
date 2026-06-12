@@ -147,22 +147,24 @@ function onNavigate(): void {
                 <p class="ui-super-admin-nav-group__label">
                     {{ t(`superAdmin.layout.navGroups.${group.groupKey}`) }}
                 </p>
-                <Link
-                    v-for="item in group.items"
-                    :key="item.href"
-                    :href="item.href"
-                    class="ui-super-admin-nav-item"
-                    :class="{ 'is-active': isActive(item.match) }"
-                    @click="onNavigate"
-                >
-                    <span class="ui-super-admin-nav-item__label">{{ labelFor(item.key) }}</span>
-                    <span
-                        v-if="item.badge !== undefined && item.badge > 0"
-                        class="ui-super-admin-nav-item__badge"
+                <div class="ui-super-admin-nav-group__items">
+                    <Link
+                        v-for="item in group.items"
+                        :key="item.href"
+                        :href="item.href"
+                        class="ui-super-admin-nav-item"
+                        :class="{ 'is-active': isActive(item.match) }"
+                        @click="onNavigate"
                     >
-                        {{ item.badge > 99 ? '99+' : item.badge }}
-                    </span>
-                </Link>
+                        <span class="ui-super-admin-nav-item__label">{{ labelFor(item.key) }}</span>
+                        <span
+                            v-if="item.badge !== undefined && item.badge > 0"
+                            class="ui-super-admin-nav-item__badge"
+                        >
+                            {{ item.badge > 99 ? '99+' : item.badge }}
+                        </span>
+                    </Link>
+                </div>
             </div>
         </nav>
     </aside>
