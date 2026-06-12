@@ -14,7 +14,6 @@ import ChatMessageProductCard from '@/Components/ChatMessageProductCard.vue';
 import type { MessageProductAttachment } from '@/types';
 import { useTranslationLang } from '@/composables/useTranslationLang';
 import { useI18n } from '@/composables/useI18n';
-import { messageNeedsTranslation } from '@/utils/messageLanguage';
 
 const props = defineProps<{
     message: Message;
@@ -900,11 +899,7 @@ const showMessageBody = computed(() => {
 });
 
 const showTranslateButton = computed(
-    () =>
-        isInbound.value
-        && translateEnabled.value
-        && showMessageBody.value
-        && messageNeedsTranslation(props.message.body, translateTargetLang.value),
+    () => translateEnabled.value && showMessageBody.value,
 );
 
 /** Текст body в основной области (расшифровка голосового — отдельно под плеером). */

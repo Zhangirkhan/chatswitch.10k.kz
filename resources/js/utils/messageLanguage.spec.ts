@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { messageMatchesTargetLanguage, messageNeedsTranslation, resolveOutgoingTargetLanguage } from './messageLanguage';
+import {
+    detectClientLanguage,
+    messageMatchesTargetLanguage,
+    messageNeedsTranslation,
+    resolveDraftTranslationTarget,
+    resolveOutgoingTargetLanguage,
+} from './messageLanguage';
 
 describe('messageLanguage', () => {
     it('detects Russian text for ru target', () => {
@@ -45,5 +51,29 @@ describe('messageLanguage', () => {
 
     it('falls back to kazakh when client language unknown and draft is russian', () => {
         expect(resolveOutgoingTargetLanguage('Добрый день, цена 5000', null)).toBe('kk');
+    });
+
+    it('detects plain cyrillic kazakh', () => {
+        expect(messageMatchesTargetLanguage('салеметсизбе', 'kk')).toBe(true);
+        expect(messageMatchesTargetLanguage('калайсын', 'kk')).toBe(true);
+        expect(messageMatchesTargetLanguage('салеметсизбе', 'ru')).toBe(false);
+    });
+
+    it('detects latin kazakh transliteration', () => {
+        expect(messageMatchesTargetLanguage('salam qalaysyn', 'kk')).toBe(true);
+        expect(messageMatchesTargetLanguage('rahmet', 'kk')).toBe(true);
+    });
+
+    it('detects client language from plain cyrillic kazakh samples', () => {
+        expect(detectClientLanguage(['салеметсизбе', 'калайсын'])).toBe('kk');
+        expect(detectClientLanguage(['salam qalaysyn', 'rahmet'])).toBe('kk');
+    });
+
+    it('always resolves draft translation target when text is long enough', () => {
+        expect(resolveDraftTranslationTarget('Здравствуйте, цена 5000', null, 'ru')).toBe('kk');
+        expect(resolveDraftTranslationTarget('Сәлеметсіз бе', null, 'kk')).toBe('ru');
+        expect(resolveDraftTranslationTarget('Thanks for your order', null, 'en')).toBe('ru');
+        expect(resolveDraftTranslationTarget('Сәлеметсіз бе', 'kk', 'ru')).toBe('kk');
+        expect(resolveDraftTranslationTarget('Сәлеметсіз бе', 'kk', 'kk')).toBe('ru');
     });
 });

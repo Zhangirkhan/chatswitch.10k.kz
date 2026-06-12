@@ -66,4 +66,29 @@ final class ChatClientLanguageServiceTest extends TestCase
 
         $this->assertNull($target);
     }
+
+    public function test_resolves_outgoing_target_for_plain_cyrillic_kazakh_client(): void
+    {
+        $service = $this->app->make(ChatClientLanguageService::class);
+        $company = $this->createTenantCompany(['name' => 'Co']);
+        $session = WhatsappSession::factory()->create();
+        $chat = Chat::factory()->create([
+            'company_id' => $company->id,
+            'whatsapp_session_id' => $session->id,
+        ]);
+
+        Message::create([
+            'chat_id' => $chat->id,
+            'whatsapp_session_id' => $session->id,
+            'direction' => 'inbound',
+            'type' => 'chat',
+            'body' => 'салеметсизбе',
+            'ack' => 'delivered',
+            'message_timestamp' => now(),
+        ]);
+
+        $target = $service->resolveOutgoingTarget($chat, 'Здравствуйте, цена 5000 тенге.');
+
+        $this->assertSame(MessageLanguageHeuristics::LANG_KK, $target);
+    }
 }

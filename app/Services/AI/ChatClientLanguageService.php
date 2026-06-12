@@ -59,6 +59,18 @@ final class ChatClientLanguageService
             return MessageLanguageHeuristics::LANG_RU;
         }
 
-        return null;
+        return $this->fallbackOutgoingTarget($draft);
+    }
+
+    private function fallbackOutgoingTarget(string $draft): ?string
+    {
+        $detected = MessageLanguageHeuristics::detectFromSamples([$draft]);
+
+        return match ($detected) {
+            MessageLanguageHeuristics::LANG_RU => MessageLanguageHeuristics::LANG_KK,
+            MessageLanguageHeuristics::LANG_KK => MessageLanguageHeuristics::LANG_RU,
+            MessageLanguageHeuristics::LANG_EN => MessageLanguageHeuristics::LANG_RU,
+            default => MessageLanguageHeuristics::LANG_KK,
+        };
     }
 }

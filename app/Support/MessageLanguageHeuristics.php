@@ -149,18 +149,21 @@ final class MessageLanguageHeuristics
 
     private static function isLikelyRussian(string $text): bool
     {
+        if (KazakhInformalTextDetector::matches($text)) {
+            return false;
+        }
+
         $counts = self::countScripts($text);
         if ($counts['cyrillic'] < self::MIN_SAMPLE_LEN) {
             return false;
         }
 
-        return $counts['cyrillic'] >= $counts['latin']
-            && preg_match('/[әғқңөұүһі]/u', $text) !== 1;
+        return $counts['cyrillic'] >= $counts['latin'];
     }
 
     private static function isLikelyKazakh(string $text): bool
     {
-        return preg_match('/[әғқңөұүһі]/u', $text) === 1;
+        return KazakhInformalTextDetector::matches($text);
     }
 
     private static function isLikelyEnglish(string $text): bool

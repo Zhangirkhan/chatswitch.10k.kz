@@ -1,4 +1,6 @@
 import { stripWaMarkup } from '@/utils/waMarkup';
+import { matchesKazakhInformalText } from '@/utils/kazakhInformalText';
+import type { AppLocale } from '@/i18n/types';
 
 export type MessageLanguageTarget = 'ru' | 'kk' | 'en' | 'zh' | 'tr' | 'ar';
 
@@ -11,7 +13,6 @@ export const MESSAGE_LANGUAGE_LABELS: Record<MessageLanguageTarget, string> = {
     ar: 'العربية',
 };
 
-const KAZAKH_LETTERS = /[әғқңөұүһіӘҒҚҢӨҰҮҺІ]/u;
 const TURKISH_LETTERS = /[ğşıöüçĞŞİÖÜÇ]/u;
 
 const MIN_SAMPLE_LEN = 3;
@@ -77,16 +78,20 @@ function dominantScript(text: string): keyof ScriptCounts | null {
 }
 
 function isLikelyRussian(text: string): boolean {
+    if (matchesKazakhInformalText(text)) {
+        return false;
+    }
+
     const counts = countScripts(text);
     if (counts.cyrillic < MIN_SAMPLE_LEN) {
         return false;
     }
 
-    return counts.cyrillic >= counts.latin && !KAZAKH_LETTERS.test(text);
+    return counts.cyrillic >= counts.latin;
 }
 
 function isLikelyKazakh(text: string): boolean {
-    return KAZAKH_LETTERS.test(text);
+    return matchesKazakhInformalText(text);
 }
 
 function isLikelyEnglish(text: string): boolean {
@@ -224,4 +229,35 @@ export function resolveOutgoingTargetLanguage(
     }
 
     return null;
+}
+
+function fallbackDraftTargetFromUiLocale(uiLocale: AppLocale): MessageLanguageTarget {
+    if (uiLocale === 'ru') {
+        return 'kk';
+    }
+
+    if (uiLocale === 'kk') {
+        return 'ru';
+    }
+
+    return 'ru';
+}
+
+/** Всегда возвращает целевой язык для ручного перевода черновика. */
+export function resolveDraftTranslationTarget(
+    draft: string | null | undefined,
+    clientLanguage: MessageLanguageTarget | null,
+    uiLocale: AppLocale,
+): MessageLanguageTarget | null {
+    const text = sampleMessageText(draft);
+    if (letterCount(text) < MIN_SAMPLE_LEN) {
+        return null;
+    }
+
+    const resolved = resolveOutgoingTargetLanguage(text, clientLanguage);
+    if (resolved !== null) {
+        return resolved;
+    }
+
+    return fallbackDraftTargetFromUiLocale(uiLocale);
 }

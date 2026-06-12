@@ -11,7 +11,7 @@ import { formatPhone, isPlausibleInboundSenderPhone } from '@/utils/phone';
 import { useI18n } from '@/composables/useI18n';
 import { useTranslationLang } from '@/composables/useTranslationLang';
 import {
-    resolveOutgoingTargetLanguage,
+    resolveDraftTranslationTarget,
     type MessageLanguageTarget,
 } from '@/utils/messageLanguage';
 
@@ -63,12 +63,12 @@ const hasText = computed(() => messageText.value.trim().length > 0);
 const canSend = computed(() => hasText.value || selectedProduct.value !== null);
 const aiActionBusy = computed(() => aiActionLoading.value !== null || draftTranslateLoading.value);
 
-const outgoingTranslateTarget = computed(() =>
-    resolveOutgoingTargetLanguage(messageText.value, props.clientLanguage ?? null),
+const draftTranslationTarget = computed(() =>
+    resolveDraftTranslationTarget(messageText.value, props.clientLanguage ?? null, uiLocale.value),
 );
 
 const showDraftTranslate = computed(
-    () => translateEnabled.value && !props.isGroup && hasText.value && outgoingTranslateTarget.value !== null,
+    () => translateEnabled.value && !props.isGroup && hasText.value,
 );
 
 type ChatProductPickerItem = MessageProductAttachment;
@@ -514,12 +514,12 @@ function aiPromptFor(action: AiInputAction): string {
 }
 
 async function translateDraft(): Promise<void> {
-    if (!showDraftTranslate.value || draftTranslateLoading.value) {
+    if (!translateEnabled.value || draftTranslateLoading.value || props.isGroup) {
         return;
     }
 
     const text = messageText.value.trim();
-    const target = outgoingTranslateTarget.value;
+    const target = draftTranslationTarget.value;
     if (!text || !target) {
         return;
     }
