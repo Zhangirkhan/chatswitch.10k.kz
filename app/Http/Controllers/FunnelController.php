@@ -125,6 +125,7 @@ final class FunnelController extends Controller
                     (string) $stageTemplate['conditions'],
                     $fallbackDepartment?->id,
                     (bool) ($stageTemplate['manager_confirmation'] ?? false),
+                    $stageTemplate['allowed_actions'] ?? null,
                 );
             }
 
@@ -537,6 +538,120 @@ final class FunnelController extends Controller
                 ['Проект запущен', '#16a34a', 'Подтвердить старт работ.', [], 'Закрыть успешно после запуска проекта.'],
                 ['Закрыто успешно', '#15803d', 'Финальный успешный этап.', [], 'Финальный этап.'],
             ]),
+            $this->repairTemplate(),
+        ];
+    }
+
+    /**
+     * Отраслевой шаблон «Ремонт» — полная копия воронки «Раздвижные двери» (Doorstime.kz).
+     *
+     * @return array{
+     *     key: string,
+     *     industry: string,
+     *     name: string,
+     *     description: string,
+     *     color: string,
+     *     stages: list<array{
+     *         name: string,
+     *         color: string,
+     *         stage_type: string,
+     *         goal: string,
+     *         questions: list<string>,
+     *         conditions: string,
+     *         manager_confirmation?: bool,
+     *         allowed_actions?: list<string>
+     *     }>
+     * }
+     */
+    private function repairTemplate(): array
+    {
+        $defaultActions = [
+            FunnelStageAiRule::ACTION_REPLY_CUSTOMER,
+            FunnelStageAiRule::ACTION_MOVE_FUNNEL_STAGE,
+            FunnelStageAiRule::ACTION_CREATE_APPOINTMENT,
+            FunnelStageAiRule::ACTION_ASSIGN_EMPLOYEE,
+            FunnelStageAiRule::ACTION_NOTIFY_MANAGER,
+            FunnelStageAiRule::ACTION_CREATE_TASK,
+        ];
+
+        return [
+            'key' => 'repair',
+            'industry' => 'Ремонт',
+            'name' => 'Раздвижные двери',
+            'description' => 'Замер, проект, договор, производство, доставка и монтаж.',
+            'color' => '#a16207',
+            'stages' => [
+                [
+                    'name' => 'Первичный запрос',
+                    'color' => '#fbbf24',
+                    'stage_type' => FunnelStageType::LEAD,
+                    'goal' => 'Понять, какое изделие нужно клиенту.',
+                    'questions' => ['Что планируете заказать?', 'Для какой комнаты?', 'Есть ли размеры или фото?'],
+                    'conditions' => 'Перейти к замеру, когда понятен запрос.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Замер / консультация',
+                    'color' => '#f59e0b',
+                    'stage_type' => FunnelStageType::QUALIFICATION,
+                    'goal' => 'Согласовать замер или консультацию.',
+                    'questions' => ['Удобная дата и время', 'Адрес', 'Контактное лицо'],
+                    'conditions' => 'Перейти к проекту после согласования замера.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Проект и расчёт',
+                    'color' => '#d97706',
+                    'stage_type' => FunnelStageType::PAYMENT,
+                    'goal' => 'Подготовить проект и смету.',
+                    'questions' => ['Подходит ли предварительный расчёт?', 'Что нужно изменить?'],
+                    'conditions' => 'Перейти к договору после согласования проекта.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Договор и предоплата',
+                    'color' => '#ca8a04',
+                    'stage_type' => FunnelStageType::PAYMENT,
+                    'goal' => 'Зафиксировать договорённости и оплату.',
+                    'questions' => ['Нужны ли реквизиты?', 'Когда удобно оплатить?'],
+                    'conditions' => 'Перейти в производство после оплаты или подтверждения.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Производство',
+                    'color' => '#84cc16',
+                    'stage_type' => FunnelStageType::PRODUCTION,
+                    'goal' => 'Информировать о статусе изготовления без выдуманных сроков.',
+                    'questions' => [],
+                    'conditions' => 'Перейти к доставке, когда заказ готов.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Доставка / монтаж',
+                    'color' => '#22c55e',
+                    'stage_type' => FunnelStageType::DELIVERY,
+                    'goal' => 'Согласовать доставку и монтаж.',
+                    'questions' => ['Удобный день и время', 'Адрес и контакт на месте'],
+                    'conditions' => 'Закрыть после успешного монтажа.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+                [
+                    'name' => 'Закрыто успешно',
+                    'color' => '#15803d',
+                    'stage_type' => FunnelStageType::DONE,
+                    'goal' => 'Финальный успешный этап.',
+                    'questions' => [],
+                    'conditions' => 'Финальный этап.',
+                    'manager_confirmation' => false,
+                    'allowed_actions' => $defaultActions,
+                ],
+            ],
         ];
     }
 
