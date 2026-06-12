@@ -3504,4 +3504,172 @@
     .ui-analytics-skeleton__chart {
         min-height: 15rem;
     }
+
+    /* AI Sales dashboard */
+    .ui-ai-sales-page__header {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    @media (min-width: 1024px) {
+        .ui-ai-sales-page__header {
+            flex-direction: row;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+    }
+
+    .ui-ai-sales-hero__grid {
+        display: grid;
+        gap: 0.85rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 768px) {
+        .ui-ai-sales-hero__grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+    }
+
+    .ui-ai-sales-hero__card {
+        border-radius: var(--primitive-radius-lg);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface);
+        padding: 1rem 1.1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .ui-ai-sales-hero__card--accent {
+        border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border));
+        background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface));
+    }
+
+    .ui-ai-sales-hero__card--highlight {
+        border-color: color-mix(in srgb, var(--wa-chroma-success-fg) 35%, var(--ui-border));
+    }
+
+    .ui-ai-sales-hero__label {
+        font-size: 0.75rem;
+        color: var(--ui-text-secondary);
+    }
+
+    .ui-ai-sales-hero__value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.1;
+        color: var(--ui-text);
+    }
+
+    .ui-ai-sales-hero__badge {
+        display: inline-flex;
+        margin-top: 0.75rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        background: var(--ui-surface-soft);
+        color: var(--ui-text-muted);
+        border: 1px solid var(--ui-border);
+    }
+
+    .ui-ai-sales-charts-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    @media (min-width: 1024px) {
+        .ui-ai-sales-charts-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    .ui-ai-sales-chart-card__canvas {
+        height: 280px;
+    }
+
+    .ui-ai-sales-chart-card__canvas--tall {
+        height: 340px;
+    }
+
+    .ui-ai-sales-insights {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .ui-ai-sales-insight {
+        flex: 1 1 220px;
+        border-radius: var(--primitive-radius-lg);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface-soft);
+        padding: 0.85rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.875rem;
+    }
+
+    .ui-ai-sales-insight__label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--ui-text-muted);
+    }
+
+    .ui-ai-sales-kpi-rings {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 768px) {
+        .ui-ai-sales-kpi-rings {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    .ui-ai-sales-kpi-ring {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        border-radius: var(--primitive-radius-lg);
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface);
+        text-align: center;
+    }
+
+    .ui-ai-sales-kpi-ring__donut {
+        width: 4.5rem;
+        height: 4.5rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+        position: relative;
+    }
+
+    .ui-ai-sales-kpi-ring__donut span {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        background: var(--ui-surface);
+        display: grid;
+        place-items: center;
+    }
+
+    .ui-ai-sales-kpi-ring__label {
+        font-size: 0.8rem;
+        color: var(--ui-text-secondary);
+    }
+
+    .ui-ai-sales-kpi-ring__meta {
+        font-size: 0.7rem;
+        color: var(--ui-text-muted);
+    }
 }

@@ -35,6 +35,7 @@ final class AiSalesMetricsService
         private readonly ObjectionIntelligenceService $objectionIntel,
         private readonly PromptExperimentMetricsService $experimentMetrics,
         private readonly WinProbabilityService $winProbabilityService,
+        private readonly AiSalesChartDataService $chartData,
     ) {}
 
     /**
@@ -57,6 +58,7 @@ final class AiSalesMetricsService
 
         if ($companyId === null && $companyIds !== []) {
             $payload['by_company'] = $this->buildByCompanyBreakdown($superAdmin, $companyIds, $from, $to);
+            $payload['charts']['by_company'] = $this->chartData->formatByCompanyChart($payload['by_company']);
         }
 
         return $payload;
@@ -117,6 +119,7 @@ final class AiSalesMetricsService
         $objectionIntelligence = $companyId !== null
             ? $this->objectionIntel->buildForCompany($companyId)
             : $this->aggregateObjectionIntelligence($companyIds);
+        $experiments = $this->experimentMetrics->forCompanyIds($companyIds, $from, $to);
 
         return [
             'period' => [
@@ -136,10 +139,23 @@ final class AiSalesMetricsService
             'lost_reasons' => $lostReasons,
             'win_rate_by_grade' => $winRateByGrade,
             'objection_intelligence' => $objectionIntelligence,
-            'experiments' => $this->experimentMetrics->forCompanyIds($companyIds, $from, $to),
+            'experiments' => $experiments,
             'win_prob_model' => $companyId !== null
                 ? $this->winProbabilityService->activeModelLabel($companyId)
                 : null,
+            'charts' => $this->chartData->build(
+                $companyIds,
+                $cohortChatIds,
+                $from,
+                $to,
+                $kpis,
+                $lostReasons,
+                $winRateByGrade,
+                $objectionIntelligence,
+                $experiments,
+                [],
+                $companyId,
+            ),
             'by_company' => [],
         ];
     }

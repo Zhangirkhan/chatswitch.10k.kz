@@ -23,6 +23,7 @@ const { t } = useI18n();
             :filters="filters"
             base-url="/settings/ai-sales"
             i18n-prefix="settings.aiSales"
+            class="ui-ai-sales-page"
         />
     </SettingsLayout>
 </template>
