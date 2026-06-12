@@ -67,7 +67,7 @@ final class ConflictEscalationFlowTest extends TestCase
             'whatsapp_session_id' => $chat->whatsapp_session_id,
             'direction' => 'inbound',
             'type' => 'text',
-            'body' => 'Уже 4 день жду!!!',
+            'body' => 'Где мой заказ?! Вы обещали в пятницу, уже 4 день жду!!!',
             'message_timestamp' => now()->addSecond(),
         ]);
 
