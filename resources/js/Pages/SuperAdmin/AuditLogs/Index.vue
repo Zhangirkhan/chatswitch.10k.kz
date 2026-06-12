@@ -9,6 +9,7 @@ import { useI18n } from '@/composables/useI18n';
 import { paymentMethodLabelMap } from '@/utils/superAdminInvoiceBadge';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -103,7 +104,7 @@ function formatPrice(cents: number): string {
 </script>
 
 <template>
-    
+    <SuperAdminLayout>
         <Head :title="t('superAdmin.auditLogs.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="platform"
@@ -259,4 +260,5 @@ function formatPrice(cents: number): string {
             />
         </div>
     
+    </SuperAdminLayout>
 </template>

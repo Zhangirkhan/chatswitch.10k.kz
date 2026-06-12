@@ -13,7 +13,6 @@ const chromeContext = provideSuperAdminPageChrome();
 const pageChrome = computed(() => chromeContext.chrome.value);
 
 const page = usePage<any>();
-const pageComponentKey = computed(() => String(page.component ?? page.url));
 const { t } = useI18n();
 const user = computed(() => page.props.auth?.user);
 
@@ -125,7 +124,7 @@ onUnmounted(() => {
             </header>
 
             <main class="ui-super-admin-main wa-scrollbar">
-                <div :key="pageComponentKey" class="ui-super-admin-page">
+                <div class="ui-super-admin-page">
                     <p v-if="flashSuccess" class="ui-alert mb-5 border-ui-accent-border bg-ui-accent-soft text-sm text-ui-text" role="status">
                         {{ flashSuccess }}
                     </p>

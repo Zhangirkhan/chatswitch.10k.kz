@@ -7,6 +7,7 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -106,7 +107,7 @@ function resolveMessage(): void {
 </script>
 
 <template>
-    
+    <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessagesRanking.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -244,4 +245,5 @@ function resolveMessage(): void {
             </template>
         </UiModal>
     
+    </SuperAdminLayout>
 </template>

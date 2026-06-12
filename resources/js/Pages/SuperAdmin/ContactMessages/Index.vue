@@ -7,6 +7,7 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -143,7 +144,7 @@ const deviceInfo = computed(() => {
 </script>
 
 <template>
-    
+    <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessages.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -355,4 +356,5 @@ const deviceInfo = computed(() => {
             </template>
         </UiModal>
     
+    </SuperAdminLayout>
 </template>

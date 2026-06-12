@@ -4,6 +4,7 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { useI18n } from '@/composables/useI18n';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 interface ChangelogEntry {
     id: number;
@@ -120,7 +121,7 @@ const showEditModal = computed({
 </script>
 
 <template>
-    
+    <SuperAdminLayout>
         <Head :title="t('superAdmin.platformChangelog.pageTitle')" />
 
         <SuperAdminPageHeader
@@ -311,4 +312,5 @@ const showEditModal = computed({
             </template>
         </UiModal>
     
+    </SuperAdminLayout>
 </template>
