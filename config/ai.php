@@ -97,4 +97,15 @@ return [
      * Base backoff in milliseconds between retries (doubles each attempt).
      */
     'retry_base_backoff_ms' => (int) env('AI_RETRY_BASE_BACKOFF_MS', 1000),
+
+    // -------------------------------------------------------------------------
+    // First-contact acknowledgment (new inbound dialog, no prior outbound)
+    // -------------------------------------------------------------------------
+
+    'first_contact_ack' => [
+        'enabled' => filter_var(env('AI_FIRST_CONTACT_ACK_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'debounce_seconds' => (int) env('AI_FIRST_CONTACT_ACK_DEBOUNCE_SECONDS', 1),
+        'temperature' => (float) env('AI_FIRST_CONTACT_ACK_TEMPERATURE', 0.7),
+        'max_tokens' => (int) env('AI_FIRST_CONTACT_ACK_MAX_TOKENS', 200),
+    ],
 ];

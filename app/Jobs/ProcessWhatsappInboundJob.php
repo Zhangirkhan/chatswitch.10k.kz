@@ -10,6 +10,7 @@ use App\Models\WhatsappSession;
 use App\Services\AI\ActiveTopicDetector;
 use App\Services\AI\ChatSalesStateService;
 use App\Services\AI\AutomatedPeerReplyGuard;
+use App\Services\AI\ChatFirstContactAckService;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
 use App\Services\AI\InboundAiDispatchService;
@@ -59,6 +60,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         ChatDepartmentRoutingService $departmentRouting,
         ChatOffHoursReplyService $offHoursReply,
         AutomatedPeerReplyGuard $automatedPeerGuard,
+        ChatFirstContactAckService $firstContactAck,
         TenantContext $tenantContext,
         InboundAiDispatchService $aiDispatch,
         ActiveTopicDetector $topicDetector,
@@ -191,6 +193,14 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
 
         if (VoiceInboundHelper::needsTranscriptionBeforeAi($message)) {
             return;
+        }
+
+        if ($message->chat !== null
+            && $firstContactAck->shouldAttempt($message->chat, $message)
+            && ! $firstContactAck->willFullAutoPipelineSend($message->chat)) {
+            $delaySeconds = max(0, (int) config('ai.first_contact_ack.debounce_seconds', 1));
+            GenerateFirstContactAckJob::dispatch($message->chat->id, $message->id, $message->chat->company_id)
+                ->delay(now()->addSeconds($delaySeconds));
         }
 
         $aiDispatch->dispatchForInboundMessage($message);

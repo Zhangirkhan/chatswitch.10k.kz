@@ -6,6 +6,7 @@ namespace Tests\Feature\Webhook;
 
 use App\Jobs\AnalyzeChatFunnelJob;
 use App\Jobs\GenerateAiReplyJob;
+use App\Jobs\GenerateFirstContactAckJob;
 use App\Jobs\ProcessWhatsappInboundJob;
 use App\Jobs\RunAiFunnelOrchestratorJob;
 use App\Models\Chat;
@@ -97,6 +98,7 @@ final class ReceiveMessageTest extends TestCase
             GenerateAiReplyJob::class,
             RunAiFunnelOrchestratorJob::class,
             AnalyzeChatFunnelJob::class,
+            GenerateFirstContactAckJob::class,
         ]);
 
         config(['funnel.department_routing.enabled' => false]);
@@ -127,11 +129,12 @@ final class ReceiveMessageTest extends TestCase
         $this->assertSame(1, $chat->messages()->count());
     }
 
-    public function test_inbound_job_does_not_dispatch_ai_jobs_when_ai_disabled_on_new_chat(): void
+    public function test_inbound_job_dispatches_first_contact_ack_when_ai_disabled_on_new_chat(): void
     {
         WhatsappSession::factory()->create(['session_name' => 'default']);
 
         Bus::fake([
+            GenerateFirstContactAckJob::class,
             GenerateAiReplyJob::class,
             RunAiFunnelOrchestratorJob::class,
             AnalyzeChatFunnelJob::class,
@@ -159,6 +162,7 @@ final class ReceiveMessageTest extends TestCase
         $this->assertNotNull($chat);
         $this->assertFalse($chat->ai_enabled);
 
+        Bus::assertDispatched(GenerateFirstContactAckJob::class);
         Bus::assertNotDispatched(GenerateAiReplyJob::class);
         Bus::assertNotDispatched(RunAiFunnelOrchestratorJob::class);
         Bus::assertNotDispatched(AnalyzeChatFunnelJob::class);
