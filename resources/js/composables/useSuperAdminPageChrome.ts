@@ -1,7 +1,6 @@
 import {
     computed,
     inject,
-    onUnmounted,
     provide,
     shallowRef,
     watchEffect,
@@ -85,9 +84,5 @@ export function useRegisterSuperAdminPageChrome(input: () => RegisterSuperAdminP
             accentGroup: value.accentGroup,
             titleBadge: value.titleBadge,
         });
-    });
-
-    onUnmounted(() => {
-        context.clear();
     });
 }

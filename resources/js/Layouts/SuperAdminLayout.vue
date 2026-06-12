@@ -7,12 +7,13 @@ import {
 import { useI18n } from '@/composables/useI18n';
 import { useTheme } from '@/composables/useTheme';
 import { Link, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 const chromeContext = provideSuperAdminPageChrome();
 const pageChrome = computed(() => chromeContext.chrome.value);
 
 const page = usePage<any>();
+const pageComponentKey = computed(() => String(page.component ?? page.url));
 const { t } = useI18n();
 const user = computed(() => page.props.auth?.user);
 
@@ -48,6 +49,10 @@ watch(
         sidebarOpen.value = false;
     },
 );
+
+onUnmounted(() => {
+    chromeContext.clear();
+});
 </script>
 
 <template>
@@ -120,7 +125,7 @@ watch(
             </header>
 
             <main class="ui-super-admin-main wa-scrollbar">
-                <div class="ui-super-admin-page">
+                <div :key="pageComponentKey" class="ui-super-admin-page">
                     <p v-if="flashSuccess" class="ui-alert mb-5 border-ui-accent-border bg-ui-accent-soft text-sm text-ui-text" role="status">
                         {{ flashSuccess }}
                     </p>

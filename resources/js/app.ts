@@ -83,7 +83,8 @@ createInertiaApp({
             const page = module.default ?? module;
 
             if (name.startsWith('SuperAdmin/') && !page.layout) {
-                page.layout = SuperAdminLayout;
+                page.layout = (layoutH: typeof h, child: ReturnType<typeof h>) =>
+                    layoutH(SuperAdminLayout, {}, () => child);
             }
 
             return module;
