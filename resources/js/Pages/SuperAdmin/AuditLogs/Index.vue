@@ -183,7 +183,7 @@ function formatPrice(cents: number): string {
                     <p v-if="log.actor" class="mt-0.5 text-ui-text-secondary">
                         {{ log.actor.name }} · {{ log.actor.email }}
                     </p>
-                    <p v-if="auditMetaSummary(log.meta, t)" class="mt-0.5 text-xs text-ui-text-muted">
+                    <p v-if="auditMetaSummary(log.meta, t)" class="ui-audit-log-meta mt-0.5">
                         {{ auditMetaSummary(log.meta, t) }}
                     </p>
                 </li>

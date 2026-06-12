@@ -161,7 +161,7 @@ function submitEdit(): void {
         </div>
 
         <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="p in plans" :key="p.id" class="ui-panel px-4 py-4">
+            <div v-for="p in plans" :key="p.id" class="ui-super-admin-plan-card">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="font-medium">{{ p.name }}</div>
                     <span

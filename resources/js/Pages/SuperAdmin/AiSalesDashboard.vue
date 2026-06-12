@@ -27,15 +27,17 @@ const { t } = useI18n();
             :subtitle="t('superAdmin.aiSales.subtitle')"
         />
 
-        <AiSalesMetricsPanel
-            :metrics="metrics"
-            :filters="filters"
-            :companies="companies"
-            base-url="/ai-sales"
-            i18n-prefix="superAdmin.aiSales"
-            show-company-filter
-            layout="embedded"
-            class="ui-ai-sales-page ui-ai-sales-page--embedded"
-        />
+        <div class="ui-super-admin-embedded">
+            <AiSalesMetricsPanel
+                :metrics="metrics"
+                :filters="filters"
+                :companies="companies"
+                base-url="/ai-sales"
+                i18n-prefix="superAdmin.aiSales"
+                show-company-filter
+                layout="embedded"
+                class="ui-ai-sales-page ui-ai-sales-page--embedded"
+            />
+        </div>
     </SuperAdminLayout>
 </template>

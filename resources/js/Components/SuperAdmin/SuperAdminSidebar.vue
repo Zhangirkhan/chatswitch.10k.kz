@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SuperAdminNavIcon from '@/Components/SuperAdmin/SuperAdminNavIcon.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -138,7 +139,7 @@ function onNavigate(): void {
             <span class="ui-super-admin-sidebar__logo">A</span>
             <div class="min-w-0">
                 <p class="ui-super-admin-sidebar__title">{{ t('superAdmin.layout.brand') }}</p>
-                <p class="ui-super-admin-sidebar__subtitle">{{ t('superAdmin.layout.brandHint') }}</p>
+                <p class="ui-super-admin-sidebar__subtitle truncate">{{ t('superAdmin.layout.brandHint') }}</p>
             </div>
         </div>
 
@@ -156,7 +157,10 @@ function onNavigate(): void {
                         :class="{ 'is-active': isActive(item.match) }"
                         @click="onNavigate"
                     >
-                        <span class="ui-super-admin-nav-item__label">{{ labelFor(item.key) }}</span>
+                        <span class="ui-super-admin-nav-item__main">
+                            <SuperAdminNavIcon :name="item.key" />
+                            <span class="ui-super-admin-nav-item__label">{{ labelFor(item.key) }}</span>
+                        </span>
                         <span
                             v-if="item.badge !== undefined && item.badge > 0"
                             class="ui-super-admin-nav-item__badge"

@@ -25,7 +25,7 @@ const form = useForm({
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.companies.create.heading')"
         />
-        <form class="ui-settings-section ui-settings-section--narrow mx-auto w-full space-y-4" @submit.prevent="form.post('/companies')">
+        <form class="ui-panel mx-auto w-full max-w-xl space-y-4 p-5 sm:p-6" @submit.prevent="form.post('/companies')">
             <label class="block">
                 <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.name') }}</span>
                 <input v-model="form.name" class="ui-input mt-1" required />

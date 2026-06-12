@@ -205,7 +205,7 @@ function resolveMessage(): void {
             max-width="2xl"
             @close="closeModal"
         >
-            <div v-if="selected" class="px-5 py-4 space-y-4">
+            <div v-if="selected" class="ui-super-admin-modal-body space-y-4">
                 <div class="grid gap-3 sm:grid-cols-2 text-sm">
                     <div>
                         <div class="text-xs text-ui-text-muted">{{ t('superAdmin.contactMessagesRanking.likes') }}</div>

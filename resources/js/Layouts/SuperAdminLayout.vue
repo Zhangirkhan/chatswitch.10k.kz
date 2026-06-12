@@ -76,7 +76,7 @@ watch(
                 <div class="ui-super-admin-topbar__actions">
                     <button
                         type="button"
-                        class="ui-btn ui-btn--ghost ui-btn--sm"
+                        class="ui-btn ui-btn--ghost ui-btn--sm ui-super-admin-topbar__theme"
                         :aria-label="theme === 'dark' ? t('superAdmin.layout.theme.light') : t('superAdmin.layout.theme.dark')"
                         @click="toggleTheme"
                     >
@@ -88,7 +88,7 @@ watch(
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                         </svg>
                     </button>
-                    <span class="hidden max-w-[14rem] truncate text-sm text-ui-text-secondary sm:inline">{{ user?.email }}</span>
+                    <span class="ui-super-admin-topbar__user hidden max-w-[14rem] truncate sm:inline">{{ user?.email }}</span>
                     <Link href="/logout" method="post" as="button" class="ui-btn ui-btn--secondary ui-btn--sm">
                         {{ t('superAdmin.layout.logout') }}
                     </Link>

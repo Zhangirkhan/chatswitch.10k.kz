@@ -165,7 +165,7 @@ const showEditModal = computed({
                         <td>
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-medium">{{ entry.title.ru }}</span>
-                                <span v-if="entry.git_commit_hash" class="ui-badge ui-badge--neutral text-xs">
+                                <span v-if="entry.git_commit_hash" class="ui-audit-log-meta ui-badge ui-badge--neutral text-xs">
                                     {{ t('superAdmin.platformChangelog.fromGit') }}
                                 </span>
                             </div>

@@ -158,12 +158,12 @@ function subscriptionLabel(status: string): string {
             :title="t('superAdmin.dashboard.recentCompaniesTitle')"
             flush
         >
-            <div class="divide-y divide-ui-border">
+            <div>
                 <Link
                     v-for="c in recentCompanies"
                     :key="c.id"
                     :href="`/companies/${c.id}`"
-                    class="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-ui-surface-hover sm:px-5"
+                    class="ui-super-admin-list-row"
                 >
                     <div class="min-w-0">
                         <div class="font-medium truncate">{{ c.name }}</div>
@@ -192,11 +192,11 @@ function subscriptionLabel(status: string): string {
                     {{ t('superAdmin.dashboard.topFeedbackLink') }}
                 </Link>
             </template>
-            <div class="divide-y divide-ui-border">
+            <div>
                 <div
                     v-for="item in props.topFeedback"
                     :key="item.id"
-                    class="flex items-start justify-between gap-4 px-4 py-3 sm:px-5"
+                    class="ui-super-admin-list-row"
                 >
                     <div class="min-w-0">
                         <div class="text-sm font-medium truncate">{{ item.message }}</div>

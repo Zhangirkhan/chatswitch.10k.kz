@@ -173,7 +173,7 @@ function formatDate(value: string | null): string {
             <p>{{ t('superAdmin.mobileReleases.empty') }}</p>
         </div>
 
-        <div v-else class="overflow-x-auto rounded-xl border border-ui-border">
+        <div v-else class="ui-panel ui-table-panel overflow-hidden p-0">
             <table class="min-w-full divide-y divide-ui-border text-sm">
                 <thead class="bg-ui-surface-muted/60">
                     <tr>
