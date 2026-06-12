@@ -3,6 +3,7 @@
 /public/build
 /public/hot
 /public/storage
+/public/apk/
 /apk/
 /storage/*.key
 /storage/pail
