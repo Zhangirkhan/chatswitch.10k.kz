@@ -25,8 +25,11 @@ const { t } = useI18n();
 
 const roles = computed(() => (page.props as { auth?: { user?: { roles?: string[] } } }).auth?.user?.roles || []);
 const isEmployee = computed(() => roles.value.includes('employee') && !roles.value.includes('administrator'));
+const isAdministrator = computed(() => roles.value.includes('administrator'));
 const funnelsModuleEnabled = computed<boolean>(() => Boolean((page.props as { modules?: { funnels?: boolean } }).modules?.funnels ?? true));
 const analyticsModuleEnabled = computed<boolean>(() => Boolean((page.props as { modules?: { analytics?: boolean } }).modules?.analytics ?? true));
+const aiQualityModuleEnabled = computed<boolean>(() => Boolean((page.props as { modules?: { ai_quality?: boolean } }).modules?.ai_quality ?? true));
+const aiSalesNavEnabled = computed(() => isAdministrator.value && aiQualityModuleEnabled.value);
 
 const analytics = useAnalyticsData(props.filterOptions, analyticsModuleEnabled, funnelsModuleEnabled);
 
@@ -100,9 +103,10 @@ function onProblemNext() {
                 </div>
 
                 <AnalyticsTypeNav
-                    :analytics-type="analytics.analyticsType.value"
+                    :active-type="analytics.analyticsType.value === 'funnels' ? 'funnels' : 'dialogs'"
                     :analytics-module-enabled="analyticsModuleEnabled"
                     :funnels-module-enabled="funnelsModuleEnabled"
+                    :ai-sales-enabled="aiSalesNavEnabled"
                     @change="analytics.setAnalyticsType"
                 />
             </header>

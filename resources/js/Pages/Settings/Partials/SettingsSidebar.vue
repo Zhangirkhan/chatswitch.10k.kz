@@ -20,7 +20,6 @@ type AdminItem = {
         | 'services'
         | 'knowledge'
         | 'aiQuality'
-        | 'aiSales'
         | 'toneProfile'
         | 'system';
     icon: string;
@@ -137,13 +136,6 @@ const adminItems: AdminItem[] = [
         i18nKey: 'aiQuality',
         icon: 'ai-quality',
         routeName: 'settings.ai-quality',
-        moduleKey: 'ai_quality',
-    },
-    {
-        kind: 'admin',
-        i18nKey: 'aiSales',
-        icon: 'ai-quality',
-        routeName: 'settings.ai-sales',
         moduleKey: 'ai_quality',
     },
     {

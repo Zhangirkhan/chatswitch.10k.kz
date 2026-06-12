@@ -13,6 +13,7 @@ export const analyticsRu = {
     typeLabel: 'Тип аналитики',
     typeDialogs: 'Диалоги',
     typeFunnels: 'Воронки продаж',
+    typeAiSales: 'Конверсия AI',
     period: 'Период',
     today: 'Сегодня',
     days7: '7 дней',

@@ -47,13 +47,25 @@ final class TenantAiSalesDashboardTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('settings.ai-sales'))
+            ->get(route('analytics.ai-sales'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Settings/AiSalesDashboard')
+                ->component('Analytics/AiSales')
                 ->has('metrics.kpis', 12)
                 ->where('metrics.summary.cohort_size', 1)
                 ->where('metrics.filters.company_id', $company->id));
+    }
+
+    public function test_settings_ai_sales_route_redirects_to_analytics(): void
+    {
+        $company = $this->createTenantCompany(['name' => 'Tenant Co Redirect', 'slug' => 'tenant-co-redirect']);
+
+        $admin = User::factory()->create(['company_id' => $company->id]);
+        $admin->assignRole('administrator');
+
+        $this->actingAs($admin)
+            ->get(route('settings.ai-sales'))
+            ->assertRedirect(route('analytics.ai-sales'));
     }
 
     public function test_manager_cannot_open_tenant_ai_sales_dashboard(): void
@@ -64,7 +76,7 @@ final class TenantAiSalesDashboardTest extends TestCase
         $manager->assignRole('manager');
 
         $this->actingAs($manager)
-            ->get(route('settings.ai-sales'))
+            ->get(route('analytics.ai-sales'))
             ->assertForbidden();
     }
 }

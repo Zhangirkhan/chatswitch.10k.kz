@@ -27,7 +27,7 @@ final class TenantAiSalesDashboardController extends Controller
 
         $metrics = $this->metricsService->buildForTenant($user, $from, $to);
 
-        return Inertia::render('Settings/AiSalesDashboard', [
+        return Inertia::render('Analytics/AiSales', [
             'metrics' => $metrics,
             'filters' => [
                 'period' => $period,

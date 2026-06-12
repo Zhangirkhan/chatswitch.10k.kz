@@ -13,6 +13,7 @@ export const analyticsKk = {
     typeLabel: 'Аналитика түрі',
     typeDialogs: 'Диалогтар',
     typeFunnels: 'Сatu шұңқырлары',
+    typeAiSales: 'AI конверсия',
     period: 'Кезең',
     today: 'Бүгін',
     days7: '7 күн',

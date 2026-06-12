@@ -215,6 +215,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::delete('/communities/{community}/groups/{chat}', [CommunityController::class, 'unlinkGroup'])->name('communities.unlink-group');
 
         Route::get('/analytics/dialogs', DialogAnalyticsPageController::class)->name('analytics.dialogs');
+        Route::get('/analytics/ai-sales', [TenantAiSalesDashboardController::class, 'index'])
+            ->middleware(['role:administrator', 'settings.readiness'])
+            ->name('analytics.ai-sales');
 
         // Календарь записей
         Route::get('/calendar', [CalendarController::class, 'index'])->name('calendar.index');
@@ -352,7 +355,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
-        Route::get('/ai-sales', [TenantAiSalesDashboardController::class, 'index'])->name('settings.ai-sales');
+        Route::redirect('/ai-sales', '/analytics/ai-sales')->name('settings.ai-sales');
         Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('settings.ai-usage');
         Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
         Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');

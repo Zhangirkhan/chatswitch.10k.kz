@@ -13,6 +13,7 @@ export const analyticsEn = {
     typeLabel: 'Analytics type',
     typeDialogs: 'Dialogs',
     typeFunnels: 'Sales funnels',
+    typeAiSales: 'AI conversion',
     period: 'Period',
     today: 'Today',
     days7: '7 days',

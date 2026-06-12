@@ -19,11 +19,13 @@ const props = withDefaults(
         baseUrl: string;
         i18nPrefix?: string;
         showCompanyFilter?: boolean;
+        layout?: 'standalone' | 'embedded';
     }>(),
     {
         companies: () => [],
         i18nPrefix: 'superAdmin.aiSales',
         showCompanyFilter: false,
+        layout: 'standalone',
     },
 );
 
@@ -89,8 +91,8 @@ function onFilterCompany(id: number): void {
 </script>
 
 <template>
-    <div class="ui-ai-sales-page">
-        <header class="ui-ai-sales-page__header">
+    <div class="ui-ai-sales-page" :class="{ 'ui-ai-sales-page--embedded': layout === 'embedded' }">
+        <header v-if="layout === 'standalone'" class="ui-ai-sales-page__header">
             <div class="ui-analytics-page__intro">
                 <p class="ui-analytics-page__eyebrow">{{ t(`${i18nPrefix}.pageTitle`) }}</p>
                 <h1 class="ui-analytics-page__title">{{ t(`${i18nPrefix}.title`) }}</h1>
@@ -126,6 +128,37 @@ function onFilterCompany(id: number): void {
                 </select>
             </div>
         </header>
+
+        <div v-else class="ui-ai-sales-page__toolbar">
+            <p v-if="periodLabel" class="ui-ai-sales-page__period text-sm text-ui-text-muted">{{ periodLabel }}</p>
+            <div class="ui-ai-sales-page__filters">
+                <UiPillNav class="shrink-0">
+                    <button
+                        v-for="option in periodOptions"
+                        :key="option.id"
+                        type="button"
+                        class="ui-pill-nav__item"
+                        :class="{ 'is-active': period === option.id }"
+                        @click="period = option.id; applyFilters()"
+                    >
+                        {{ option.label }}
+                    </button>
+                </UiPillNav>
+
+                <select
+                    v-if="showCompanyFilter"
+                    v-model="companyId"
+                    class="ui-input min-w-[220px]"
+                    :aria-label="t(`${i18nPrefix}.companyFilter`)"
+                    @change="applyFilters()"
+                >
+                    <option value="">{{ t(`${i18nPrefix}.allCompanies`) }}</option>
+                    <option v-for="company in companies" :key="company.id" :value="String(company.id)">
+                        {{ company.name }} ({{ company.slug }})
+                    </option>
+                </select>
+            </div>
+        </div>
 
         <p class="ui-alert ui-ai-sales-page__disclaimer border-ui-border bg-ui-surface-soft text-sm text-ui-text-secondary">
             {{ t(`${i18nPrefix}.disclaimer`) }}

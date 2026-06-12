@@ -11,6 +11,7 @@ defineProps<{
     baseUrl: string;
     i18nPrefix?: string;
     showCompanyFilter?: boolean;
+    layout?: 'standalone' | 'embedded';
 }>();
 </script>
 
@@ -22,5 +23,6 @@ defineProps<{
         :base-url="baseUrl"
         :i18n-prefix="i18nPrefix"
         :show-company-filter="showCompanyFilter"
+        :layout="layout"
     />
 </template>
