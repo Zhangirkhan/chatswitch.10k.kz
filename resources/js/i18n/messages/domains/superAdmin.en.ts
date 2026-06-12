@@ -1,5 +1,13 @@
 export const superAdminEn = {
     layout: {
+        brand: 'Accel Super Admin',
+        brandHint: 'Platform console',
+        navGroups: {
+            overview: 'Overview',
+            operations: 'Operations',
+            billing: 'Billing',
+            platform: 'Platform',
+        },
         nav: {
             dashboard: 'Dashboard',
             aiSales: 'AI conversion',
@@ -93,6 +101,7 @@ export const superAdminEn = {
     },
     dashboard: {
         title: 'Dashboard',
+        subtitle: 'Overview of tenants, billing, and platform feedback.',
         attentionTitle: 'Needs attention',
         attentionPendingSignups: 'Pending signup requests',
         attentionOverdueInvoices: 'Overdue invoices',

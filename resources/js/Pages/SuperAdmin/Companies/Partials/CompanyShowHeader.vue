@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SuperAdminKpiGrid, { type SuperAdminKpiItem } from '@/Components/SuperAdmin/SuperAdminKpiGrid.vue';
 import { useI18n } from '@/composables/useI18n';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
@@ -43,6 +44,26 @@ const { t } = useI18n();
 const maxSpark = computed(() =>
     Math.max(1, ...props.billingSummary.revenue_sparkline.map((p) => p.amount_kzt)),
 );
+
+const billingKpis = computed((): SuperAdminKpiItem[] => [
+    {
+        label: 'MRR',
+        value: `${props.billingSummary.mrr_kzt.toLocaleString('ru-RU')} ₸`,
+        tone: 'accent',
+    },
+    {
+        label: t('superAdmin.companies.header.nextPayment'),
+        value: formatDate(props.billingSummary.next_payment_at),
+        hint: props.billingSummary.trial_days_left !== null
+            ? t('superAdmin.companies.header.trialDays', { days: props.billingSummary.trial_days_left })
+            : undefined,
+    },
+    {
+        label: t('superAdmin.companies.header.unpaidInvoices'),
+        value: props.billingSummary.overdue_invoices,
+        tone: props.billingSummary.overdue_invoices > 0 ? 'danger' : 'default',
+    },
+]);
 
 function formatDate(iso: string | null): string {
     if (!iso) return t('superAdmin.common.emDash');
@@ -120,10 +141,11 @@ function impersonate(): void {
 </script>
 
 <template>
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div class="min-w-0 flex-1">
+    <header class="ui-super-admin-page-header ui-super-admin-company-header">
+        <div class="ui-super-admin-page-header__intro min-w-0 flex-1">
+            <p class="ui-super-admin-page-header__eyebrow">{{ t('superAdmin.layout.nav.companies') }}</p>
             <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-bold sm:text-2xl">{{ company.name }}</h1>
+                <h1 class="ui-super-admin-page-header__title !text-xl sm:!text-2xl">{{ company.name }}</h1>
                 <span :class="subscriptionStatusBadgeClass(company.subscription_status)">
                     {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
                 </span>
@@ -178,63 +200,38 @@ function impersonate(): void {
             </p>
             <p v-if="trialInfo" class="mt-1 text-sm text-ui-accent">{{ trialInfo }}</p>
         </div>
-        <button
-            type="button"
-            class="ui-btn ui-btn--secondary inline-flex items-center gap-3"
-            @click="emit('toggle')"
-        >
-            <span
-                class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full"
-                :class="company.is_active ? 'bg-ui-accent' : 'bg-ui-surface-muted'"
+        <div class="ui-super-admin-page-header__actions">
+            <button
+                type="button"
+                class="ui-btn ui-btn--secondary inline-flex items-center gap-3"
+                @click="emit('toggle')"
             >
                 <span
-                    class="inline-block h-4 w-4 transform rounded-full bg-white shadow"
-                    :class="company.is_active ? 'translate-x-4' : 'translate-x-1'"
-                ></span>
-            </span>
-            {{ company.is_active ? t('superAdmin.companies.header.tenantEnabled') : t('superAdmin.companies.header.tenantDisabled') }}
-        </button>
-    </div>
+                    class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full"
+                    :class="company.is_active ? 'bg-ui-accent' : 'bg-ui-surface-muted'"
+                >
+                    <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow"
+                        :class="company.is_active ? 'translate-x-4' : 'translate-x-1'"
+                    ></span>
+                </span>
+                {{ company.is_active ? t('superAdmin.companies.header.tenantEnabled') : t('superAdmin.companies.header.tenantDisabled') }}
+            </button>
+        </div>
+    </header>
 
-    <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="ui-panel px-4 py-3">
-            <div class="text-xs text-ui-text-muted">MRR</div>
-            <div class="mt-0.5 text-xl font-semibold tabular-nums">
-                {{ billingSummary.mrr_kzt.toLocaleString('ru-RU') }} ₸
-            </div>
-        </div>
-        <div class="ui-panel px-4 py-3">
-            <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.nextPayment') }}</div>
-            <div class="mt-0.5 text-sm font-medium">
-                {{ formatDate(billingSummary.next_payment_at) }}
-            </div>
-            <p
-                v-if="billingSummary.trial_days_left !== null"
-                class="mt-0.5 text-xs text-ui-accent"
-            >
-                {{ t('superAdmin.companies.header.trialDays', { days: billingSummary.trial_days_left }) }}
-            </p>
-        </div>
-        <div class="ui-panel px-4 py-3" :class="billingSummary.overdue_invoices > 0 ? 'ring-1 ring-ui-danger/40' : ''">
-            <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.unpaidInvoices') }}</div>
+    <SuperAdminKpiGrid :items="billingKpis" class="!mb-5" />
+
+    <div class="ui-panel mb-6 px-4 py-3">
+        <div class="mb-2 text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.paymentsSparkline') }}</div>
+        <div class="flex h-10 items-end gap-1">
             <div
-                class="mt-0.5 text-xl font-semibold"
-                :class="billingSummary.overdue_invoices > 0 ? 'text-ui-danger' : ''"
-            >
-                {{ billingSummary.overdue_invoices }}
-            </div>
-        </div>
-        <div class="ui-panel px-4 py-3">
-            <div class="mb-2 text-xs text-ui-text-muted">{{ t('superAdmin.companies.header.paymentsSparkline') }}</div>
-            <div class="flex h-10 items-end gap-1">
-                <div
-                    v-for="p in billingSummary.revenue_sparkline"
-                    :key="p.label"
-                    class="min-h-[4px] flex-1 rounded-t bg-ui-accent/50 transition-all"
-                    :style="{ height: `${Math.max(12, (p.amount_kzt / maxSpark) * 100)}%` }"
-                    :title="t('superAdmin.companies.header.sparklineTooltip', { label: p.label, amount: p.amount_kzt.toLocaleString('ru-RU') })"
-                />
-            </div>
+                v-for="p in billingSummary.revenue_sparkline"
+                :key="p.label"
+                class="min-h-[4px] flex-1 rounded-t bg-ui-accent/50 transition-all"
+                :style="{ height: `${Math.max(12, (p.amount_kzt / maxSpark) * 100)}%` }"
+                :title="t('superAdmin.companies.header.sparklineTooltip', { label: p.label, amount: p.amount_kzt.toLocaleString('ru-RU') })"
+            />
         </div>
     </div>
 

@@ -5,6 +5,7 @@ import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import InputError from '@/Components/InputError.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
@@ -90,7 +91,10 @@ function confirmReject(): void {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.signupRequests.pageTitle')" />
-        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.signupRequests.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.operations')"
+            :title="t('superAdmin.signupRequests.heading')"
+        />
 
         <InputError class="mb-4" :message="formErrors.create_company" />
 

@@ -1,5 +1,13 @@
 export const superAdminKk = {
     layout: {
+        brand: 'Accel Super Admin',
+        brandHint: 'Платформалық консоль',
+        navGroups: {
+            overview: 'Шолу',
+            operations: 'Операциялар',
+            billing: 'Биллинг',
+            platform: 'Платформа',
+        },
         nav: {
             dashboard: 'Бақылау тақтасы',
             aiSales: 'AI конверсия',
@@ -93,6 +101,7 @@ export const superAdminKk = {
     },
     dashboard: {
         title: 'Бақылау тақтасы',
+        subtitle: 'Тенанттар, биллинг және платформаға келген обращениялардың шолуы.',
         attentionTitle: 'Назар аудару керек',
         attentionPendingSignups: 'Қараудағы өтінімдер',
         attentionOverdueInvoices: 'Мерзімі өткен шоттар',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiModal from '@/Components/Ui/UiModal.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, router, useForm } from '@inertiajs/vue3';
@@ -156,15 +157,17 @@ function formatDate(value: string | null): string {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.mobileReleases.pageTitle')" />
 
-        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="mb-1 text-2xl font-bold">{{ t('superAdmin.mobileReleases.heading') }}</h1>
-                <p class="text-sm text-ui-text-secondary">{{ t('superAdmin.mobileReleases.subtitle') }}</p>
-            </div>
-            <button type="button" class="ui-btn ui-btn--primary" @click="openCreateModal">
-                {{ t('superAdmin.mobileReleases.addRelease') }}
-            </button>
-        </div>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.platform')"
+            :title="t('superAdmin.mobileReleases.heading')"
+            :subtitle="t('superAdmin.mobileReleases.subtitle')"
+        >
+            <template #actions>
+                <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="openCreateModal">
+                    {{ t('superAdmin.mobileReleases.addRelease') }}
+                </button>
+            </template>
+        </SuperAdminPageHeader>
 
         <div v-if="releases.length === 0" class="ui-empty-state ui-empty-state--dashed">
             <p>{{ t('superAdmin.mobileReleases.empty') }}</p>

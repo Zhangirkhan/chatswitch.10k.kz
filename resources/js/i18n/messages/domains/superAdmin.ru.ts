@@ -1,5 +1,13 @@
 export const superAdminRu = {
     layout: {
+        brand: 'Accel Super Admin',
+        brandHint: 'Консоль платформы',
+        navGroups: {
+            overview: 'Обзор',
+            operations: 'Операции',
+            billing: 'Биллинг',
+            platform: 'Платформа',
+        },
         nav: {
             dashboard: 'Дашборд',
             aiSales: 'Конверсия AI',
@@ -93,6 +101,7 @@ export const superAdminRu = {
     },
     dashboard: {
         title: 'Дашборд',
+        subtitle: 'Сводка по тенантам, биллингу и обращениям платформы.',
         attentionTitle: 'Требуют внимания',
         attentionPendingSignups: 'Заявки на рассмотрении',
         attentionOverdueInvoices: 'Просроченные счета',

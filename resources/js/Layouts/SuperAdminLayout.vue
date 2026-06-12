@@ -1,28 +1,14 @@
 <script setup lang="ts">
 import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
+import SuperAdminSidebar from '@/Components/SuperAdmin/SuperAdminSidebar.vue';
 import { useI18n } from '@/composables/useI18n';
+import { useTheme } from '@/composables/useTheme';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
-import { useTheme } from '@/composables/useTheme';
 
 const page = usePage<any>();
 const { t } = useI18n();
 const user = computed(() => page.props.auth?.user);
-
-type SuperAdminNavProps = {
-    pending_signups?: number;
-    unread_feedback?: number;
-    is_sandbox?: boolean;
-};
-
-type NavItem = {
-    href: string;
-    label: string;
-    match: string;
-    badge?: number;
-};
-
-const superAdminNav = computed(() => page.props.superAdminNav as SuperAdminNavProps | null);
 
 const flashSuccess = computed(() => {
     const flash = page.props.flash as { success?: string } | undefined;
@@ -44,92 +30,54 @@ const validationBanner = computed(() => {
 });
 
 const { theme, toggle: toggleTheme } = useTheme();
+const sidebarOpen = ref(false);
 
-const navOpen = ref(false);
-
-const isSandboxSuperAdmin = computed(
-    () => (page.props.isSandboxSuperAdmin as boolean | undefined) === true
-        || superAdminNav.value?.is_sandbox === true,
-);
-
-const navItems = computed((): NavItem[] => {
-    const items: NavItem[] = [
-        { href: '/dashboard', label: t('superAdmin.layout.nav.dashboard'), match: '/dashboard' },
-        { href: '/ai-sales', label: t('superAdmin.layout.nav.aiSales'), match: '/ai-sales' },
-        { href: '/companies', label: t('superAdmin.layout.nav.companies'), match: '/companies' },
-        { href: '/invoices', label: t('superAdmin.layout.nav.invoices'), match: '/invoices' },
-    ];
-
-    if (!isSandboxSuperAdmin.value) {
-        items.push(
-            { href: '/plans', label: t('superAdmin.layout.nav.plans'), match: '/plans' },
-            {
-                href: '/signup-requests',
-                label: t('superAdmin.layout.nav.signupRequests'),
-                match: '/signup-requests',
-                badge: superAdminNav.value?.pending_signups,
-            },
-            {
-                href: '/contact-messages',
-                label: t('superAdmin.layout.nav.contact'),
-                match: '/contact-messages',
-                badge: superAdminNav.value?.unread_feedback,
-            },
-            { href: '/mobile-releases', label: t('superAdmin.layout.nav.mobileReleases'), match: '/mobile-releases' },
-            { href: '/platform-changelog', label: t('superAdmin.layout.nav.platformChangelog'), match: '/platform-changelog' },
-            { href: '/platform-banners', label: t('superAdmin.layout.nav.platformBanners'), match: '/platform-banners' },
-            { href: '/audit-logs', label: t('superAdmin.layout.nav.auditLogs'), match: '/audit-logs' },
-        );
-    }
-
-    return items;
-});
-
-function isActive(match: string): boolean {
-    return page.url.startsWith(match);
-}
-
-function closeNav(): void {
-    navOpen.value = false;
+function closeSidebar(): void {
+    sidebarOpen.value = false;
 }
 
 watch(
     () => page.url,
     () => {
-        navOpen.value = false;
+        sidebarOpen.value = false;
     },
 );
 </script>
 
 <template>
-    <div class="super-admin-shell flex min-h-dvh max-h-dvh flex-col bg-ui-bg text-ui-text">
+    <div class="ui-super-admin-shell">
         <PlatformBannerStack />
-        <header class="z-40 shrink-0 border-b border-ui-border bg-ui-surface/95 backdrop-blur supports-[backdrop-filter]:bg-ui-surface/80">
-            <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-                <div class="flex min-w-0 items-center gap-3">
+
+        <div
+            v-if="sidebarOpen"
+            class="ui-super-admin-backdrop lg:hidden"
+            aria-hidden="true"
+            @click="closeSidebar"
+        />
+
+        <SuperAdminSidebar :mobile-open="sidebarOpen" @navigate="closeSidebar" />
+
+        <div class="ui-super-admin-main-column">
+            <header class="ui-super-admin-topbar">
+                <div class="ui-super-admin-topbar__left">
                     <button
                         type="button"
-                        class="ui-btn ui-btn--ghost inline-flex h-10 w-10 shrink-0 items-center justify-center !px-0 lg:hidden"
-                        :aria-expanded="navOpen"
-                        aria-controls="super-admin-nav"
+                        class="ui-btn ui-btn--ghost ui-super-admin-menu-btn lg:hidden"
+                        :aria-expanded="sidebarOpen"
                         :aria-label="t('superAdmin.layout.menuAriaLabel')"
-                        @click="navOpen = !navOpen"
+                        @click="sidebarOpen = !sidebarOpen"
                     >
-                        <svg v-if="!navOpen" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16" />
                         </svg>
-                        <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
                     </button>
-                    <span class="truncate text-base font-semibold tracking-tight sm:text-lg">Accel Super Admin</span>
+                    <span class="ui-super-admin-topbar__title lg:hidden">{{ t('superAdmin.layout.brand') }}</span>
                 </div>
-                <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+                <div class="ui-super-admin-topbar__actions">
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost ui-btn--sm"
                         :aria-label="theme === 'dark' ? t('superAdmin.layout.theme.light') : t('superAdmin.layout.theme.dark')"
-                        :title="theme === 'dark' ? t('superAdmin.layout.theme.light') : t('superAdmin.layout.theme.dark')"
                         @click="toggleTheme"
                     >
                         <svg v-if="theme === 'dark'" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -140,83 +88,31 @@ watch(
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                         </svg>
                     </button>
-                    <span class="hidden max-w-[12rem] truncate text-sm text-ui-text-secondary sm:inline md:max-w-xs">{{ user?.email }}</span>
-                    <Link
-                        href="/logout"
-                        method="post"
-                        as="button"
-                        class="ui-btn ui-btn--secondary ui-btn--sm"
-                    >
+                    <span class="hidden max-w-[14rem] truncate text-sm text-ui-text-secondary sm:inline">{{ user?.email }}</span>
+                    <Link href="/logout" method="post" as="button" class="ui-btn ui-btn--secondary ui-btn--sm">
                         {{ t('superAdmin.layout.logout') }}
                     </Link>
                 </div>
-            </div>
+            </header>
 
-            <nav
-                id="super-admin-nav"
-                class="border-t border-ui-border lg:border-t-0"
-                :class="navOpen ? 'block' : 'hidden lg:block'"
-            >
-                <div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6 lg:flex-row lg:gap-2 lg:py-0 lg:pb-3">
-                    <Link
-                        v-for="item in navItems"
-                        :key="item.href"
-                        :href="item.href"
-                        class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors lg:py-1.5"
-                        :class="isActive(item.match)
-                            ? 'bg-ui-selected font-medium text-ui-text'
-                            : 'text-ui-text-secondary hover:bg-ui-surface-hover hover:text-ui-text'"
-                        @click="closeNav"
+            <main class="ui-super-admin-main wa-scrollbar">
+                <div class="ui-super-admin-page">
+                    <p v-if="flashSuccess" class="ui-alert mb-5 border-ui-accent-border bg-ui-accent-soft text-sm text-ui-text" role="status">
+                        {{ flashSuccess }}
+                    </p>
+                    <p v-if="flashError" class="ui-alert mb-5 border-red-500/30 bg-red-500/10 text-sm text-red-200" role="alert">
+                        {{ flashError }}
+                    </p>
+                    <p
+                        v-if="validationBanner && !flashError"
+                        class="ui-alert mb-5 border-red-500/30 bg-red-500/10 text-sm text-red-200"
+                        role="alert"
                     >
-                        {{ item.label }}
-                        <span
-                            v-if="item.badge !== undefined && item.badge > 0"
-                            class="ui-badge ui-badge--admin min-w-[1.25rem] justify-center px-1.5 py-0 text-xs"
-                        >
-                            {{ item.badge }}
-                        </span>
-                    </Link>
+                        {{ validationBanner }}
+                    </p>
+                    <slot />
                 </div>
-                <p class="mx-auto max-w-6xl truncate px-4 pb-3 text-xs text-ui-text-muted sm:px-6 lg:hidden">{{ user?.email }}</p>
-            </nav>
-        </header>
-
-        <main class="super-admin-main wa-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <div class="mx-auto w-full max-w-6xl px-4 py-6 pb-10 sm:px-6 sm:py-8">
-                <p
-                    v-if="flashSuccess"
-                    class="ui-alert mb-6 border-ui-accent-border bg-ui-accent-soft text-sm text-ui-text"
-                    role="status"
-                >
-                    {{ flashSuccess }}
-                </p>
-                <p
-                    v-if="flashError"
-                    class="ui-alert mb-6 border-red-500/30 bg-red-500/10 text-sm text-red-200"
-                    role="alert"
-                >
-                    {{ flashError }}
-                </p>
-                <p
-                    v-if="validationBanner && !flashError"
-                    class="ui-alert mb-6 border-red-500/30 bg-red-500/10 text-sm text-red-200"
-                    role="alert"
-                >
-                    {{ validationBanner }}
-                </p>
-                <slot />
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
 </template>
-
-<style scoped>
-.super-admin-shell {
-    height: 100dvh;
-    max-height: 100dvh;
-}
-
-.super-admin-main {
-    -webkit-overflow-scrolling: touch;
-}
-</style>

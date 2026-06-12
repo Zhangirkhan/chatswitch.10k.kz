@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -20,7 +21,10 @@ const form = useForm({
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.create.pageTitle')" />
-        <h1 class="mb-6 text-xl font-bold sm:text-2xl">{{ t('superAdmin.companies.create.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.operations')"
+            :title="t('superAdmin.companies.create.heading')"
+        />
         <form class="ui-settings-section ui-settings-section--narrow mx-auto w-full space-y-4" @submit.prevent="form.post('/companies')">
             <label class="block">
                 <span class="text-sm text-ui-text-secondary">{{ t('superAdmin.companies.field.name') }}</span>

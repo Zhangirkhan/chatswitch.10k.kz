@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
@@ -156,7 +157,14 @@ function confirmDelete(): void {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.index.pageTitle')" />
-        <h1 class="mb-6 text-xl font-bold sm:text-2xl">{{ t('superAdmin.companies.index.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.operations')"
+            :title="t('superAdmin.companies.index.heading')"
+        >
+            <template #actions>
+                <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('superAdmin.common.create') }}</Link>
+            </template>
+        </SuperAdminPageHeader>
 
         <section v-if="isSandboxSuperAdmin" class="mb-6 ui-panel p-4">
             <h2 class="text-sm font-semibold uppercase tracking-wide text-ui-text-secondary">
@@ -290,7 +298,6 @@ function confirmDelete(): void {
                     >
                         {{ t('superAdmin.companies.index.deleteAll') }}
                     </button>
-                    <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('superAdmin.common.create') }}</Link>
                 </div>
             </div>
             <table class="min-w-[720px] w-full text-left text-sm">

@@ -3,6 +3,7 @@ import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -108,9 +109,12 @@ function resolveMessage(): void {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessagesRanking.pageTitle')" />
-        <h1 class="mb-4 text-2xl font-bold">{{ t('superAdmin.contactMessagesRanking.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.operations')"
+            :title="t('superAdmin.contactMessagesRanking.heading')"
+        />
 
-        <div class="mb-6 flex flex-wrap gap-2">
+        <div class="ui-super-admin-actions">
             <Link href="/contact-messages" class="ui-btn ui-btn--ghost ui-btn--sm">
                 {{ t('superAdmin.contactMessagesRanking.tabAll') }}
             </Link>

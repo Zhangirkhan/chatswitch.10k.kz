@@ -3,6 +3,7 @@ import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { auditActionLabel, auditMetaSummary } from '@/utils/superAdminAuditLabels';
 import { useI18n } from '@/composables/useI18n';
@@ -105,7 +106,10 @@ function formatPrice(cents: number): string {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.auditLogs.pageTitle')" />
-        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.auditLogs.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.platform')"
+            :title="t('superAdmin.auditLogs.heading')"
+        />
 
         <UiPillNav class="mb-4">
             <button

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiModal from '@/Components/Ui/UiModal.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, router, useForm } from '@inertiajs/vue3';
@@ -123,12 +124,12 @@ const showEditModal = computed({
     <SuperAdminLayout>
         <Head :title="t('superAdmin.platformChangelog.pageTitle')" />
 
-        <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h1 class="text-xl font-bold sm:text-2xl">{{ t('superAdmin.platformChangelog.heading') }}</h1>
-                <p class="mt-1 text-sm text-ui-text-secondary">{{ t('superAdmin.platformChangelog.lead') }}</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.platform')"
+            :title="t('superAdmin.platformChangelog.heading')"
+            :subtitle="t('superAdmin.platformChangelog.lead')"
+        >
+            <template #actions>
                 <button
                     type="button"
                     class="ui-btn ui-btn--secondary ui-btn--sm"
@@ -140,8 +141,8 @@ const showEditModal = computed({
                 <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="openCreate">
                     {{ t('superAdmin.platformChangelog.add') }}
                 </button>
-            </div>
-        </div>
+            </template>
+        </SuperAdminPageHeader>
 
         <div class="ui-panel ui-table-panel overflow-hidden p-0">
             <table class="ui-table w-full">

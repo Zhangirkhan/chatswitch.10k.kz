@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import SuperAdminAttentionBanner from '@/Components/SuperAdmin/SuperAdminAttentionBanner.vue';
+import SuperAdminKpiGrid from '@/Components/SuperAdmin/SuperAdminKpiGrid.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
+import SuperAdminSection from '@/Components/SuperAdmin/SuperAdminSection.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
+import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from '@/composables/useI18n';
@@ -60,89 +65,138 @@ const attentionItems = computed(() => {
     }
     return items;
 });
+
+const kpiItems = computed(() => [
+    {
+        label: t('superAdmin.dashboard.statsActiveCompanies'),
+        value: props.stats.active_companies,
+        href: '/companies?is_active=1',
+        tone: 'accent' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.statsLandingSignups'),
+        value: props.stats.pending_signups,
+        href: '/signup-requests?status=pending',
+        tone: props.stats.pending_signups > 0 ? 'highlight' as const : 'default' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.statsOverdueInvoices'),
+        value: props.stats.overdue_invoices,
+        href: '/invoices?status=issued',
+        hint: props.stats.issued_invoices > props.stats.overdue_invoices
+            ? t('superAdmin.dashboard.statsIssuedTotal', { count: props.stats.issued_invoices })
+            : undefined,
+        tone: props.stats.overdue_invoices > 0 ? 'danger' as const : 'default' as const,
+    },
+    {
+        label: 'MRR (KZT)',
+        value: props.stats.mrr_kzt,
+        hint: t('superAdmin.dashboard.statsMrrHint'),
+    },
+]);
+
+function formatDate(iso: string): string {
+    try {
+        return new Date(iso).toLocaleDateString('ru-RU', { dateStyle: 'medium' });
+    } catch {
+        return iso;
+    }
+}
+
+function subscriptionLabel(status: string): string {
+    const statusMap: Record<string, string> = {
+        trial: t('superAdmin.subscriptionStatus.trial'),
+        active: t('superAdmin.subscriptionStatus.active'),
+        past_due: t('superAdmin.subscriptionStatus.pastDue'),
+        suspended: t('superAdmin.subscriptionStatus.suspended'),
+        canceled: t('superAdmin.subscriptionStatus.canceled'),
+    };
+    return statusMap[status] ?? status;
+}
 </script>
 
 <template>
     <SuperAdminLayout>
-        <Head title="Super Admin" />
-        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.dashboard.title') }}</h1>
+        <Head :title="t('superAdmin.dashboard.title')" />
 
-        <div v-if="attentionItems.length > 0" class="ui-alert mb-6 border-ui-accent-border bg-ui-accent-soft">
-            <p class="mb-2 text-sm font-medium text-ui-text">{{ t('superAdmin.dashboard.attentionTitle') }}</p>
-            <ul class="space-y-1 text-sm">
-                <li v-for="item in attentionItems" :key="item.href">
-                    <Link :href="item.href" class="text-ui-accent hover:underline">
-                        {{ item.label }}: {{ item.count }}
-                    </Link>
-                </li>
-            </ul>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.overview')"
+            :title="t('superAdmin.dashboard.title')"
+            :subtitle="t('superAdmin.dashboard.subtitle')"
+        >
+            <template #actions>
+                <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">
+                    {{ t('superAdmin.dashboard.actionsCreateCompany') }}
+                </Link>
+                <Link
+                    v-if="stats.pending_signups > 0"
+                    href="/signup-requests?status=pending"
+                    class="ui-btn ui-btn--secondary ui-btn--sm"
+                >
+                    {{ t('superAdmin.dashboard.actionsSignupRequests', { count: stats.pending_signups }) }}
+                </Link>
+            </template>
+        </SuperAdminPageHeader>
+
+        <SuperAdminAttentionBanner
+            :title="t('superAdmin.dashboard.attentionTitle')"
+            :items="attentionItems"
+        />
+
+        <SuperAdminKpiGrid :items="kpiItems" />
+
+        <div class="ui-super-admin-actions">
+            <Link href="/invoices" class="ui-btn ui-btn--ghost ui-btn--sm">
+                {{ t('superAdmin.dashboard.actionsAllInvoices') }}
+            </Link>
+            <Link href="/ai-sales" class="ui-btn ui-btn--ghost ui-btn--sm">
+                {{ t('superAdmin.layout.nav.aiSales') }}
+            </Link>
         </div>
 
-        <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Link href="/companies?is_active=1" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsActiveCompanies') }}</div>
-                <div class="mt-1 text-3xl font-semibold">{{ stats.active_companies }}</div>
-            </Link>
-            <Link href="/signup-requests?status=pending" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsLandingSignups') }}</div>
-                <div class="mt-1 text-3xl font-semibold">{{ stats.pending_signups }}</div>
-            </Link>
-            <Link href="/invoices?status=issued" class="ui-panel p-4 transition-colors hover:bg-ui-surface-hover">
-                <div class="text-sm text-ui-text-secondary">{{ t('superAdmin.dashboard.statsOverdueInvoices') }}</div>
-                <div class="mt-1 text-3xl font-semibold">{{ stats.overdue_invoices }}</div>
-                <p v-if="stats.issued_invoices > stats.overdue_invoices" class="mt-1 text-xs text-ui-text-muted">
-                    {{ t('superAdmin.dashboard.statsIssuedTotal', { count: stats.issued_invoices }) }}
-                </p>
-            </Link>
-            <div class="ui-panel p-4">
-                <div class="text-sm text-ui-text-secondary">MRR (KZT)</div>
-                <div class="mt-1 text-3xl font-semibold">{{ stats.mrr_kzt }}</div>
-                <p class="mt-1 text-xs text-ui-text-muted">{{ t('superAdmin.dashboard.statsMrrHint') }}</p>
-            </div>
-        </div>
-
-        <div class="mb-6 flex flex-wrap gap-2">
-            <Link href="/companies/create" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('superAdmin.dashboard.actionsCreateCompany') }}</Link>
-            <Link
-                v-if="stats.pending_signups > 0"
-                href="/signup-requests?status=pending"
-                class="ui-btn ui-btn--secondary ui-btn--sm"
-            >
-                {{ t('superAdmin.dashboard.actionsSignupRequests', { count: stats.pending_signups }) }}
-            </Link>
-            <Link href="/invoices" class="ui-btn ui-btn--ghost ui-btn--sm">{{ t('superAdmin.dashboard.actionsAllInvoices') }}</Link>
-        </div>
-
-        <div class="ui-panel overflow-hidden p-0">
-            <div class="border-b border-ui-border px-4 py-3 font-medium">{{ t('superAdmin.dashboard.recentCompaniesTitle') }}</div>
+        <SuperAdminSection
+            :title="t('superAdmin.dashboard.recentCompaniesTitle')"
+            flush
+        >
             <div class="divide-y divide-ui-border">
                 <Link
                     v-for="c in recentCompanies"
                     :key="c.id"
                     :href="`/companies/${c.id}`"
-                    class="flex items-center justify-between px-4 py-3 transition-colors hover:bg-ui-surface-hover"
+                    class="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-ui-surface-hover sm:px-5"
                 >
-                    <div>
-                        <div class="font-medium">{{ c.name }}</div>
-                        <div class="text-sm text-ui-text-secondary">{{ c.slug }}.{{ rootDomain }}</div>
+                    <div class="min-w-0">
+                        <div class="font-medium truncate">{{ c.name }}</div>
+                        <div class="text-sm text-ui-text-secondary truncate">
+                            {{ c.slug }}.{{ rootDomain }}
+                            <span v-if="c.plan?.name" class="text-ui-text-muted"> · {{ c.plan.name }}</span>
+                        </div>
                     </div>
-                    <div class="text-sm text-ui-text-secondary">{{ c.subscription_status }}</div>
+                    <div class="flex shrink-0 flex-col items-end gap-1">
+                        <span :class="subscriptionStatusBadgeClass(c.subscription_status)">
+                            {{ subscriptionLabel(c.subscription_status) }}
+                        </span>
+                        <span class="text-xs text-ui-text-muted">{{ formatDate(c.created_at) }}</span>
+                    </div>
                 </Link>
             </div>
-        </div>
+        </SuperAdminSection>
 
-        <div v-if="props.topFeedback && props.topFeedback.length > 0" class="ui-panel mt-6 overflow-hidden p-0">
-            <div class="flex items-center justify-between border-b border-ui-border px-4 py-3">
-                <div class="font-medium">{{ t('superAdmin.dashboard.topFeedbackTitle') }}</div>
+        <SuperAdminSection
+            v-if="props.topFeedback && props.topFeedback.length > 0"
+            :title="t('superAdmin.dashboard.topFeedbackTitle')"
+            flush
+        >
+            <template #actions>
                 <Link href="/contact-messages/ranking" class="text-sm text-ui-accent hover:underline">
                     {{ t('superAdmin.dashboard.topFeedbackLink') }}
                 </Link>
-            </div>
+            </template>
             <div class="divide-y divide-ui-border">
                 <div
                     v-for="item in props.topFeedback"
                     :key="item.id"
-                    class="flex items-start justify-between gap-4 px-4 py-3"
+                    class="flex items-start justify-between gap-4 px-4 py-3 sm:px-5"
                 >
                     <div class="min-w-0">
                         <div class="text-sm font-medium truncate">{{ item.message }}</div>
@@ -151,6 +205,6 @@ const attentionItems = computed(() => {
                     <div class="shrink-0 text-sm font-semibold">{{ item.likes_count }}</div>
                 </div>
             </div>
-        </div>
+        </SuperAdminSection>
     </SuperAdminLayout>
 </template>

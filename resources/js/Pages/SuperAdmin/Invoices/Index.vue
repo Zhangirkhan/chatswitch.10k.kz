@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
@@ -51,7 +52,10 @@ function formatDate(iso: string | null): string {
 <template>
     <SuperAdminLayout>
         <Head :title="t('superAdmin.invoices.pageTitle')" />
-        <h1 class="mb-6 text-2xl font-bold">{{ t('superAdmin.invoices.heading') }}</h1>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.billing')"
+            :title="t('superAdmin.invoices.heading')"
+        />
 
         <UiFilterPanel class="mb-4" @submit="applyFilters">
             <UiFilterField :label="t('superAdmin.invoices.filterSearch')" wide>

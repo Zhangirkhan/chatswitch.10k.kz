@@ -374,7 +374,7 @@ function assignPlan(): void {
     <SuperAdminLayout>
         <Head :title="company.name" />
 
-        <div class="mb-4">
+        <div class="ui-super-admin-actions !mb-4">
             <Link href="/companies" class="text-sm text-ui-text-secondary hover:text-ui-accent">{{ t('superAdmin.companies.show.back') }}</Link>
         </div>
 
@@ -394,7 +394,7 @@ function assignPlan(): void {
             @delete="requestDelete"
         />
 
-        <UiPillNav class="mb-6 max-w-5xl flex-wrap">
+        <UiPillNav class="ui-super-admin-tabs mb-6 flex-wrap">
             <button
                 v-for="t in tabs"
                 :key="t.id"

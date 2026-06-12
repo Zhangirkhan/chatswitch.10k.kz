@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiCheckbox from '@/Components/Ui/UiCheckbox.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
+import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -140,17 +141,17 @@ function submitEdit(): void {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.plans.pageTitle')" />
 
-        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="mb-1 text-2xl font-bold">{{ t('superAdmin.plans.heading') }}</h1>
-                <p class="text-sm text-ui-text-secondary">
-                    {{ t('superAdmin.plans.defaultHint', { price: '40 000 ₸', days: 14 }) }}
-                </p>
-            </div>
-            <button type="button" class="ui-btn ui-btn--primary" @click="openCreateModal">
-                {{ t('superAdmin.plans.addPlan') }}
-            </button>
-        </div>
+        <SuperAdminPageHeader
+            :eyebrow="t('superAdmin.layout.navGroups.billing')"
+            :title="t('superAdmin.plans.heading')"
+            :subtitle="t('superAdmin.plans.defaultHint', { price: '40 000 ₸', days: 14 })"
+        >
+            <template #actions>
+                <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" @click="openCreateModal">
+                    {{ t('superAdmin.plans.addPlan') }}
+                </button>
+            </template>
+        </SuperAdminPageHeader>
 
         <div v-if="plans.length === 0" class="ui-empty-state ui-empty-state--dashed">
             <p>{{ t('superAdmin.plans.empty') }}</p>
