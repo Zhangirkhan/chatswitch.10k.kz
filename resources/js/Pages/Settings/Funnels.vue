@@ -3,6 +3,8 @@ import SettingsLayout from '@/Layouts/SettingsLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import FunnelStageIcon from '@/Components/Funnel/FunnelStageIcon.vue';
 import FunnelAiWizard, { type AiFunnelSuggestion } from '@/Pages/Settings/Partials/FunnelAiWizard.vue';
+import FunnelCreateModalShell from '@/Pages/Settings/Partials/FunnelCreateModalShell.vue';
+import FunnelCreateOnboardingModal, { type FunnelTemplateOption } from '@/Pages/Settings/Partials/FunnelCreateOnboardingModal.vue';
 import { FUNNEL_STAGE_TYPES, guessStageTypeFromName, type FunnelStageTypeValue } from '@/utils/funnelStageTypes';
 import {
     stageHintToneStyle,
@@ -122,10 +124,89 @@ const localFunnels = ref<Funnel[]>([...props.funnels]);
 const aiWizardRef = ref<InstanceType<typeof FunnelAiWizard> | null>(null);
 const creatingTemplateKey = ref<string | null>(null);
 
+const FUNNEL_COLLAPSE_STORAGE_KEY = 'accel.settings.funnels.collapsed';
+const FUNNEL_SEEN_STORAGE_KEY = 'accel.settings.funnels.collapsed-seen';
+
+function loadStoredIdSet(key: string): Set<number> {
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+            const parsed = JSON.parse(raw) as unknown;
+            if (Array.isArray(parsed)) {
+                return new Set(parsed.filter((id): id is number => typeof id === 'number'));
+            }
+        }
+    } catch {
+        // ignore invalid storage
+    }
+
+    return new Set();
+}
+
+function persistIdSet(key: string, ids: Set<number>): void {
+    localStorage.setItem(key, JSON.stringify([...ids]));
+}
+
+function loadCollapsedFunnelIds(): Set<number> {
+    return loadStoredIdSet(FUNNEL_COLLAPSE_STORAGE_KEY);
+}
+
+const collapsedFunnelIds = ref<Set<number>>(loadCollapsedFunnelIds());
+
+function persistCollapsedFunnelIds(): void {
+    persistIdSet(FUNNEL_COLLAPSE_STORAGE_KEY, collapsedFunnelIds.value);
+}
+
+function initCollapsedDefaults(funnels: Funnel[]): void {
+    const validIds = new Set(funnels.map((funnel) => funnel.id));
+    const seenIds = loadStoredIdSet(FUNNEL_SEEN_STORAGE_KEY);
+    const hasStoredPreference = localStorage.getItem(FUNNEL_COLLAPSE_STORAGE_KEY) !== null;
+
+    if (!hasStoredPreference) {
+        collapsedFunnelIds.value = new Set(funnels.map((funnel) => funnel.id));
+        persistCollapsedFunnelIds();
+        persistIdSet(FUNNEL_SEEN_STORAGE_KEY, validIds);
+        return;
+    }
+
+    const next = new Set<number>();
+    for (const id of collapsedFunnelIds.value) {
+        if (validIds.has(id)) {
+            next.add(id);
+        }
+    }
+
+    for (const funnel of funnels) {
+        if (!seenIds.has(funnel.id)) {
+            next.add(funnel.id);
+        }
+    }
+
+    collapsedFunnelIds.value = next;
+    persistCollapsedFunnelIds();
+    persistIdSet(FUNNEL_SEEN_STORAGE_KEY, new Set([...seenIds, ...validIds]));
+}
+
+function isFunnelCollapsed(funnelId: number): boolean {
+    return collapsedFunnelIds.value.has(funnelId);
+}
+
+function toggleFunnelCollapsed(funnelId: number): void {
+    const next = new Set(collapsedFunnelIds.value);
+    if (next.has(funnelId)) {
+        next.delete(funnelId);
+    } else {
+        next.add(funnelId);
+    }
+    collapsedFunnelIds.value = next;
+    persistCollapsedFunnelIds();
+}
+
 watch(
     () => props.funnels,
     (next) => {
         localFunnels.value = [...next];
+        initCollapsedDefaults(next);
     },
     { deep: true },
 );
@@ -157,6 +238,7 @@ interface AiStageDraft {
 }
 
 const funnelModalOpen = ref(false);
+const createEntryModalOpen = ref(false);
 const editingFunnelId = ref<number | null>(null);
 const funnelMode = ref<FunnelMode>('manual');
 const funnelForm = ref({
@@ -179,7 +261,16 @@ function resetAiState() {
     aiWizardRef.value?.resetWizard();
 }
 
+function openCreateEntryModal(): void {
+    createEntryModalOpen.value = true;
+}
+
+function closeCreateEntryModal(): void {
+    createEntryModalOpen.value = false;
+}
+
 function openCreateFunnel(mode: FunnelMode = 'manual') {
+    closeCreateEntryModal();
     editingFunnelId.value = null;
     funnelMode.value = mode;
     funnelForm.value = {
@@ -211,18 +302,6 @@ function closeFunnelModal() {
     funnelModalOpen.value = false;
     funnelErrors.value = {};
     resetAiState();
-}
-
-function switchFunnelMode(mode: FunnelMode) {
-    if (funnelMode.value === mode) return;
-    funnelMode.value = mode;
-    funnelErrors.value = {};
-    aiError.value = null;
-    if (mode === 'ai') {
-        aiSuggested.value = false;
-        aiStages.value = [];
-        aiWizardRef.value?.resetWizard();
-    }
 }
 
 function onWizardSelect(suggestion: AiFunnelSuggestion) {
@@ -830,6 +909,44 @@ function toggleStageAction(stage: FunnelStage, action: string): string[] {
 const totalFunnels = computed(() => localFunnels.value.length);
 const funnelTemplates = computed(() => props.funnelTemplates ?? []);
 
+const funnelModalTitle = computed(() => {
+    if (editingFunnelId.value !== null) {
+        return t('settings.funnels.modals.editFunnel');
+    }
+
+    return funnelMode.value === 'ai'
+        ? t('settings.funnels.onboarding.aiTitle')
+        : t('settings.funnels.onboarding.manualTitle');
+});
+
+const funnelModalSubtitle = computed(() => {
+    if (editingFunnelId.value !== null) {
+        return '';
+    }
+
+    return funnelMode.value === 'ai'
+        ? t('settings.funnels.onboarding.aiDesc')
+        : t('settings.funnels.onboarding.manualDesc');
+});
+
+const funnelModalAccent = computed((): 'ai' | 'manual' | 'neutral' => {
+    if (editingFunnelId.value !== null) {
+        return 'neutral';
+    }
+    return funnelMode.value === 'ai' ? 'ai' : 'manual';
+});
+
+const funnelModalEyebrow = computed(() => {
+    if (editingFunnelId.value !== null) {
+        return '';
+    }
+    return funnelMode.value === 'ai' ? t('settings.funnelAiWizard.eyebrow') : '';
+});
+
+const funnelModalWide = computed(
+    () => editingFunnelId.value === null && funnelMode.value === 'ai' && !aiSuggested.value,
+);
+
 function stageRuleIssueLabel(issue: StageRuleIssueId): string {
     return t(`settings.funnels.issues.${issue}`);
 }
@@ -875,7 +992,7 @@ function funnelIssueCount(funnel: Funnel): number {
     );
 }
 
-async function createFromTemplate(template: FunnelTemplate): Promise<void> {
+async function createFromTemplate(template: FunnelTemplateOption): Promise<void> {
     if (creatingTemplateKey.value !== null) return;
     creatingTemplateKey.value = template.key;
     try {
@@ -883,6 +1000,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
             template_key: template.key,
         });
         showToast({ message: t('settings.funnels.toastTemplateApplied', { name: template.industry }), duration: 3000 });
+        closeCreateEntryModal();
         await router.reload({ only: ['funnels'] });
     } catch (e: any) {
         showToast({ message: e.response?.data?.message || t('settings.funnels.errorTemplateCreate'), duration: 6000 });
@@ -896,22 +1014,13 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
     <Head :title="t('settings.funnels.title')" />
     <SettingsLayout :title="t('settings.funnels.title')" :subtitle="t('settings.funnels.subtitle')">
         <template #actions>
-            <div class="flex items-center gap-2">
-                <button
-                    type="button"
-                    class="ui-btn ui-btn--ghost"
-                    @click="openCreateFunnel('ai')"
-                >
-                    {{ t('settings.funnels.aiBuilder') }}
-                </button>
-                <button
-                    type="button"
-                    class="ui-btn ui-btn--primary"
-                    @click="openCreateFunnel('manual')"
-                >
-                    {{ t('settings.funnels.newFunnel') }}
-                </button>
-            </div>
+            <button
+                type="button"
+                class="ui-btn ui-btn--primary"
+                @click="openCreateEntryModal"
+            >
+                {{ t('settings.funnels.createFunnel') }}
+            </button>
         </template>
 
         <div class="funnels-page w-full px-6 py-6 space-y-5">
@@ -919,85 +1028,28 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                 {{ t('settings.funnels.intro') }}
             </p>
 
-            <section
-                v-if="funnelTemplates.length"
-                class="ui-panel p-4"
-            >
-                <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <h2 class="text-sm font-semibold text-[var(--ui-text)]">{{ t('settings.funnels.templatesTitle') }}</h2>
-                        <p class="text-xs text-[var(--ui-text-secondary)]">
-                            {{ t('settings.funnels.templatesDesc') }}
-                        </p>
-                    </div>
-                    <span class="text-xs font-medium text-[var(--ui-text-secondary)]">{{ t('settings.funnels.templatesCount', { count: funnelTemplates.length }) }}</span>
-                </div>
-
-                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <article
-                        v-for="template in funnelTemplates"
-                        :key="template.key"
-                        class="rounded-xl border p-3"
-                        :style="{ background: 'var(--ui-surface-muted)', borderColor: 'var(--ui-border)' }"
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: template.color }"></span>
-                                    <h3 class="truncate text-sm font-semibold text-[var(--ui-text)]">{{ template.industry }}</h3>
-                                </div>
-                                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--ui-text-secondary)]">{{ template.description }}</p>
-                            </div>
-                            <button
-                                type="button"
-                                class="ui-btn ui-btn--primary ui-btn--sm shrink-0"
-                                :disabled="creatingTemplateKey !== null"
-                                @click="createFromTemplate(template)"
-                            >
-                                {{ creatingTemplateKey === template.key ? t('settings.funnels.creating') : t('settings.funnels.create') }}
-                            </button>
-                        </div>
-                        <div class="mt-3 flex flex-wrap gap-1.5">
-                            <span
-                                v-for="stage in template.stages.slice(0, 4)"
-                                :key="`${template.key}-${stage.name}`"
-                                class="rounded-full px-2 py-0.5 text-[11px]"
-                                :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text-secondary)' }"
-                            >
-                                {{ stage.name }}
-                            </span>
-                            <span v-if="template.stages.length > 4" class="rounded-full px-2 py-0.5 text-[11px]" :style="{ background: 'var(--ui-surface)', color: 'var(--ui-text-secondary)' }">
-                                +{{ template.stages.length - 4 }}
-                            </span>
-                        </div>
-                    </article>
-                </div>
-            </section>
-
             <div
                 v-if="totalFunnels === 0"
-                class="funnel-empty-card rounded-2xl border px-6 py-12 text-center"
+                class="funnel-empty-card rounded-2xl border px-6 py-14 text-center"
             >
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border"
+                    :style="{ borderColor: 'var(--ui-accent-border)', background: 'color-mix(in srgb, var(--ui-accent) 10%, var(--ui-surface))' }"
+                >
+                    <svg class="h-7 w-7 text-[var(--ui-accent)]" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h18" />
+                    </svg>
+                </div>
                 <div class="text-[var(--ui-text)] text-base font-semibold mb-1">{{ t('settings.funnels.emptyTitle') }}</div>
-                <div class="text-sm text-[var(--ui-text-secondary)] mb-4">
+                <div class="text-sm text-[var(--ui-text-secondary)] mb-5 max-w-md mx-auto">
                     {{ t('settings.funnels.emptyHint') }}
                 </div>
-                <div class="flex flex-wrap justify-center gap-2">
-                    <button
-                        type="button"
-                        class="ui-btn ui-btn--primary"
-                        @click="openCreateFunnel('ai')"
-                    >
-                        {{ t('settings.funnels.createWithAi') }}
-                    </button>
-                    <button
-                        type="button"
-                        class="ui-btn ui-btn--ghost"
-                        @click="openCreateFunnel('manual')"
-                    >
-                        {{ t('settings.funnels.createManual') }}
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    class="ui-btn ui-btn--primary"
+                    @click="openCreateEntryModal"
+                >
+                    {{ t('settings.funnels.createFunnel') }}
+                </button>
             </div>
 
             <div v-else class="space-y-3">
@@ -1008,8 +1060,28 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                 >
                     <div
                         class="funnel-card-header px-5 py-4 flex items-center justify-between gap-3"
+                        :class="{ 'funnel-card-header--collapsed': isFunnelCollapsed(funnel.id) }"
                     >
                         <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <button
+                                type="button"
+                                class="funnel-collapse-btn shrink-0"
+                                :aria-expanded="!isFunnelCollapsed(funnel.id)"
+                                :aria-label="isFunnelCollapsed(funnel.id) ? t('settings.funnels.expandFunnel') : t('settings.funnels.collapseFunnel')"
+                                @click="toggleFunnelCollapsed(funnel.id)"
+                            >
+                                <svg
+                                    class="h-4 w-4 transition-transform duration-200"
+                                    :class="{ 'rotate-180': !isFunnelCollapsed(funnel.id) }"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
                             <span
                                 class="w-3 h-3 rounded-full shrink-0"
                                 :style="{ background: funnel.color }"
@@ -1017,6 +1089,12 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             <div class="min-w-0">
                                 <div class="text-[15px] font-semibold text-[var(--ui-text)] truncate flex items-center gap-2">
                                     {{ funnel.name }}
+                                    <span
+                                        v-if="isFunnelCollapsed(funnel.id)"
+                                        class="text-[11px] font-normal text-[var(--ui-text-secondary)]"
+                                    >
+                                        {{ t('settings.funnels.stagesCount', { count: funnel.stages.length }) }}
+                                    </span>
                                     <span
                                         v-if="!funnel.is_active"
                                         class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400"
@@ -1067,6 +1145,7 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                         </div>
                     </div>
 
+                    <div v-show="!isFunnelCollapsed(funnel.id)">
                     <div
                         class="ai-scenario-card px-5 py-4 border-b space-y-3"
                     >
@@ -1597,86 +1676,153 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             </li>
                         </ol>
                     </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Modal: Funnel -->
-        <Teleport to="body">
-            <div
-                v-if="funnelModalOpen"
-                class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60"
-                role="dialog"
-                aria-modal="true"
-                @click.self="closeFunnelModal"
-            >
-                <div
-                    class="w-full max-h-[min(90vh,800px)] overflow-hidden flex flex-col rounded-xl border shadow-2xl"
-                    :class="editingFunnelId === null && funnelMode === 'ai' && !aiSuggested ? 'max-w-2xl' : 'max-w-lg'"
-                    :style="{ background: 'var(--ui-surface)', borderColor: 'var(--ui-border-strong)' }"
-                    @click.stop
-                >
-                    <div
-                        class="px-5 py-4 border-b shrink-0 flex items-center justify-between gap-3"
-                        :style="{ borderColor: 'var(--ui-border)' }"
-                    >
-                        <h3 class="text-base font-medium text-[var(--ui-text)]">
-                            {{ editingFunnelId === null ? t('settings.funnels.modals.newFunnel') : t('settings.funnels.modals.editFunnel') }}
-                        </h3>
-                        <button
-                            type="button"
-                            class="text-sm text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)] px-2 py-1 rounded"
-                            :aria-label="t('common.close')"
-                            @click="closeFunnelModal"
-                        >
-                            ✕
-                        </button>
-                    </div>
+        <FunnelCreateModalShell
+            v-if="funnelModalOpen"
+            :accent="funnelModalAccent"
+            :title="funnelModalTitle"
+            :subtitle="funnelModalSubtitle"
+            :eyebrow="funnelModalEyebrow"
+            :wide="funnelModalWide"
+            :close-label="t('common.close')"
+            @close="closeFunnelModal"
+        >
+            <template v-if="funnelMode === 'ai' && editingFunnelId === null && !aiSuggested">
+                <FunnelAiWizard
+                    ref="aiWizardRef"
+                    @select="onWizardSelect"
+                />
+            </template>
 
-                    <div
-                        v-if="editingFunnelId === null"
-                        class="px-5 pt-4 shrink-0"
-                    >
-                        <div
-                            class="inline-flex rounded-lg border p-1 text-xs"
-                            :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
-                        >
-                            <button
-                                type="button"
-                                class="px-3 py-1.5 rounded-md transition"
-                                :style="funnelMode === 'manual'
-                                    ? { background: 'var(--ui-accent)', color: '#fff' }
-                                    : { color: 'var(--ui-text-secondary)' }"
-                                @click="switchFunnelMode('manual')"
-                            >
-                                {{ t('settings.funnels.modals.manual') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="px-3 py-1.5 rounded-md transition flex items-center gap-1.5"
-                                :style="funnelMode === 'ai'
-                                    ? { background: 'var(--ui-accent)', color: '#fff' }
-                                    : { color: 'var(--ui-text-secondary)' }"
-                                @click="switchFunnelMode('ai')"
-                            >
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" />
-                                </svg>
-                                {{ t('settings.funnels.aiBuilder') }}
-                            </button>
+            <div
+                v-else-if="funnelMode === 'manual' && editingFunnelId === null && !aiSuggested"
+                class="funnel-manual-create space-y-5"
+            >
+                <div class="funnel-manual-create__intro">
+                    <p>{{ t('settings.funnels.modals.manualIntro') }}</p>
+                </div>
+
+                <section class="funnel-manual-create__section">
+                    <h4 class="funnel-manual-create__section-title">
+                        {{ t('settings.funnels.modals.basicsSection') }}
+                    </h4>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.name') }}
+                            </label>
+                            <input
+                                v-model="funnelForm.name"
+                                type="text"
+                                class="settings-input"
+                                :class="{ 'settings-input-error': funnelErrors.name }"
+                                :placeholder="t('settings.funnels.modals.namePlaceholderFunnel')"
+                            />
+                            <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
+                                {{ t('settings.funnels.modals.nameHint') }}
+                            </p>
+                            <div v-if="funnelErrors.name" class="text-xs text-red-400 mt-1 whitespace-pre-line">
+                                {{ funnelErrors.name }}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.descriptionOptional') }}
+                            </label>
+                            <textarea
+                                v-model="funnelForm.description"
+                                class="settings-input min-h-[72px]"
+                                rows="2"
+                                :placeholder="t('settings.funnels.modals.descriptionPlaceholder')"
+                            />
+                            <p class="mt-1 text-xs text-[var(--ui-text-secondary)]">
+                                {{ t('settings.funnels.modals.descriptionHint') }}
+                            </p>
                         </div>
                     </div>
+                </section>
 
-                    <div class="flex-1 overflow-y-auto wa-scrollbar px-5 py-4 space-y-3">
-                        <template v-if="funnelMode === 'ai' && editingFunnelId === null && !aiSuggested">
-                            <FunnelAiWizard
-                                ref="aiWizardRef"
-                                @select="onWizardSelect"
-                            />
-                        </template>
+                <section class="funnel-manual-create__section">
+                    <h4 class="funnel-manual-create__section-title">
+                        {{ t('settings.funnels.modals.appearanceSection') }}
+                    </h4>
 
-                        <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.name') }}</label>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.color') }}
+                            </label>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="c in palette"
+                                    :key="c"
+                                    type="button"
+                                    class="funnel-manual-create__swatch"
+                                    :class="{ 'is-active': funnelForm.color === c }"
+                                    :style="{ background: c }"
+                                    :aria-label="c"
+                                    @click="funnelForm.color = c"
+                                >
+                                    <svg
+                                        v-if="funnelForm.color === c"
+                                        class="h-3.5 w-3.5 text-white drop-shadow"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.5"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <p class="mt-2 text-xs text-[var(--ui-text-secondary)]">
+                                {{ t('settings.funnels.modals.colorHint') }}
+                            </p>
+                        </div>
+
+                        <div
+                            class="flex items-start gap-3 rounded-xl border px-3 py-3"
+                            :style="{ borderColor: 'var(--ui-border)', background: 'var(--ui-surface-muted)' }"
+                        >
+                            <UiCheckbox id="funnel-active" v-model="funnelForm.is_active" class="mt-0.5" />
+                            <div>
+                                <label for="funnel-active" class="text-sm font-medium text-[var(--ui-text)] cursor-pointer">
+                                    {{ t('settings.funnels.modals.active') }}
+                                </label>
+                                <p class="mt-0.5 text-xs text-[var(--ui-text-secondary)]">
+                                    {{ t('settings.funnels.modals.activeHint') }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div v-else class="space-y-5">
+                <div
+                    v-if="funnelMode === 'ai' && aiSuggested"
+                    class="funnel-manual-create__intro funnel-manual-create__intro--ai"
+                >
+                    <p>{{ t('settings.funnels.modals.aiReviewIntro') }}</p>
+                </div>
+
+                <section class="funnel-manual-create__section">
+                    <h4 class="funnel-manual-create__section-title">
+                        {{ t('settings.funnels.modals.basicsSection') }}
+                    </h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.name') }}
+                            </label>
                             <input
                                 v-model="funnelForm.name"
                                 type="text"
@@ -1689,156 +1835,175 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
                             </div>
                         </div>
 
-                        <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.descriptionOptional') }}</label>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.descriptionOptional') }}
+                            </label>
                             <textarea
                                 v-model="funnelForm.description"
-                                class="settings-input min-h-[64px]"
+                                class="settings-input min-h-[72px]"
                                 rows="2"
                                 :placeholder="t('settings.funnels.modals.descriptionPlaceholder')"
-                            ></textarea>
+                            />
                         </div>
+                    </div>
+                </section>
 
-                        <div v-if="funnelMode === 'manual' || aiSuggested">
-                            <label class="block text-sm text-[var(--ui-text-secondary)] mb-1">{{ t('settings.funnels.modals.color') }}</label>
+                <section class="funnel-manual-create__section">
+                    <h4 class="funnel-manual-create__section-title">
+                        {{ t('settings.funnels.modals.appearanceSection') }}
+                    </h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-[var(--ui-text)]">
+                                {{ t('settings.funnels.modals.color') }}
+                            </label>
                             <div class="flex flex-wrap gap-2">
                                 <button
                                     v-for="c in palette"
                                     :key="c"
                                     type="button"
-                                    class="w-7 h-7 rounded-full border-2 transition"
-                                    :style="{
-                                        background: c,
-                                        borderColor: funnelForm.color === c ? 'var(--ui-text)' : 'transparent',
-                                    }"
+                                    class="funnel-manual-create__swatch"
+                                    :class="{ 'is-active': funnelForm.color === c }"
+                                    :style="{ background: c }"
+                                    :aria-label="c"
                                     @click="funnelForm.color = c"
-                                />
+                                >
+                                    <svg
+                                        v-if="funnelForm.color === c"
+                                        class="h-3.5 w-3.5 text-white drop-shadow"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2.5"
+                                        viewBox="0 0 24 24"
+                                        aria-hidden="true"
+                                    >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
 
-                        <div
-                            v-if="funnelMode === 'manual' || aiSuggested"
-                            class="flex items-center gap-2 pt-1"
-                        >
-                            <UiCheckbox id="funnel-active" v-model="funnelForm.is_active" />
-                            <label for="funnel-active" class="text-sm text-[var(--ui-text)] cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <UiCheckbox id="funnel-active-edit" v-model="funnelForm.is_active" />
+                            <label for="funnel-active-edit" class="text-sm text-[var(--ui-text)] cursor-pointer">
                                 {{ t('settings.funnels.modals.active') }}
                             </label>
                         </div>
+                    </div>
+                </section>
 
-                        <!-- AI stages preview / editor -->
-                        <div
-                            v-if="funnelMode === 'ai' && aiSuggested"
-                            class="pt-2 border-t"
-                            :style="{ borderColor: 'var(--ui-border)' }"
+                <!-- AI stages preview / editor -->
+                <div
+                    v-if="funnelMode === 'ai' && aiSuggested"
+                    class="funnel-manual-create__section border-t pt-4"
+                    :style="{ borderColor: 'var(--ui-border)' }"
+                >
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <h4 class="funnel-manual-create__section-title mb-0">
+                            {{ t('settings.funnels.modals.stagesInFunnel', { count: aiStages.length }) }}
+                        </h4>
+                        <button
+                            type="button"
+                            class="ui-btn ui-btn--ghost ui-btn--sm"
+                            @click="addAiStage"
                         >
-                            <div class="flex items-center justify-between mb-2 mt-2">
-                                <label class="text-sm text-[var(--ui-text-secondary)]">
-                                    {{ t('settings.funnels.modals.stagesInFunnel', { count: aiStages.length }) }}
-                                </label>
-                                <button
-                                    type="button"
-                                    class="text-xs px-2 py-1 rounded-md border transition hover:brightness-95"
-                                    :style="{ color: 'var(--ui-accent)', borderColor: 'var(--ui-accent-border)' }"
-                                    @click="addAiStage"
-                                >
-                                    {{ t('settings.funnels.addStage') }}
-                                </button>
-                            </div>
-
-                            <ol v-if="aiStages.length > 0" class="space-y-2">
-                                <li
-                                    v-for="(stage, idx) in aiStages"
-                                    :key="idx"
-                                    class="flex items-center gap-2 px-2.5 py-2 rounded-lg border"
-                                    :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
-                                >
-                                    <span class="text-xs font-mono text-[var(--ui-text-secondary)] w-5 text-right">
-                                        {{ idx + 1 }}.
-                                    </span>
-                                    <input
-                                        v-model="stage.color"
-                                        type="color"
-                                        class="w-6 h-6 rounded cursor-pointer border-0 p-0 bg-transparent shrink-0"
-                                        :title="stage.color"
-                                    />
-                                    <input
-                                        v-model="stage.name"
-                                        type="text"
-                                        class="settings-input flex-1 min-w-0"
-                                        :placeholder="t('settings.funnels.modals.stageNamePlaceholder')"
-                                    />
-                                    <div class="flex items-center gap-0.5 shrink-0">
-                                        <button
-                                            type="button"
-                                            class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
-                                            :disabled="idx === 0"
-                                            :title="t('settings.funnels.moveUp')"
-                                            @click="moveAiStage(idx, -1)"
-                                        >
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
-                                            :disabled="idx === aiStages.length - 1"
-                                            :title="t('settings.funnels.moveDown')"
-                                            @click="moveAiStage(idx, 1)"
-                                        >
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="px-1.5 py-1 rounded text-red-400 hover:bg-red-500/10"
-                                            :title="t('settings.funnels.removeStage')"
-                                            @click="removeAiStage(idx)"
-                                        >
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </li>
-                            </ol>
-                            <div v-else class="text-xs text-[var(--ui-text-secondary)] italic">
-                                {{ t('settings.funnels.modals.noStagesInModal') }}
-                            </div>
-                        </div>
+                            {{ t('settings.funnels.addStage') }}
+                        </button>
                     </div>
 
-                    <div
-                        v-if="funnelMode !== 'ai' || editingFunnelId !== null || aiSuggested"
-                        class="flex justify-end gap-2 px-5 py-3 border-t shrink-0"
-                        :style="{ borderColor: 'var(--ui-border)' }"
-                    >
-                        <button
-                            type="button"
-                            class="ui-btn ui-btn--secondary"
-                            @click="closeFunnelModal"
+                    <ol v-if="aiStages.length > 0" class="space-y-2">
+                        <li
+                            v-for="(stage, idx) in aiStages"
+                            :key="idx"
+                            class="flex items-center gap-2 px-2.5 py-2 rounded-lg border"
+                            :style="{ background: 'var(--ui-bg)', borderColor: 'var(--ui-border-strong)' }"
                         >
-                            {{ t('common.cancel') }}
-                        </button>
-                        <button
-                            type="button"
-                            class="ui-btn ui-btn--primary"
-                            :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
-                            @click="saveFunnel"
-                        >
-                            <template v-if="savingFunnel">{{ t('settings.funnels.savingEllipsis') }}</template>
-                            <template v-else-if="editingFunnelId !== null">{{ t('common.save') }}</template>
-                            <template v-else-if="funnelMode === 'ai' && aiSuggested">
-                                {{ t('settings.funnels.modals.createWithStages', { count: aiStages.length }) }}
-                            </template>
-                            <template v-else>{{ t('settings.funnels.create') }}</template>
-                        </button>
+                            <span class="text-xs font-mono text-[var(--ui-text-secondary)] w-5 text-right">
+                                {{ idx + 1 }}.
+                            </span>
+                            <input
+                                v-model="stage.color"
+                                type="color"
+                                class="w-6 h-6 rounded cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                                :title="stage.color"
+                            />
+                            <input
+                                v-model="stage.name"
+                                type="text"
+                                class="settings-input flex-1 min-w-0"
+                                :placeholder="t('settings.funnels.modals.stageNamePlaceholder')"
+                            />
+                            <div class="flex items-center gap-0.5 shrink-0">
+                                <button
+                                    type="button"
+                                    class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
+                                    :disabled="idx === 0"
+                                    :title="t('settings.funnels.moveUp')"
+                                    @click="moveAiStage(idx, -1)"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                                    </svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="px-1.5 py-1 rounded text-[var(--ui-text-secondary)] hover:bg-[var(--ui-surface-hover)] disabled:opacity-30"
+                                    :disabled="idx === aiStages.length - 1"
+                                    :title="t('settings.funnels.moveDown')"
+                                    @click="moveAiStage(idx, 1)"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="px-1.5 py-1 rounded text-red-400 hover:bg-red-500/10"
+                                    :title="t('settings.funnels.removeStage')"
+                                    @click="removeAiStage(idx)"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </li>
+                    </ol>
+                    <div v-else class="text-xs text-[var(--ui-text-secondary)] italic">
+                        {{ t('settings.funnels.modals.noStagesInModal') }}
                     </div>
                 </div>
             </div>
-        </Teleport>
+
+            <template
+                v-if="funnelMode !== 'ai' || editingFunnelId !== null || aiSuggested"
+                #footer
+            >
+                <div class="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        class="ui-btn ui-btn--secondary"
+                        @click="closeFunnelModal"
+                    >
+                        {{ t('common.cancel') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="ui-btn ui-btn--primary"
+                        :disabled="savingFunnel || (funnelMode === 'ai' && editingFunnelId === null && !aiSuggested)"
+                        @click="saveFunnel"
+                    >
+                        <template v-if="savingFunnel">{{ t('settings.funnels.savingEllipsis') }}</template>
+                        <template v-else-if="editingFunnelId !== null">{{ t('common.save') }}</template>
+                        <template v-else-if="funnelMode === 'ai' && aiSuggested">
+                            {{ t('settings.funnels.modals.createWithStages', { count: aiStages.length }) }}
+                        </template>
+                        <template v-else>{{ t('settings.funnels.create') }}</template>
+                    </button>
+                </div>
+            </template>
+        </FunnelCreateModalShell>
 
         <!-- Modal: Stage -->
         <Teleport to="body">
@@ -1991,6 +2156,16 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
         </Teleport>
     </SettingsLayout>
 
+    <FunnelCreateOnboardingModal
+        :open="createEntryModalOpen"
+        :templates="funnelTemplates"
+        :creating-template-key="creatingTemplateKey"
+        @close="closeCreateEntryModal"
+        @manual="openCreateFunnel('manual')"
+        @ai="openCreateFunnel('ai')"
+        @template="createFromTemplate"
+    />
+
     <DangerConfirmModal
         :open="bulkDeleteOpen"
         :title="bulkDeleteTitle"
@@ -2014,6 +2189,26 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 .funnel-card-header {
     background: var(--ui-surface-raised);
     border-bottom: 1px solid var(--ui-border);
+}
+
+.funnel-card-header--collapsed {
+    border-bottom: none;
+}
+
+.funnel-collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    color: var(--ui-text-secondary);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.funnel-collapse-btn:hover {
+    background: var(--ui-surface-hover);
+    color: var(--ui-text);
 }
 
 .ai-scenario-card {
@@ -2050,5 +2245,49 @@ async function createFromTemplate(template: FunnelTemplate): Promise<void> {
 [data-theme='dark'] .funnels-page input,
 [data-theme='dark'] .funnels-page textarea {
     color-scheme: dark;
+}
+
+.funnel-manual-create__intro {
+    padding: 0.85rem 1rem;
+    border-radius: 0.85rem;
+    border: 1px solid var(--ui-border);
+    background: color-mix(in srgb, var(--ui-accent) 6%, var(--ui-surface-muted));
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--ui-text-secondary);
+}
+
+.funnel-manual-create__intro--ai {
+    border-color: color-mix(in srgb, #eab308 28%, var(--ui-border));
+    background: color-mix(in srgb, #eab308 6%, var(--ui-surface-muted));
+}
+
+.funnel-manual-create__section-title {
+    margin-bottom: 0.85rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-text-secondary);
+}
+
+.funnel-manual-create__swatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.funnel-manual-create__swatch:hover {
+    transform: scale(1.08);
+}
+
+.funnel-manual-create__swatch.is-active {
+    border-color: var(--ui-text);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-text) 25%, transparent);
 }
 </style>

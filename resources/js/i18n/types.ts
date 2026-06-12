@@ -250,6 +250,25 @@ export interface MessageCatalog {
             intro: string;
             aiBuilder: string;
             newFunnel: string;
+            createFunnel: string;
+            onboarding: {
+                eyebrow: string;
+                title: string;
+                subtitle: string;
+                recommended: string;
+                manualTitle: string;
+                manualDesc: string;
+                manualCta: string;
+                aiTitle: string;
+                aiDesc: string;
+                aiCta: string;
+                templatesCardTitle: string;
+                templatesCardDesc: string;
+                templatesCount: string;
+                templatesTitle: string;
+                templatesSubtitle: string;
+                back: string;
+            };
             templatesTitle: string;
             templatesDesc: string;
             templatesCount: string;
@@ -295,6 +314,9 @@ export interface MessageCatalog {
             aiHealthOk: string;
             aiHealthIssues: string;
             noStagesInFunnel: string;
+            collapseFunnel: string;
+            expandFunnel: string;
+            stagesCount: string;
             dragStage: string;
             moveUp: string;
             moveDown: string;
@@ -370,6 +392,14 @@ export interface MessageCatalog {
             };
             modals: {
                 newFunnel: string;
+                manualIntro: string;
+                aiReviewIntro: string;
+                basicsSection: string;
+                appearanceSection: string;
+                nameHint: string;
+                descriptionHint: string;
+                colorHint: string;
+                activeHint: string;
                 editFunnel: string;
                 newStage: string;
                 editStage: string;
