@@ -7,7 +7,6 @@ import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadg
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from '@/composables/useI18n';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -117,7 +116,6 @@ function subscriptionLabel(status: string): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.dashboard.title')" />
 
         <SuperAdminPageHeader
@@ -209,5 +207,4 @@ function subscriptionLabel(status: string): string {
             </div>
         </SuperAdminSection>
     
-    </SuperAdminLayout>
 </template>

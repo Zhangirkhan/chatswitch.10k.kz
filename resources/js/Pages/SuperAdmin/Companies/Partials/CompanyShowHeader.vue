@@ -165,7 +165,7 @@ function impersonate(): void {
 </script>
 
 <template>
-    <Teleport to="#sa-topbar-actions">
+    <Teleport defer to="#sa-topbar-actions">
         <div class="ui-super-admin-topbar-chrome__actions">
             <button
                 type="button"

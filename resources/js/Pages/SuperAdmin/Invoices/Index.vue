@@ -6,7 +6,6 @@ import UiPagination from '@/Components/Ui/UiPagination.vue';
 import { useI18n } from '@/composables/useI18n';
 import { invoiceStatusBadgeClass, invoiceStatusLabel } from '@/utils/superAdminInvoiceBadge';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 interface InvoiceRow {
     id: number;
@@ -50,7 +49,6 @@ function formatDate(iso: string | null): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.invoices.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="billing"
@@ -143,5 +141,4 @@ function formatDate(iso: string | null): string {
             />
         </div>
     
-    </SuperAdminLayout>
 </template>

@@ -13,7 +13,6 @@ import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadg
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from '@/composables/useI18n';
 import { computed, onMounted, ref, watch } from 'vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -371,7 +370,6 @@ function assignPlan(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="company.name" />
 
         <div class="ui-super-admin-actions !mb-4">
@@ -793,5 +791,4 @@ function assignPlan(): void {
             @confirm="confirmDelete"
         />
     
-    </SuperAdminLayout>
 </template>

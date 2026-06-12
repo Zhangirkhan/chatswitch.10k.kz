@@ -4,7 +4,6 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { useI18n } from '@/composables/useI18n';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -154,7 +153,6 @@ function formatDate(value: string | null): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.mobileReleases.pageTitle')" />
 
         <SuperAdminPageHeader
@@ -367,5 +365,4 @@ function formatDate(value: string | null): string {
             </template>
         </UiModal>
     
-    </SuperAdminLayout>
 </template>

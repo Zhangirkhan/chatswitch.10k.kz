@@ -32,6 +32,7 @@ import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, DefineComponent, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import SuperAdminLayout from './Layouts/SuperAdminLayout.vue';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -78,7 +79,15 @@ createInertiaApp({
         resolvePageComponent(
             `./Pages/${name}.vue`,
             import.meta.glob<DefineComponent>('./Pages/**/*.vue'),
-        ),
+        ).then((module) => {
+            const page = module.default ?? module;
+
+            if (name.startsWith('SuperAdmin/') && !page.layout) {
+                page.layout = SuperAdminLayout;
+            }
+
+            return module;
+        }),
     setup({ el, App, props, plugin }) {
         syncPageScroll(props.initialPage.component);
         if (props.initialPage.component.startsWith('Landing/')) {

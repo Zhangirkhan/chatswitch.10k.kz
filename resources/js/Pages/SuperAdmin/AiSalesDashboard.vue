@@ -3,7 +3,6 @@ import AiSalesMetricsPanel, { type AiSalesMetricsPayload, type CompanyOption } f
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head } from '@inertiajs/vue3';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 defineProps<{
     metrics: AiSalesMetricsPayload;
@@ -18,7 +17,6 @@ const { t } = useI18n();
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.aiSales.pageTitle')" />
 
         <SuperAdminPageHeader
@@ -41,5 +39,4 @@ const { t } = useI18n();
             />
         </div>
     
-    </SuperAdminLayout>
 </template>

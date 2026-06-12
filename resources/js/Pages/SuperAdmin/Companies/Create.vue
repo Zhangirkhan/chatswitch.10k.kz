@@ -2,7 +2,6 @@
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 defineProps<{ plans: Array<{ id: number; name: string }>; reservedSlugs: string[] }>();
 
@@ -19,7 +18,6 @@ const form = useForm({
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.create.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -66,5 +64,4 @@ const form = useForm({
             <button type="submit" class="ui-btn ui-btn--primary" :disabled="form.processing">{{ t('superAdmin.common.create') }}</button>
         </form>
     
-    </SuperAdminLayout>
 </template>

@@ -5,7 +5,6 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -138,7 +137,6 @@ function submitEdit(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.plans.pageTitle')" />
 
         <SuperAdminPageHeader
@@ -332,5 +330,4 @@ function submitEdit(): void {
             </template>
         </UiModal>
     
-    </SuperAdminLayout>
 </template>

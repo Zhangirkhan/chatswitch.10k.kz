@@ -5,7 +5,6 @@ import { useI18n } from '@/composables/useI18n';
 import { reloadPlatformBanners } from '@/composables/usePlatformBannerVisibility';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 type BannerRow = {
     id: number;
@@ -195,7 +194,6 @@ function deliveryLabel(row: BannerRow): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.platformBanners.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="platform"
@@ -440,7 +438,6 @@ function deliveryLabel(row: BannerRow): string {
                 </button>
             </template>
         </UiModal>
-    </SuperAdminLayout>
 </template>
 
 <style scoped>

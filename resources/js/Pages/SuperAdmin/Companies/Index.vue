@@ -8,7 +8,6 @@ import CompaniesIndexRow, { type CompanyIndexRow } from '@/Pages/SuperAdmin/Comp
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { useI18n } from '@/composables/useI18n';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -155,7 +154,6 @@ function confirmDelete(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.index.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -394,5 +392,4 @@ function confirmDelete(): void {
             @confirm="deleteAllExceptDemo"
         />
     
-    </SuperAdminLayout>
 </template>

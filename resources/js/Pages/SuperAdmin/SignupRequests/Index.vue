@@ -9,7 +9,6 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from '@/composables/useI18n';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 
 const { t } = useI18n();
 
@@ -89,7 +88,6 @@ function confirmReject(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
         <Head :title="t('superAdmin.signupRequests.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -188,5 +186,4 @@ function confirmReject(): void {
             @confirm="confirmReject"
         />
     
-    </SuperAdminLayout>
 </template>
