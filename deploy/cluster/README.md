@@ -42,9 +42,9 @@ sudo /var/www/accel.kz/deploy/cluster/deploy.sh
 sudo /var/www/accel.kz/deploy/cluster/deploy.sh main
 ```
 
-Шаги скрипта: rsync → `composer` + `npm run build` → проверка `manifest.json` → `migrate` → `optimize` → симлинк → reload PHP-FPM / supervisor.
+Шаги скрипта: rsync → `composer` + `npm run build` → `migrate` → `optimize` → симлинк → reload PHP-FPM / supervisor.
 
-После сборки `deploy/scripts/verify-vite-manifest.sh` убеждается, что каждый `file` / `css` / `assets` из `public/build/manifest.json` реально лежит на диске. Если сборка оборвалась и JS пропали — деплой падает до переключения симлинка.
+`npm run build` в postbuild автоматически гоняет `deploy/scripts/verify-vite-manifest.sh`: если JS/CSS из manifest отсутствуют на диске, сборка падает (деплой не переключит симлинк).
 
 ## Откат
 

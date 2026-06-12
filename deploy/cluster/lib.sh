@@ -67,9 +67,6 @@ accel_cluster_build_release() {
     fi
     npm run build
 
-    accel_cluster_log "verify Vite manifest assets…"
-    bash "${release_dir}/deploy/scripts/verify-vite-manifest.sh" "${release_dir}"
-
     accel_cluster_log "artisan optimize + migrate…"
     sudo -u www-data php artisan migrate --force
     sudo -u www-data php artisan optimize

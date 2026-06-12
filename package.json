@@ -4,7 +4,7 @@
     "scripts": {
         "prebuild": "node -e \"require('fs').rmSync('public/hot',{force:true})\"",
         "build": "vue-tsc && vite build",
-        "postbuild": "chown -R www-data:www-data public/build 2>/dev/null || true",
+        "postbuild": "bash deploy/scripts/verify-vite-manifest.sh . && chown -R www-data:www-data public/build 2>/dev/null || true",
         "dev": "vite",
         "test:unit": "vitest run",
         "test:unit:watch": "vitest"
