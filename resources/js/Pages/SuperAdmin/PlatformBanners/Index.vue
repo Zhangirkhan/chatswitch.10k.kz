@@ -198,6 +198,7 @@ function deliveryLabel(row: BannerRow): string {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.platformBanners.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="platform"
             :eyebrow="t('superAdmin.layout.navGroups.platform')"
             :title="t('superAdmin.platformBanners.heading')"
         >

@@ -144,7 +144,7 @@ function onNavigate(): void {
         </div>
 
         <nav class="ui-super-admin-sidebar__nav wa-scrollbar">
-            <div v-for="group in navGroups" :key="group.groupKey" class="ui-super-admin-nav-group">
+            <div v-for="group in navGroups" :key="group.groupKey" class="ui-super-admin-nav-group" :class="`ui-super-admin-nav-group--${group.groupKey}`">
                 <p class="ui-super-admin-nav-group__label">
                     {{ t(`superAdmin.layout.navGroups.${group.groupKey}`) }}
                 </p>

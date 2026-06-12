@@ -147,6 +147,7 @@ const deviceInfo = computed(() => {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessages.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.contactMessages.heading')"
         />

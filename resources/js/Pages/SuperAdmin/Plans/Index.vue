@@ -142,6 +142,7 @@ function submitEdit(): void {
         <Head :title="t('superAdmin.plans.pageTitle')" />
 
         <SuperAdminPageHeader
+            accent-group="billing"
             :eyebrow="t('superAdmin.layout.navGroups.billing')"
             :title="t('superAdmin.plans.heading')"
             :subtitle="t('superAdmin.plans.defaultHint', { price: '40 000 ₸', days: 14 })"

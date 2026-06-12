@@ -92,6 +92,7 @@ function confirmReject(): void {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.signupRequests.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.signupRequests.heading')"
         />

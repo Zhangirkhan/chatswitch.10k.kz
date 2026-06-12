@@ -22,6 +22,7 @@ const form = useForm({
     <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.create.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.companies.create.heading')"
         />

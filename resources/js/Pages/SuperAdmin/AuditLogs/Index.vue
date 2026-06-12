@@ -107,6 +107,7 @@ function formatPrice(cents: number): string {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.auditLogs.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="platform"
             :eyebrow="t('superAdmin.layout.navGroups.platform')"
             :title="t('superAdmin.auditLogs.heading')"
         />

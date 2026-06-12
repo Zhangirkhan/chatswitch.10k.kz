@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 
+export type SuperAdminKpiTone =
+    | 'default'
+    | 'accent'
+    | 'info'
+    | 'billing'
+    | 'platform'
+    | 'highlight'
+    | 'danger';
+
 export type SuperAdminKpiItem = {
     label: string;
     value: string | number;
     hint?: string;
     href?: string;
-    tone?: 'default' | 'accent' | 'highlight' | 'danger';
+    tone?: SuperAdminKpiTone;
 };
 
 defineProps<{
@@ -24,6 +33,9 @@ defineProps<{
             class="ui-super-admin-kpi-card"
             :class="{
                 'ui-super-admin-kpi-card--accent': item.tone === 'accent',
+                'ui-super-admin-kpi-card--info': item.tone === 'info',
+                'ui-super-admin-kpi-card--billing': item.tone === 'billing',
+                'ui-super-admin-kpi-card--platform': item.tone === 'platform',
                 'ui-super-admin-kpi-card--highlight': item.tone === 'highlight',
                 'ui-super-admin-kpi-card--danger': item.tone === 'danger',
                 'ui-super-admin-kpi-card--link': !!item.href,

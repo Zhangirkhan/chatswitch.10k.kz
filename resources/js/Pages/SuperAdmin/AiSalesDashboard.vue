@@ -22,6 +22,7 @@ const { t } = useI18n();
         <Head :title="t('superAdmin.aiSales.pageTitle')" />
 
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.aiSales.title')"
             :subtitle="t('superAdmin.aiSales.subtitle')"

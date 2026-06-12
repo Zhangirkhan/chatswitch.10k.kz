@@ -53,6 +53,7 @@ function formatDate(iso: string | null): string {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.invoices.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="billing"
             :eyebrow="t('superAdmin.layout.navGroups.billing')"
             :title="t('superAdmin.invoices.heading')"
         />

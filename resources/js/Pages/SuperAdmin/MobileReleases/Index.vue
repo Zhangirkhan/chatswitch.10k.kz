@@ -158,6 +158,7 @@ function formatDate(value: string | null): string {
         <Head :title="t('superAdmin.mobileReleases.pageTitle')" />
 
         <SuperAdminPageHeader
+            accent-group="platform"
             :eyebrow="t('superAdmin.layout.navGroups.platform')"
             :title="t('superAdmin.mobileReleases.heading')"
             :subtitle="t('superAdmin.mobileReleases.subtitle')"

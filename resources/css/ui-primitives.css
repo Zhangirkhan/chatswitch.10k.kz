@@ -3776,14 +3776,38 @@
     }
 
     /* Super Admin console */
+    @keyframes ui-sa-fade-up {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
     .ui-super-admin-shell {
         --ui-super-admin-chrome-h: 72px;
         --ui-super-admin-chrome-bg: var(--ui-surface);
+        --sa-accent-overview: var(--ui-accent);
+        --sa-accent-operations: var(--wa-chroma-blue-fg);
+        --sa-accent-billing: var(--wa-chroma-yellow-fg);
+        --sa-accent-platform: var(--wa-chroma-violet-fg);
+        --sa-accent-overview-soft: color-mix(in srgb, var(--sa-accent-overview) 12%, var(--ui-surface));
+        --sa-accent-operations-soft: color-mix(in srgb, var(--sa-accent-operations) 12%, var(--ui-surface));
+        --sa-accent-billing-soft: color-mix(in srgb, var(--sa-accent-billing) 12%, var(--ui-surface));
+        --sa-accent-platform-soft: color-mix(in srgb, var(--sa-accent-platform) 12%, var(--ui-surface));
+        --sa-accent-overview-border: color-mix(in srgb, var(--sa-accent-overview) 35%, var(--ui-border));
+        --sa-accent-operations-border: color-mix(in srgb, var(--sa-accent-operations) 35%, var(--ui-border));
+        --sa-accent-billing-border: color-mix(in srgb, var(--sa-accent-billing) 35%, var(--ui-border));
+        --sa-accent-platform-border: color-mix(in srgb, var(--sa-accent-platform) 35%, var(--ui-border));
         display: flex;
         min-height: 100dvh;
         max-height: 100dvh;
         background:
-            radial-gradient(ellipse 80% 50% at 50% -20%, color-mix(in srgb, var(--ui-accent) 6%, transparent), transparent),
+            radial-gradient(ellipse 80% 50% at 50% -20%, color-mix(in srgb, var(--ui-accent) 3%, transparent), transparent),
             var(--ui-bg);
         color: var(--ui-text);
         position: relative;
@@ -3887,8 +3911,32 @@
 
     .ui-super-admin-nav-group + .ui-super-admin-nav-group {
         margin-top: 0;
-        padding-top: 1.15rem;
+        padding-top: 1.35rem;
         border-top: 1px solid color-mix(in srgb, var(--ui-border) 65%, transparent);
+    }
+
+    .ui-super-admin-nav-group--overview {
+        --sa-group-accent: var(--sa-accent-overview);
+        --sa-group-accent-soft: var(--sa-accent-overview-soft);
+        --sa-group-accent-border: var(--sa-accent-overview-border);
+    }
+
+    .ui-super-admin-nav-group--operations {
+        --sa-group-accent: var(--sa-accent-operations);
+        --sa-group-accent-soft: var(--sa-accent-operations-soft);
+        --sa-group-accent-border: var(--sa-accent-operations-border);
+    }
+
+    .ui-super-admin-nav-group--billing {
+        --sa-group-accent: var(--sa-accent-billing);
+        --sa-group-accent-soft: var(--sa-accent-billing-soft);
+        --sa-group-accent-border: var(--sa-accent-billing-border);
+    }
+
+    .ui-super-admin-nav-group--platform {
+        --sa-group-accent: var(--sa-accent-platform);
+        --sa-group-accent-soft: var(--sa-accent-platform-soft);
+        --sa-group-accent-border: var(--sa-accent-platform-border);
     }
 
     .ui-super-admin-nav-group__label {
@@ -3899,22 +3947,22 @@
         letter-spacing: 0.1em;
         line-height: 1;
         text-transform: uppercase;
-        color: color-mix(in srgb, var(--ui-text-muted) 68%, transparent);
+        color: color-mix(in srgb, var(--sa-group-accent, var(--ui-text-muted)) 55%, var(--ui-text-muted));
         user-select: none;
     }
 
     .ui-super-admin-nav-group__items {
         display: flex;
         flex-direction: column;
-        gap: 0.125rem;
+        gap: 0.2rem;
     }
 
     .ui-super-admin-nav-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.5rem;
-        padding: 0.5rem 0.6rem;
+        gap: 0.55rem;
+        padding: 0.55rem 0.65rem;
         border-radius: var(--primitive-radius-md);
         font-size: 0.875rem;
         font-weight: 500;
@@ -3950,16 +3998,16 @@
     }
 
     .ui-super-admin-nav-item.is-active {
-        background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-surface));
+        background: var(--sa-group-accent-soft, color-mix(in srgb, var(--ui-accent) 12%, var(--ui-surface)));
         color: var(--ui-text);
         font-weight: 600;
         box-shadow:
-            inset 3px 0 0 var(--ui-accent),
-            0 0 0 1px color-mix(in srgb, var(--ui-accent) 18%, var(--ui-border));
+            inset 3px 0 0 var(--sa-group-accent, var(--ui-accent)),
+            0 0 0 1px color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 18%, var(--ui-border));
     }
 
     .ui-super-admin-nav-item.is-active .ui-super-admin-nav-item__icon {
-        color: var(--ui-accent);
+        color: var(--sa-group-accent, var(--ui-accent));
     }
 
     .ui-super-admin-nav-item__badge {
@@ -3969,9 +4017,9 @@
         font-size: 0.68rem;
         font-weight: 700;
         text-align: center;
-        background: color-mix(in srgb, var(--ui-accent) 18%, var(--ui-surface));
-        color: var(--ui-accent);
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border));
+        background: color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 18%, var(--ui-surface));
+        color: var(--sa-group-accent, var(--ui-accent));
+        border: 1px solid color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 30%, var(--ui-border));
     }
 
     .ui-super-admin-main-column {
@@ -4056,12 +4104,12 @@
     .ui-super-admin-page {
         max-width: 80rem;
         margin: 0 auto;
-        padding: 1.25rem 1rem 2rem;
+        padding: 1.5rem 1rem 2.5rem;
     }
 
     @media (min-width: 768px) {
         .ui-super-admin-page {
-            padding: 1.5rem 1.5rem 2.5rem;
+            padding: 1.75rem 1.75rem 3rem;
         }
     }
 
@@ -4069,14 +4117,15 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1.25rem;
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
         border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
         background: linear-gradient(
             180deg,
             color-mix(in srgb, var(--ui-surface) 40%, transparent) 0%,
             transparent 100%
         );
+        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     @media (min-width: 768px) {
@@ -4097,7 +4146,23 @@
         font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-text-muted));
+        color: color-mix(in srgb, var(--sa-header-accent, var(--ui-accent)) 55%, var(--ui-text-muted));
+    }
+
+    .ui-super-admin-page-header--overview {
+        --sa-header-accent: var(--sa-accent-overview);
+    }
+
+    .ui-super-admin-page-header--operations {
+        --sa-header-accent: var(--sa-accent-operations);
+    }
+
+    .ui-super-admin-page-header--billing {
+        --sa-header-accent: var(--sa-accent-billing);
+    }
+
+    .ui-super-admin-page-header--platform {
+        --sa-header-accent: var(--sa-accent-platform);
     }
 
     .ui-super-admin-page-header__title {
@@ -4125,9 +4190,9 @@
 
     .ui-super-admin-kpi-grid {
         display: grid;
-        gap: 1rem;
+        gap: 1.25rem;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
     }
 
     @media (min-width: 1024px) {
@@ -4155,6 +4220,23 @@
         color: inherit;
         box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
         transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .ui-super-admin-kpi-grid .ui-super-admin-kpi-card:nth-child(1) {
+        animation-delay: 40ms;
+    }
+
+    .ui-super-admin-kpi-grid .ui-super-admin-kpi-card:nth-child(2) {
+        animation-delay: 80ms;
+    }
+
+    .ui-super-admin-kpi-grid .ui-super-admin-kpi-card:nth-child(3) {
+        animation-delay: 120ms;
+    }
+
+    .ui-super-admin-kpi-grid .ui-super-admin-kpi-card:nth-child(4) {
+        animation-delay: 160ms;
     }
 
     .ui-super-admin-kpi-card::before {
@@ -4177,16 +4259,55 @@
     }
 
     .ui-super-admin-kpi-card--accent {
-        border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border));
+        border-color: var(--sa-accent-overview-border);
         background: linear-gradient(
             145deg,
-            color-mix(in srgb, var(--ui-accent) 10%, var(--ui-surface)) 0%,
+            color-mix(in srgb, var(--sa-accent-overview) 10%, var(--ui-surface)) 0%,
             var(--ui-surface) 100%
         );
     }
 
     .ui-super-admin-kpi-card--accent::before {
-        background: var(--ui-accent);
+        background: var(--sa-accent-overview);
+    }
+
+    .ui-super-admin-kpi-card--info {
+        border-color: var(--sa-accent-operations-border);
+        background: linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--sa-accent-operations) 10%, var(--ui-surface)) 0%,
+            var(--ui-surface) 100%
+        );
+    }
+
+    .ui-super-admin-kpi-card--info::before {
+        background: var(--sa-accent-operations);
+    }
+
+    .ui-super-admin-kpi-card--billing {
+        border-color: var(--sa-accent-billing-border);
+        background: linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--sa-accent-billing) 10%, var(--ui-surface)) 0%,
+            var(--ui-surface) 100%
+        );
+    }
+
+    .ui-super-admin-kpi-card--billing::before {
+        background: var(--sa-accent-billing);
+    }
+
+    .ui-super-admin-kpi-card--platform {
+        border-color: var(--sa-accent-platform-border);
+        background: linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--sa-accent-platform) 10%, var(--ui-surface)) 0%,
+            var(--ui-surface) 100%
+        );
+    }
+
+    .ui-super-admin-kpi-card--platform::before {
+        background: var(--sa-accent-platform);
     }
 
     .ui-super-admin-kpi-card--highlight {
@@ -4227,12 +4348,13 @@
     }
 
     .ui-super-admin-attention {
-        margin-bottom: 1.25rem;
-        padding: 0.95rem 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1.05rem 1.15rem;
         border-radius: var(--primitive-radius-lg);
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 28%, var(--ui-border));
-        border-left: 3px solid var(--ui-accent);
-        background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface));
+        border: 1px solid color-mix(in srgb, var(--sa-accent-billing) 28%, var(--ui-border));
+        border-left: 3px solid var(--sa-accent-billing);
+        background: color-mix(in srgb, var(--sa-accent-billing) 8%, var(--ui-surface));
+        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
     }
 
     .ui-super-admin-attention__head {
@@ -4246,7 +4368,7 @@
         width: 1.125rem;
         height: 1.125rem;
         flex-shrink: 0;
-        color: var(--ui-accent);
+        color: var(--sa-accent-billing);
     }
 
     .ui-super-admin-attention__title {
@@ -4278,17 +4400,22 @@
     }
 
     .ui-super-admin-attention__link:hover {
-        background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+        background: color-mix(in srgb, var(--sa-accent-billing) 10%, transparent);
         color: var(--ui-text);
     }
 
     .ui-super-admin-attention__link strong {
-        color: var(--ui-accent);
+        color: var(--sa-accent-billing);
         font-weight: 700;
     }
 
     .ui-super-admin-section {
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
+        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
+    }
+
+    .ui-super-admin-section + .ui-super-admin-section {
+        animation-delay: 120ms;
     }
 
     .ui-super-admin-section__head {
@@ -4296,7 +4423,7 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 0.75rem;
-        margin-bottom: 0.85rem;
+        margin-bottom: 1rem;
     }
 
     .ui-super-admin-section__title {
@@ -4345,7 +4472,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        padding: 0.75rem 1rem;
+        padding: 0.9rem 1rem;
         text-decoration: none;
         color: inherit;
         transition: background-color 0.15s ease;
@@ -4353,7 +4480,7 @@
 
     @media (min-width: 640px) {
         .ui-super-admin-list-row {
-            padding: 0.75rem 1.25rem;
+            padding: 0.9rem 1.35rem;
         }
     }
 
@@ -4374,12 +4501,12 @@
             var(--ui-surface) 0%,
             color-mix(in srgb, var(--ui-surface-muted) 40%, var(--ui-surface)) 100%
         );
-        padding: 1rem 1.15rem;
+        padding: 1.15rem 1.25rem;
         transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
     }
 
     .ui-super-admin-plan-card:hover {
-        border-color: color-mix(in srgb, var(--ui-accent) 30%, var(--ui-border));
+        border-color: color-mix(in srgb, var(--sa-accent-billing) 30%, var(--ui-border));
         transform: translateY(-1px);
         box-shadow: 0 4px 14px color-mix(in srgb, var(--ui-bg) 55%, transparent);
     }
@@ -4428,5 +4555,14 @@
         padding: 0.35rem 0;
         background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
         backdrop-filter: blur(6px);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ui-super-admin-page-header,
+        .ui-super-admin-kpi-card,
+        .ui-super-admin-attention,
+        .ui-super-admin-section {
+            animation: none;
+        }
     }
 }

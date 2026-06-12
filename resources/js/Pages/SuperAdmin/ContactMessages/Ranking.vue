@@ -110,6 +110,7 @@ function resolveMessage(): void {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.contactMessagesRanking.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.contactMessagesRanking.heading')"
         />

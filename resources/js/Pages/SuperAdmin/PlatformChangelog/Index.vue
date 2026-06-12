@@ -125,6 +125,7 @@ const showEditModal = computed({
         <Head :title="t('superAdmin.platformChangelog.pageTitle')" />
 
         <SuperAdminPageHeader
+            accent-group="platform"
             :eyebrow="t('superAdmin.layout.navGroups.platform')"
             :title="t('superAdmin.platformChangelog.heading')"
             :subtitle="t('superAdmin.platformChangelog.lead')"

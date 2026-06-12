@@ -49,7 +49,7 @@ const billingKpis = computed((): SuperAdminKpiItem[] => [
     {
         label: 'MRR',
         value: `${props.billingSummary.mrr_kzt.toLocaleString('ru-RU')} ₸`,
-        tone: 'accent',
+        tone: 'billing',
     },
     {
         label: t('superAdmin.companies.header.nextPayment'),
@@ -57,6 +57,7 @@ const billingKpis = computed((): SuperAdminKpiItem[] => [
         hint: props.billingSummary.trial_days_left !== null
             ? t('superAdmin.companies.header.trialDays', { days: props.billingSummary.trial_days_left })
             : undefined,
+        tone: 'info',
     },
     {
         label: t('superAdmin.companies.header.unpaidInvoices'),
@@ -141,7 +142,7 @@ function impersonate(): void {
 </script>
 
 <template>
-    <header class="ui-super-admin-page-header ui-super-admin-company-header">
+    <header class="ui-super-admin-page-header ui-super-admin-page-header--operations ui-super-admin-company-header">
         <div class="ui-super-admin-page-header__intro min-w-0 flex-1">
             <p class="ui-super-admin-page-header__eyebrow">{{ t('superAdmin.layout.nav.companies') }}</p>
             <div class="flex flex-wrap items-center gap-2">

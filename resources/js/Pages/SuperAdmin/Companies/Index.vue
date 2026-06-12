@@ -158,6 +158,7 @@ function confirmDelete(): void {
     <SuperAdminLayout>
         <Head :title="t('superAdmin.companies.index.pageTitle')" />
         <SuperAdminPageHeader
+            accent-group="operations"
             :eyebrow="t('superAdmin.layout.navGroups.operations')"
             :title="t('superAdmin.companies.index.heading')"
         >

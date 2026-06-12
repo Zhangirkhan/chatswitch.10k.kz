@@ -77,7 +77,7 @@ const kpiItems = computed(() => [
         label: t('superAdmin.dashboard.statsLandingSignups'),
         value: props.stats.pending_signups,
         href: '/signup-requests?status=pending',
-        tone: props.stats.pending_signups > 0 ? 'highlight' as const : 'default' as const,
+        tone: props.stats.pending_signups > 0 ? 'info' as const : 'default' as const,
     },
     {
         label: t('superAdmin.dashboard.statsOverdueInvoices'),
@@ -92,6 +92,7 @@ const kpiItems = computed(() => [
         label: 'MRR (KZT)',
         value: props.stats.mrr_kzt,
         hint: t('superAdmin.dashboard.statsMrrHint'),
+        tone: 'billing' as const,
     },
 ]);
 
@@ -120,6 +121,7 @@ function subscriptionLabel(status: string): string {
         <Head :title="t('superAdmin.dashboard.title')" />
 
         <SuperAdminPageHeader
+            accent-group="overview"
             :eyebrow="t('superAdmin.layout.navGroups.overview')"
             :title="t('superAdmin.dashboard.title')"
             :subtitle="t('superAdmin.dashboard.subtitle')"
