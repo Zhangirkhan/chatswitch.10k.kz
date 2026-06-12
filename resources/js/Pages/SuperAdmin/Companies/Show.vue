@@ -109,6 +109,29 @@ const props = defineProps<{
         trial_days_left: number | null;
         revenue_sparkline: Array<{ label: string; amount_kzt: number }>;
     };
+    deviceStats: {
+        active_users: number;
+        mobile_devices: {
+            total: number;
+            android: number;
+            ios: number;
+            users_with_device: number;
+            users_without_device: number;
+        };
+        mobile_sessions: {
+            total_tokens: number;
+            active_30d: number;
+            users_with_active_token: number;
+        };
+        whatsapp_sessions: {
+            total: number;
+            connected: number;
+        };
+        web_sessions: {
+            active_now: number;
+            users_online: number;
+        };
+    };
     whatsappSessions: Array<{
         id: number;
         session_name: string;
@@ -573,6 +596,59 @@ function assignPlan(): void {
                     <div class="ui-panel px-4 py-3">
                         <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.metricsWhatsappSessions') }}</div>
                         <div class="mt-0.5 text-xl font-semibold">{{ company.whatsapp_sessions_count ?? 0 }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ui-settings-section">
+                <h2 class="mb-4 text-base font-semibold">{{ t('superAdmin.companies.show.deviceStatsTitle') }}</h2>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsActiveUsers') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.active_users }}</div>
+                    </div>
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsMobileDevices') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.mobile_devices.total }}</div>
+                        <div class="mt-1 text-xs text-ui-text-muted">
+                            {{ t('superAdmin.companies.show.deviceStatsMobilePlatform', {
+                                android: deviceStats.mobile_devices.android,
+                                ios: deviceStats.mobile_devices.ios,
+                            }) }}
+                        </div>
+                    </div>
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsUsersWithoutApp') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.mobile_devices.users_without_device }}</div>
+                    </div>
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsMobileSessions') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.mobile_sessions.active_30d }}</div>
+                        <div class="mt-1 text-xs text-ui-text-muted">
+                            {{ t('superAdmin.companies.show.deviceStatsMobileSessionsHint', {
+                                tokens: deviceStats.mobile_sessions.total_tokens,
+                                users: deviceStats.mobile_sessions.users_with_active_token,
+                            }) }}
+                        </div>
+                    </div>
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsWhatsapp') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.whatsapp_sessions.connected }}</div>
+                        <div class="mt-1 text-xs text-ui-text-muted">
+                            {{ t('superAdmin.companies.show.deviceStatsWhatsappHint', {
+                                connected: deviceStats.whatsapp_sessions.connected,
+                                total: deviceStats.whatsapp_sessions.total,
+                            }) }}
+                        </div>
+                    </div>
+                    <div class="ui-panel px-4 py-3">
+                        <div class="text-xs text-ui-text-muted">{{ t('superAdmin.companies.show.deviceStatsWebSessions') }}</div>
+                        <div class="mt-0.5 text-xl font-semibold">{{ deviceStats.web_sessions.active_now }}</div>
+                        <div v-if="deviceStats.web_sessions.users_online > 0" class="mt-1 text-xs text-ui-text-muted">
+                            {{ t('superAdmin.companies.show.deviceStatsWebUsersOnline', {
+                                count: deviceStats.web_sessions.users_online,
+                            }) }}
+                        </div>
                     </div>
                 </div>
             </section>

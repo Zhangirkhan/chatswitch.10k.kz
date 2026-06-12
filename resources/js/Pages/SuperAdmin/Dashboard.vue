@@ -34,6 +34,14 @@ const props = defineProps<{
         likes_count: number;
         created_at: string | null;
     }>;
+    deviceStats: {
+        active_users: number;
+        mobile_devices_total: number;
+        mobile_sessions_active_30d: number;
+        whatsapp_connected: number;
+        web_sessions_active: number;
+        tenants_with_mobile: number;
+    };
 }>();
 
 const page = usePage();
@@ -95,6 +103,39 @@ const kpiItems = computed(() => [
     },
 ]);
 
+const deviceKpiItems = computed(() => [
+    {
+        label: t('superAdmin.dashboard.deviceStatsActiveUsers'),
+        value: props.deviceStats.active_users,
+        tone: 'accent' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.deviceStatsMobileDevices'),
+        value: props.deviceStats.mobile_devices_total,
+        hint: props.deviceStats.tenants_with_mobile > 0
+            ? t('superAdmin.dashboard.deviceStatsTenantsWithMobile', {
+                count: props.deviceStats.tenants_with_mobile,
+            })
+            : undefined,
+        tone: 'platform' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.deviceStatsMobileSessions'),
+        value: props.deviceStats.mobile_sessions_active_30d,
+        tone: 'info' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.deviceStatsWhatsappConnected'),
+        value: props.deviceStats.whatsapp_connected,
+        tone: 'accent' as const,
+    },
+    {
+        label: t('superAdmin.dashboard.deviceStatsWebSessions'),
+        value: props.deviceStats.web_sessions_active,
+        tone: 'default' as const,
+    },
+]);
+
 function formatDate(iso: string): string {
     try {
         return new Date(iso).toLocaleDateString('ru-RU', { dateStyle: 'medium' });
@@ -144,6 +185,10 @@ function subscriptionLabel(status: string): string {
         />
 
         <SuperAdminKpiGrid :items="kpiItems" />
+
+        <SuperAdminSection :title="t('superAdmin.dashboard.deviceStatsTitle')">
+            <SuperAdminKpiGrid :items="deviceKpiItems" />
+        </SuperAdminSection>
 
         <div class="ui-super-admin-actions">
             <Link href="/invoices" class="ui-btn ui-btn--ghost ui-btn--sm">
