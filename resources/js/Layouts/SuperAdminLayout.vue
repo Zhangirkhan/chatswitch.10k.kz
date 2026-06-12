@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
 import SuperAdminSidebar from '@/Components/SuperAdmin/SuperAdminSidebar.vue';
+import {
+    provideSuperAdminPageChrome,
+    useSuperAdminPageChrome,
+} from '@/composables/useSuperAdminPageChrome';
 import { useI18n } from '@/composables/useI18n';
 import { useTheme } from '@/composables/useTheme';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+
+provideSuperAdminPageChrome();
+const pageChrome = useSuperAdminPageChrome();
 
 const page = usePage<any>();
 const { t } = useI18n();
@@ -73,9 +80,26 @@ watch(
                     </button>
                     <span class="ui-super-admin-topbar__title">{{ t('superAdmin.layout.brand') }}</span>
                 </div>
-                <div id="sa-topbar-page" class="ui-super-admin-topbar__page hidden lg:flex" />
+                <div
+                    v-if="pageChrome"
+                    class="ui-super-admin-topbar__page hidden lg:flex"
+                >
+                    <div
+                        class="ui-super-admin-topbar-chrome"
+                        :class="pageChrome.accentGroup ? `ui-super-admin-topbar-chrome--${pageChrome.accentGroup}` : undefined"
+                    >
+                        <p v-if="pageChrome.eyebrow" class="ui-super-admin-topbar-chrome__eyebrow">{{ pageChrome.eyebrow }}</p>
+                        <component :is="pageChrome.titleRow" v-if="pageChrome.titleRow" />
+                        <template v-else>
+                            <h1 class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
+                        </template>
+                        <p v-if="pageChrome.subtitle" class="ui-super-admin-topbar-chrome__subtitle">{{ pageChrome.subtitle }}</p>
+                    </div>
+                </div>
                 <div class="ui-super-admin-topbar__actions">
-                    <div id="sa-topbar-actions" class="ui-super-admin-topbar__page-actions hidden lg:flex" />
+                    <div v-if="pageChrome?.actionsVnode" class="ui-super-admin-topbar__page-actions hidden lg:flex">
+                        <component :is="pageChrome.actionsVnode" />
+                    </div>
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost ui-btn--sm ui-super-admin-topbar__theme"

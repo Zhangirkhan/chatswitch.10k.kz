@@ -3,7 +3,6 @@ import SuperAdminAttentionBanner from '@/Components/SuperAdmin/SuperAdminAttenti
 import SuperAdminKpiGrid from '@/Components/SuperAdmin/SuperAdminKpiGrid.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
 import SuperAdminSection from '@/Components/SuperAdmin/SuperAdminSection.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -117,7 +116,7 @@ function subscriptionLabel(status: string): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.dashboard.title')" />
 
         <SuperAdminPageHeader
@@ -208,5 +207,5 @@ function subscriptionLabel(status: string): string {
                 </div>
             </div>
         </SuperAdminSection>
-    </SuperAdminLayout>
+    
 </template>

@@ -4,7 +4,6 @@ import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -107,7 +106,7 @@ function resolveMessage(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.contactMessagesRanking.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -244,5 +243,5 @@ function resolveMessage(): void {
                 </button>
             </template>
         </UiModal>
-    </SuperAdminLayout>
+    
 </template>

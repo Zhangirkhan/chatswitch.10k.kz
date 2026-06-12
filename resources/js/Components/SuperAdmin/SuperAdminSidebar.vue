@@ -51,6 +51,11 @@ type SuperAdminNavProps = {
 
 const superAdminNav = computed(() => page.props.superAdminNav as SuperAdminNavProps | null);
 
+const currentPath = computed(() => {
+    const raw = page.url.split('?')[0];
+    return raw.endsWith('/') && raw.length > 1 ? raw.slice(0, -1) : raw;
+});
+
 const isSandboxSuperAdmin = computed(
     () => (page.props.isSandboxSuperAdmin as boolean | undefined) === true
         || superAdminNav.value?.is_sandbox === true,
@@ -117,7 +122,11 @@ const navGroups = computed((): NavGroup[] => {
 });
 
 function isActive(match: string): boolean {
-    return page.url.startsWith(match);
+    if (match === '/dashboard') {
+        return currentPath.value === '/dashboard';
+    }
+
+    return currentPath.value === match || currentPath.value.startsWith(`${match}/`);
 }
 
 function labelFor(key: NavKey): string {

@@ -6,7 +6,6 @@ import UiPagination from '@/Components/Ui/UiPagination.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import InputError from '@/Components/InputError.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from '@/composables/useI18n';
@@ -89,7 +88,7 @@ function confirmReject(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.signupRequests.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -187,5 +186,5 @@ function confirmReject(): void {
             @close="showRejectConfirm = false"
             @confirm="confirmReject"
         />
-    </SuperAdminLayout>
+    
 </template>

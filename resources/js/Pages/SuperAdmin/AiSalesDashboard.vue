@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import AiSalesMetricsPanel, { type AiSalesMetricsPayload, type CompanyOption } from '@/Components/AiSales/AiSalesMetricsPanel.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head } from '@inertiajs/vue3';
 
@@ -18,7 +17,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.aiSales.pageTitle')" />
 
         <SuperAdminPageHeader
@@ -40,5 +39,5 @@ const { t } = useI18n();
                 class="ui-ai-sales-page ui-ai-sales-page--embedded"
             />
         </div>
-    </SuperAdminLayout>
+    
 </template>

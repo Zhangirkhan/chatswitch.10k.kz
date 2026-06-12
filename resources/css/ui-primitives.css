@@ -3800,10 +3800,10 @@
         --sa-accent-operations: var(--wa-chroma-blue-fg);
         --sa-accent-billing: var(--wa-chroma-yellow-fg);
         --sa-accent-platform: var(--wa-chroma-violet-fg);
-        --sa-accent-overview-soft: color-mix(in srgb, var(--sa-accent-overview) 20%, var(--ui-surface));
-        --sa-accent-operations-soft: color-mix(in srgb, var(--sa-accent-operations) 20%, var(--ui-surface));
-        --sa-accent-billing-soft: color-mix(in srgb, var(--sa-accent-billing) 20%, var(--ui-surface));
-        --sa-accent-platform-soft: color-mix(in srgb, var(--sa-accent-platform) 20%, var(--ui-surface));
+        --sa-accent-overview-soft: color-mix(in srgb, var(--sa-accent-overview) 30%, var(--ui-surface));
+        --sa-accent-operations-soft: color-mix(in srgb, var(--sa-accent-operations) 30%, var(--ui-surface));
+        --sa-accent-billing-soft: color-mix(in srgb, var(--sa-accent-billing) 30%, var(--ui-surface));
+        --sa-accent-platform-soft: color-mix(in srgb, var(--sa-accent-platform) 30%, var(--ui-surface));
         --sa-accent-overview-border: color-mix(in srgb, var(--sa-accent-overview) 35%, var(--ui-border));
         --sa-accent-operations-border: color-mix(in srgb, var(--sa-accent-operations) 35%, var(--ui-border));
         --sa-accent-billing-border: color-mix(in srgb, var(--sa-accent-billing) 35%, var(--ui-border));
@@ -3955,7 +3955,7 @@
         letter-spacing: 0.1em;
         line-height: 1;
         text-transform: uppercase;
-        color: color-mix(in srgb, var(--sa-group-accent, var(--ui-text-muted)) 55%, var(--ui-text-muted));
+        color: color-mix(in srgb, var(--sa-group-accent, var(--ui-text-muted)) 70%, var(--ui-text-muted));
         user-select: none;
     }
 
@@ -3995,7 +3995,7 @@
     }
 
     .ui-super-admin-nav-item:hover {
-        background: var(--ui-surface-hover);
+        background: var(--sa-item-accent-soft, var(--ui-surface-hover));
         color: var(--ui-text);
         transform: translateX(2px);
         box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-border) 50%, transparent);
@@ -4030,13 +4030,14 @@
     }
 
     .ui-super-admin-nav-item.is-active {
-        background: var(--sa-item-accent-soft, var(--sa-group-accent-soft, color-mix(in srgb, var(--ui-accent) 20%, var(--ui-surface))));
+        background: var(--sa-item-accent-soft, var(--sa-group-accent-soft, color-mix(in srgb, var(--ui-accent) 30%, var(--ui-surface))));
         color: var(--ui-text);
         font-weight: 600;
         transform: none;
         box-shadow:
             inset 4px 0 0 var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent))),
-            0 0 0 1px var(--sa-item-accent-border, color-mix(in srgb, var(--sa-item-accent, var(--ui-accent)) 35%, var(--ui-border)));
+            0 0 0 1px var(--sa-item-accent-border, color-mix(in srgb, var(--sa-item-accent, var(--ui-accent)) 35%, var(--ui-border))),
+            0 0 12px color-mix(in srgb, var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent))) 18%, transparent);
     }
 
     .ui-super-admin-nav-item.is-active .ui-super-admin-nav-item__icon {
@@ -4095,6 +4096,7 @@
     }
 
     .ui-super-admin-topbar__page {
+        display: flex;
         flex: 1 1 auto;
         align-items: center;
         min-width: 0;
@@ -4102,6 +4104,7 @@
     }
 
     .ui-super-admin-topbar__page-actions {
+        display: flex;
         align-items: center;
         gap: 0.5rem;
         margin-right: 0.35rem;

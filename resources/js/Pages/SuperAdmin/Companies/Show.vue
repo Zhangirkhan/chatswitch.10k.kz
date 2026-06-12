@@ -9,7 +9,6 @@ import CompanyShowInvoicesPanel from '@/Pages/SuperAdmin/Companies/Partials/Comp
 import CompanyShowModulesPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowModulesPanel.vue';
 import CompanyShowUsersPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowUsersPanel.vue';
 import CompanyShowWhatsappPanel from '@/Pages/SuperAdmin/Companies/Partials/CompanyShowWhatsappPanel.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from '@/composables/useI18n';
@@ -371,7 +370,7 @@ function assignPlan(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="company.name" />
 
         <div class="ui-super-admin-actions !mb-4">
@@ -792,5 +791,5 @@ function assignPlan(): void {
             @close="showDeleteConfirm = false"
             @confirm="confirmDelete"
         />
-    </SuperAdminLayout>
+    
 </template>

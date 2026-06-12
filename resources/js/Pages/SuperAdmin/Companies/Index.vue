@@ -4,7 +4,6 @@ import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import CompaniesIndexRow, { type CompanyIndexRow } from '@/Pages/SuperAdmin/Companies/Partials/CompaniesIndexRow.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -155,7 +154,7 @@ function confirmDelete(): void {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.companies.index.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -393,5 +392,5 @@ function confirmDelete(): void {
             @close="showDeleteAllConfirm = false"
             @confirm="deleteAllExceptDemo"
         />
-    </SuperAdminLayout>
+    
 </template>

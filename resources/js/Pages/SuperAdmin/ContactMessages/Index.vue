@@ -4,7 +4,6 @@ import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiModal from '@/Components/Ui/UiModal.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -144,7 +143,7 @@ const deviceInfo = computed(() => {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.contactMessages.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -355,5 +354,5 @@ const deviceInfo = computed(() => {
                 </button>
             </template>
         </UiModal>
-    </SuperAdminLayout>
+    
 </template>

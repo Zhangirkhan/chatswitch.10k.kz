@@ -3,7 +3,6 @@ import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.v
 import UiFilterField from '@/Components/Ui/UiFilterField.vue';
 import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { invoiceStatusBadgeClass, invoiceStatusLabel } from '@/utils/superAdminInvoiceBadge';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -50,7 +49,7 @@ function formatDate(iso: string | null): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.invoices.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="billing"
@@ -142,5 +141,5 @@ function formatDate(iso: string | null): string {
                 :total="invoices.total"
             />
         </div>
-    </SuperAdminLayout>
+    
 </template>

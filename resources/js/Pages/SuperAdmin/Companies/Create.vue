@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { useI18n } from '@/composables/useI18n';
 import { Head, useForm } from '@inertiajs/vue3';
 
@@ -19,7 +18,7 @@ const form = useForm({
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.companies.create.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="operations"
@@ -65,5 +64,5 @@ const form = useForm({
             </label>
             <button type="submit" class="ui-btn ui-btn--primary" :disabled="form.processing">{{ t('superAdmin.common.create') }}</button>
         </form>
-    </SuperAdminLayout>
+    
 </template>

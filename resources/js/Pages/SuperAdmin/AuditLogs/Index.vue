@@ -4,7 +4,6 @@ import UiFilterPanel from '@/Components/Ui/UiFilterPanel.vue';
 import UiPagination from '@/Components/Ui/UiPagination.vue';
 import UiPillNav from '@/Components/Ui/UiPillNav.vue';
 import SuperAdminPageHeader from '@/Components/SuperAdmin/SuperAdminPageHeader.vue';
-import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { auditActionLabel, auditMetaSummary } from '@/utils/superAdminAuditLabels';
 import { useI18n } from '@/composables/useI18n';
 import { paymentMethodLabelMap } from '@/utils/superAdminInvoiceBadge';
@@ -104,7 +103,7 @@ function formatPrice(cents: number): string {
 </script>
 
 <template>
-    <SuperAdminLayout>
+    
         <Head :title="t('superAdmin.auditLogs.pageTitle')" />
         <SuperAdminPageHeader
             accent-group="platform"
@@ -259,5 +258,5 @@ function formatPrice(cents: number): string {
                 :total="transactions.total"
             />
         </div>
-    </SuperAdminLayout>
+    
 </template>
