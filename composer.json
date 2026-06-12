@@ -14,6 +14,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "openspout/openspout": "^4.28",
+        "php-ai/php-ml": "^0.10.0",
         "predis/predis": "^3.4",
         "resend/resend-laravel": "^1.4",
         "spatie/laravel-permission": "^6.25",

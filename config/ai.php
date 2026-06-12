@@ -108,4 +108,8 @@ return [
         'temperature' => (float) env('AI_FIRST_CONTACT_ACK_TEMPERATURE', 0.7),
         'max_tokens' => (int) env('AI_FIRST_CONTACT_ACK_MAX_TOKENS', 200),
     ],
+
+    'win_prob' => [
+        'min_training_samples' => (int) env('AI_WIN_PROB_MIN_TRAINING_SAMPLES', 200),
+    ],
 ];

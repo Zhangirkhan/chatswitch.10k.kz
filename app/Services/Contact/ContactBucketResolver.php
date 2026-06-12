@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Contact;
 
 use App\Models\Contact;
+use App\Models\ContactStakeholder;
+use Illuminate\Support\Collection;
 
 final class ContactBucketResolver
 {
@@ -33,5 +35,20 @@ final class ContactBucketResolver
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * @return Collection<int, ContactStakeholder>
+     */
+    public function stakeholderGraph(Contact $account): Collection
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('contact_stakeholders')) {
+            return collect();
+        }
+
+        return ContactStakeholder::query()
+            ->with('stakeholderContact:id,name,phone_number')
+            ->where('account_contact_id', $account->id)
+            ->get();
     }
 }

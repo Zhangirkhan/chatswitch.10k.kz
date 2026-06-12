@@ -55,6 +55,12 @@ final class AiFeatureFlags
     /** Record deal outcomes on close and inject tenant win/loss insights into prompts. */
     public const WIN_LOSS_LEARNING = 'ai.win_loss_learning';
 
+    public const PROMPT_EXPERIMENTS = 'ai.prompt_experiments';
+
+    public const ML_WIN_PROB = 'ai.ml_win_prob';
+
+    public const STAKEHOLDERS = 'ai.stakeholders';
+
     /** All known flag keys — used for validation and documentation. */
     public const ALL_KEYS = [
         self::MEMORY_EXTRACTION,
@@ -69,6 +75,9 @@ final class AiFeatureFlags
         self::LEAD_SCORING,
         self::NURTURE_FOLLOW_UP,
         self::WIN_LOSS_LEARNING,
+        self::PROMPT_EXPERIMENTS,
+        self::ML_WIN_PROB,
+        self::STAKEHOLDERS,
     ];
 
     /**

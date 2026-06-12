@@ -138,6 +138,7 @@ type RagStatus = {
 };
 
 const ragStatus = ref<RagStatus | null>(null);
+const ragQuality = ref<{ low_quality_count: number; scored_chunks: number; avg_score: number | null } | null>(null);
 const reindexLoading = ref(false);
 const ragReindexSuggested = ref(false);
 
@@ -347,6 +348,7 @@ function clearSelection(): void {
 async function loadRagStatus(): Promise<void> {
     if (previewCompanyId.value == null) {
         ragStatus.value = null;
+        ragQuality.value = null;
         return;
     }
     try {
@@ -354,8 +356,10 @@ async function loadRagStatus(): Promise<void> {
             params: { company_id: previewCompanyId.value },
         });
         ragStatus.value = (data.rag ?? null) as RagStatus | null;
+        ragQuality.value = (data.quality ?? null) as typeof ragQuality.value;
     } catch {
         ragStatus.value = null;
+        ragQuality.value = null;
     }
 }
 
@@ -1130,6 +1134,13 @@ async function confirmDelete(): Promise<void> {
                         <span v-if="!ragStatus.enabled">{{ t('settings.knowledgeBase.rag.statusDisabled') }}</span>
                         <span v-else-if="ragStatus.ready">{{ t('settings.knowledgeBase.rag.statusReady', { count: ragStatus.with_embedding }) }}</span>
                         <span v-else>{{ t('settings.knowledgeBase.rag.statusNeedsIndex', { indexed: ragStatus.indexed, withEmbedding: ragStatus.with_embedding }) }}</span>
+                    </p>
+                    <p v-if="ragQuality && ragQuality.scored_chunks > 0" class="mt-2 text-xs text-[var(--ui-text-muted)]">
+                        {{ t('settings.knowledgeBase.rag.qualitySummary', {
+                            avg: ragQuality.avg_score ?? '—',
+                            low: ragQuality.low_quality_count,
+                            total: ragQuality.scored_chunks,
+                        }) }}
                     </p>
                     <p
                         v-if="ragReindexSuggested && ragStatus?.enabled"

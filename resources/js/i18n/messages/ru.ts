@@ -59,6 +59,7 @@ export const ru: MessageCatalog = {
             services: { label: 'Услуги', description: 'Цены и условия услуг' },
             knowledge: { label: 'База знаний', description: 'Правила ответа AI' },
             aiQuality: { label: 'AI и качество', description: 'Сбои и оценки ответов' },
+            aiSales: { label: 'Конверсия AI', description: 'Воронка и KPI AI-продаж' },
             toneProfile: { label: 'Профиль тона', description: 'Стиль ответов AI для компании' },
             system: { label: 'Система', description: 'Общие параметры' },
             profile: { label: 'Профиль', description: 'Имя, фото профиля, имя пользователя' },
@@ -607,6 +608,7 @@ export const ru: MessageCatalog = {
                 statusNeedsIndex: 'Нужна индексация (в базе {indexed} фрагментов, с embeddings: {withEmbedding}).',
                 toastIndexed: 'Индексация: +{indexed}, пропущено {skipped}',
                 errorReindex: 'Не удалось проиндексировать',
+                qualitySummary: 'KQS: средний балл {avg}, низкое качество у {low} фрагментов (из {total}).',
             },
             testQuestion: {
                 title: 'Тестовый вопрос',
@@ -797,6 +799,7 @@ export const ru: MessageCatalog = {
         clients: settingsExtrasRu.clients,
         contactFields: settingsExtrasRu.contactFields,
         aiQuality: settingsExtrasRu.aiQuality,
+        aiSales: settingsExtrasRu.aiSales,
         toneProfile: settingsExtrasRu.toneProfile,
         funnelAiWizard: settingsExtrasRu.funnelAiWizard,
         usersForm: settingsExtrasRu.usersForm,

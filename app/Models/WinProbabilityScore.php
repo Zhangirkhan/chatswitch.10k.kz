@@ -13,6 +13,7 @@ final class WinProbabilityScore extends Model
     protected $fillable = [
         'company_id',
         'chat_id',
+        'deal_outcome_id',
         'probability',
         'risk_factors',
         'recommended_action',
@@ -25,6 +26,7 @@ final class WinProbabilityScore extends Model
         return [
             'company_id' => 'integer',
             'chat_id' => 'integer',
+            'deal_outcome_id' => 'integer',
             'probability' => 'integer',
             'risk_factors' => 'array',
             'inputs_snapshot' => 'array',

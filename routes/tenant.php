@@ -24,6 +24,7 @@ use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContactFieldDefinitionController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ContactStakeholderController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EntityMemoryController;
 use App\Http\Controllers\FunnelBoardController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProfileFeedbackController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ScheduledMessageController;
+use App\Http\Controllers\Settings\TenantAiSalesDashboardController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TenantRoleController;
 use App\Http\Controllers\ToneProfileController;
@@ -115,6 +117,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('/contacts/{contact}/fields/{fieldDefinition}/upload', [ContactController::class, 'uploadFieldFile'])
             ->name('contacts.fields.upload');
         Route::get('/contacts/{contact}/card', [ContactController::class, 'card'])->name('contacts.card');
+        Route::get('/contacts/{contact}/stakeholders', [ContactStakeholderController::class, 'index'])->name('contacts.stakeholders.index');
+        Route::post('/contacts/{contact}/stakeholders', [ContactStakeholderController::class, 'store'])->name('contacts.stakeholders.store');
+        Route::delete('/contacts/{contact}/stakeholders/{stakeholder}', [ContactStakeholderController::class, 'destroy'])->name('contacts.stakeholders.destroy');
         Route::post('/contacts/upsert', [ContactController::class, 'upsert'])->name('contacts.upsert');
         Route::post('/chats/start', [ChatController::class, 'start'])->name('chats.start');
         Route::post('/chats/create-group', [ChatController::class, 'createGroup'])->name('chats.create-group');
@@ -347,6 +352,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::middleware(['role:administrator', 'settings.readiness'])->prefix('settings')->group(function (): void {
         Route::get('/ai-quality', [AiInsightsController::class, 'index'])->name('settings.ai-quality');
+        Route::get('/ai-sales', [TenantAiSalesDashboardController::class, 'index'])->name('settings.ai-sales');
         Route::get('/ai-usage', [AiUsageController::class, 'index'])->name('settings.ai-usage');
         Route::get('/tone-profile', [ToneProfileController::class, 'index'])->name('settings.tone-profile');
         Route::put('/tone-profile', [ToneProfileController::class, 'update'])->name('settings.tone-profile.update');

@@ -11,6 +11,7 @@ use App\Jobs\RunAiFunnelOrchestratorJob;
 use App\Models\FunnelAiScenario;
 use App\Models\Message;
 use App\Models\SystemSetting;
+use App\Services\Contact\StakeholderDetectionService;
 use App\Support\AiFeatureFlags;
 
 final class InboundAiDispatchService
@@ -52,6 +53,12 @@ final class InboundAiDispatchService
             && $chat->contact_id !== null
         ) {
             ExtractConversationMemoryJob::dispatchDebounced($chat->id, $chat->company_id);
+        }
+
+        if (AiFeatureFlags::enabled(AiFeatureFlags::STAKEHOLDERS, (int) $chat->company_id)
+            && $chat->contact_id !== null
+        ) {
+            app(StakeholderDetectionService::class)->detectFromMessage($chat, $message);
         }
 
         if ($orchestratorEnabled && $chat->ai_enabled) {

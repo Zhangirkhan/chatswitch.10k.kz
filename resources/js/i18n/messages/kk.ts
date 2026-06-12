@@ -59,6 +59,7 @@ export const kk: MessageCatalog = {
             services: { label: 'Қызметтер', description: 'Баға және шарттар' },
             knowledge: { label: 'Білім базасы', description: 'AI жауап ережелері' },
             aiQuality: { label: 'AI және сапа', description: 'Ақаулар мен бағалаулар' },
+            aiSales: { label: 'AI конверсия', description: 'AI сату воронкасы KPI' },
             toneProfile: { label: 'Тон профилі', description: 'Компания AI стилі' },
             system: { label: 'Жүйе', description: 'Жалпы параметрлер' },
             profile: { label: 'Профиль', description: 'Аты, фото, пайдаланушы аты' },
@@ -607,6 +608,7 @@ export const kk: MessageCatalog = {
                 statusNeedsIndex: 'Индекстеу қажет (базада {indexed} фрагмент, embeddings: {withEmbedding}).',
                 toastIndexed: 'Индекстеу: +{indexed}, өткізілген {skipped}',
                 errorReindex: 'Индекстеу сәтсіз аяқталды',
+                qualitySummary: 'KQS: орташа {avg}, төмен сапа {low} фрагментте (барлығы {total}).',
             },
             testQuestion: {
                 title: 'Сынақ сұрақ',
@@ -797,6 +799,7 @@ export const kk: MessageCatalog = {
         clients: settingsExtrasKk.clients,
         contactFields: settingsExtrasKk.contactFields,
         aiQuality: settingsExtrasKk.aiQuality,
+        aiSales: settingsExtrasKk.aiSales,
         toneProfile: settingsExtrasKk.toneProfile,
         funnelAiWizard: settingsExtrasKk.funnelAiWizard,
         usersForm: settingsExtrasKk.usersForm,

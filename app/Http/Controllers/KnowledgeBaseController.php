@@ -222,7 +222,29 @@ final class KnowledgeBaseController extends Controller
 
         return response()->json([
             'rag' => $this->knowledgeRag->companyStatus($companyId),
+            'quality' => $this->qualitySummary($companyId),
         ]);
+    }
+
+    /**
+     * @return array{low_quality_count: int, scored_chunks: int, avg_score: float|null}
+     */
+    private function qualitySummary(int $companyId): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('knowledge_chunk_stats')) {
+            return ['low_quality_count' => 0, 'scored_chunks' => 0, 'avg_score' => null];
+        }
+
+        $threshold = (float) config('knowledge.quality.low_score_threshold', 40);
+        $stats = \App\Models\KnowledgeChunkStat::query()->where('company_id', $companyId);
+
+        return [
+            'low_quality_count' => (int) (clone $stats)->where('quality_score', '<', $threshold)->count(),
+            'scored_chunks' => (int) $stats->count(),
+            'avg_score' => $stats->avg('quality_score') !== null
+                ? round((float) $stats->avg('quality_score'), 1)
+                : null,
+        ];
     }
 
     public function reindexEmbeddings(Request $request): JsonResponse

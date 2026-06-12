@@ -90,6 +90,7 @@ export interface MessageCatalog {
             services: SidebarNavItemCopy;
             knowledge: SidebarNavItemCopy;
             aiQuality: SidebarNavItemCopy;
+            aiSales: SidebarNavItemCopy;
             toneProfile: SidebarNavItemCopy;
             system: SidebarNavItemCopy;
             profile: SidebarNavItemCopy;
@@ -610,6 +611,7 @@ export interface MessageCatalog {
                 statusNeedsIndex: string;
                 toastIndexed: string;
                 errorReindex: string;
+                qualitySummary: string;
             };
             testQuestion: {
                 title: string;
@@ -755,6 +757,7 @@ export interface MessageCatalog {
         clients: SettingsExtrasMessages['clients'];
         contactFields: SettingsExtrasMessages['contactFields'];
         aiQuality: SettingsExtrasMessages['aiQuality'];
+        aiSales: SettingsExtrasMessages['aiSales'];
         toneProfile: SettingsExtrasMessages['toneProfile'];
         funnelAiWizard: SettingsExtrasMessages['funnelAiWizard'];
         usersForm: SettingsExtrasMessages['usersForm'];

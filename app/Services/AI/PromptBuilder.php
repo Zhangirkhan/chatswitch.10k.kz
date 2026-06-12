@@ -73,7 +73,7 @@ final class PromptBuilder
     /**
      * @return array{messages: array<int, array{role: 'system'|'user'|'assistant', content: string}>, prompt_hash: string, manifest: array<string, mixed>}
      */
-    public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null, ?Message $triggerMessage = null): array
+    public function build(Chat $chat, User $responder, string $clientQuestion, ?int $companyId = null, ?Message $triggerMessage = null, ?PromptExperimentContext $experiment = null): array
     {
         // Reset per-build manifest so sub-methods can populate it cleanly.
         $this->buildManifest = [
@@ -83,6 +83,8 @@ final class PromptBuilder
             'domain'          => null,
             'memory_hash'     => null,
             'retrieved_chunks' => [],
+            'experiment_id'   => $experiment?->experimentId,
+            'variant_key'     => $experiment?->variantKey,
         ];
 
         $chat->loadMissing(['assignments.user', 'company:id,name']);
@@ -92,6 +94,9 @@ final class PromptBuilder
             ? trim($clientQuestion)
             : 'Ответь на последнее сообщение клиента.';
         $system = $this->systemPrompt($chat, $responder, $companyId, $question, $replyAsCompany);
+        if ($experiment !== null && $experiment->promptAddon() !== '') {
+            $system .= "\n\n--- Эксперимент (вариант {$experiment->variantKey}) ---\n".$experiment->promptAddon();
+        }
 
         $includeAiReplies = AiFeatureFlags::enabled(
             AiFeatureFlags::HISTORY_INCLUDES_AI_REPLIES,

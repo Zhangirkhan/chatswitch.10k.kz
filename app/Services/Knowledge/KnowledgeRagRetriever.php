@@ -112,6 +112,9 @@ final class KnowledgeRagRetriever
 
         $minSimilarity = (float) config('knowledge.rag.min_similarity', 0.30);
         $domainBoost = (float) config('knowledge.rag.domain_boost', 0.08);
+        $minQualityNorm = (float) config('knowledge.rag.min_quality_score', 0.30);
+        $qualityPenalty = (float) config('knowledge.rag.quality_penalty', 0.12);
+        $qualityScores = app(KnowledgeQualityScoreService::class)->scoreMapForCompany($companyId);
 
         $domainBoostMap = [];
         foreach ($domains as $rank => $d) {
@@ -129,6 +132,13 @@ final class KnowledgeRagRetriever
 
             if ($chunk->domain !== null && isset($domainBoostMap[$chunk->domain])) {
                 $score += $domainBoostMap[$chunk->domain];
+            }
+
+            if (isset($qualityScores[(int) $chunk->id])) {
+                $qualityNorm = ((float) $qualityScores[(int) $chunk->id]) / 100;
+                if ($qualityNorm < $minQualityNorm) {
+                    $score -= $qualityPenalty * (1 - $qualityNorm);
+                }
             }
 
             if ($score < $minSimilarity) {

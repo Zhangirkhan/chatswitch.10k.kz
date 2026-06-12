@@ -59,6 +59,7 @@ export const en: MessageCatalog = {
             services: { label: 'Services', description: 'Service pricing and terms' },
             knowledge: { label: 'Knowledge base', description: 'AI response rules' },
             aiQuality: { label: 'AI and quality', description: 'Failures and response ratings' },
+            aiSales: { label: 'AI conversion', description: 'AI sales funnel KPIs' },
             toneProfile: { label: 'Tone profile', description: 'Company AI response style' },
             system: { label: 'System', description: 'General parameters' },
             profile: { label: 'Profile', description: 'Name, photo, username' },
@@ -607,6 +608,7 @@ export const en: MessageCatalog = {
                 statusNeedsIndex: 'Indexing needed ({indexed} chunks in DB, with embeddings: {withEmbedding}).',
                 toastIndexed: 'Indexed: +{indexed}, skipped {skipped}',
                 errorReindex: 'Reindex failed',
+                qualitySummary: 'KQS: average {avg}, low quality on {low} chunks (of {total}).',
             },
             testQuestion: {
                 title: 'Test question',
@@ -797,6 +799,7 @@ export const en: MessageCatalog = {
         clients: settingsExtrasEn.clients,
         contactFields: settingsExtrasEn.contactFields,
         aiQuality: settingsExtrasEn.aiQuality,
+        aiSales: settingsExtrasEn.aiSales,
         toneProfile: settingsExtrasEn.toneProfile,
         funnelAiWizard: settingsExtrasEn.funnelAiWizard,
         usersForm: settingsExtrasEn.usersForm,

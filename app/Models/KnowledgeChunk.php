@@ -24,6 +24,7 @@ final class KnowledgeChunk extends Model
         'display_line',
         'content_hash',
         'embedding',
+        'quality_score',
     ];
 
     protected function casts(): array
@@ -32,6 +33,7 @@ final class KnowledgeChunk extends Model
             'company_id' => 'integer',
             'source_id' => 'integer',
             'embedding' => 'array',
+            'quality_score' => 'float',
         ];
     }
 

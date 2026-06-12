@@ -9,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\EntityMemory;
 use App\Models\User;
+use App\Services\Contact\StakeholderDetectionService;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\ClientProfileFieldHelper;
 use App\Support\ContactFieldCatalog;
@@ -66,6 +67,7 @@ final class ClientProfileAssembler
                 $this->contactsSection($identity, $crm, $channels, $memory['content'], $snippets),
                 $this->financeSection(),
                 $this->b2bSection($identity, $crm),
+                $this->stakeholdersSection($contact),
                 $this->historySection($activity, $crm),
                 $this->tasksNotesSection($crm, $memory['content']),
             ],
@@ -263,6 +265,28 @@ final class ClientProfileAssembler
         return [
             'key' => 'b2b',
             'title' => 'B2B / B2C',
+            'semantic' => 'who',
+            'fields' => $fields,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function stakeholdersSection(Contact $contact): array
+    {
+        $fields = [];
+        foreach (app(StakeholderDetectionService::class)->forAccountContact($contact->id) as $row) {
+            $roleLabel = str_replace('_', ' ', $row->role);
+            $name = trim((string) ($row->stakeholderContact?->name ?? ''));
+            $value = $name !== '' ? $name : '—';
+            if ($row->influence > 0) {
+                $value .= " ({$row->influence}%)";
+            }
+            $fields[] = $this->field(ucfirst($roleLabel), $value, 'stakeholders');
+        }
+
+        return [
+            'key' => 'stakeholders',
+            'title' => 'Участники сделки',
             'semantic' => 'who',
             'fields' => $fields,
         ];

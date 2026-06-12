@@ -7,6 +7,7 @@ namespace App\Services\AI;
 use App\Models\Chat;
 use App\Models\ConversationAudit;
 use App\Models\Contact;
+use App\Services\Contact\StakeholderDetectionService;
 use Illuminate\Support\Facades\Schema;
 
 final class RevenueCopilotAssembler
@@ -16,6 +17,7 @@ final class RevenueCopilotAssembler
         private readonly NextBestActionEngine $nbaEngine,
         private readonly ObjectionIntelligenceService $objectionIntel,
         private readonly ChatSalesStateService $salesStateService,
+        private readonly StakeholderDetectionService $stakeholders,
     ) {}
 
     /**
@@ -48,7 +50,9 @@ final class RevenueCopilotAssembler
             'win_probability' => $winProb['win_probability'],
             'risk_factors' => $winProb['risk_factors'],
             'recommended_action' => $winProb['recommended_action'],
+            'win_prob_model' => $winProb['model'] ?? ['type' => 'heuristic', 'version' => null],
             'next_best_action' => $nba,
+            'buying_committee' => $this->committeeForChat($chat),
             'missing_fields' => is_array($state['missing_fields'] ?? null) ? $state['missing_fields'] : [],
             'objections_open' => is_array($state['objections_open'] ?? null) ? $state['objections_open'] : [],
             'lead_grade' => $state['grade'] ?? null,
@@ -82,5 +86,25 @@ final class RevenueCopilotAssembler
             $this->buildForChat($chat),
             ['objection_summary' => $this->objectionIntel->buildForCompany((int) $contact->company_id)],
         );
+    }
+
+    /**
+     * @return list<array{role: string, name: string|null, influence: int, source: string}>
+     */
+    private function committeeForChat(Chat $chat): array
+    {
+        if ($chat->contact_id === null || ! Schema::hasTable('contact_stakeholders')) {
+            return [];
+        }
+
+        return $this->stakeholders->forAccountContact((int) $chat->contact_id)
+            ->map(static fn ($row): array => [
+                'role' => (string) $row->role,
+                'name' => $row->stakeholderContact?->name,
+                'influence' => (int) $row->influence,
+                'source' => (string) $row->source,
+            ])
+            ->values()
+            ->all();
     }
 }

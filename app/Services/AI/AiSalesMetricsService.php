@@ -15,6 +15,7 @@ use App\Models\SalesMilestone;
 use App\Models\ScheduledMessage;
 use App\Models\User;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
+use App\Support\TenantCompany;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,8 @@ final class AiSalesMetricsService
     public function __construct(
         private readonly SuperAdminCompanyScope $superAdminScope,
         private readonly ObjectionIntelligenceService $objectionIntel,
+        private readonly PromptExperimentMetricsService $experimentMetrics,
+        private readonly WinProbabilityService $winProbabilityService,
     ) {}
 
     /**
@@ -49,6 +52,54 @@ final class AiSalesMetricsService
     public function build(User $superAdmin, Carbon $from, Carbon $to, ?int $companyId = null): array
     {
         $companyIds = $this->resolveCompanyIds($superAdmin, $companyId);
+
+        $payload = $this->buildForCompanyIds($companyIds, $from, $to, $companyId);
+
+        if ($companyId === null && $companyIds !== []) {
+            $payload['by_company'] = $this->buildByCompanyBreakdown($superAdmin, $companyIds, $from, $to);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Tenant-scoped metrics for company administrators.
+     *
+     * @return array{
+     *     period: array{from: string, to: string},
+     *     filters: array{company_id: int|null, company_name: string|null},
+     *     summary: array{cohort_size: int, closed_deals: int, follow_ups_sent: int},
+     *     kpis: list<array{key: string, label: string, percent: float|null, numerator: int, denominator: int, sufficient_data: bool}>,
+     *     lost_reasons: list<array{reason: string, count: int, percent: float}>,
+     *     win_rate_by_grade: list<array{grade: string, won: int, total: int, percent: float|null}>,
+     *     objection_intelligence: array{top_objections: list<array<string, mixed>>, top_winning_responses: list<array<string, mixed>>, top_losing_responses: list<array<string, mixed>>},
+     *     by_company: list<array<string, mixed>>
+     * }
+     */
+    public function buildForTenant(User $user, Carbon $from, Carbon $to): array
+    {
+        abort_unless($user->hasRole('administrator'), 403);
+
+        $companyId = TenantCompany::id();
+
+        return $this->buildForCompanyIds([$companyId], $from, $to, $companyId);
+    }
+
+    /**
+     * @param  list<int>  $companyIds
+     * @return array{
+     *     period: array{from: string, to: string},
+     *     filters: array{company_id: int|null, company_name: string|null},
+     *     summary: array{cohort_size: int, closed_deals: int, follow_ups_sent: int},
+     *     kpis: list<array{key: string, label: string, percent: float|null, numerator: int, denominator: int, sufficient_data: bool}>,
+     *     lost_reasons: list<array{reason: string, count: int, percent: float}>,
+     *     win_rate_by_grade: list<array{grade: string, won: int, total: int, percent: float|null}>,
+     *     objection_intelligence: array{top_objections: list<array<string, mixed>>, top_winning_responses: list<array<string, mixed>>, top_losing_responses: list<array<string, mixed>>},
+     *     by_company: list<array<string, mixed>>
+     * }
+     */
+    public function buildForCompanyIds(array $companyIds, Carbon $from, Carbon $to, ?int $companyId = null): array
+    {
         $companyName = null;
         if ($companyId !== null) {
             $companyName = Company::query()->whereKey($companyId)->value('name');
@@ -66,11 +117,6 @@ final class AiSalesMetricsService
         $objectionIntelligence = $companyId !== null
             ? $this->objectionIntel->buildForCompany($companyId)
             : $this->aggregateObjectionIntelligence($companyIds);
-
-        $byCompany = [];
-        if ($companyId === null && $companyIds !== []) {
-            $byCompany = $this->buildByCompanyBreakdown($superAdmin, $companyIds, $from, $to);
-        }
 
         return [
             'period' => [
@@ -90,7 +136,11 @@ final class AiSalesMetricsService
             'lost_reasons' => $lostReasons,
             'win_rate_by_grade' => $winRateByGrade,
             'objection_intelligence' => $objectionIntelligence,
-            'by_company' => $byCompany,
+            'experiments' => $this->experimentMetrics->forCompanyIds($companyIds, $from, $to),
+            'win_prob_model' => $companyId !== null
+                ? $this->winProbabilityService->activeModelLabel($companyId)
+                : null,
+            'by_company' => [],
         ];
     }
 

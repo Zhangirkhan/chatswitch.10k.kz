@@ -42,6 +42,7 @@ final class AiReplyGenerator
         private readonly ConversationAppointmentResolver $conversationAppointments,
         private readonly ClientMessageIntentDetector $clientIntents,
         private readonly KnowledgeRetrievalLogger $retrievalLogger,
+        private readonly PromptExperimentResolver $experimentResolver,
     ) {}
 
     /**
@@ -105,13 +106,15 @@ final class AiReplyGenerator
             }
         }
 
-        $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id, $triggerMessage);
+        $experiment = $this->experimentResolver->resolveForChat($chat);
+        $built = $this->promptBuilder->build($chat, $responder, $clientQuestion, $chat->company_id ?? $responder->company_id, $triggerMessage, $experiment);
         $localeProfile = $this->chatLocaleResolver->resolve($chat, $triggerMessage);
         $maxReplyTokens = max(300, (int) config('services.openai.max_reply_tokens', 700));
         $companyId = $chat->company_id ?? $responder->company_id;
+        $temperature = $experiment?->temperatureOverride() ?? 0.35;
         $llmResult = $this->openAi->chatWithUsage(
             $built['messages'],
-            0.35,
+            $temperature,
             $maxReplyTokens,
             new AiUsageOptions('ai_reply', $companyId),
         );
@@ -144,6 +147,8 @@ final class AiReplyGenerator
                 'messages_count'    => count($built['messages']),
                 'product_attach_id' => $parsed['product_id'],
                 'decision_manifest' => $built['manifest'] ?? [],
+                'experiment_id'     => $experiment?->experimentId,
+                'variant_key'       => $experiment?->variantKey,
             ],
         ])->save();
 

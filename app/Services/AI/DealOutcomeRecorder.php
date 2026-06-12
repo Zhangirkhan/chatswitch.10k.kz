@@ -8,7 +8,9 @@ use App\Enums\EntityMemorySubjectType;
 use App\Models\Chat;
 use App\Models\ContactTag;
 use App\Models\DealOutcome;
+use App\Models\FollowUpOutcome;
 use App\Models\FunnelStage;
+use App\Models\WinProbabilityScore;
 use App\Services\Memory\EntityMemoryService;
 use App\Models\SalesMilestone;
 use App\Support\AiFeatureFlags;
@@ -68,7 +70,7 @@ final class DealOutcomeRecorder
         $reason = $reasonOverride ?? $this->inferReason($facts, $won, $chat);
         $industry = $this->inferIndustry($facts);
 
-        DealOutcome::query()->create([
+        $outcome = DealOutcome::query()->create([
             'company_id' => (int) $chat->company_id,
             'chat_id' => $chat->id,
             'contact_id' => $chat->contact_id,
@@ -83,6 +85,16 @@ final class DealOutcomeRecorder
             'source' => $source,
             'closed_at' => now(),
         ]);
+
+        WinProbabilityScore::query()
+            ->where('chat_id', $chat->id)
+            ->whereNull('deal_outcome_id')
+            ->update(['deal_outcome_id' => $outcome->id]);
+
+        FollowUpOutcome::query()
+            ->where('chat_id', $chat->id)
+            ->whereNull('deal_outcome_id')
+            ->update(['deal_outcome_id' => $outcome->id]);
 
         $this->milestoneRecorder->record(
             $chat,

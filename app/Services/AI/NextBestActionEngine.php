@@ -6,12 +6,15 @@ namespace App\Services\AI;
 
 use App\Models\Chat;
 use App\Models\SalesPlaybook;
+use App\Services\Contact\StakeholderDetectionService;
+use App\Support\AiFeatureFlags;
 
 final class NextBestActionEngine
 {
     public function __construct(
         private readonly ChatSalesStateService $salesStateService,
         private readonly PlaybookSelector $playbookSelector,
+        private readonly StakeholderDetectionService $stakeholders,
     ) {}
 
     /**
@@ -28,6 +31,7 @@ final class NextBestActionEngine
         $state = $this->salesStateService->freshState($chat);
         $action = (string) ($state['next_action'] ?? ChatSalesStateService::NA_QUALIFY);
         $playbook = $this->playbookSelector->resolveForChat($chat);
+        $action = $this->guardDecisionMakerForB2b($chat, $state, $action, $playbook);
 
         $confidence = $this->confidenceFromState($state);
         $goal = $this->goalForAction($action);
@@ -146,5 +150,41 @@ final class NextBestActionEngine
         $parts[] = "Recommended: {$action}.";
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function guardDecisionMakerForB2b(
+        Chat $chat,
+        array $state,
+        string $action,
+        ?SalesPlaybook $playbook,
+    ): string {
+        if ($action !== ChatSalesStateService::NA_PRESENT_OFFER) {
+            return $action;
+        }
+
+        if (($state['decision_maker_known'] ?? false) === true) {
+            return $action;
+        }
+
+        if (! AiFeatureFlags::enabled(AiFeatureFlags::STAKEHOLDERS, (int) $chat->company_id)) {
+            return $action;
+        }
+
+        $slug = mb_strtolower((string) ($playbook?->slug ?? ''));
+        $requiresDm = str_contains($slug, 'b2b')
+            || in_array('decision_maker', $this->playbookSelector->qualificationFieldOrder($playbook), true);
+
+        if (! $requiresDm) {
+            return $action;
+        }
+
+        if ($chat->contact_id !== null && $this->stakeholders->hasDecisionMaker((int) $chat->contact_id)) {
+            return $action;
+        }
+
+        return ChatSalesStateService::NA_QUALIFY;
     }
 }

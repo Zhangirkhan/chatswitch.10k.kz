@@ -93,6 +93,17 @@ Schedule::command('knowledge:index-embeddings')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('knowledge:compute-quality-scores')
+    ->dailyAt('04:50')
+    ->when(fn (): bool => (bool) config('knowledge.rag.enabled', true))
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('ai:train-win-probability')
+    ->weeklyOn(0, '05:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('locale:index-embeddings')
     ->dailyAt('04:45')
     ->when(fn (): bool => (bool) config('locale_assistant.enabled', true))
