@@ -226,16 +226,12 @@ final class WhatsappGhostChatTest extends TestCase
             'senderName' => 'Алымжан',
         ]);
 
-        $job->handle(
-            app(ChatService::class),
-            app(\App\Services\AI\ChatDepartmentRoutingService::class),
-            app(\App\Services\AI\ChatOffHoursReplyService::class),
-            app(\App\Services\AI\AutomatedPeerReplyGuard::class),
-            app(\App\Tenancy\TenantContext::class),
-            app(\App\Services\AI\InboundAiDispatchService::class),
-        );
+        $this->app->call([$job, 'handle']);
 
-        $contactB = \App\Models\Contact::query()->where('whatsapp_id', $whatsappId)->first();
+        $contactB = \App\Models\Contact::query()
+            ->where('whatsapp_id', $whatsappId)
+            ->where('company_id', $companyB->id)
+            ->first();
         $this->assertNotNull($contactB);
         $this->assertSame($companyB->id, $contactB->company_id);
         $this->assertNotSame($contactA->id, $contactB->id);
