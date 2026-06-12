@@ -3789,16 +3789,21 @@
     }
 
     .ui-super-admin-shell {
-        --ui-super-admin-chrome-h: 72px;
-        --ui-super-admin-chrome-bg: var(--ui-surface);
+        --ui-super-admin-chrome-h: 88px;
+        --ui-super-admin-chrome-bg: transparent;
+        --ui-super-admin-main-bg: linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--ui-bg) 94%, var(--ui-surface)) 0%,
+            var(--ui-bg) 120px
+        );
         --sa-accent-overview: var(--ui-accent);
         --sa-accent-operations: var(--wa-chroma-blue-fg);
         --sa-accent-billing: var(--wa-chroma-yellow-fg);
         --sa-accent-platform: var(--wa-chroma-violet-fg);
-        --sa-accent-overview-soft: color-mix(in srgb, var(--sa-accent-overview) 12%, var(--ui-surface));
-        --sa-accent-operations-soft: color-mix(in srgb, var(--sa-accent-operations) 12%, var(--ui-surface));
-        --sa-accent-billing-soft: color-mix(in srgb, var(--sa-accent-billing) 12%, var(--ui-surface));
-        --sa-accent-platform-soft: color-mix(in srgb, var(--sa-accent-platform) 12%, var(--ui-surface));
+        --sa-accent-overview-soft: color-mix(in srgb, var(--sa-accent-overview) 20%, var(--ui-surface));
+        --sa-accent-operations-soft: color-mix(in srgb, var(--sa-accent-operations) 20%, var(--ui-surface));
+        --sa-accent-billing-soft: color-mix(in srgb, var(--sa-accent-billing) 20%, var(--ui-surface));
+        --sa-accent-platform-soft: color-mix(in srgb, var(--sa-accent-platform) 20%, var(--ui-surface));
         --sa-accent-overview-border: color-mix(in srgb, var(--sa-accent-overview) 35%, var(--ui-border));
         --sa-accent-operations-border: color-mix(in srgb, var(--sa-accent-operations) 35%, var(--ui-border));
         --sa-accent-billing-border: color-mix(in srgb, var(--sa-accent-billing) 35%, var(--ui-border));
@@ -3831,9 +3836,8 @@
         border-right: 1px solid var(--ui-border-strong);
         background: linear-gradient(
             180deg,
-            color-mix(in srgb, var(--ui-surface) 96%, var(--ui-accent)) 0%,
-            var(--ui-surface) 18%,
-            color-mix(in srgb, var(--ui-bg) 90%, var(--ui-surface)) 100%
+            var(--ui-surface) 0%,
+            color-mix(in srgb, var(--ui-bg) 92%, var(--ui-surface)) 100%
         );
         box-shadow: inset -1px 0 0 color-mix(in srgb, var(--ui-border) 40%, transparent);
         transform: translateX(-100%);
@@ -3865,7 +3869,7 @@
         height: var(--ui-super-admin-chrome-h);
         padding: 0 1rem;
         border-bottom: 1px solid var(--ui-border-strong);
-        background: var(--ui-super-admin-chrome-bg);
+        background: var(--ui-surface);
         flex-shrink: 0;
     }
 
@@ -3909,9 +3913,13 @@
         padding-top: 0.15rem;
     }
 
+    .ui-super-admin-nav-group:not(:last-child) {
+        padding-bottom: 1.1rem;
+    }
+
     .ui-super-admin-nav-group + .ui-super-admin-nav-group {
-        margin-top: 0;
-        padding-top: 1.35rem;
+        margin-top: 0.65rem;
+        padding-top: 1rem;
         border-top: 1px solid color-mix(in srgb, var(--ui-border) 65%, transparent);
     }
 
@@ -3940,7 +3948,7 @@
     }
 
     .ui-super-admin-nav-group__label {
-        margin: 0 0 0.45rem;
+        margin: 0.15rem 0 0.45rem;
         padding: 0 0.65rem;
         font-size: 0.625rem;
         font-weight: 700;
@@ -3997,17 +4005,46 @@
         color: var(--ui-text-secondary);
     }
 
+    .ui-super-admin-nav-item--overview {
+        --sa-item-accent: var(--sa-accent-overview);
+        --sa-item-accent-soft: var(--sa-accent-overview-soft);
+        --sa-item-accent-border: var(--sa-accent-overview-border);
+    }
+
+    .ui-super-admin-nav-item--operations {
+        --sa-item-accent: var(--sa-accent-operations);
+        --sa-item-accent-soft: var(--sa-accent-operations-soft);
+        --sa-item-accent-border: var(--sa-accent-operations-border);
+    }
+
+    .ui-super-admin-nav-item--billing {
+        --sa-item-accent: var(--sa-accent-billing);
+        --sa-item-accent-soft: var(--sa-accent-billing-soft);
+        --sa-item-accent-border: var(--sa-accent-billing-border);
+    }
+
+    .ui-super-admin-nav-item--platform {
+        --sa-item-accent: var(--sa-accent-platform);
+        --sa-item-accent-soft: var(--sa-accent-platform-soft);
+        --sa-item-accent-border: var(--sa-accent-platform-border);
+    }
+
     .ui-super-admin-nav-item.is-active {
-        background: var(--sa-group-accent-soft, color-mix(in srgb, var(--ui-accent) 12%, var(--ui-surface)));
+        background: var(--sa-item-accent-soft, var(--sa-group-accent-soft, color-mix(in srgb, var(--ui-accent) 20%, var(--ui-surface))));
         color: var(--ui-text);
         font-weight: 600;
+        transform: none;
         box-shadow:
-            inset 3px 0 0 var(--sa-group-accent, var(--ui-accent)),
-            0 0 0 1px color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 18%, var(--ui-border));
+            inset 4px 0 0 var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent))),
+            0 0 0 1px var(--sa-item-accent-border, color-mix(in srgb, var(--sa-item-accent, var(--ui-accent)) 35%, var(--ui-border)));
     }
 
     .ui-super-admin-nav-item.is-active .ui-super-admin-nav-item__icon {
-        color: var(--sa-group-accent, var(--ui-accent));
+        color: var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent)));
+    }
+
+    .ui-super-admin-nav-item.is-active .ui-super-admin-nav-item__label {
+        color: var(--ui-text);
     }
 
     .ui-super-admin-nav-item__badge {
@@ -4017,9 +4054,9 @@
         font-size: 0.68rem;
         font-weight: 700;
         text-align: center;
-        background: color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 18%, var(--ui-surface));
-        color: var(--sa-group-accent, var(--ui-accent));
-        border: 1px solid color-mix(in srgb, var(--sa-group-accent, var(--ui-accent)) 30%, var(--ui-border));
+        background: color-mix(in srgb, var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent))) 22%, var(--ui-surface));
+        color: var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent)));
+        border: 1px solid color-mix(in srgb, var(--sa-item-accent, var(--sa-group-accent, var(--ui-accent))) 40%, var(--ui-border));
     }
 
     .ui-super-admin-main-column {
@@ -4028,28 +4065,23 @@
         flex-direction: column;
         min-width: 0;
         min-height: 0;
-        background: linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--ui-bg) 94%, var(--ui-surface)) 0%,
-            var(--ui-bg) 120px
-        );
+        background: var(--ui-super-admin-main-bg);
     }
 
     .ui-super-admin-topbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.75rem;
-        height: var(--ui-super-admin-chrome-h);
-        padding: 0 1rem;
-        border-bottom: 1px solid var(--ui-border-strong);
-        background: var(--ui-super-admin-chrome-bg);
+        gap: 1rem;
+        min-height: var(--ui-super-admin-chrome-h);
+        padding: 0.65rem 1rem;
+        background: var(--ui-super-admin-main-bg);
         flex-shrink: 0;
     }
 
     @media (min-width: 1024px) {
         .ui-super-admin-topbar {
-            padding: 0 1.5rem;
+            padding: 0.75rem 1.5rem;
         }
     }
 
@@ -4059,6 +4091,96 @@
         align-items: center;
         gap: 0.65rem;
         min-width: 0;
+        flex-shrink: 0;
+    }
+
+    .ui-super-admin-topbar__page {
+        flex: 1 1 auto;
+        align-items: center;
+        min-width: 0;
+        margin-right: 1rem;
+    }
+
+    .ui-super-admin-topbar__page-actions {
+        align-items: center;
+        gap: 0.5rem;
+        margin-right: 0.35rem;
+    }
+
+    .ui-super-admin-topbar-chrome {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .ui-super-admin-topbar-chrome__eyebrow {
+        display: inline-flex;
+        margin: 0 0 0.2rem;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--sa-header-accent, var(--ui-text-muted));
+        background: color-mix(in srgb, var(--sa-header-accent, var(--ui-text-muted)) 14%, var(--ui-surface));
+        border: 1px solid color-mix(in srgb, var(--sa-header-accent, var(--ui-border)) 28%, var(--ui-border));
+    }
+
+    .ui-super-admin-topbar-chrome__title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 650;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+        color: var(--ui-text);
+    }
+
+    .ui-super-admin-topbar-chrome__title-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
+    .ui-super-admin-topbar-chrome__title-row .ui-super-admin-topbar-chrome__title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: min(100%, 28rem);
+    }
+
+    .ui-super-admin-topbar-chrome__subtitle {
+        margin: 0.15rem 0 0;
+        font-size: 0.75rem;
+        line-height: 1.35;
+        color: var(--ui-text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .ui-super-admin-topbar-chrome__actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .ui-super-admin-topbar-chrome--overview {
+        --sa-header-accent: var(--sa-accent-overview);
+    }
+
+    .ui-super-admin-topbar-chrome--operations {
+        --sa-header-accent: var(--sa-accent-operations);
+    }
+
+    .ui-super-admin-topbar-chrome--billing {
+        --sa-header-accent: var(--sa-accent-billing);
+    }
+
+    .ui-super-admin-topbar-chrome--platform {
+        --sa-header-accent: var(--sa-accent-platform);
     }
 
     .ui-super-admin-topbar__title {
@@ -4117,15 +4239,18 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
-        margin-bottom: 2rem;
-        padding-bottom: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
         border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
+        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .ui-super-admin-page-header--mobile {
         background: linear-gradient(
             180deg,
             color-mix(in srgb, var(--ui-surface) 40%, transparent) 0%,
             transparent 100%
         );
-        animation: ui-sa-fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     @media (min-width: 768px) {
@@ -4544,6 +4669,14 @@
         padding-bottom: 0;
         margin-bottom: 0;
         background: none;
+    }
+
+    .ui-super-admin-company-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
     }
 
     .ui-super-admin-tabs.ui-pill-nav {

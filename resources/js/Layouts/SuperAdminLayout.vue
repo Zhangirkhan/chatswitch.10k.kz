@@ -59,10 +59,10 @@ watch(
 
         <div class="ui-super-admin-main-column">
             <header class="ui-super-admin-topbar">
-                <div class="ui-super-admin-topbar__left">
+                <div class="ui-super-admin-topbar__left lg:hidden">
                     <button
                         type="button"
-                        class="ui-btn ui-btn--ghost ui-super-admin-menu-btn lg:hidden"
+                        class="ui-btn ui-btn--ghost ui-super-admin-menu-btn"
                         :aria-expanded="sidebarOpen"
                         :aria-label="t('superAdmin.layout.menuAriaLabel')"
                         @click="sidebarOpen = !sidebarOpen"
@@ -71,9 +71,11 @@ watch(
                             <path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16" />
                         </svg>
                     </button>
-                    <span class="ui-super-admin-topbar__title lg:hidden">{{ t('superAdmin.layout.brand') }}</span>
+                    <span class="ui-super-admin-topbar__title">{{ t('superAdmin.layout.brand') }}</span>
                 </div>
+                <div id="sa-topbar-page" class="ui-super-admin-topbar__page hidden lg:flex" />
                 <div class="ui-super-admin-topbar__actions">
+                    <div id="sa-topbar-actions" class="ui-super-admin-topbar__page-actions hidden lg:flex" />
                     <button
                         type="button"
                         class="ui-btn ui-btn--ghost ui-btn--sm ui-super-admin-topbar__theme"

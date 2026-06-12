@@ -154,7 +154,10 @@ function onNavigate(): void {
                         :key="item.href"
                         :href="item.href"
                         class="ui-super-admin-nav-item"
-                        :class="{ 'is-active': isActive(item.match) }"
+                        :class="[
+                            `ui-super-admin-nav-item--${group.groupKey}`,
+                            { 'is-active': isActive(item.match) },
+                        ]"
                         @click="onNavigate"
                     >
                         <span class="ui-super-admin-nav-item__main">

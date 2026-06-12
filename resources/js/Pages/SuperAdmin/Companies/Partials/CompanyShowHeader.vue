@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SuperAdminKpiGrid, { type SuperAdminKpiItem } from '@/Components/SuperAdmin/SuperAdminKpiGrid.vue';
 import { useI18n } from '@/composables/useI18n';
+import { useMinWidth } from '@/composables/useMinWidth';
 import DangerConfirmModal from '@/Components/DangerConfirmModal.vue';
 import { subscriptionStatusBadgeClass } from '@/utils/superAdminSubscriptionBadge';
 import { router } from '@inertiajs/vue3';
@@ -40,6 +41,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const isDesktop = useMinWidth('(min-width: 1024px)');
+
+const topbarSubtitle = computed(() =>
+    props.trialInfo
+    ?? t('superAdmin.companies.header.openTenant', { slug: props.company.slug, domain: props.rootDomain ?? 'accel.kz' }),
+);
 
 const maxSpark = computed(() =>
     Math.max(1, ...props.billingSummary.revenue_sparkline.map((p) => p.amount_kzt)),
@@ -142,7 +149,44 @@ function impersonate(): void {
 </script>
 
 <template>
-    <header class="ui-super-admin-page-header ui-super-admin-page-header--operations ui-super-admin-company-header">
+    <Teleport to="#sa-topbar-page" :disabled="!isDesktop">
+        <div class="ui-super-admin-topbar-chrome ui-super-admin-topbar-chrome--operations">
+            <p class="ui-super-admin-topbar-chrome__eyebrow">{{ t('superAdmin.layout.nav.companies') }}</p>
+            <div class="ui-super-admin-topbar-chrome__title-row">
+                <h1 class="ui-super-admin-topbar-chrome__title">{{ company.name }}</h1>
+                <span :class="subscriptionStatusBadgeClass(company.subscription_status)">
+                    {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
+                </span>
+            </div>
+            <p class="ui-super-admin-topbar-chrome__subtitle">{{ topbarSubtitle }}</p>
+        </div>
+    </Teleport>
+
+    <Teleport to="#sa-topbar-actions" :disabled="!isDesktop">
+        <div class="ui-super-admin-topbar-chrome__actions">
+            <button
+                type="button"
+                class="ui-btn ui-btn--secondary inline-flex items-center gap-3"
+                @click="emit('toggle')"
+            >
+                <span
+                    class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full"
+                    :class="company.is_active ? 'bg-ui-accent' : 'bg-ui-surface-muted'"
+                >
+                    <span
+                        class="inline-block h-4 w-4 transform rounded-full bg-white shadow"
+                        :class="company.is_active ? 'translate-x-4' : 'translate-x-1'"
+                    ></span>
+                </span>
+                {{ company.is_active ? t('superAdmin.companies.header.tenantEnabled') : t('superAdmin.companies.header.tenantDisabled') }}
+            </button>
+        </div>
+    </Teleport>
+
+    <header
+        v-if="!isDesktop"
+        class="ui-super-admin-page-header ui-super-admin-page-header--mobile ui-super-admin-page-header--operations ui-super-admin-company-header"
+    >
         <div class="ui-super-admin-page-header__intro min-w-0 flex-1">
             <p class="ui-super-admin-page-header__eyebrow">{{ t('superAdmin.layout.nav.companies') }}</p>
             <div class="flex flex-wrap items-center gap-2">
@@ -151,54 +195,6 @@ function impersonate(): void {
                     {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
                 </span>
             </div>
-            <div class="mt-2 flex flex-wrap items-center gap-2">
-                <a
-                    :href="tenantUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-sm text-ui-accent hover:text-ui-accent-hover hover:underline"
-                >
-                    {{ t('superAdmin.companies.header.openTenant', { slug: company.slug, domain: rootDomain ?? 'accel.kz' }) }}
-                </a>
-                <button
-                    v-if="canPopulateSandbox"
-                    type="button"
-                    class="ui-btn ui-btn--secondary ui-btn--sm"
-                    :disabled="populating"
-                    @click="populateSandbox"
-                >
-                    {{ populating ? t('superAdmin.companies.header.populating') : t('superAdmin.companies.header.populateSandbox') }}
-                </button>
-                <button
-                    v-if="canClearSandboxData"
-                    type="button"
-                    class="ui-btn ui-btn--danger-ghost ui-btn--sm"
-                    :disabled="clearingSandbox"
-                    @click="showClearSandboxConfirm = true"
-                >
-                    {{ clearingSandbox ? t('superAdmin.companies.header.clearingSandbox') : t('superAdmin.companies.header.clearSandboxData') }}
-                </button>
-                <button
-                    type="button"
-                    class="ui-btn ui-btn--primary ui-btn--sm"
-                    :disabled="!canImpersonate || impersonating"
-                    :title="impersonateBlockedReason ?? undefined"
-                    @click="impersonate"
-                >
-                    {{ impersonating ? t('superAdmin.companies.header.impersonating') : t('superAdmin.companies.header.impersonate') }}
-                </button>
-                <button
-                    v-if="canDelete"
-                    type="button"
-                    class="ui-btn ui-btn--danger-ghost ui-btn--sm"
-                    @click="emit('delete')"
-                >
-                    {{ t('superAdmin.companies.header.deleteCompany') }}
-                </button>
-            </div>
-            <p v-if="!canImpersonate && impersonateBlockedReason" class="mt-1 text-xs text-ui-text-muted">
-                {{ impersonateBlockedReason }}
-            </p>
             <p v-if="trialInfo" class="mt-1 text-sm text-ui-accent">{{ trialInfo }}</p>
         </div>
         <div class="ui-super-admin-page-header__actions">
@@ -220,6 +216,56 @@ function impersonate(): void {
             </button>
         </div>
     </header>
+
+    <div class="ui-super-admin-company-toolbar">
+        <a
+            :href="tenantUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-sm text-ui-accent hover:text-ui-accent-hover hover:underline"
+        >
+            {{ t('superAdmin.companies.header.openTenant', { slug: company.slug, domain: rootDomain ?? 'accel.kz' }) }}
+        </a>
+        <button
+            v-if="canPopulateSandbox"
+            type="button"
+            class="ui-btn ui-btn--secondary ui-btn--sm"
+            :disabled="populating"
+            @click="populateSandbox"
+        >
+            {{ populating ? t('superAdmin.companies.header.populating') : t('superAdmin.companies.header.populateSandbox') }}
+        </button>
+        <button
+            v-if="canClearSandboxData"
+            type="button"
+            class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+            :disabled="clearingSandbox"
+            @click="showClearSandboxConfirm = true"
+        >
+            {{ clearingSandbox ? t('superAdmin.companies.header.clearingSandbox') : t('superAdmin.companies.header.clearSandboxData') }}
+        </button>
+        <button
+            type="button"
+            class="ui-btn ui-btn--primary ui-btn--sm"
+            :disabled="!canImpersonate || impersonating"
+            :title="impersonateBlockedReason ?? undefined"
+            @click="impersonate"
+        >
+            {{ impersonating ? t('superAdmin.companies.header.impersonating') : t('superAdmin.companies.header.impersonate') }}
+        </button>
+        <button
+            v-if="canDelete"
+            type="button"
+            class="ui-btn ui-btn--danger-ghost ui-btn--sm"
+            @click="emit('delete')"
+        >
+            {{ t('superAdmin.companies.header.deleteCompany') }}
+        </button>
+    </div>
+
+    <p v-if="!canImpersonate && impersonateBlockedReason" class="mb-4 text-xs text-ui-text-muted">
+        {{ impersonateBlockedReason }}
+    </p>
 
     <SuperAdminKpiGrid :items="billingKpis" class="!mb-5" />
 
