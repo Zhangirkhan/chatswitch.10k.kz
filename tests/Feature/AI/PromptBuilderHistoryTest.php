@@ -74,7 +74,7 @@ final class PromptBuilderHistoryTest extends TestCase
      */
     public function test_ai_replies_excluded_in_legacy_mode(): void
     {
-        // Flag intentionally NOT enabled.
+        AiFeatureFlags::disable(AiFeatureFlags::HISTORY_INCLUDES_AI_REPLIES, TenantCompany::id());
 
         $responder = User::factory()->create(['company_id' => TenantCompany::id()]);
         $chat = Chat::factory()->create(['company_id' => TenantCompany::id()]);
@@ -90,8 +90,8 @@ final class PromptBuilderHistoryTest extends TestCase
         $builder = app(PromptBuilder::class);
         $built = $builder->build($chat, $responder, 'Тест', TenantCompany::id());
 
-        $allContent = implode(' ', array_column($built['messages'], 'content'));
-        $this->assertStringNotContainsString('ТОЛЬКО ДЛЯ ТЕСТА', $allContent);
+        $this->assertStringNotContainsString('ТОЛЬКО ДЛЯ ТЕСТА', $built['messages'][1]['content']);
+        $this->assertStringContainsString('ТОЛЬКО ДЛЯ ТЕСТА', $built['messages'][2]['content']);
     }
 
     /**

@@ -27,6 +27,7 @@ use App\Models\WhatsappSession;
 use App\Services\AI\AiAppointmentIntentService;
 use App\Services\AI\PromptBuilder;
 use App\Services\AI\ToneProfileAnalyzer;
+use App\Support\AiFeatureFlags;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use Carbon\Carbon;
@@ -123,6 +124,7 @@ final class AiAssistantTest extends TestCase
     public function test_prompt_builder_includes_full_chat_history(): void
     {
         $company = $this->createTenantCompany(['name' => 'Company']);
+        AiFeatureFlags::disable(AiFeatureFlags::HISTORY_INCLUDES_AI_REPLIES, $company->id);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -201,6 +203,7 @@ final class AiAssistantTest extends TestCase
     public function test_prompt_builder_excludes_previous_ai_replies_from_history(): void
     {
         $company = $this->createTenantCompany(['name' => 'Company']);
+        AiFeatureFlags::disable(AiFeatureFlags::HISTORY_INCLUDES_AI_REPLIES, $company->id);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -237,12 +240,13 @@ final class AiAssistantTest extends TestCase
         $this->assertStringNotContainsString('Ошибочный старый AI ответ', $conversationContext);
         $this->assertStringContainsString('Ошибочный старый AI ответ', $continuityContext);
         $this->assertStringContainsString('Используй только чтобы не повторяться', $continuityContext);
-        $this->assertStringContainsString('Старые ответы в истории могли быть ошибочными', $built['messages'][0]['content']);
+        $this->assertStringContainsString('старые ответы могли быть ошибочными', $built['messages'][0]['content']);
     }
 
     public function test_prompt_builder_includes_recent_ai_replies_only_for_continuity(): void
     {
         $company = $this->createTenantCompany(['name' => 'Company']);
+        AiFeatureFlags::disable(AiFeatureFlags::HISTORY_INCLUDES_AI_REPLIES, $company->id);
         $user = User::factory()->create(['company_id' => $company->id]);
         $session = WhatsappSession::factory()->create();
         $chat = Chat::factory()->create([
@@ -267,7 +271,7 @@ final class AiAssistantTest extends TestCase
         $this->assertStringNotContainsString('Тапочки стоят 1 000 ₸', $built['messages'][1]['content']);
         $this->assertStringContainsString('Тапочки стоят 1 000 ₸', $built['messages'][2]['content']);
         $this->assertStringContainsString('Не повторяй уже сказанные клиенту', $built['messages'][0]['content']);
-        $this->assertStringContainsString('факты бери из базы знаний', $built['messages'][0]['content']);
+        $this->assertStringContainsString('факты проверяй по базе знаний', $built['messages'][2]['content']);
     }
 
     public function test_prompt_builder_includes_recent_manual_responder_style_examples(): void
