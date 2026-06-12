@@ -91,12 +91,7 @@ onUnmounted(() => {
                         class="ui-super-admin-topbar-chrome"
                         :class="pageChrome.accentGroup ? `ui-super-admin-topbar-chrome--${pageChrome.accentGroup}` : undefined"
                     >
-                        <p v-if="pageChrome.eyebrow" class="ui-super-admin-topbar-chrome__eyebrow">{{ pageChrome.eyebrow }}</p>
-                        <div v-if="pageChrome.titleBadge" class="ui-super-admin-topbar-chrome__title-row">
-                            <h1 class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
-                            <span :class="pageChrome.titleBadge.className">{{ pageChrome.titleBadge.text }}</span>
-                        </div>
-                        <h1 v-else class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
+                        <h1 class="ui-super-admin-topbar-chrome__title">{{ pageChrome.title }}</h1>
                         <p v-if="pageChrome.subtitle" class="ui-super-admin-topbar-chrome__subtitle">{{ pageChrome.subtitle }}</p>
                     </div>
                 </div>

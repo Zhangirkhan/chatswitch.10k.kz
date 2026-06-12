@@ -4115,26 +4115,12 @@
         max-width: 100%;
     }
 
-    .ui-super-admin-topbar-chrome__eyebrow {
-        display: inline-flex;
-        margin: 0 0 0.2rem;
-        padding: 0.15rem 0.55rem;
-        border-radius: 999px;
-        font-size: 0.625rem;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--sa-header-accent, var(--ui-text-muted));
-        background: color-mix(in srgb, var(--sa-header-accent, var(--ui-text-muted)) 14%, var(--ui-surface));
-        border: 1px solid color-mix(in srgb, var(--sa-header-accent, var(--ui-border)) 28%, var(--ui-border));
-    }
-
     .ui-super-admin-topbar-chrome__title {
         margin: 0;
-        font-size: 1.05rem;
-        font-weight: 650;
-        line-height: 1.2;
-        letter-spacing: -0.01em;
+        font-size: clamp(1.35rem, 1.8vw, 1.75rem);
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: -0.025em;
         color: var(--ui-text);
     }
 
@@ -4154,13 +4140,14 @@
     }
 
     .ui-super-admin-topbar-chrome__subtitle {
-        margin: 0.15rem 0 0;
-        font-size: 0.75rem;
-        line-height: 1.35;
+        margin: 0.2rem 0 0;
+        font-size: 0.8125rem;
+        line-height: 1.4;
         color: var(--ui-text-secondary);
-        white-space: nowrap;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
         overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .ui-super-admin-topbar-chrome__actions {
@@ -4266,6 +4253,48 @@
 
     .ui-super-admin-page-header__intro {
         min-width: 0;
+    }
+
+    .ui-super-admin-page-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem;
+        margin: 0 0 1.25rem;
+    }
+
+    .ui-super-admin-page-meta--inline {
+        margin: 0.65rem 0 0;
+    }
+
+    .ui-super-admin-page-meta__chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.22rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--sa-header-accent, var(--ui-text-muted)) 75%, var(--ui-text-muted));
+        background: color-mix(in srgb, var(--sa-header-accent, var(--ui-text-muted)) 8%, transparent);
+        border: 1px solid color-mix(in srgb, var(--sa-header-accent, var(--ui-border)) 18%, var(--ui-border));
+    }
+
+    .ui-super-admin-page-meta--overview {
+        --sa-header-accent: var(--sa-accent-overview);
+    }
+
+    .ui-super-admin-page-meta--operations {
+        --sa-header-accent: var(--sa-accent-operations);
+    }
+
+    .ui-super-admin-page-meta--billing {
+        --sa-header-accent: var(--sa-accent-billing);
+    }
+
+    .ui-super-admin-page-meta--platform {
+        --sa-header-accent: var(--sa-accent-platform);
     }
 
     .ui-super-admin-page-header__eyebrow {

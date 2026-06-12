@@ -47,21 +47,11 @@ const topbarSubtitle = computed(() =>
     ?? t('superAdmin.companies.header.openTenant', { slug: props.company.slug, domain: props.rootDomain ?? 'accel.kz' }),
 );
 
-const statusLabel = computed(
-    () => props.statusLabels[props.company.subscription_status] ?? props.company.subscription_status,
-);
-
-const titleBadge = computed(() => ({
-    text: statusLabel.value,
-    className: subscriptionStatusBadgeClass(props.company.subscription_status),
-}));
-
 useRegisterSuperAdminPageChrome(() => ({
     eyebrow: t('superAdmin.layout.nav.companies'),
     title: props.company.name,
     subtitle: topbarSubtitle.value,
     accentGroup: 'operations',
-    titleBadge: titleBadge.value,
 }));
 
 const maxSpark = computed(() =>
@@ -186,18 +176,25 @@ function impersonate(): void {
         </div>
     </Teleport>
 
+    <div class="ui-super-admin-page-meta hidden lg:flex ui-super-admin-page-meta--operations">
+        <span class="ui-super-admin-page-meta__chip">{{ t('superAdmin.layout.nav.companies') }}</span>
+        <span :class="subscriptionStatusBadgeClass(company.subscription_status)">
+            {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
+        </span>
+    </div>
+
     <header
         class="ui-super-admin-page-header ui-super-admin-page-header--mobile ui-super-admin-page-header--operations ui-super-admin-company-header lg:hidden"
     >
         <div class="ui-super-admin-page-header__intro min-w-0 flex-1">
-            <p class="ui-super-admin-page-header__eyebrow">{{ t('superAdmin.layout.nav.companies') }}</p>
-            <div class="flex flex-wrap items-center gap-2">
-                <h1 class="ui-super-admin-page-header__title !text-xl sm:!text-2xl">{{ company.name }}</h1>
+            <h1 class="ui-super-admin-page-header__title !text-xl sm:!text-2xl">{{ company.name }}</h1>
+            <p v-if="trialInfo" class="mt-1 text-sm text-ui-accent">{{ trialInfo }}</p>
+            <div class="ui-super-admin-page-meta ui-super-admin-page-meta--inline ui-super-admin-page-meta--operations">
+                <span class="ui-super-admin-page-meta__chip">{{ t('superAdmin.layout.nav.companies') }}</span>
                 <span :class="subscriptionStatusBadgeClass(company.subscription_status)">
                     {{ statusLabels[company.subscription_status] ?? company.subscription_status }}
                 </span>
             </div>
-            <p v-if="trialInfo" class="mt-1 text-sm text-ui-accent">{{ trialInfo }}</p>
         </div>
         <div class="ui-super-admin-page-header__actions">
             <button
