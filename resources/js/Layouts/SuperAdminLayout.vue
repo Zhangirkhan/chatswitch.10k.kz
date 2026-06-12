@@ -3,15 +3,14 @@ import PlatformBannerStack from '@/Components/PlatformBannerStack.vue';
 import SuperAdminSidebar from '@/Components/SuperAdmin/SuperAdminSidebar.vue';
 import {
     provideSuperAdminPageChrome,
-    useSuperAdminPageChrome,
 } from '@/composables/useSuperAdminPageChrome';
 import { useI18n } from '@/composables/useI18n';
 import { useTheme } from '@/composables/useTheme';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
-provideSuperAdminPageChrome();
-const pageChrome = useSuperAdminPageChrome();
+const chromeContext = provideSuperAdminPageChrome();
+const pageChrome = computed(() => chromeContext.chrome.value);
 
 const page = usePage<any>();
 const { t } = useI18n();
