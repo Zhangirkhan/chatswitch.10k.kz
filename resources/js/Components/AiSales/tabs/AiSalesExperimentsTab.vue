@@ -2,6 +2,7 @@
 import AiSalesChartCard from '@/Components/AiSales/partials/AiSalesChartCard.vue';
 import { experimentsBarOption } from '@/Components/AiSales/charts/buildChartOptions';
 import { ensureAiSalesEchartsRegistered, VChart } from '@/Components/AiSales/charts/aiSalesEcharts';
+import { useAiSalesChartLabels } from '@/Components/AiSales/charts/useAiSalesChartLabels';
 import { readAiSalesChartTheme } from '@/Components/AiSales/charts/useAiSalesChartTheme';
 import type { AiSalesMetricsPayload } from '@/Components/AiSales/types';
 import { useI18n } from '@/composables/useI18n';
@@ -16,8 +17,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const theme = computed(() => readAiSalesChartTheme());
+const { seriesLabels } = useAiSalesChartLabels(props.i18nPrefix);
 const experiments = computed(() => props.metrics.experiments ?? []);
-const barOption = computed(() => experimentsBarOption(props.metrics.charts.experiments, theme.value));
+const barOption = computed(() => experimentsBarOption(props.metrics.charts.experiments, theme.value, seriesLabels.value));
 
 function formatPercent(value: number | null): string {
     if (value === null) {
@@ -59,7 +61,7 @@ function formatPercent(value: number | null): string {
                             <td class="px-4 py-2">{{ row.experiment_name }}</td>
                             <td class="px-4 py-2">
                                 {{ row.variant_key }}
-                                <span v-if="row.is_control" class="text-xs text-ui-text-muted"> (control)</span>
+                                <span v-if="row.is_control" class="text-xs text-ui-text-muted"> ({{ t(`${i18nPrefix}.chartControl`) }})</span>
                             </td>
                             <td class="px-4 py-2">{{ row.replies }}</td>
                             <td class="px-4 py-2">{{ row.qualified }}</td>

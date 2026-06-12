@@ -3,6 +3,7 @@ import AiSalesChartCard from '@/Components/AiSales/partials/AiSalesChartCard.vue
 import AiSalesKpiHero from '@/Components/AiSales/partials/AiSalesKpiHero.vue';
 import { cohortDailyOption, funnelChartOption, outcomesDailyOption } from '@/Components/AiSales/charts/buildChartOptions';
 import { ensureAiSalesEchartsRegistered, VChart } from '@/Components/AiSales/charts/aiSalesEcharts';
+import { useAiSalesChartLabels } from '@/Components/AiSales/charts/useAiSalesChartLabels';
 import { readAiSalesChartTheme } from '@/Components/AiSales/charts/useAiSalesChartTheme';
 import type { AiSalesMetricsPayload } from '@/Components/AiSales/types';
 import { useI18n } from '@/composables/useI18n';
@@ -17,9 +18,10 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const theme = computed(() => readAiSalesChartTheme());
+const { seriesLabels, funnelStageLabels } = useAiSalesChartLabels(props.i18nPrefix);
 
-const funnelOption = computed(() => funnelChartOption(props.metrics.charts.funnel, theme.value));
-const outcomesOption = computed(() => outcomesDailyOption(props.metrics.charts.outcomes_daily, theme.value));
+const funnelOption = computed(() => funnelChartOption(props.metrics.charts.funnel, theme.value, funnelStageLabels.value));
+const outcomesOption = computed(() => outcomesDailyOption(props.metrics.charts.outcomes_daily, theme.value, seriesLabels.value));
 const cohortOption = computed(() => cohortDailyOption(props.metrics.charts.cohort_daily, theme.value));
 
 const topLostReason = computed(() => props.metrics.lost_reasons[0] ?? null);

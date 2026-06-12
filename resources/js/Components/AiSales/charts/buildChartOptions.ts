@@ -14,6 +14,19 @@ export type ChartsPayload = {
     win_prob_calibration: { labels: string[]; predicted: number[]; actual: number[] } | null;
 };
 
+export type ChartSeriesLabels = {
+    won: string;
+    lost: string;
+    winRate: string;
+    count: string;
+    replies: string;
+    qualified: string;
+    predicted: string;
+    actual: string;
+};
+
+export type FunnelStageLabels = Record<string, string>;
+
 function shortDateLabels(labels: string[]): string[] {
     return labels.map((d) => {
         const parts = d.split('-');
@@ -24,6 +37,7 @@ function shortDateLabels(labels: string[]): string[] {
 export function funnelChartOption(
     data: ChartsPayload['funnel'],
     theme: AiSalesChartTheme,
+    stageLabels: FunnelStageLabels,
 ): Record<string, unknown> {
     const stages = data.stages.filter((s) => s.value > 0 || s.percent !== null);
     if (stages.length === 0) {
@@ -54,7 +68,7 @@ export function funnelChartOption(
                 },
                 itemStyle: { borderColor: theme.panel, borderWidth: 2 },
                 data: stages.map((s, i) => ({
-                    name: s.name,
+                    name: stageLabels[s.key] ?? s.name,
                     value: s.value,
                     percent: s.percent,
                     itemStyle: { color: theme.series[i % theme.series.length] },
@@ -64,15 +78,19 @@ export function funnelChartOption(
     };
 }
 
-export function outcomesDailyOption(data: ChartsPayload['outcomes_daily'], theme: AiSalesChartTheme): Record<string, unknown> {
+export function outcomesDailyOption(
+    data: ChartsPayload['outcomes_daily'],
+    theme: AiSalesChartTheme,
+    seriesLabels: ChartSeriesLabels,
+): Record<string, unknown> {
     return {
         ...baseChartOptions(theme),
         legend: { top: 0, textStyle: { color: theme.textMuted } },
         xAxis: { type: 'category', data: shortDateLabels(data.labels), axisLabel: { color: theme.textMuted } },
         yAxis: { type: 'value', splitLine: { lineStyle: { color: theme.gridLine } }, axisLabel: { color: theme.textMuted } },
         series: [
-            { name: 'Won', type: 'line', smooth: true, stack: 'total', areaStyle: { opacity: 0.25 }, data: data.won, color: theme.success },
-            { name: 'Lost', type: 'line', smooth: true, stack: 'total', areaStyle: { opacity: 0.2 }, data: data.lost, color: theme.danger },
+            { name: seriesLabels.won, type: 'line', smooth: true, stack: 'total', areaStyle: { opacity: 0.25 }, data: data.won, color: theme.success },
+            { name: seriesLabels.lost, type: 'line', smooth: true, stack: 'total', areaStyle: { opacity: 0.2 }, data: data.lost, color: theme.danger },
         ],
     };
 }
@@ -134,7 +152,11 @@ export function lostReasonsPieOption(data: ChartsPayload['lost_reasons'], theme:
     };
 }
 
-export function winRateByGradeOption(data: ChartsPayload['win_rate_by_grade'], theme: AiSalesChartTheme): Record<string, unknown> {
+export function winRateByGradeOption(
+    data: ChartsPayload['win_rate_by_grade'],
+    theme: AiSalesChartTheme,
+    seriesLabels: ChartSeriesLabels,
+): Record<string, unknown> {
     if (data.grades.length === 0) {
         return {};
     }
@@ -144,13 +166,13 @@ export function winRateByGradeOption(data: ChartsPayload['win_rate_by_grade'], t
         legend: { top: 0, textStyle: { color: theme.textMuted } },
         xAxis: { type: 'category', data: data.grades, axisLabel: { color: theme.textMuted } },
         yAxis: [
-            { type: 'value', name: 'Count', splitLine: { lineStyle: { color: theme.gridLine } }, axisLabel: { color: theme.textMuted } },
+            { type: 'value', name: seriesLabels.count, splitLine: { lineStyle: { color: theme.gridLine } }, axisLabel: { color: theme.textMuted } },
             { type: 'value', name: '%', max: 100, axisLabel: { color: theme.textMuted, formatter: '{value}%' }, splitLine: { show: false } },
         ],
         series: [
-            { name: 'Won', type: 'bar', stack: 'total', data: data.won, color: theme.success },
-            { name: 'Lost', type: 'bar', stack: 'total', data: data.total.map((t, i) => t - data.won[i]), color: theme.danger, itemStyle: { opacity: 0.5 } },
-            { name: 'Win rate', type: 'line', yAxisIndex: 1, data: data.rates.map((r) => r ?? 0), color: theme.accent },
+            { name: seriesLabels.won, type: 'bar', stack: 'total', data: data.won, color: theme.success },
+            { name: seriesLabels.lost, type: 'bar', stack: 'total', data: data.total.map((t, i) => t - data.won[i]), color: theme.danger, itemStyle: { opacity: 0.5 } },
+            { name: seriesLabels.winRate, type: 'line', yAxisIndex: 1, data: data.rates.map((r) => r ?? 0), color: theme.accent },
         ],
     };
 }
@@ -177,7 +199,11 @@ export function objectionsBarOption(data: ChartsPayload['objections'], theme: Ai
     };
 }
 
-export function experimentsBarOption(data: ChartsPayload['experiments'], theme: AiSalesChartTheme): Record<string, unknown> {
+export function experimentsBarOption(
+    data: ChartsPayload['experiments'],
+    theme: AiSalesChartTheme,
+    seriesLabels: ChartSeriesLabels,
+): Record<string, unknown> {
     if (data.labels.length === 0) {
         return {};
     }
@@ -188,8 +214,8 @@ export function experimentsBarOption(data: ChartsPayload['experiments'], theme: 
         xAxis: { type: 'category', data: data.labels, axisLabel: { color: theme.textMuted, rotate: 20 } },
         yAxis: { type: 'value', splitLine: { lineStyle: { color: theme.gridLine } }, axisLabel: { color: theme.textMuted } },
         series: [
-            { name: 'Replies', type: 'bar', data: data.replies, color: theme.series[0] },
-            { name: 'Qualified', type: 'bar', data: data.qualified, color: theme.series[1] },
+            { name: seriesLabels.replies, type: 'bar', data: data.replies, color: theme.series[0] },
+            { name: seriesLabels.qualified, type: 'bar', data: data.qualified, color: theme.series[1] },
         ],
     };
 }
@@ -213,7 +239,7 @@ export function byCompanyBarOption(data: ChartsPayload['by_company'], theme: AiS
     };
 }
 
-export function wonLostPieOption(won: number, lost: number, theme: AiSalesChartTheme): Record<string, unknown> {
+export function wonLostPieOption(won: number, lost: number, theme: AiSalesChartTheme, seriesLabels: ChartSeriesLabels): Record<string, unknown> {
     if (won + lost === 0) {
         return {};
     }
@@ -224,23 +250,27 @@ export function wonLostPieOption(won: number, lost: number, theme: AiSalesChartT
             type: 'pie',
             radius: ['45%', '70%'],
             data: [
-                { name: 'Won', value: won, itemStyle: { color: theme.success } },
-                { name: 'Lost', value: lost, itemStyle: { color: theme.danger } },
+                { name: seriesLabels.won, value: won, itemStyle: { color: theme.success } },
+                { name: seriesLabels.lost, value: lost, itemStyle: { color: theme.danger } },
             ],
             label: { color: theme.text },
         }],
     };
 }
 
-export function calibrationOption(data: NonNullable<ChartsPayload['win_prob_calibration']>, theme: AiSalesChartTheme): Record<string, unknown> {
+export function calibrationOption(
+    data: NonNullable<ChartsPayload['win_prob_calibration']>,
+    theme: AiSalesChartTheme,
+    seriesLabels: ChartSeriesLabels,
+): Record<string, unknown> {
     return {
         ...baseChartOptions(theme),
         legend: { top: 0, textStyle: { color: theme.textMuted } },
         xAxis: { type: 'category', data: data.labels, axisLabel: { color: theme.textMuted } },
         yAxis: { type: 'value', max: 100, axisLabel: { color: theme.textMuted, formatter: '{value}%' }, splitLine: { lineStyle: { color: theme.gridLine } } },
         series: [
-            { name: 'Predicted', type: 'bar', data: data.predicted, color: theme.series[1] },
-            { name: 'Actual', type: 'bar', data: data.actual, color: theme.accent },
+            { name: seriesLabels.predicted, type: 'bar', data: data.predicted, color: theme.series[1] },
+            { name: seriesLabels.actual, type: 'bar', data: data.actual, color: theme.accent },
         ],
     };
 }
