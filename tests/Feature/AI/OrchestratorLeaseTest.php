@@ -8,11 +8,13 @@ use App\Models\AiOrchestratorRun;
 use App\Models\Chat;
 use App\Models\Funnel;
 use App\Models\FunnelAiScenario;
+use App\Models\FunnelStage;
 use App\Models\Message;
-use App\Models\WhatsappSession;
+use App\Models\User;
 use App\Services\AI\AiFunnelOrchestratorService;
 use App\Support\TenantCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -27,7 +29,10 @@ final class OrchestratorLeaseTest extends TestCase
             Role::findOrCreate($role);
         }
         TenantCompany::ensureExists();
-        config(['ai.orchestrator_lease_timeout_minutes' => 5]);
+        config([
+            'ai.orchestrator_lease_timeout_minutes' => 5,
+            'services.openai.api_key' => 'test-key',
+        ]);
     }
 
     /**
@@ -36,34 +41,40 @@ final class OrchestratorLeaseTest extends TestCase
      */
     public function test_expired_running_lease_is_reclaimed(): void
     {
-        $chat = Chat::factory()->create(['company_id' => TenantCompany::id()]);
-        $trigger = Message::factory()->create([
-            'chat_id' => $chat->id,
-            'direction' => 'inbound',
-        ]);
+        [$chat, $trigger] = $this->createOrchestratorChatFixture();
+        $staleStartedAt = now()->subMinutes(10);
 
-        // Simulate a run that has been RUNNING for 10 minutes (> 5 min lease).
         $run = AiOrchestratorRun::create([
             'company_id' => TenantCompany::id(),
             'chat_id' => $chat->id,
             'trigger_message_id' => $trigger->id,
-            'funnel_id' => null,
-            'funnel_stage_id' => null,
+            'funnel_id' => $chat->funnel_id,
+            'funnel_stage_id' => $chat->funnel_stage_id,
             'status' => AiOrchestratorRun::STATUS_RUNNING,
-            'started_at' => now()->subMinutes(10),
+            'started_at' => $staleStartedAt,
         ]);
 
-        // The orchestrator should reclaim the dead lease and reset to PENDING.
-        // We simulate just the reclaim step by calling run() and checking state.
-        // Since the scenario is missing, the orchestrator will exit after reclaim.
-        $orchestrator = app(AiFunnelOrchestratorService::class);
-        $orchestrator->run($chat->id, $trigger->id);
+        Http::fake([
+            'https://api.openai.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'customerReply' => 'Здравствуйте!',
+                        'targetFunnelStageId' => null,
+                        'confidence' => 0.8,
+                        'reason' => 'test',
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ], 200),
+        ]);
+
+        app(AiFunnelOrchestratorService::class)->run($chat->id, $trigger->id);
 
         $run->refresh();
-        // After reclaim attempt, status should NOT still be RUNNING
-        // (either PENDING was set, then claim succeeded and the run proceeded).
-        $this->assertNotEquals(AiOrchestratorRun::STATUS_RUNNING, $run->status,
-            'Dead lease should have been reclaimed (not still RUNNING)');
+        $this->assertFalse(
+            $run->status === AiOrchestratorRun::STATUS_RUNNING
+            && $run->started_at?->equalTo($staleStartedAt),
+            'Dead lease should have been reclaimed (not still RUNNING with stale started_at)',
+        );
     }
 
     /**
@@ -71,29 +82,74 @@ final class OrchestratorLeaseTest extends TestCase
      */
     public function test_failed_run_is_reset_to_pending_for_retry(): void
     {
-        $chat = Chat::factory()->create(['company_id' => TenantCompany::id()]);
-        $trigger = Message::factory()->create([
-            'chat_id' => $chat->id,
-            'direction' => 'inbound',
-        ]);
+        [$chat, $trigger] = $this->createOrchestratorChatFixture();
 
         $run = AiOrchestratorRun::create([
             'company_id' => TenantCompany::id(),
             'chat_id' => $chat->id,
             'trigger_message_id' => $trigger->id,
-            'funnel_id' => null,
-            'funnel_stage_id' => null,
+            'funnel_id' => $chat->funnel_id,
+            'funnel_stage_id' => $chat->funnel_stage_id,
             'status' => AiOrchestratorRun::STATUS_FAILED,
             'error' => 'Previous failure',
         ]);
 
-        $orchestrator = app(AiFunnelOrchestratorService::class);
-        $orchestrator->run($chat->id, $trigger->id);
+        Http::fake([
+            'https://api.openai.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'customerReply' => 'Здравствуйте!',
+                        'targetFunnelStageId' => null,
+                        'confidence' => 0.8,
+                        'reason' => 'test',
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ], 200),
+        ]);
+
+        app(AiFunnelOrchestratorService::class)->run($chat->id, $trigger->id);
 
         $run->refresh();
-        // Should have been reset to PENDING (then attempt proceeded and likely
-        // completed or failed differently — either way no longer FAILED from before).
         $this->assertNotEquals('Previous failure', $run->error,
             'Failed run should have been reset for retry');
+    }
+
+    /**
+     * @return array{0: Chat, 1: Message}
+     */
+    private function createOrchestratorChatFixture(): array
+    {
+        $manager = User::factory()->create(['company_id' => TenantCompany::id()]);
+        $manager->assignRole('manager');
+
+        $funnel = Funnel::factory()->create(['company_id' => TenantCompany::id()]);
+        $stage = FunnelStage::factory()->create([
+            'funnel_id' => $funnel->id,
+            'position' => 0,
+        ]);
+
+        FunnelAiScenario::query()->create([
+            'company_id' => TenantCompany::id(),
+            'funnel_id' => $funnel->id,
+            'enabled' => true,
+            'booking_horizon_days' => 14,
+            'fallback_manager_user_id' => $manager->id,
+        ]);
+
+        $chat = Chat::factory()->create([
+            'company_id' => TenantCompany::id(),
+            'funnel_id' => $funnel->id,
+            'funnel_stage_id' => $stage->id,
+            'ai_enabled' => true,
+            'ai_responder_user_id' => $manager->id,
+        ]);
+
+        $trigger = Message::factory()->create([
+            'chat_id' => $chat->id,
+            'direction' => 'inbound',
+            'body' => 'Здравствуйте',
+        ]);
+
+        return [$chat, $trigger];
     }
 }
