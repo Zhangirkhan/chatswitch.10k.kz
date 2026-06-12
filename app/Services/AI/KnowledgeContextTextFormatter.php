@@ -17,6 +17,28 @@ final class KnowledgeContextTextFormatter
     ) {}
 
     /**
+     * @param  list<string>|string|null  $domain
+     * @return array{lines: list<string>, hits: list<array{chunk_id: int, similarity: float, domain: string|null}>}
+     */
+    public function knowledgeContext(int $companyId, ?string $query = null, array|string|null $domain = null): array
+    {
+        if ($this->ragRetriever->shouldUseForQuery($query)) {
+            $retrieved = $this->ragRetriever->retrieveWithHits($companyId, (string) $query, $domain);
+            if ($retrieved['lines'] !== []) {
+                return [
+                    'lines' => $this->ragHeader($query, true, $retrieved['lines']),
+                    'hits' => $retrieved['hits'],
+                ];
+            }
+        }
+
+        return [
+            'lines' => $this->knowledgeLines($companyId, $query, $domain),
+            'hits' => [],
+        ];
+    }
+
+    /**
      * Строки блока базы знаний в том же формате, что уходит в system prompt (до обрезки/суммаризации).
      *
      * @param  list<string>|string|null  $domain  Ranked domains list (top-2) or legacy single domain.

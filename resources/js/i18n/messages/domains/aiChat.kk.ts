@@ -24,6 +24,7 @@ export const aiChatKk = {
     summaryEmptyChat: 'Чатқа CRM байланысы байLANғанда қорытынды пайда болады.',
     summaryEmptyWorkspace: 'Клиент туралы сұраңыз немесе «Байланыстар» қойындысынан таңдаңыз.',
     confidenceHigh: 'Көп деректер',
+    revenueCopilot: 'Revenue Copilot',
     confidenceMedium: 'Ішінара деректер',
     confidenceLow: 'Аз деректер',
     funnelAndCrm: 'Шұңқыр және CRM',

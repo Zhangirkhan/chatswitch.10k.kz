@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\AI;
 
 use App\Events\ChatAiOrchestratorUpdated;
+use App\Jobs\AuditConversationJob;
 use App\Models\AiOrchestratorRun;
 use App\Models\CalendarEvent;
 use App\Models\Chat;
@@ -228,6 +229,11 @@ final class AiFunnelOrchestratorService
             ])->save();
             $this->broadcastStatus($chat);
             $this->dispatchFallbackReplyIfNeeded($chat, $trigger, $plan, $status, $actions);
+
+            if (in_array($status, [AiOrchestratorRun::STATUS_COMPLETED, AiOrchestratorRun::STATUS_NEEDS_MANAGER], true)) {
+                AuditConversationJob::dispatch((int) $chat->id, (int) $trigger->id)
+                    ->delay(now()->addMinutes(5));
+            }
         } catch (Throwable $e) {
             $run->forceFill([
                 'status' => AiOrchestratorRun::STATUS_FAILED,

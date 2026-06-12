@@ -7,8 +7,10 @@ namespace App\Services\AI;
 use App\Models\AiFollowUpProposal;
 use App\Models\AiOrchestratorRun;
 use App\Models\Chat;
+use App\Models\ConversationAudit;
 use App\Support\TenantCompany;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 
 final class ChatAttentionService
@@ -52,6 +54,9 @@ final class ChatAttentionService
                     ->orWhere('unread_count', '>', 0)
                     ->orWhere(function (Builder $uncertain) use ($confidenceMax, $runSince): void {
                         $this->applyLowConfidenceLastRunScope($uncertain, $confidenceMax, $runSince);
+                    })
+                    ->orWhere(function (Builder $highRisk): void {
+                        $this->applyHighRiskAuditScope($highRisk);
                     });
             })
             ->orderByRaw("CASE
@@ -69,14 +74,39 @@ final class ChatAttentionService
                       AND r.status = ?
                       AND r.completed_at >= ?
                 ) THEN 2
+                WHEN EXISTS (
+                    SELECT 1 FROM conversation_audits ca
+                    WHERE ca.chat_id = chats.id
+                      AND ca.risk_level = 'high'
+                      AND ca.created_at >= ?
+                ) THEN 2
                 ELSE 3
             END", [
                 AiFollowUpProposal::STATUS_NEEDS_MANAGER,
                 $confidenceMax,
                 AiOrchestratorRun::STATUS_COMPLETED,
                 $runSince,
+                $runSince,
             ])
             ->orderByDesc('last_message_at');
+    }
+
+    /**
+     * @param  Builder<Chat>  $query
+     */
+    private function applyHighRiskAuditScope(Builder $query): void
+    {
+        if (! Schema::hasTable('conversation_audits')) {
+            return;
+        }
+
+        $query->whereExists(function ($sub): void {
+            $sub->from('conversation_audits as ca')
+                ->selectRaw('1')
+                ->whereColumn('ca.chat_id', 'chats.id')
+                ->where('ca.risk_level', 'high')
+                ->where('ca.created_at', '>=', $this->attentionRunSince());
+        });
     }
 
     /**
@@ -186,6 +216,10 @@ final class ChatAttentionService
             return $uncertain;
         }
 
+        if ($this->hasHighRiskAudit($chat)) {
+            return 'Аудитор AI оценил диалог как высокий риск потери сделки.';
+        }
+
         if ((int) $chat->unread_count > 0) {
             return 'Есть непрочитанные сообщения.';
         }
@@ -211,6 +245,10 @@ final class ChatAttentionService
         }
 
         if ($this->hasUncertainLastRun($chat)) {
+            return 'warning';
+        }
+
+        if ($this->hasHighRiskAudit($chat)) {
             return 'warning';
         }
 
@@ -263,6 +301,19 @@ final class ChatAttentionService
         }
 
         return (float) $run->confidence < $this->attentionConfidenceMax();
+    }
+
+    private function hasHighRiskAudit(Chat $chat): bool
+    {
+        if (! Schema::hasTable('conversation_audits')) {
+            return false;
+        }
+
+        return ConversationAudit::query()
+            ->where('chat_id', $chat->id)
+            ->where('risk_level', 'high')
+            ->where('created_at', '>=', $this->attentionRunSince())
+            ->exists();
     }
 
     private function hasPendingFollowUpProposal(Chat $chat): bool

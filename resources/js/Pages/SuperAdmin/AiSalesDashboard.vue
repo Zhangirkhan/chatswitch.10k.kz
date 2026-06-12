@@ -27,6 +27,18 @@ type WinRateGrade = {
     percent: number | null;
 };
 
+type ObjectionRow = {
+    label: string;
+    frequency: number;
+    win_rate: number | null;
+};
+
+type ObjectionResponseRow = {
+    text: string;
+    win_count?: number;
+    loss_count?: number;
+};
+
 type CompanyRow = {
     company_id: number;
     company_name: string;
@@ -53,6 +65,11 @@ const props = defineProps<{
         kpis: Kpi[];
         lost_reasons: LostReason[];
         win_rate_by_grade: WinRateGrade[];
+        objection_intelligence: {
+            top_objections: ObjectionRow[];
+            top_winning_responses: ObjectionResponseRow[];
+            top_losing_responses: ObjectionResponseRow[];
+        };
         by_company: CompanyRow[];
     };
     companies: CompanyOption[];
@@ -74,11 +91,23 @@ const periodOptions = computed(() => [
 ]);
 
 const pipelineKpis = computed(() =>
-    props.metrics.kpis.filter((kpi) => kpi.key !== 'close_rate' && kpi.key !== 'follow_up_response_rate'),
+    props.metrics.kpis.filter((kpi) => ![
+        'close_rate',
+        'follow_up_response_rate',
+        'nurture_response_rate',
+        'funnel_follow_up_response_rate',
+        'deferral_recovery_rate',
+    ].includes(kpi.key)),
 );
 
 const outcomeKpis = computed(() =>
-    props.metrics.kpis.filter((kpi) => kpi.key === 'close_rate' || kpi.key === 'follow_up_response_rate'),
+    props.metrics.kpis.filter((kpi) => [
+        'close_rate',
+        'follow_up_response_rate',
+        'nurture_response_rate',
+        'funnel_follow_up_response_rate',
+        'deferral_recovery_rate',
+    ].includes(kpi.key)),
 );
 
 const maxLostReasonPercent = computed(() => {
@@ -108,6 +137,11 @@ function kpiLabel(key: string, fallback: string): string {
         meeting_booking_rate: t('superAdmin.aiSales.kpiMeeting'),
         close_rate: t('superAdmin.aiSales.kpiClose'),
         follow_up_response_rate: t('superAdmin.aiSales.kpiFollowUp'),
+        requirements_capture_rate: t('superAdmin.aiSales.kpiRequirements'),
+        timeline_capture_rate: t('superAdmin.aiSales.kpiTimeline'),
+        nurture_response_rate: t('superAdmin.aiSales.kpiNurtureResponse'),
+        funnel_follow_up_response_rate: t('superAdmin.aiSales.kpiFunnelFollowUp'),
+        deferral_recovery_rate: t('superAdmin.aiSales.kpiDeferralRecovery'),
     };
     return map[key] ?? fallback;
 }
@@ -279,6 +313,45 @@ function applyFilters(): void {
                 </div>
             </section>
         </div>
+
+        <section class="mb-8 ui-panel overflow-hidden p-0">
+            <div class="border-b border-ui-border px-4 py-3 font-medium">
+                {{ t('superAdmin.aiSales.objectionsTitle') }}
+            </div>
+            <div v-if="metrics.objection_intelligence.top_objections.length === 0" class="px-4 py-6 text-sm text-ui-text-muted">
+                {{ t('superAdmin.aiSales.noData') }}
+            </div>
+            <div v-else class="grid gap-6 px-4 py-4 lg:grid-cols-3">
+                <div>
+                    <h3 class="mb-2 text-sm font-medium text-ui-text-secondary">{{ t('superAdmin.aiSales.topObjections') }}</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li v-for="row in metrics.objection_intelligence.top_objections" :key="row.label">
+                            <span class="font-medium">{{ row.label }}</span>
+                            <span class="text-ui-text-muted"> — {{ row.frequency }}</span>
+                            <span v-if="row.win_rate != null" class="text-ui-text-secondary"> · {{ row.win_rate }}%</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="mb-2 text-sm font-medium text-ui-text-secondary">{{ t('superAdmin.aiSales.topWinningResponses') }}</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li v-for="(row, idx) in metrics.objection_intelligence.top_winning_responses" :key="`win-${idx}`">
+                            {{ row.text }}
+                            <span class="text-ui-text-muted"> ({{ row.win_count }})</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="mb-2 text-sm font-medium text-ui-text-secondary">{{ t('superAdmin.aiSales.topLosingResponses') }}</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li v-for="(row, idx) in metrics.objection_intelligence.top_losing_responses" :key="`loss-${idx}`">
+                            {{ row.text }}
+                            <span class="text-ui-text-muted"> ({{ row.loss_count }})</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
 
         <section v-if="metrics.by_company.length > 0" class="ui-panel overflow-hidden p-0">
             <div class="border-b border-ui-border px-4 py-3 font-medium">

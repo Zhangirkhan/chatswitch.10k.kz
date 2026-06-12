@@ -13,6 +13,7 @@ final class DatabaseSeeder extends Seeder
         $this->call([
             TenantPermissionSeeder::class,
             RoleSeeder::class,
+            SalesPlaybookSeeder::class,
         ]);
     }
 }

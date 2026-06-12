@@ -21,6 +21,8 @@ final class AiFunnelPlannerService
         private readonly PromptBuilder $promptBuilder,
         private readonly LocalePromptAugmenter $localeAugmenter,
         private readonly ChatSalesStateService $salesStateService,
+        private readonly NextBestActionEngine $nbaEngine,
+        private readonly WinProbabilityService $winProbabilityService,
     ) {}
 
     /**
@@ -128,6 +130,12 @@ final class AiFunnelPlannerService
                 : null,
             'lead_grade' => AiFeatureFlags::enabled(AiFeatureFlags::LEAD_SCORING, $chat->company_id)
                 ? ($salesState['grade'] ?? null)
+                : null,
+            'next_best_action' => AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
+                ? $this->nbaEngine->compute($chat)
+                : null,
+            'win_probability' => AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $chat->company_id)
+                ? $this->winProbabilityService->latestForChat($chat)
                 : null,
             'existing_appointments' => CalendarEvent::query()
                 ->where('chat_id', $chat->id)

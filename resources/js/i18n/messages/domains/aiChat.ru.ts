@@ -24,6 +24,7 @@ export const aiChatRu = {
     summaryEmptyChat: 'Сводка появится, когда к чату привязан контакт CRM.',
     summaryEmptyWorkspace: 'Спросите про клиента или выберите контакт во вкладке «Контакты».',
     confidenceHigh: 'Много данных',
+    revenueCopilot: 'Revenue Copilot',
     confidenceMedium: 'Частичные данные',
     confidenceLow: 'Мало данных',
     funnelAndCrm: 'Воронка и CRM',

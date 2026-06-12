@@ -192,6 +192,39 @@ function sectionSemantic(title: string): SectionSemantic {
 
             <p class="summary-insight">{{ summary.ai.headline }}</p>
 
+            <section v-if="summary.revenue_copilot?.win_probability != null" class="summary-group">
+                <h3 class="summary-group__label">{{ t('aiChat.revenueCopilot') }}</h3>
+                <div class="summary-tags">
+                    <span class="summary-tag summary-tag--deal">
+                        Win {{ summary.revenue_copilot.win_probability }}%
+                    </span>
+                    <span
+                        v-if="summary.revenue_copilot.next_best_action?.next_best_action"
+                        class="summary-tag summary-tag--agreements"
+                    >
+                        NBA: {{ summary.revenue_copilot.next_best_action.next_best_action }}
+                    </span>
+                    <span
+                        v-if="summary.revenue_copilot.lead_grade"
+                        class="summary-tag summary-tag--who"
+                    >
+                        Grade {{ summary.revenue_copilot.lead_grade }}
+                    </span>
+                </div>
+                <p
+                    v-if="summary.revenue_copilot.next_best_action?.reasoning"
+                    class="mt-2 text-sm text-ui-text-secondary"
+                >
+                    {{ summary.revenue_copilot.next_best_action.reasoning }}
+                </p>
+                <p
+                    v-if="(summary.revenue_copilot.risk_factors?.length ?? 0) > 0"
+                    class="mt-2 text-xs text-ui-text-muted"
+                >
+                    {{ summary.revenue_copilot.risk_factors?.join(', ') }}
+                </p>
+            </section>
+
             <section v-if="hasCrmTags" class="summary-group">
                 <h3 class="summary-group__label">{{ t('aiChat.funnelAndCrm') }}</h3>
                 <div class="summary-tags">

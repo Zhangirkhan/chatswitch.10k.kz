@@ -3,6 +3,32 @@ export type ClientSummarySection = {
     body: string;
 };
 
+export type RevenueCopilot = {
+    win_probability: number | null;
+    risk_factors?: string[];
+    recommended_action?: string | null;
+    next_best_action?: {
+        current_stage: string;
+        goal: string;
+        confidence: number;
+        next_best_action: string;
+        reasoning: string;
+    } | null;
+    missing_fields?: string[];
+    objections_open?: string[];
+    lead_grade?: string | null;
+    lead_score?: number | null;
+    latest_audit?: {
+        sales_score: number | null;
+        conversation_quality: string | null;
+        risk_level: string | null;
+        missed_questions: string[];
+    } | null;
+    objection_summary?: {
+        top_objections: Array<{ label: string; frequency: number; win_rate: number | null }>;
+    };
+};
+
 export type ClientSummary = {
     contact_id: number;
     identity: {
@@ -26,6 +52,7 @@ export type ClientSummary = {
         sections: ClientSummarySection[];
         confidence: 'high' | 'medium' | 'low';
     };
+    revenue_copilot?: RevenueCopilot | null;
     primary_chat_id: number | null;
     candidate_contact_ids?: number[];
 };

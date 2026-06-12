@@ -16,7 +16,7 @@ use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\AppointmentReminderSettings;
 use App\Services\Calendar\CalendarAvailabilityService;
-use App\Services\Knowledge\ProductMessageAttachmentService;
+use App\Services\Knowledge\KnowledgeRetrievalLogger;
 use App\Support\ClientMessageHeuristics;
 use App\Support\LocalizedClientGreeting;
 use App\Support\MessageInboundText;
@@ -41,6 +41,7 @@ final class AiReplyGenerator
         private readonly ChatConflictService $conflictService,
         private readonly ConversationAppointmentResolver $conversationAppointments,
         private readonly ClientMessageIntentDetector $clientIntents,
+        private readonly KnowledgeRetrievalLogger $retrievalLogger,
     ) {}
 
     /**
@@ -145,6 +146,22 @@ final class AiReplyGenerator
                 'decision_manifest' => $built['manifest'] ?? [],
             ],
         ])->save();
+
+        $manifest = is_array($built['manifest'] ?? null) ? $built['manifest'] : [];
+        $chunkHits = [];
+        foreach ($manifest['retrieved_chunks'] ?? [] as $hit) {
+            if (! is_array($hit) || ! isset($hit['id'])) {
+                continue;
+            }
+            $chunkHits[] = [
+                'chunk_id' => (int) $hit['id'],
+                'similarity' => (float) ($hit['similarity'] ?? 0),
+                'domain' => isset($hit['domain']) ? (string) $hit['domain'] : null,
+            ];
+        }
+        if ($chunkHits !== []) {
+            $this->retrievalLogger->log($companyId, $chunkHits, $log?->id);
+        }
 
         return [
             'reply' => $reply,

@@ -33,12 +33,54 @@ final class KnowledgeRagRetriever
     }
 
     /**
+     * @param  list<string>|string|null  $domains
+     * @return array{lines: list<string>, hits: list<array{chunk_id: int, similarity: float, domain: string|null}>}
+     */
+    public function retrieveWithHits(int $companyId, string $query, array|string|null $domains = null): array
+    {
+        $scored = $this->scoreChunks($companyId, $query, $domains);
+        if ($scored === []) {
+            return ['lines' => [], 'hits' => []];
+        }
+
+        $topK = (int) config('knowledge.rag.top_k', 12);
+        $maxRules = (int) config('knowledge.rag.max_rules', 5);
+        $picked = $this->selectTopChunks($scored, $topK, $maxRules);
+
+        $scoreById = [];
+        foreach ($scored as $row) {
+            $scoreById[(int) $row['chunk']->id] = (float) $row['score'];
+        }
+
+        $hits = array_map(static fn (KnowledgeChunk $chunk): array => [
+            'chunk_id' => (int) $chunk->id,
+            'similarity' => round($scoreById[(int) $chunk->id] ?? 0.0, 4),
+            'domain' => $chunk->domain,
+        ], $picked);
+
+        return [
+            'lines' => $this->formatRetrievedLines($picked),
+            'hits' => $hits,
+        ];
+    }
+
+    /**
      * @param  list<string>|string|null  $domains  Ranked domain list (top-2), or legacy single domain string.
      * @return list<string>
      */
     public function retrieveLines(int $companyId, string $query, array|string|null $domains = null): array
     {
-        // Normalise legacy single-string domain parameter.
+        $result = $this->retrieveWithHits($companyId, $query, $domains);
+
+        return $result['lines'];
+    }
+
+    /**
+     * @param  list<string>|string|null  $domains
+     * @return list<array{chunk: KnowledgeChunk, score: float}>
+     */
+    private function scoreChunks(int $companyId, string $query, array|string|null $domains = null): array
+    {
         if (is_string($domains)) {
             $domains = [$domains];
         }
@@ -69,12 +111,8 @@ final class KnowledgeRagRetriever
         }
 
         $minSimilarity = (float) config('knowledge.rag.min_similarity', 0.30);
-        $topK = (int) config('knowledge.rag.top_k', 12);
-        $maxRules = (int) config('knowledge.rag.max_rules', 5);
-        // Primary domain boost; secondary domain gets 60% of the boost.
         $domainBoost = (float) config('knowledge.rag.domain_boost', 0.08);
 
-        // Build domain-to-boost lookup: top domain → full boost, second → 60%.
         $domainBoostMap = [];
         foreach ($domains as $rank => $d) {
             $domainBoostMap[$d] = $domainBoost * ($rank === 0 ? 1.0 : 0.6);
@@ -89,7 +127,6 @@ final class KnowledgeRagRetriever
 
             $score = VectorCosine::similarity($queryVector, array_map(static fn ($v): float => (float) $v, $vector));
 
-            // Apply ranked domain boost.
             if ($chunk->domain !== null && isset($domainBoostMap[$chunk->domain])) {
                 $score += $domainBoostMap[$chunk->domain];
             }
@@ -110,9 +147,7 @@ final class KnowledgeRagRetriever
 
         usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
 
-        $selected = $this->selectTopChunks($scored, $topK, $maxRules);
-
-        return $this->formatRetrievedLines($selected);
+        return $scored;
     }
 
     /**

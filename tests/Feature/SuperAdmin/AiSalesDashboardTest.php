@@ -115,11 +115,12 @@ final class AiSalesDashboardTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('SuperAdmin/AiSalesDashboard')
-                ->has('metrics.kpis', 7)
+                ->has('metrics.kpis', 12)
                 ->where('metrics.summary.cohort_size', 1)
                 ->where('metrics.summary.closed_deals', 3)
                 ->has('metrics.lost_reasons')
                 ->has('metrics.win_rate_by_grade')
+                ->has('metrics.objection_intelligence')
                 ->where('companies', fn ($companies) => collect($companies)->contains('id', $company->id)));
     }
 

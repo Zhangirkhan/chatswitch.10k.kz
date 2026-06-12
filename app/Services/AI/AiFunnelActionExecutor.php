@@ -14,6 +14,7 @@ use App\Models\DepartmentPost;
 use App\Models\FunnelAiScenario;
 use App\Models\FunnelStageAiRule;
 use App\Models\Message;
+use App\Models\SalesMilestone;
 use App\Models\User;
 use App\Services\Calendar\AppointmentBookingService;
 use App\Services\Calendar\CalendarAvailabilityService;
@@ -45,6 +46,7 @@ final class AiFunnelActionExecutor
         private readonly ChatAssignmentCalendarSyncService $assignmentCalendarSync,
         private readonly AiResponderResolver $responderResolver,
         private readonly AiCrmWritebackService $crmWriteback,
+        private readonly SalesMilestoneRecorder $milestoneRecorder,
     ) {}
 
     /**
@@ -334,6 +336,14 @@ final class AiFunnelActionExecutor
 
             $action->forceFill(['calendar_event_id' => $existing->id])->save();
 
+            $this->milestoneRecorder->record(
+                $chat,
+                SalesMilestone::MILESTONE_MEETING_BOOKED,
+                SalesMilestone::SOURCE_ORCHESTRATOR,
+                (int) $trigger->id,
+                ['calendar_event_id' => $existing->id, 'rescheduled' => true],
+            );
+
             return ['calendar_event_id' => $existing->id, 'rescheduled' => true];
         }
 
@@ -352,6 +362,14 @@ final class AiFunnelActionExecutor
         $event = $booked['event'];
         $this->assignmentCalendarSync->ensureChatAssignment($chat, $assignee->id, $actor->id);
         $action->forceFill(['calendar_event_id' => $event->id])->save();
+
+        $this->milestoneRecorder->record(
+            $chat,
+            SalesMilestone::MILESTONE_MEETING_BOOKED,
+            SalesMilestone::SOURCE_ORCHESTRATOR,
+            (int) $trigger->id,
+            ['calendar_event_id' => $event->id],
+        );
 
         return ['calendar_event_id' => $event->id];
     }

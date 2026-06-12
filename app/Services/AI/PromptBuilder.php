@@ -65,6 +65,9 @@ final class PromptBuilder
         private readonly RetrievalQueryBuilder $retrievalQueryBuilder,
         private readonly ChatSalesStateService $salesStateService,
         private readonly DealOutcomeStatsService $dealOutcomeStats,
+        private readonly NextBestActionEngine $nbaEngine,
+        private readonly WinProbabilityService $winProbabilityService,
+        private readonly ObjectionIntelligenceService $objectionIntel,
     ) {}
 
     /**
@@ -79,6 +82,7 @@ final class PromptBuilder
             'retrieval_query' => null,
             'domain'          => null,
             'memory_hash'     => null,
+            'retrieved_chunks' => [],
         ];
 
         $chat->loadMissing(['assignments.user', 'company:id,name']);
@@ -511,6 +515,10 @@ final class PromptBuilder
             && AiFeatureFlags::enabled(AiFeatureFlags::WIN_LOSS_LEARNING, $companyId)
             ? $this->dealOutcomeStats->promptBlock($companyId)
             : '';
+        $objectionBlock = $companyId !== null
+            && AiFeatureFlags::enabled(AiFeatureFlags::SALES_STATE, $companyId)
+            ? $this->objectionPromptBlock($companyId)
+            : '';
 
         return <<<PROMPT
 {$personaLine}
@@ -576,6 +584,8 @@ final class PromptBuilder
 {$memoryBlock}
 
 {$dealInsightsBlock}
+
+{$objectionBlock}
 
 {$promotionsBlock}
 PROMPT;
@@ -693,6 +703,23 @@ RULE;
             if ($salesSummary !== '') {
                 $lines[] = $salesSummary;
             }
+
+            $nba = $this->nbaEngine->compute($chat);
+            $lines[] = sprintf(
+                'Next best action: %s (confidence %.0f%%, goal: %s). %s',
+                $nba['next_best_action'],
+                ((float) $nba['confidence']) * 100,
+                $nba['goal'],
+                $nba['reasoning'],
+            );
+
+            $winProb = $this->winProbabilityService->latestForChat($chat);
+            if ($winProb !== null) {
+                $risk = $winProb['risk_factors'] !== []
+                    ? ' Risk: '.implode(', ', array_slice($winProb['risk_factors'], 0, 3)).'.'
+                    : '';
+                $lines[] = "Win probability: {$winProb['win_probability']}%{$risk}";
+            }
         }
 
         if ($lines === []) {
@@ -738,7 +765,14 @@ RULE;
         $this->buildManifest['domains']         = $domains;
 
         $query = $rawQuery;
-        $lines = $this->knowledgeTextFormatter->knowledgeLines($companyId, $query, $domains !== [] ? $domains : null);
+        $context = $this->knowledgeTextFormatter->knowledgeContext(
+            $companyId,
+            $query,
+            $domains !== [] ? $domains : null,
+        );
+        $lines = $context['lines'];
+        $this->buildManifest['retrieved_chunks'] = app(\App\Services\Knowledge\KnowledgeRetrievalLogger::class)
+            ->manifestHits($context['hits']);
         $historyCharBudget = (int) config('ai.history_char_budget', 24000);
         $fullContext = implode("\n", $lines);
         if (mb_strlen($fullContext) <= $historyCharBudget) {
@@ -1020,6 +1054,16 @@ RULE;
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private function objectionPromptBlock(int $companyId): string
+    {
+        $lines = $this->objectionIntel->promptBlockForCompany($companyId);
+        if ($lines === []) {
+            return '';
+        }
+
+        return "## Частые возражения (статистика компании)\n".implode("\n", $lines);
+    }
 
     private function bodyLimit(): int
     {

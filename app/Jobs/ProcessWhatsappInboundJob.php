@@ -13,6 +13,7 @@ use App\Services\AI\AutomatedPeerReplyGuard;
 use App\Services\AI\ChatFirstContactAckService;
 use App\Services\AI\ChatDepartmentRoutingService;
 use App\Services\AI\ChatOffHoursReplyService;
+use App\Services\AI\FollowUpOutcomeService;
 use App\Services\AI\InboundAiDispatchService;
 use App\Services\ChatService;
 use App\Services\Funnel\RepeatOrderCycleService;
@@ -66,6 +67,7 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
         ActiveTopicDetector $topicDetector,
         ChatSalesStateService $salesState,
         RepeatOrderCycleService $repeatOrderCycle,
+        FollowUpOutcomeService $followUpOutcomes,
     ): void {
         $sessionName = (string) ($this->data['session'] ?? 'default');
         $companyId = isset($this->data['companyId']) ? (int) $this->data['companyId'] : null;
@@ -177,6 +179,8 @@ final class ProcessWhatsappInboundJob implements ShouldBeUnique, ShouldQueue
             $salesState->clearDeferralFromMessage($message->chat, $message);
             $salesState->applyDeferralFromMessage($message->chat, $message);
             $message->chat->refresh();
+
+            $followUpOutcomes->recordInboundResponse($message->chat, $message);
         }
 
         $resolvedDepartment = null;

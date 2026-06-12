@@ -24,6 +24,7 @@ export const aiChatEn = {
     summaryEmptyChat: 'Summary appears when a CRM contact is linked to the chat.',
     summaryEmptyWorkspace: 'Ask about a client or pick a contact in the Contacts tab.',
     confidenceHigh: 'Rich data',
+    revenueCopilot: 'Revenue Copilot',
     confidenceMedium: 'Partial data',
     confidenceLow: 'Limited data',
     funnelAndCrm: 'Funnel and CRM',

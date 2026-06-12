@@ -11,6 +11,7 @@ use App\Services\AI\Orchestrator\ClientMessageIntentDetector;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\AiFeatureFlags;
 use App\Support\MessageInboundText;
+use App\Models\SalesMilestone;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -45,6 +46,8 @@ final class ChatSalesStateService
         private readonly EntityMemoryService $entityMemory,
         private readonly ChatLeadScoreService $leadScoreService,
         private readonly ChatNurtureSequenceService $nurtureSequence,
+        private readonly SalesMilestoneRecorder $milestoneRecorder,
+        private readonly PlaybookSelector $playbookSelector,
     ) {}
 
     /**
@@ -121,10 +124,20 @@ final class ChatSalesStateService
             return;
         }
 
+        $this->milestoneRecorder->recordStateTransitions(
+            $chat,
+            is_array($current) ? $current : [],
+            $state,
+            SalesMilestone::SOURCE_AI,
+        );
+
         $chat->forceFill([
             'sales_state' => $state,
             'sales_state_updated_at' => now(),
         ])->save();
+
+        app(WinProbabilityService::class)->compute($chat->fresh() ?? $chat);
+        app(NextBestActionEngine::class)->compute($chat->fresh() ?? $chat);
 
         Log::debug('[sales-state] updated', [
             'chat_id' => $chat->id,
@@ -167,6 +180,13 @@ final class ChatSalesStateService
             'body'    => mb_substr($body, 0, 80),
         ]);
 
+        $this->milestoneRecorder->record(
+            $chat,
+            SalesMilestone::MILESTONE_DEFERRAL,
+            SalesMilestone::SOURCE_AI,
+            (int) $message->id,
+        );
+
         $this->nurtureSequence->startFromDeferral($chat->fresh() ?? $chat, $message);
     }
 
@@ -196,6 +216,13 @@ final class ChatSalesStateService
         ])->save();
 
         $this->nurtureSequence->cancelForChat($chat, 're_engaged');
+
+        $this->milestoneRecorder->record(
+            $chat,
+            SalesMilestone::MILESTONE_RE_ENGAGED,
+            SalesMilestone::SOURCE_AI,
+            (int) $message->id,
+        );
     }
 
     /**
@@ -412,6 +439,27 @@ final class ChatSalesStateService
 
         if (str_contains($stageName, 'предложен') || str_contains($stageName, 'коммерч') || str_contains($stageName, 'оффер')) {
             return self::NA_PRESENT_OFFER;
+        }
+
+        $playbook = $this->playbookSelector->resolveForChat($chat);
+        foreach ($this->playbookSelector->qualificationFieldOrder($playbook) as $field) {
+            $known = match ($field) {
+                'budget' => $budgetKnown,
+                'requirements' => $requirementsKnown,
+                'timeline' => $timelineKnown,
+                'decision_maker' => $decisionMakerKnown,
+                default => true,
+            };
+
+            if ($known) {
+                continue;
+            }
+
+            return match ($field) {
+                'budget' => self::NA_ASK_BUDGET,
+                'requirements' => self::NA_ASK_REQUIREMENTS,
+                default => self::NA_QUALIFY,
+            };
         }
 
         // Fall back to qualification gaps in BANT priority order.

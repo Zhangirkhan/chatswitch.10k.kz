@@ -11,6 +11,7 @@ use App\Models\Company;
 use App\Models\DealOutcome;
 use App\Models\FunnelStage;
 use App\Models\Message;
+use App\Models\SalesMilestone;
 use App\Models\ScheduledMessage;
 use App\Models\User;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
@@ -30,6 +31,7 @@ final class AiSalesMetricsService
 
     public function __construct(
         private readonly SuperAdminCompanyScope $superAdminScope,
+        private readonly ObjectionIntelligenceService $objectionIntel,
     ) {}
 
     /**
@@ -40,6 +42,7 @@ final class AiSalesMetricsService
      *     kpis: list<array{key: string, label: string, percent: float|null, numerator: int, denominator: int, sufficient_data: bool}>,
      *     lost_reasons: list<array{reason: string, count: int, percent: float}>,
      *     win_rate_by_grade: list<array{grade: string, won: int, total: int, percent: float|null}>,
+     *     objection_intelligence: array{top_objections: list<array<string, mixed>>, top_winning_responses: list<array<string, mixed>>, top_losing_responses: list<array<string, mixed>>},
      *     by_company: list<array<string, mixed>>
      * }
      */
@@ -60,6 +63,9 @@ final class AiSalesMetricsService
         $kpis = $this->buildKpis($companyIds, $cohortChatIds, $from, $to, $closedDeals, $followUpsSent);
         $lostReasons = $this->lostReasonDistribution($companyIds, $from, $to);
         $winRateByGrade = $this->winRateByGrade($companyIds, $from, $to);
+        $objectionIntelligence = $companyId !== null
+            ? $this->objectionIntel->buildForCompany($companyId)
+            : $this->aggregateObjectionIntelligence($companyIds);
 
         $byCompany = [];
         if ($companyId === null && $companyIds !== []) {
@@ -83,6 +89,7 @@ final class AiSalesMetricsService
             'kpis' => $kpis,
             'lost_reasons' => $lostReasons,
             'win_rate_by_grade' => $winRateByGrade,
+            'objection_intelligence' => $objectionIntelligence,
             'by_company' => $byCompany,
         ];
     }
@@ -164,24 +171,126 @@ final class AiSalesMetricsService
     ): array {
         $cohortSize = count($cohortChatIds);
 
-        $qualified = $this->countSalesStateFlag($cohortChatIds, 'qualified');
-        $budgetKnown = $this->countSalesStateFlag($cohortChatIds, 'budget_known');
-        $dmKnown = $this->countSalesStateFlag($cohortChatIds, 'decision_maker_known');
+        $qualified = $this->countMilestoneOrFlag($cohortChatIds, SalesMilestone::MILESTONE_QUALIFIED, 'qualified', $from, $to);
+        $budgetKnown = $this->countMilestoneOrFlag($cohortChatIds, SalesMilestone::MILESTONE_BUDGET_CAPTURED, 'budget_known', $from, $to);
+        $dmKnown = $this->countMilestoneOrFlag($cohortChatIds, SalesMilestone::MILESTONE_DM_CAPTURED, 'decision_maker_known', $from, $to);
+        $requirementsKnown = $this->countMilestoneOrFlag($cohortChatIds, SalesMilestone::MILESTONE_REQUIREMENTS_CAPTURED, 'requirements_known', $from, $to);
+        $timelineKnown = $this->countMilestoneOrFlag($cohortChatIds, SalesMilestone::MILESTONE_TIMELINE_CAPTURED, 'timeline_known', $from, $to);
         $proposalChats = $this->proposalChatCount($companyIds, $cohortChatIds, $from, $to);
         $bookingChats = $this->meetingBookingChatCount($companyIds, $cohortChatIds, $from, $to);
 
         $wonCount = (int) $this->closedDealsQuery($companyIds, $from, $to)->where('won', true)->count();
         $followUpResponses = $this->followUpResponseCount($companyIds, $from, $to);
+        $nurtureResponses = $this->followUpResponseCount($companyIds, $from, $to, ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP);
+        $funnelResponses = $this->followUpResponseCount($companyIds, $from, $to, ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP);
+        $nurtureSent = $this->followUpsSentCount($companyIds, $from, $to, ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP);
+        $funnelSent = $this->followUpsSentCount($companyIds, $from, $to, ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP);
+        $deferrals = $this->countMilestoneInPeriod($cohortChatIds, SalesMilestone::MILESTONE_DEFERRAL, $from, $to);
+        $deferralRecoveries = $this->deferralRecoveryCount($cohortChatIds, $from, $to);
 
         return [
             $this->kpi('qualification_rate', 'Qualification Rate', $qualified, $cohortSize, $cohortSize > 0),
             $this->kpi('budget_capture_rate', 'Budget Capture Rate', $budgetKnown, $cohortSize, $cohortSize > 0),
+            $this->kpi('requirements_capture_rate', 'Requirements Capture Rate', $requirementsKnown, $cohortSize, $cohortSize > 0),
+            $this->kpi('timeline_capture_rate', 'Timeline Capture Rate', $timelineKnown, $cohortSize, $cohortSize > 0),
             $this->kpi('dm_capture_rate', 'DM Capture Rate', $dmKnown, $cohortSize, $cohortSize > 0),
             $this->kpi('proposal_rate', 'Proposal Rate', $proposalChats, $cohortSize, $cohortSize > 0),
             $this->kpi('meeting_booking_rate', 'Meeting Booking Rate', $bookingChats, $cohortSize, $cohortSize > 0),
             $this->kpi('close_rate', 'Close Rate', $wonCount, $closedDeals, $closedDeals >= self::MIN_CLOSED_DEALS),
             $this->kpi('follow_up_response_rate', 'Follow-up Response Rate', $followUpResponses, $followUpsSent, $followUpsSent > 0),
+            $this->kpi('nurture_response_rate', 'Nurture Response Rate', $nurtureResponses, $nurtureSent, $nurtureSent > 0),
+            $this->kpi('funnel_follow_up_response_rate', 'Funnel Follow-up Response Rate', $funnelResponses, $funnelSent, $funnelSent > 0),
+            $this->kpi('deferral_recovery_rate', 'Deferral Recovery Rate', $deferralRecoveries, $deferrals, $deferrals > 0),
         ];
+    }
+
+    /**
+     * @param  list<int>  $cohortChatIds
+     */
+    private function countMilestoneOrFlag(
+        array $cohortChatIds,
+        string $milestone,
+        string $flag,
+        Carbon $from,
+        Carbon $to,
+    ): int {
+        $milestoneCount = $this->countMilestoneInPeriod($cohortChatIds, $milestone, $from, $to);
+        if ($milestoneCount > 0) {
+            return $milestoneCount;
+        }
+
+        return $this->countSalesStateFlag($cohortChatIds, $flag);
+    }
+
+    /**
+     * @param  list<int>  $cohortChatIds
+     */
+    private function countMilestoneInPeriod(array $cohortChatIds, string $milestone, Carbon $from, Carbon $to): int
+    {
+        if ($cohortChatIds === [] || ! Schema::hasTable('sales_milestones')) {
+            return 0;
+        }
+
+        return (int) SalesMilestone::query()
+            ->whereIn('chat_id', $cohortChatIds)
+            ->where('milestone', $milestone)
+            ->whereBetween('occurred_at', [$from, $to])
+            ->distinct()
+            ->count('chat_id');
+    }
+
+    /**
+     * @param  list<int>  $cohortChatIds
+     */
+    private function deferralRecoveryCount(array $cohortChatIds, Carbon $from, Carbon $to): int
+    {
+        if ($cohortChatIds === [] || ! Schema::hasTable('sales_milestones')) {
+            return 0;
+        }
+
+        $deferralChatIds = SalesMilestone::query()
+            ->whereIn('chat_id', $cohortChatIds)
+            ->where('milestone', SalesMilestone::MILESTONE_DEFERRAL)
+            ->whereBetween('occurred_at', [$from, $to])
+            ->pluck('chat_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($deferralChatIds === []) {
+            return 0;
+        }
+
+        return (int) SalesMilestone::query()
+            ->whereIn('chat_id', $deferralChatIds)
+            ->where('milestone', SalesMilestone::MILESTONE_RE_ENGAGED)
+            ->whereBetween('occurred_at', [$from, $to])
+            ->distinct()
+            ->count('chat_id');
+    }
+
+    /**
+     * @param  list<int>  $companyIds
+     * @return array{top_objections: list<array<string, mixed>>, top_winning_responses: list<array<string, mixed>>, top_losing_responses: list<array<string, mixed>>}
+     */
+    private function aggregateObjectionIntelligence(array $companyIds): array
+    {
+        $merged = [
+            'top_objections' => [],
+            'top_winning_responses' => [],
+            'top_losing_responses' => [],
+        ];
+
+        foreach ($companyIds as $companyId) {
+            $payload = $this->objectionIntel->buildForCompany($companyId);
+            $merged['top_objections'] = array_merge($merged['top_objections'], $payload['top_objections']);
+            $merged['top_winning_responses'] = array_merge($merged['top_winning_responses'], $payload['top_winning_responses']);
+            $merged['top_losing_responses'] = array_merge($merged['top_losing_responses'], $payload['top_losing_responses']);
+        }
+
+        usort($merged['top_objections'], static fn (array $a, array $b): int => ($b['frequency'] ?? 0) <=> ($a['frequency'] ?? 0));
+        $merged['top_objections'] = array_slice($merged['top_objections'], 0, 10);
+
+        return $merged;
     }
 
     /**
@@ -387,18 +496,22 @@ final class AiSalesMetricsService
     /**
      * @param  list<int>  $companyIds
      */
-    private function followUpsSentCount(array $companyIds, Carbon $from, Carbon $to): int
+    private function followUpsSentCount(array $companyIds, Carbon $from, Carbon $to, ?string $purpose = null): int
     {
         if ($companyIds === [] || ! Schema::hasTable('scheduled_messages')) {
             return 0;
         }
 
-        return ScheduledMessage::query()
-            ->where('status', ScheduledMessage::STATUS_SENT)
-            ->whereIn('purpose', [
+        $purposes = $purpose !== null
+            ? [$purpose]
+            : [
                 ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP,
                 ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP,
-            ])
+            ];
+
+        return ScheduledMessage::query()
+            ->where('status', ScheduledMessage::STATUS_SENT)
+            ->whereIn('purpose', $purposes)
             ->whereHas('chat', static fn (Builder $q) => $q
                 ->withoutGlobalScope('tenant')
                 ->whereIn('company_id', $companyIds))
@@ -410,19 +523,23 @@ final class AiSalesMetricsService
     /**
      * @param  list<int>  $companyIds
      */
-    private function followUpResponseCount(array $companyIds, Carbon $from, Carbon $to): int
+    private function followUpResponseCount(array $companyIds, Carbon $from, Carbon $to, ?string $purpose = null): int
     {
         if ($companyIds === [] || ! Schema::hasTable('scheduled_messages')) {
             return 0;
         }
 
+        $purposes = $purpose !== null
+            ? [$purpose]
+            : [
+                ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP,
+                ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP,
+            ];
+
         $followUps = ScheduledMessage::query()
             ->with(['chat:id,company_id'])
             ->where('status', ScheduledMessage::STATUS_SENT)
-            ->whereIn('purpose', [
-                ScheduledMessage::PURPOSE_FUNNEL_FOLLOW_UP,
-                ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP,
-            ])
+            ->whereIn('purpose', $purposes)
             ->whereHas('chat', static fn (Builder $q) => $q
                 ->withoutGlobalScope('tenant')
                 ->whereIn('company_id', $companyIds))

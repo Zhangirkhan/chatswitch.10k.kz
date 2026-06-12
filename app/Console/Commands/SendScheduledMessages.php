@@ -9,6 +9,7 @@ use App\Jobs\SendOutboundMessageJob;
 use App\Models\ScheduledMessage;
 use App\Services\ChatService;
 use App\Services\AI\ChatNurtureSequenceService;
+use App\Services\AI\FollowUpOutcomeService;
 use App\Services\Funnel\FunnelStageFollowUpService;
 use App\Support\OperatorSignature;
 use Illuminate\Console\Command;
@@ -24,6 +25,7 @@ final class SendScheduledMessages extends Command
         ChatService $chatService,
         FunnelStageFollowUpService $followUpService,
         ChatNurtureSequenceService $nurtureSequence,
+        FollowUpOutcomeService $followUpOutcomes,
     ): int {
         $limit = max(1, min(200, (int) $this->option('limit')));
 
@@ -37,7 +39,7 @@ final class SendScheduledMessages extends Command
 
         $sent = 0;
         foreach ($ids as $id) {
-            if ($this->sendOne((int) $id, $chatService, $followUpService, $nurtureSequence)) {
+            if ($this->sendOne((int) $id, $chatService, $followUpService, $nurtureSequence, $followUpOutcomes)) {
                 $sent++;
             }
         }
@@ -52,6 +54,7 @@ final class SendScheduledMessages extends Command
         ChatService $chatService,
         FunnelStageFollowUpService $followUpService,
         ChatNurtureSequenceService $nurtureSequence,
+        FollowUpOutcomeService $followUpOutcomes,
     ): bool {
         $scheduled = ScheduledMessage::query()->whereKey($id)->first();
         if ($scheduled === null || $scheduled->status !== ScheduledMessage::STATUS_PENDING) {
@@ -130,6 +133,8 @@ final class SendScheduledMessages extends Command
             if ($scheduled->purpose === ScheduledMessage::PURPOSE_NURTURE_FOLLOW_UP) {
                 $nurtureSequence->onStepSent($scheduled->fresh() ?? $scheduled);
             }
+
+            $followUpOutcomes->recordSent($scheduled->fresh() ?? $scheduled);
 
             return true;
         } catch (\Throwable $e) {

@@ -10,6 +10,7 @@ use App\Models\ContactTag;
 use App\Models\DealOutcome;
 use App\Models\FunnelStage;
 use App\Services\Memory\EntityMemoryService;
+use App\Models\SalesMilestone;
 use App\Support\AiFeatureFlags;
 use App\Support\FunnelStageType;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +21,7 @@ final class DealOutcomeRecorder
         private readonly EntityMemoryService $entityMemory,
         private readonly ChatSalesStateService $salesState,
         private readonly DealOutcomeStatsService $statsService,
+        private readonly SalesMilestoneRecorder $milestoneRecorder,
     ) {}
 
     public function recordFromStageTransition(Chat $chat, FunnelStage $targetStage): void
@@ -81,6 +83,16 @@ final class DealOutcomeRecorder
             'source' => $source,
             'closed_at' => now(),
         ]);
+
+        $this->milestoneRecorder->record(
+            $chat,
+            $won ? SalesMilestone::MILESTONE_CLOSED_WON : SalesMilestone::MILESTONE_CLOSED_LOST,
+            $source === DealOutcome::SOURCE_MANUAL_CLOSE
+                ? SalesMilestone::SOURCE_MANAGER
+                : SalesMilestone::SOURCE_SYSTEM,
+            null,
+            ['reason' => $reason, 'funnel_stage_id' => $funnelStageId],
+        );
 
         Log::info('[deal-outcome] recorded', [
             'chat_id' => $chat->id,

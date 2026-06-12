@@ -26,6 +26,7 @@ final class AiWorkspaceClientSummaryService
         private readonly EntityMemoryService $entityMemory,
         private readonly ContactFieldValueService $fieldValues,
         private readonly OpenAiChatService $openAi,
+        private readonly RevenueCopilotAssembler $revenueCopilot,
     ) {}
 
     /**
@@ -102,6 +103,7 @@ final class AiWorkspaceClientSummaryService
             ],
             'memory_updated_at' => $memoryPayload['updated_at'],
             'ai' => $ai,
+            'revenue_copilot' => $this->revenueCopilot->buildForContact($contact, $preferredChatId),
             'primary_chat_id' => $primaryChatId !== null ? (int) $primaryChatId : null,
             'candidate_contact_ids' => $contactIds,
         ];
