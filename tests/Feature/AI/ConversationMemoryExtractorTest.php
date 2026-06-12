@@ -9,13 +9,12 @@ use App\Models\Chat;
 use App\Models\Contact;
 use App\Models\Message;
 use App\Services\AI\AiCrmWritebackService;
-use App\Services\AI\AiUsageOptions;
 use App\Services\AI\ConversationMemoryExtractor;
-use App\Services\AI\OpenAiChatService;
 use App\Services\Memory\EntityMemoryService;
 use App\Support\AiFeatureFlags;
 use App\Support\TenantCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -32,7 +31,11 @@ final class ConversationMemoryExtractorTest extends TestCase
         }
         TenantCompany::ensureExists();
         Storage::fake('local');
-        config(['entity-memory.disk' => 'local', 'ai.memory_extraction_max_tokens' => 800]);
+        config([
+            'entity-memory.disk' => 'local',
+            'ai.memory_extraction_max_tokens' => 800,
+            'services.openai.api_key' => 'test-key',
+        ]);
     }
 
     public function test_extractor_writes_facts_to_contact_memory(): void
@@ -55,19 +58,18 @@ final class ConversationMemoryExtractorTest extends TestCase
             'message_timestamp' => now()->subMinutes(4),
         ]);
 
-        $fakeFacts = [
-            'budget' => '150 000 тенге',
-            'requirements' => 'диван',
-        ];
+        Http::fake([
+            'https://api.openai.com/*' => Http::response([
+                'choices' => [
+                    ['message' => ['content' => json_encode([
+                        'budget' => '150 000 тенге',
+                        'requirements' => 'диван',
+                    ], JSON_THROW_ON_ERROR)]],
+                ],
+            ], 200),
+        ]);
 
-        $openAiMock = $this->createMock(OpenAiChatService::class);
-        $openAiMock->method('chatJson')->willReturn($fakeFacts);
-
-        $extractor = new ConversationMemoryExtractor(
-            $openAiMock,
-            app(EntityMemoryService::class),
-        );
-
+        $extractor = app(ConversationMemoryExtractor::class);
         $facts = $extractor->extractFacts($chat);
         $extractor->persistFacts($chat, $facts);
 
@@ -83,12 +85,12 @@ final class ConversationMemoryExtractorTest extends TestCase
             'contact_id' => null,
         ]);
 
-        $openAiMock = $this->createMock(OpenAiChatService::class);
-        $openAiMock->expects($this->never())->method('chatJson');
+        Http::fake();
 
-        $extractor = new ConversationMemoryExtractor($openAiMock, app(EntityMemoryService::class));
+        $extractor = app(ConversationMemoryExtractor::class);
 
         $this->assertSame([], $extractor->extractFacts($chat));
+        Http::assertNothingSent();
     }
 
     public function test_crm_writeback_creates_ai_tags(): void
@@ -99,7 +101,6 @@ final class ConversationMemoryExtractorTest extends TestCase
             'contact_id' => $contact->id,
         ]);
 
-        // Enable the flag for this company.
         AiFeatureFlags::enable(AiFeatureFlags::CRM_WRITEBACK, TenantCompany::id());
 
         $service = app(AiCrmWritebackService::class);
@@ -124,7 +125,7 @@ final class ConversationMemoryExtractorTest extends TestCase
             'contact_id' => $contact->id,
         ]);
 
-        // Flag intentionally NOT enabled.
+        AiFeatureFlags::disable(AiFeatureFlags::CRM_WRITEBACK, TenantCompany::id());
 
         $service = app(AiCrmWritebackService::class);
         $service->writeContactEnrichment($chat, ['budget' => '100 000']);
