@@ -357,6 +357,17 @@ final class ChatService
             return;
         }
 
+        // Cutoff на контакте живёт долго (блокирует resync), а на чате сбрасывается
+        // после первого нового входящего. Не затираем превью у чата с перепиской.
+        $hasConversation = Message::query()
+            ->where('chat_id', $chat->id)
+            ->whereIn('direction', ['inbound', 'outbound'])
+            ->exists();
+
+        if ($hasConversation) {
+            return;
+        }
+
         $chat->forceFill([
             'messages_cleared_at' => $contactClearedAt,
             'last_message_text' => null,

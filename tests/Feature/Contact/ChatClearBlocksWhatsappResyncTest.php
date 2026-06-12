@@ -124,6 +124,7 @@ final class ChatClearBlocksWhatsappResyncTest extends TestCase
         $this->assertSame('Новый вопрос', $message->body);
         $chat->refresh();
         $this->assertNull($chat->messages_cleared_at);
+        $this->assertNotNull($chat->last_message_at);
     }
 
     public function test_lid_inbound_after_client_clear_is_accepted(): void
@@ -171,6 +172,56 @@ final class ChatClearBlocksWhatsappResyncTest extends TestCase
 
         $chat->refresh();
         $this->assertNull($chat->messages_cleared_at);
+        $this->assertNotNull($chat->last_message_at);
+        $contact->refresh();
+        $this->assertNotNull($contact->messages_cleared_at);
+    }
+
+    public function test_find_or_create_chat_does_not_wipe_list_preview_after_clear_and_new_inbound(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('administrator');
+
+        $session = WhatsappSession::factory()->create(['session_name' => 'default']);
+        $contact = Contact::factory()->create([
+            'whatsapp_id' => '33724234223783@lid',
+            'phone_number' => '',
+            'name' => 'Алымжан',
+        ]);
+        $chat = Chat::factory()->create([
+            'contact_id' => $contact->id,
+            'whatsapp_session_id' => $session->id,
+            'whatsapp_chat_id' => '33724234223783@lid',
+            'is_group' => false,
+            'ai_enabled' => false,
+            'funnel_tracking_enabled' => false,
+        ]);
+
+        $this->actingAs($admin)->post(route('clients.clear', $contact))->assertOk();
+
+        $payload = [
+            'session' => 'default',
+            'chatId' => '33724234223783@lid',
+            'chatName' => 'Алымжан',
+            'from' => '33724234223783@lid',
+            'senderPhone' => '33724234223783',
+            'senderName' => 'Алымжан',
+            'body' => 'Новое сообщение после очистки',
+            'isGroup' => false,
+            'timestamp' => now()->getTimestamp(),
+            'messageId' => 'wa-msg-lid-new-2',
+            'type' => 'chat',
+        ];
+
+        $this->app->call([new ProcessWhatsappInboundJob($payload), 'handle']);
+
+        $chat->refresh();
+        $this->assertNotNull($chat->last_message_at);
+
+        app(ChatService::class)->findOrCreateChatForContact($contact->fresh(), $session);
+
+        $chat->refresh();
+        $this->assertNotNull($chat->last_message_at);
         $contact->refresh();
         $this->assertNotNull($contact->messages_cleared_at);
     }
