@@ -87,6 +87,11 @@ final class Company extends Model
         return $this->hasMany(User::class);
     }
 
+    public function userDevices(): HasMany
+    {
+        return $this->hasMany(UserDevice::class);
+    }
+
     public function whatsappSessions(): HasMany
     {
         return $this->hasMany(WhatsappSession::class);

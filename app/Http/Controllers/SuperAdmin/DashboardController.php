@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\TenantSignupRequest;
 use App\Services\Feedback\UserFeedbackPopularService;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
+use App\Services\SuperAdmin\TenantDeviceStatsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,6 +20,7 @@ final class DashboardController extends Controller
     public function __construct(
         private readonly SuperAdminCompanyScope $superAdminScope,
         private readonly UserFeedbackPopularService $feedbackPopularService,
+        private readonly TenantDeviceStatsService $deviceStats,
     ) {}
 
     public function index(Request $request): Response
@@ -56,6 +58,7 @@ final class DashboardController extends Controller
                 'issued_invoices' => $issuedInvoices,
                 'mrr_kzt' => round($mrrCents / 100, 2),
             ],
+            'deviceStats' => $this->deviceStats->forPlatform($companyQuery),
             'recentCompanies' => (clone $companyQuery)
                 ->with('plan:id,name')
                 ->latest()

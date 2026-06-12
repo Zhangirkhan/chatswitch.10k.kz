@@ -18,6 +18,7 @@ use App\Services\SuperAdmin\CompanyUsersService;
 use App\Services\SuperAdmin\DemoTenantPopulationService;
 use App\Services\SuperAdmin\SuperAdminAuditLogger;
 use App\Services\SuperAdmin\SuperAdminCompanyScope;
+use App\Services\SuperAdmin\TenantDeviceStatsService;
 use App\Services\SuperAdmin\TenantImpersonationService;
 use App\Services\SuperAdmin\TenantSandboxCleanupService;
 use App\Services\Tenancy\CompanyProvisioningService;
@@ -48,6 +49,7 @@ final class CompanyController extends Controller
         private readonly DemoTenantPopulationService $demoPopulation,
         private readonly TenantSandboxCleanupService $sandboxCleanup,
         private readonly TenantDoctorService $tenantDoctor,
+        private readonly TenantDeviceStatsService $deviceStats,
     ) {}
 
     public function index(Request $request): Response
@@ -216,6 +218,7 @@ final class CompanyController extends Controller
             'companyModules' => $this->moduleSettings->payloadFor($company),
             'invoices' => $invoices,
             'billingSummary' => $this->billingSummary->forCompany($company),
+            'deviceStats' => $this->deviceStats->forCompany($company),
             'whatsappSessions' => $whatsappSessions,
             'whatsappServiceReachable' => $this->whatsapp->healthReachable(),
             'whatsappMaxSessions' => $this->sessionLimits->perTenantMax($company->id),
