@@ -98,10 +98,7 @@ final class AiFunnelOrchestratorActionTest extends TestCase
             ),
         );
 
-        $this->assertDatabaseHas('messages', [
-            'chat_id' => $chat->id,
-            'direction' => 'outbound',
-        ]);
+        Bus::assertDispatched(SendOutboundMessageJob::class);
         $this->assertDatabaseHas('calendar_events', [
             'chat_id' => $chat->id,
             'assignee_user_id' => $assignee->id,
@@ -226,6 +223,7 @@ final class AiFunnelOrchestratorActionTest extends TestCase
             'whatsapp_session_id' => $session->id,
             'company_id' => $company->id,
             'is_group' => false,
+            'ai_enabled' => true,
             'funnel_id' => $funnel->id,
             'funnel_stage_id' => $stageOne->id,
         ]);
