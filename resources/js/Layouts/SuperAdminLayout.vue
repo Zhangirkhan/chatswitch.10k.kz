@@ -55,6 +55,7 @@ const isSandboxSuperAdmin = computed(
 const navItems = computed((): NavItem[] => {
     const items: NavItem[] = [
         { href: '/dashboard', label: t('superAdmin.layout.nav.dashboard'), match: '/dashboard' },
+        { href: '/ai-sales', label: t('superAdmin.layout.nav.aiSales'), match: '/ai-sales' },
         { href: '/companies', label: t('superAdmin.layout.nav.companies'), match: '/companies' },
         { href: '/invoices', label: t('superAdmin.layout.nav.invoices'), match: '/invoices' },
     ];

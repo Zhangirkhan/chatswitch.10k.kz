@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\SuperAdmin\AiSalesDashboardController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\CompanyDoctorController;
 use App\Http\Controllers\SuperAdmin\ContactMessageController;
@@ -43,6 +44,7 @@ Route::middleware('auth')->group(function (): void {
 
 Route::middleware(['auth', 'super.admin'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('super.dashboard');
+    Route::get('/ai-sales', [AiSalesDashboardController::class, 'index'])->name('super.ai-sales.index');
 
     Route::get('/invoices', [GlobalInvoiceController::class, 'index'])->name('super.invoices.global');
 
