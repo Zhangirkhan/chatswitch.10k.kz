@@ -9,11 +9,9 @@ use App\Models\AiResponseLog;
 use App\Models\Chat;
 use App\Models\Message;
 use App\Models\User;
-use App\Services\AI\AiReplyGenerator;
-use App\Services\AI\AiResponderResolver;
 use App\Support\TenantCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -28,6 +26,10 @@ final class StaleReplyGuardTest extends TestCase
             Role::findOrCreate($role);
         }
         TenantCompany::ensureExists();
+        config([
+            'services.openai.api_key' => 'test-key',
+            'funnel.department_routing.enabled' => false,
+        ]);
     }
 
     /**
@@ -46,11 +48,9 @@ final class StaleReplyGuardTest extends TestCase
             'company_id' => TenantCompany::id(),
             'ai_enabled' => true,
             'ai_mode' => 'auto',
+            'ai_responder_user_id' => $responder->id,
         ]);
 
-        $chat->forceFill(['ai_responder_user_id' => $responder->id])->save();
-
-        // Trigger message
         $trigger = Message::factory()->create([
             'chat_id' => $chat->id,
             'direction' => 'inbound',
@@ -58,49 +58,30 @@ final class StaleReplyGuardTest extends TestCase
             'message_timestamp' => now()->subSeconds(10),
         ]);
 
-        // Newer inbound that arrived AFTER the trigger — simulates rapid burst.
-        Message::factory()->create([
-            'chat_id' => $chat->id,
-            'direction' => 'inbound',
-            'body' => 'Второе сообщение (новее)',
-            'message_timestamp' => now()->subSeconds(2),
-        ]);
+        Http::fake(function () use ($chat) {
+            Message::factory()->create([
+                'chat_id' => $chat->id,
+                'direction' => 'inbound',
+                'body' => 'Второе сообщение (новее)',
+                'message_timestamp' => now(),
+            ]);
 
-        // Create the log in 'generating' state (as the job would after claiming).
-        $log = AiResponseLog::create([
-            'company_id' => TenantCompany::id(),
-            'chat_id' => $chat->id,
-            'user_id' => $responder->id,
-            'trigger_message_id' => $trigger->id,
-            'mode' => 'auto',
-            'status' => 'generating',
-        ]);
+            return Http::response([
+                'choices' => [
+                    ['message' => ['content' => 'Ответ AI на первое сообщение']],
+                ],
+            ], 200);
+        });
 
-        // Mock the generator to return a reply (simulating LLM having returned).
-        $generatorMock = $this->createMock(AiReplyGenerator::class);
-        $generatorMock->method('generate')->willReturn([
-            'reply' => 'Ответ AI на первое сообщение',
-            'prompt_hash' => 'testhash',
-            'metadata' => [],
-        ]);
-        $this->app->instance(AiReplyGenerator::class, $generatorMock);
-
-        // Run the job — it should detect the newer inbound and cancel.
         $job = new GenerateAiReplyJob($chat->id, $trigger->id, TenantCompany::id());
-        $job->handle(
-            $generatorMock,
-            app(\App\Services\OutboundChatMessageDispatcher::class),
-            app(\App\Services\AI\WhatsappAiTypingService::class),
-            app(AiResponderResolver::class),
-            app(\App\Services\AI\ChatDepartmentRoutingService::class),
-            app(\App\Services\AI\ChatOffHoursReplyService::class),
-            app(\App\Services\AI\AutomatedPeerReplyGuard::class),
-            app(\App\Services\AI\ChatIdleAiReplyService::class),
-            app(\App\Services\AI\ChatConflictService::class),
-        );
+        $this->app->call([$job, 'handle']);
 
-        $log->refresh();
-        $this->assertEquals('cancelled', $log->status,
+        $log = AiResponseLog::query()
+            ->where('trigger_message_id', $trigger->id)
+            ->first();
+
+        $this->assertNotNull($log);
+        $this->assertSame('cancelled', $log->status,
             'Stale reply should be marked cancelled when a newer inbound arrived');
     }
 }
